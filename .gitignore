@@ -1,0 +1,33 @@
+# Secrets et environnement
+.env
+*.env.local
+secrets/
+sauvegardes/
+
+# Java / Maven
+coeur/target/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Docker / donnees locales
+donnees/
+caddy_data/
+caddy_config/

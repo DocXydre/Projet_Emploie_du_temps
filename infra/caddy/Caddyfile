@@ -1,0 +1,19 @@
+{$DOMAINE} {
+	encode gzip
+
+	# Seul le coeur metier est expose publiquement.
+	# Le service de collecte reste sur le reseau Docker interne (cf. 4.4).
+	reverse_proxy coeur:8080
+
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+	}
+}
