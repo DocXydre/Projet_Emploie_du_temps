@@ -1,96 +1,31 @@
-# Pile locale du projet de planification.
+# Pile locale.
 #
-#   docker compose up -d --build        # developpement sur le PC
-#   docker compose --profile prod up -d # ajoute Caddy et le HTTPS automatique
+#   docker compose up -d
+#   ./sql/appliquer.sh            applique les migrations
 #
-# Le service `collecteurs` n'expose aucun port vers l'hote en profil prod :
-# c'est un service interne, joignable uniquement sur le reseau Docker.
+# Les fichiers de sql/ ne sont pas montés dans docker-entrypoint-initdb.d :
+# on veut pouvoir les rejouer sur une base existante, pas seulement à la
+# création du volume.
 
 services:
-  base:
+  db:
     image: postgres:16-alpine
-    container_name: planif-base
+    container_name: planif-db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-planif}
       POSTGRES_USER: ${POSTGRES_USER:-planif}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?mot de passe requis dans .env}
       TZ: UTC
-    volumes:
-      - donnees_base:/var/lib/postgresql/data
     ports:
-      # Expose en local pour pouvoir inspecter la base avec un client SQL.
-      - "127.0.0.1:${DB_PORT_HOTE:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - donnees:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planif} -d ${POSTGRES_DB:-planif}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planif}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [interne]
-
-  coeur:
-    build:
-      context: ./coeur
-    container_name: planif-coeur
-    restart: unless-stopped
-    depends_on:
-      base:
-        condition: service_healthy
-    environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
-      DB_HOTE: base
-      DB_PORT: 5432
-      POSTGRES_DB: ${POSTGRES_DB:-planif}
-      POSTGRES_USER: ${POSTGRES_USER:-planif}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      PLANIF_CLE_CHIFFREMENT: ${PLANIF_CLE_CHIFFREMENT}
-      PLANIF_SECRET_JWT: ${PLANIF_SECRET_JWT:?secret JWT requis dans .env}
-      PLANIF_ADMIN_IDENTIFIANT: ${PLANIF_ADMIN_IDENTIFIANT:-thomas}
-      PLANIF_ADMIN_MOT_DE_PASSE: ${PLANIF_ADMIN_MOT_DE_PASSE:-}
-      PLANIF_STANDARD_IDENTIFIANT: ${PLANIF_STANDARD_IDENTIFIANT:-lorette}
-      PLANIF_STANDARD_MOT_DE_PASSE: ${PLANIF_STANDARD_MOT_DE_PASSE:-}
-      PLANIF_URL_COLLECTEURS: http://collecteurs:8000
-      PLANIF_JETON_INTERNE: ${PLANIF_JETON_INTERNE}
-    ports:
-      - "${COEUR_PORT:-8080}:8080"
-    networks: [interne]
-
-  collecteurs:
-    build:
-      context: ./collecteurs
-    container_name: planif-collecteurs
-    restart: unless-stopped
-    environment:
-      PLANIF_URL_COEUR: http://coeur:8080
-      PLANIF_JETON_INTERNE: ${PLANIF_JETON_INTERNE}
-    ports:
-      # Utile en developpement pour tester /documentation.
-      # A retirer ou commenter des que la pile tourne sur le mini PC.
-      - "127.0.0.1:${COLLECTEURS_PORT:-8000}:8000"
-    networks: [interne]
-
-  caddy:
-    image: caddy:2-alpine
-    container_name: planif-caddy
-    restart: unless-stopped
-    profiles: [prod]
-    depends_on: [coeur]
-    environment:
-      DOMAINE: ${DOMAINE}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_donnees:/data
-      - caddy_config:/config
-    networks: [interne]
 
 volumes:
-  donnees_base:
-  caddy_donnees:
-  caddy_config:
-
-networks:
-  interne:
-    driver: bridge
+  donnees:

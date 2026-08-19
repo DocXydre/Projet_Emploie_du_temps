@@ -1,150 +1,97 @@
-# Système de planification personnelle et de logistique domestique
+# Système de planification personnelle
 
-API qui croise des emplois du temps hétérogènes (cours IDMC, shifts McDonald's, disponibilités de Lorette), planifie les tâches récurrentes et gère le stock d'uniforme en flux tendu.
+Une API qui croise des emplois du temps hétérogènes — cours à l'IDMC, shifts McDonald's, saisies manuelles — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, litière, lessives.
 
-Le livrable est **l'API, et rien d'autre** : aucune interface graphique dans ce dépôt. L'usage quotidien passe par le canal de notification à boutons et l'export ICS. Spécification complète : [`cahier-des-charges-planification.md`](cahier-des-charges-planification.md).
+Le résultat sort en flux iCalendar, à afficher dans n'importe quelle application de calendrier, et en notifications Telegram avec boutons de validation.
 
-**État : lot 1 terminé** — modèle métier des sections 5.1 à 5.3, authentification à deux comptes, CRUD des définitions et occurrences, journal d'événements. Le moteur de planification arrive au lot 3.
+Spécification complète : [`cahier-des-charges.md`](cahier-des-charges.md).
 
-## Architecture
+## Le parti pris
 
-```
-Caddy (profil prod)  ──►  coeur (Spring Boot 21)  ──►  PostgreSQL 16
-                                   │
-                                   └──►  collecteurs (FastAPI, réseau interne)
-```
+**Les règles métier vivent dans PostgreSQL**, pas dans le code applicatif. Contraintes `CHECK`, contraintes d'exclusion GiST, vues, fonctions PL/pgSQL et triggers. L'API n'est qu'une couche mince qui appelle et expose.
 
-Un seul service exposé publiquement : le cœur métier. Les collecteurs sont un service interne, isolé pour qu'un scraper mort ou fuyant ne fasse pas tomber le planificateur.
+Concrètement :
 
-## Arborescence
+| Règle | Où elle vit |
+|---|---|
+| Deux cours ne peuvent pas se chevaucher | Contrainte d'exclusion `EXCLUDE USING gist` |
+| Deux tâches à heure imposée non plus | Contrainte d'exclusion partielle |
+| Une occurrence faite ne peut plus bouger | Trigger sur colonnes |
+| La récurrence repart de la date réelle | Trigger après validation |
+| La poussière déclenche l'aspirateur en 24 h | Trigger, avec règle anti-doublon |
+| Le linge lavé n'est pas portable tout de suite | Trigger + vue `v_stock` |
+| Une tâche est en retard | Vue `v_occurrence` |
 
-```
-coeur/                  Cœur métier (Java 21, Spring Boot, Maven)
-  src/main/java/fr/thomasmathis/planif/
-    commun/             Horloge injectable, erreurs, corrélation
-    securite/           JWT, permissions                     ✔ lot 1
-    utilisateurs/       Comptes, rôles, amorce               ✔ lot 1
-    taches/             Définitions, occurrences, états      ✔ lot 1
-    statuts/            Statuts globaux et effets            ✔ lot 1
-    journal/            Traçabilité des actions              ✔ lot 1
-    contraintes/        Occupations, sources, disponibilités ✔ lot 1 / lot 2
-    sante/              Sonde d'infrastructure               ✔ lot 0
-    planification/      Interface Planificateur + moteur       lot 3
-    notifications/      Canaux, escalade, validation           lot 4
-    travail/            Shifts, pointages, synthèse            lot 5
-    stock/              Uniforme, linge, projection            lot 6
-    sport/              Quota, rotation, duo                   lot 7
-    deplacements/       Trajets et statut ABSENT               lot 8
-    api/                Erreurs normalisées, OpenAPI
-  src/main/resources/db/migration/   Migrations Flyway
-collecteurs/            Service de collecte (Python 3.12, FastAPI)
-  app/contrat.py        Contrat commun : recuperer / normaliser / publier / sante
-infra/
-  caddy/Caddyfile       Reverse proxy, HTTPS automatique
-  scripts/              Sauvegarde et restauration PostgreSQL
-```
+La base refuse ce qui est incohérent, même si un script ou une saisie manuelle contourne l'API un jour.
 
-Règle de découpage : un module ne dépend jamais des entités internes d'un autre. Il passe par une interface exposée par ce module.
+## État
 
-## Démarrage local
+Le socle SQL est écrit et vérifié : 9 tables, 6 vues, 12 fonctions, 6 triggers. L'API FastAPI, l'export iCalendar et le bot Telegram viennent ensuite.
+
+## Démarrage
 
 ```bash
 cp .env.example .env
-# Renseigner POSTGRES_PASSWORD, PLANIF_SECRET_JWT, PLANIF_CLE_CHIFFREMENT,
-# PLANIF_JETON_INTERNE, et les deux mots de passe de compte.
-openssl rand -base64 48   # pour générer une clé ou un secret
+# Renseigner POSTGRES_PASSWORD, puis les deux clés d'API :
+LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 48; echo
 
-docker compose up -d --build
+docker compose up -d
+./sql/appliquer.sh
 ```
 
-Les comptes sont créés au premier démarrage à partir de `PLANIF_ADMIN_MOT_DE_PASSE` et `PLANIF_STANDARD_MOT_DE_PASSE`. Sans ces variables, aucun compte n'est créé : il n'existe pas de mot de passe par défaut.
+## Structure
+
+```
+sql/
+  001_schema.sql       tables, CHECK, contraintes d'exclusion
+  002_vues.sql         planning, retards, santé des sources, stock
+  003_fonctions.sql    disponibilités, génération, projection, placement
+  004_triggers.sql     récurrence, enchaînements, machine unique, stock
+  005_donnees.sql      sources, tâches, enchaînements, articles
+  999_scenario_test.sql   déroulé d'une semaine type, avec assertions
+  appliquer.sh
+docker-compose.yml
+cahier-des-charges.md
+```
+
+Les fichiers sont rejoués depuis zéro à chaque fois, il n'y a pas encore d'outil de migration. C'est volontaire : tant que la base ne contient pas de données à préserver, `--recreer` est plus simple à comprendre qu'un versionnement.
+
+## Vérifier
 
 ```bash
-# Se connecter et appeler un endpoint protégé
-JETON=$(curl -s -X POST localhost:8080/api/v1/auth/connexion \
-  -H 'Content-Type: application/json' \
-  -d '{"identifiant":"thomas","motDePasse":"..."}' | jq -r .jetonAcces)
-
-curl -s -H "Authorization: Bearer $JETON" localhost:8080/api/v1/taches/definitions | jq
-curl -s -H "Authorization: Bearer $JETON" localhost:8080/api/v1/taches/occurrences/en-retard | jq
+./sql/appliquer.sh --recreer
+docker exec -i planif-db psql -U planif -d planif < sql/999_scenario_test.sql
 ```
 
-| Point d'entrée | URL |
-|---|---|
-| Santé du cœur | http://localhost:8080/sante |
-| Santé versionnée | http://localhost:8080/api/v1/sante |
-| OpenAPI (JSON) | http://localhost:8080/openapi.json |
-| Documentation interactive | http://localhost:8080/documentation |
-| Santé des collecteurs | http://localhost:8000/sante |
+Le scénario monte une semaine type — cinq journées de cours, quatre shifts, du sommeil — puis vérifie :
 
-Vérification rapide :
+- qu'un chevauchement de shifts est **refusé par la base** ;
+- que les 11 tâches trouvent une place, les rappels sur des journées entières et les machines à 21h45 ;
+- qu'aucune tâche à heure imposée n'en chevauche une autre, et qu'aucun jour ne porte deux machines ;
+- que valider la poussière crée la suivante **à partir de la date réelle** et repositionne l'aspirateur existant au lieu d'en créer un second ;
+- que revalider une tâche close et valider dans le futur sont refusés ;
+- que le stock d'uniforme déclenche une lessive, et alerte quand il est trop tard pour que le linge sèche ;
+- qu'une tâche non faite revient le lendemain avec son compteur de relances.
 
-```bash
-curl -s localhost:8080/sante | jq
-# {"service":"planif-coeur","version":"0.1.0","etat":"OK",
-#  "dependances":{"postgresql":"OK"},"horodatage":"..."}
-```
+Il tourne dans une transaction annulée à la fin : la base reste intacte.
 
-## Développement hors Docker
+## Concepts
 
-```bash
-# Base seule
-docker compose up -d base
+**Occupation** — une plage subie et non déplaçable. Stockée en `TSTZRANGE`, pas en deux colonnes.
 
-# Cœur métier
-cd coeur && mvn spring-boot:run
+**Tâche** — le modèle récurrent, sans date. Soit un *rappel* (à faire ce jour-là, sans heure), soit *à heure imposée* (les machines, en heures creuses).
 
-# Collecteurs
-cd collecteurs && pip install -e ".[dev]" && uvicorn app.main:app --reload
-```
+**Occurrence** — une exécution concrète. Porte une **fenêtre d'échéance**, pas une date : c'est ce qui laisse au système la marge pour choisir.
 
-## Tests
-
-```bash
-cd coeur        && mvn verify              # tests unitaires
-cd collecteurs  && pytest -q && ruff check .
-
-# Tests d'intégration : exigent un PostgreSQL joignable
-docker compose up -d base
-cd coeur && DB_HOTE=localhost DB_PORT=5432 mvn -Pintegration verify
-```
-
-La couverture n'est pas un objectif en soi. L'effort porte sur les règles qui rendent le système inutilisable si elles cassent : la récurrence recalculée depuis la date de validation réelle, les dépendances sans doublon, les transitions d'état et les permissions.
-
-Les tests d'intégration valident en plus ce qu'aucun test unitaire ne voit : que les migrations Flyway et le mapping JPA restent cohérents. Un écart fait échouer le démarrage, `ddl-auto` étant en `validate`.
-
-## Sauvegarde
-
-```bash
-./infra/scripts/sauvegarde.sh                       # dump gzip, rétention 30 jours
-./infra/scripts/restauration.sh sauvegardes/xxx.gz  # à tester avant la production
-```
+**Disponibilités** — l'horizon moins les occupations, moins les créneaux déjà placés. Calculées avec les multirange de PostgreSQL : `range_agg` puis une soustraction, sans boucle.
 
 ## Conventions
 
-- **Temps** : stockage en UTC, affichage en Europe/Paris. Toute date exposée est en ISO 8601 avec fuseau explicite. Aucun appel direct à `Instant.now()` : l'horloge est injectée.
-- **Langue** : le domaine métier est nommé en français (`occurrence`, `echeance_max`, `epinglee`) pour coller au vocabulaire contractuel du cahier des charges. Les termes techniques restent en anglais.
-- **Erreurs** : format unique `{code, message, detail, correlation, horodatage}`. Chaque requête porte un en-tête `X-Correlation-Id` que l'on retrouve dans les journaux.
-- **Versionnement** : préfixe `/api/v1`. Aucune rupture de contrat sans changement de version. `/sante` est hors version : c'est une sonde d'infrastructure.
-- **Migrations** : une migration appliquée n'est jamais modifiée.
-- **Secrets** : jamais dans le dépôt. Variables d'environnement, puis chiffrement en base pour les identifiants externes.
+- Stockage en UTC. Europe/Paris définit ce qu'est « une journée », via `debut_jour()` et `jour_de()`.
+- Les énumérations sont des `VARCHAR` contraints par `CHECK`, pas des types `ENUM` : lisibles en SQL et modifiables par migration.
+- Une migration appliquée n'est jamais modifiée, une fois qu'il y aura des données à préserver.
+- Aucun secret dans le dépôt. Les clés d'API et les identifiants de portail passent par l'environnement.
 
-## Endpoints disponibles
+## Suite
 
-| Domaine | Endpoints |
-|---|---|
-| Authentification | `POST /api/v1/auth/connexion`, `/auth/rafraichir` |
-| Définitions | `GET/POST /api/v1/taches/definitions`, `PATCH`/`DELETE /{id}` |
-| Occurrences | `GET/POST /api/v1/taches/occurrences`, `/en-retard`, `/{id}/valider`, `/reporter`, `/refuser`, `/reassigner` |
-| Contraintes | `GET/POST /api/v1/occupations`, `GET /api/v1/sources/sante` |
-| Statuts | `GET /api/v1/statuts/courant`, `/historique`, `POST /api/v1/statuts`, `/{id}/terminer` |
-| Utilisateurs | `GET /api/v1/utilisateurs`, `/moi` |
-| Système | `GET /sante`, `/api/v1/journal` (administrateur) |
-
-La validation accepte une date réelle : `POST /taches/occurrences/{id}/valider` avec `{"dateReelle":"..."}`. C'est cette date, et non l'échéance théorique, qui sert de point de départ à la prochaine occurrence.
-
-## Prochaine étape — lot 2 : calendrier consolidé
-
-Collecteur ICS de l'IDMC avec réconciliation par UID, saisie de l'emploi du temps de Lorette, calcul des disponibilités (passe 1 du moteur), export ICS en lecture seule. Critère de sortie : le planning universitaire et les shifts s'affichent dans l'application de calendrier du téléphone.
-
-Décisions du cahier des charges à trancher avant les lots concernés : ICS de l'école de Lorette (lot 2), canal de notification (lot 4), double authentification du portail McDonald's (lot 5), source des horaires de train (lot 8).
+L'API FastAPI par-dessus ce socle : endpoints de lecture branchés sur les vues, endpoints d'action branchés sur les fonctions, export `.ics`, puis le bot Telegram.
