@@ -20,13 +20,14 @@ Concrètement :
 | La récurrence repart de la date réelle | Trigger après validation |
 | La poussière déclenche l'aspirateur en 24 h | Trigger, avec règle anti-doublon |
 | Le linge lavé n'est pas portable tout de suite | Trigger + vue `v_stock` |
+| Le grand nettoyage exige que vous soyez libres tous les deux | `disponibilites_communes`, intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
 
 La base refuse ce qui est incohérent, même si un script ou une saisie manuelle contourne l'API un jour.
 
 ## État
 
-Le socle SQL est écrit et vérifié : 9 tables, 6 vues, 12 fonctions, 6 triggers. L'API FastAPI, l'export iCalendar et le bot Telegram viennent ensuite.
+Le socle SQL est écrit et vérifié : 9 tables, 6 vues, 17 fonctions, 6 triggers. L'API FastAPI, l'export iCalendar et le bot Telegram viennent ensuite.
 
 ## Démarrage
 
@@ -71,6 +72,7 @@ Le scénario monte une semaine type — cinq journées de cours, quatre shifts, 
 - que valider la poussière crée la suivante **à partir de la date réelle** et repositionne l'aspirateur existant au lieu d'en créer un second ;
 - que revalider une tâche close et valider dans le futur sont refusés ;
 - que le stock d'uniforme déclenche une lessive, et alerte quand il est trop tard pour que le linge sèche ;
+- que le grand nettoyage tombe sur un moment où Thomas **et** Lorette sont libres, et qu'une alerte part s'il n'en existe aucun ;
 - qu'une tâche non faite revient le lendemain avec son compteur de relances.
 
 Il tourne dans une transaction annulée à la fin : la base reste intacte.

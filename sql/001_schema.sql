@@ -118,6 +118,7 @@ CREATE TABLE tache (
     heure_max              TIME,
     utilise_machine        BOOLEAN      NOT NULL DEFAULT FALSE,
     lave_uniforme          BOOLEAN      NOT NULL DEFAULT FALSE,
+    requiert_les_deux      BOOLEAN      NOT NULL DEFAULT FALSE,
     reportable             BOOLEAN      NOT NULL DEFAULT TRUE,
     id_utilisateur_defaut  INTEGER      REFERENCES utilisateur (id_utilisateur),
     active                 BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -134,7 +135,12 @@ CREATE TABLE tache (
     ),
 
     -- Laver l'uniforme suppose de faire tourner la machine.
-    CONSTRAINT tache_lavage_coherent CHECK (NOT lave_uniforme OR utilise_machine)
+    CONSTRAINT tache_lavage_coherent CHECK (NOT lave_uniforme OR utilise_machine),
+
+    -- R43 : chercher un moment où deux personnes sont libres en même temps n'a
+    -- de sens que sur des heures précises. Un rappel « dans la journée » ne dit
+    -- rien de la simultanéité.
+    CONSTRAINT tache_duo_coherent CHECK (NOT requiert_les_deux OR NOT rappel_journee)
 );
 
 COMMENT ON COLUMN tache.priorite IS
@@ -148,6 +154,12 @@ COMMENT ON COLUMN tache.rappel_journee IS
 COMMENT ON COLUMN tache.reportable IS
     'Faux pour la lessive de travail : la repousser reviendrait à se retrouver
      sans uniforme propre (opération 6).';
+
+COMMENT ON COLUMN tache.requiert_les_deux IS
+    'Vrai pour le grand nettoyage : il faut un moment où Thomas et Lorette sont
+     libres en même temps. Le placement cherche alors une intersection de
+     disponibilités, et notifie s''il n''en existe aucune plutôt que de placer
+     la tâche au hasard (R43, R44).';
 
 
 -- -----------------------------------------------------------------------------

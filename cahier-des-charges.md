@@ -133,6 +133,10 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R40 | Procédure manuelle | Les occupations peuvent être saisies à la main, ce qui permet au système de fonctionner même quand une collecte échoue |
 | R41 | Procédure manuelle | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
 | R42 | Procédure manuelle | L'utilisateur peut recaler à la main la quantité propre d'un article, quand le compte s'est désynchronisé de la réalité |
+| R43 | Données | Une tâche peut exiger que les deux utilisateurs soient présents en même temps. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
+| R44 | Traitement | Une tâche à deux est placée sur une intersection des disponibilités des deux utilisateurs. S'il n'en existe aucune sur sa fenêtre, le système notifie au lieu de placer la tâche au hasard |
+
+Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
 ---
 
@@ -310,6 +314,7 @@ L'URL et les éventuels identifiants ne sont jamais écrits dans le code ni dans
 | heure_max | TIME | oui | > heure_min si définie | | | | |
 | utilise_machine | BOOLEAN | non | | | FALSE | | |
 | lave_uniforme | BOOLEAN | non | implique utilise_machine | | FALSE | | |
+| requiert_les_deux | BOOLEAN | non | implique NOT rappel_journee | | FALSE | | |
 | reportable | BOOLEAN | non | | | TRUE | | |
 | id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
 | active | BOOLEAN | non | | | TRUE | | |
@@ -440,6 +445,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R35 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
 | R36 | La validation d'une lessive fixe `disponible_le` à la date de validation plus `heures_sechage` : trigger | Dynamique forte |
 | R36 | Les unités en séchage ne comptent pas dans le stock utilisable tant que `disponible_le` n'est pas atteint : vue | Dynamique forte |
+| R43 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
+| R44 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
+| R44 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
 
 ---
 
@@ -489,8 +497,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Acteurs** | Système (principal), ordonnanceur ou administrateur (déclencheur) |
 | **Événement déclencheur** | Collecte ayant modifié une occupation, validation d'une tâche, traitement quotidien, ou demande explicite |
 | **Pré-conditions** | Aucune |
-| **Actions** | 1. Exécuter les opérations 2 et 3 pour compléter les occurrences manquantes<br>2. Libérer le créneau des occurrences ni notifiées ni épinglées : elles retournent au statut à placer<br>3. Calculer les disponibilités de chaque utilisateur sur l'horizon : l'horizon moins les occupations, moins les créneaux conservés<br>4. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>5. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche. Si la tâche mobilise la machine, écarter les jours où une autre tâche à machine est déjà placée<br>6. **Tâche de type rappel** : chercher le premier jour de la fenêtre d'échéance dont le temps libre total dépasse la durée de la tâche, et affecter la journée entière<br>7. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>8. Retirer le temps consommé des disponibilités et passer à l'occurrence suivante |
-| **Actions alternatives** | Si aucune disponibilité ne convient, l'occurrence reste au statut à placer et reçoit un motif explicite. Elle sera retentée au placement suivant et signalée dans le bilan du matin |
+| **Actions** | 1. Exécuter les opérations 2 et 3 pour compléter les occurrences manquantes<br>2. Libérer le créneau des occurrences ni notifiées ni épinglées : elles retournent au statut à placer<br>3. Calculer les disponibilités de chaque utilisateur sur l'horizon : l'horizon moins les occupations, moins les créneaux conservés<br>4. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>5. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche, et à venir. Si la tâche mobilise la machine, écarter les jours où une autre tâche à machine est déjà placée<br>6. **Tâche à deux** : chercher de la même façon, mais dans l'intersection des disponibilités de tous les utilisateurs actifs<br>7. **Tâche de type rappel** : chercher le premier jour de la fenêtre d'échéance dont le temps libre total dépasse la durée de la tâche, et affecter la journée entière<br>8. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>9. Retirer le temps consommé des disponibilités et passer à l'occurrence suivante |
+| **Actions alternatives** | Si aucune disponibilité ne convient, l'occurrence reste au statut à placer et reçoit un motif explicite. Elle sera retentée au placement suivant et signalée dans le bilan du matin.<br>Pour une tâche à deux, l'absence d'intersection déclenche en plus une notification : c'est un cas qu'aucun replacement ne résoudra tout seul |
 | **Post-conditions** | Chaque occurrence plaçable est affectée à un créneau ou à une journée. Aucune tâche à heure imposée n'en chevauche une autre, aucun jour ne porte deux machines. Les occurrences non plaçables restent visibles avec leur motif |
 
 ### Opération 5 : Validation d'une occurrence

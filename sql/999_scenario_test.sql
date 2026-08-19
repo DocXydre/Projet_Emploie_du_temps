@@ -181,7 +181,58 @@ SELECT code, quantite_propre, quantite_utilisable, en_sechage,
 
 
 \echo ''
-\echo '=== 5. Report d''office ==='
+\echo '=== 5. Grand nettoyage : intersection de disponibilités ==='
+
+-- Lorette a cours tous les après-midis de la semaine : les seuls moments où
+-- ils sont libres tous les deux sont le week-end.
+INSERT INTO occupation (id_utilisateur, id_source, type, libelle, periode, cle_externe)
+SELECT u.id_utilisateur, s.id_source, 'cours', 'Cours de Lorette',
+       tstzrange(debut_jour(jour_de(now()) + j) + INTERVAL '13 hours',
+                 debut_jour(jour_de(now()) + j) + INTERVAL '19 hours', '[)'),
+       'lorette-' || j
+  FROM utilisateur u, source s, generate_series(0, 30) j
+ WHERE u.pseudo = 'lorette' AND s.code = 'MANUELLE'
+   AND EXTRACT(ISODOW FROM debut_jour(jour_de(now()) + j)) <= 5;
+
+SELECT placer_taches(31) AS replacement;
+
+\echo '--- le grand nettoyage doit tomber un samedi ou un dimanche ---'
+SELECT to_char(lower(o.creneau) AT TIME ZONE 'Europe/Paris', 'TMDay DD/MM HH24:MI') AS creneau,
+       to_char(upper(o.creneau) AT TIME ZONE 'Europe/Paris', 'HH24:MI') AS fin,
+       o.statut, o.motif
+  FROM occurrence o JOIN tache t USING (id_tache)
+ WHERE t.code = 'GRAND_NETTOYAGE';
+
+\echo '--- vérification : les deux sont bien libres sur ce créneau ---'
+SELECT u.pseudo,
+       NOT EXISTS (SELECT 1 FROM occupation oc
+                    WHERE oc.id_utilisateur = u.id_utilisateur
+                      AND oc.periode && (SELECT creneau FROM occurrence o
+                                          JOIN tache t USING (id_tache)
+                                         WHERE t.code='GRAND_NETTOYAGE')) AS libre
+  FROM utilisateur u ORDER BY u.pseudo;
+
+\echo '--- si Lorette n''est jamais libre, le système alerte au lieu de placer ---'
+INSERT INTO occupation (id_utilisateur, id_source, type, libelle, periode, cle_externe)
+SELECT u.id_utilisateur, s.id_source, 'autre', 'Absente tout le mois',
+       tstzrange(debut_jour(jour_de(now())), debut_jour(jour_de(now()) + 40), '[)'),
+       'absence-longue'
+  FROM utilisateur u, source s
+ WHERE u.pseudo = 'lorette' AND s.code = 'MANUELLE';
+
+UPDATE occurrence SET creneau = NULL, statut = 'a_placer'
+ WHERE id_tache = (SELECT id_tache FROM tache WHERE code='GRAND_NETTOYAGE');
+
+SELECT placer_taches(31) AS replacement;
+
+SELECT o.statut, o.motif FROM occurrence o JOIN tache t USING (id_tache)
+ WHERE t.code = 'GRAND_NETTOYAGE';
+
+SELECT type, contenu FROM notification WHERE contenu LIKE '%nettoyage%';
+
+
+\echo ''
+\echo '=== 6. Report d''office ==='
 
 -- On simule une tâche du jour non faite en la datant d'hier.
 UPDATE occurrence

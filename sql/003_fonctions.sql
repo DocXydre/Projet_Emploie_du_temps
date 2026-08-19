@@ -91,6 +91,55 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
+-- Disponibilités communes à tous les utilisateurs actifs                 (R44)
+--
+-- Le grand nettoyage se fait à deux : il ne suffit pas que Thomas soit libre,
+-- il faut que Lorette le soit au même moment. On intersecte donc les
+-- disponibilités de chacun, multirange par multirange.
+--
+-- L'intersection est vide dès qu'une seule personne est occupée : on sort de
+-- la boucle sans interroger les suivantes.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION disponibilites_communes(
+    p_debut TIMESTAMPTZ,
+    p_fin   TIMESTAMPTZ
+) RETURNS SETOF TSTZRANGE LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    u        RECORD;
+    v_commun TSTZMULTIRANGE := tstzmultirange(tstzrange(p_debut, p_fin, '[)'));
+    v_perso  TSTZMULTIRANGE;
+BEGIN
+    FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif ORDER BY id_utilisateur LOOP
+
+        SELECT COALESCE(range_agg(d), '{}'::TSTZMULTIRANGE) INTO v_perso
+          FROM disponibilites(u.id_utilisateur, p_debut, p_fin) d;
+
+        v_commun := v_commun * v_perso;
+
+        EXIT WHEN v_commun = '{}'::TSTZMULTIRANGE;
+    END LOOP;
+
+    RETURN QUERY SELECT unnest(v_commun);
+END $$;
+
+
+-- Aiguillage : disponibilités d'une personne, ou de tout le monde.
+CREATE OR REPLACE FUNCTION disponibilites_pour(
+    p_utilisateur INTEGER,
+    p_commun      BOOLEAN,
+    p_debut       TIMESTAMPTZ,
+    p_fin         TIMESTAMPTZ
+) RETURNS SETOF TSTZRANGE LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    IF p_commun THEN
+        RETURN QUERY SELECT * FROM disponibilites_communes(p_debut, p_fin);
+    ELSE
+        RETURN QUERY SELECT * FROM disponibilites(p_utilisateur, p_debut, p_fin);
+    END IF;
+END $$;
+
+
+-- -----------------------------------------------------------------------------
 -- La machine à laver est une ressource unique de l'appartement           (R35)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION machine_occupee(p_jour DATE, p_sauf INTEGER DEFAULT NULL)
@@ -115,7 +164,8 @@ CREATE OR REPLACE FUNCTION chercher_creneau(
     p_duree       INTERVAL,
     p_heure_min   TIME,
     p_heure_max   TIME,
-    p_machine     BOOLEAN
+    p_machine     BOOLEAN,
+    p_commun      BOOLEAN DEFAULT FALSE
 ) RETURNS TSTZRANGE LANGUAGE plpgsql STABLE AS $$
 DECLARE
     v_jour    DATE;
@@ -129,16 +179,19 @@ BEGIN
     WHILE v_jour <= v_dernier LOOP
         IF NOT (p_machine AND machine_occupee(v_jour)) THEN
 
-            -- Plage autorisée ce jour-là, ramenée à la fenêtre d'échéance.
+            -- Plage autorisée ce jour-là, ramenée à la fenêtre d'échéance et
+            -- à ce qui reste à venir : on ne propose pas 14h quand il est 16h.
             v_plage := tstzrange(
                            (v_jour + p_heure_min) AT TIME ZONE 'Europe/Paris',
                            (v_jour + p_heure_max) AT TIME ZONE 'Europe/Paris',
                            '[)')
-                       * p_fenetre;
+                       * p_fenetre
+                       * tstzrange(now(), NULL, '[)');
 
             IF NOT isempty(v_plage) THEN
                 FOR v_dispo IN
-                    SELECT d FROM disponibilites(p_utilisateur, lower(v_plage), upper(v_plage)) d
+                    SELECT d FROM disponibilites_pour(p_utilisateur, p_commun,
+                                                      lower(v_plage), upper(v_plage)) d
                      ORDER BY lower(d)
                 LOOP
                     IF upper(v_dispo) - lower(v_dispo) >= p_duree THEN
@@ -404,7 +457,8 @@ BEGIN
 
     FOR o IN
         SELECT oc.id_occurrence, oc.id_utilisateur, oc.fenetre, oc.rappel_journee,
-               oc.utilise_machine, t.duree_minutes, t.heure_min, t.heure_max
+               oc.utilise_machine, t.duree_minutes, t.heure_min, t.heure_max,
+               t.requiert_les_deux, t.libelle
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
          WHERE oc.statut = 'a_placer'
@@ -425,17 +479,40 @@ BEGIN
             v_creneau := chercher_jour(o.id_utilisateur, o.fenetre, v_duree);
         ELSE
             v_creneau := chercher_creneau(o.id_utilisateur, o.fenetre, v_duree,
-                                          o.heure_min, o.heure_max, o.utilise_machine);
+                                          o.heure_min, o.heure_max, o.utilise_machine,
+                                          o.requiert_les_deux);
         END IF;
 
         -- R20 : une occurrence non plaçable n'est jamais supprimée. Elle garde
         -- son statut et reçoit un motif lisible.
         IF v_creneau IS NULL THEN
             UPDATE occurrence
-               SET motif = format('Aucune place de %s min avant le %s',
-                                  o.duree_minutes,
-                                  to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
+               SET motif = CASE
+                               WHEN o.requiert_les_deux THEN
+                                   format('Aucun moment où vous êtes libres tous les deux avant le %s',
+                                          to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
+                               ELSE
+                                   format('Aucune place de %s min avant le %s',
+                                          o.duree_minutes,
+                                          to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
+                           END
              WHERE id_occurrence = o.id_occurrence;
+
+            -- R44 : quand il n'existe aucune intersection, on le dit. Placer la
+            -- tâche au hasard reviendrait à proposer un moment où l'un des deux
+            -- n'est pas là, ce qui décrédibilise tout le reste du planning.
+            IF o.requiert_les_deux THEN
+                INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
+                SELECT o.id_utilisateur, o.id_occurrence, 'alerte',
+                       format('%s : aucun créneau commun trouvé avant le %s.',
+                              o.libelle,
+                              to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
+                 WHERE o.id_utilisateur IS NOT NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM notification n
+                        WHERE n.id_occurrence = o.id_occurrence
+                          AND n.statut = 'a_envoyer');
+            END IF;
         ELSE
             UPDATE occurrence
                SET creneau = v_creneau,

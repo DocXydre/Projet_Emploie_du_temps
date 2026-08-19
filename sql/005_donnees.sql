@@ -35,15 +35,18 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
                    rappel_journee, heure_min, heure_max,
                    utilise_machine, lave_uniforme, reportable) VALUES
 
-    -- Ménage : des rappels, sans heure
-    ('ASPIRATEUR',      'Passer l''aspirateur',      'menage',    4,  30,  2,  3, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('POUSSIERE',       'Faire la poussière',        'menage',    4,  25,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('RECURAGE',        'Récurer',                   'menage',    4,  40,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('SALLE_DE_BAIN',   'Nettoyer la salle de bain', 'menage',    4,  45, 28, 31, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
 
-    -- Litière : priorité 1, la seule chose qui ne se repousse pas
-    ('LITIERE_PARTIEL', 'Litière : ramassage',       'animal',    1,  10,  2,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
-    ('LITIERE_COMPLET', 'Litière : changement',      'animal',    1,  25,  4,  4, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
+    -- Ménage : des rappels, sans heure. Les durées sont celles d'un petit
+    -- appartement : ce sont des tâches de dix minutes, pas des corvées.
+    ('ASPIRATEUR',      'Passer l''aspirateur',      'menage',    4,  10,  2,  3, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
+    ('POUSSIERE',       'Faire la poussière',        'menage',    4,  15,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
+    ('RECURAGE',        'Récurer',                   'menage',    4,  15,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
+
+    -- Litière : priorité 1, la seule chose qui ne se repousse pas.
+    -- Deux niveaux : le ramassage tous les deux jours, le changement complet
+    -- une fois par semaine.
+    ('LITIERE_CROTTES', 'Litière : ramassage',       'animal',    1,   5,  2,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
+    ('LITIERE_VIDAGE',  'Litière : vidage complet',  'animal',    1,  15,  7,  7, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
 
     -- Machines : heures creuses, ressource unique
     ('LESSIVE_TRAVAIL', 'Lessive de travail',        'linge',     1,  15,  3, 14, FALSE, '21:45', '23:30', TRUE,  TRUE,  FALSE),
@@ -52,7 +55,17 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
 
     -- Suites du linge : des rappels
     ('ETENDRE_LINGE',   'Étendre le linge',          'linge',     2,  15,  1,  1, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('PLIER_LINGE',     'Plier et ranger le linge',  'linge',     4,  30,  1,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE);
+    ('PLIER_LINGE',     'Plier et ranger le linge',  'linge',     4,  20,  1,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE);
+
+
+-- Le grand nettoyage est la seule tâche qui exige deux personnes en même
+-- temps. Il est donc à heure imposée, l'après-midi, et le placement cherche
+-- une intersection de disponibilités au lieu d'un simple trou dans l'agenda.
+INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
+                   periodicite_min_jours, periodicite_max_jours,
+                   rappel_journee, heure_min, heure_max, requiert_les_deux) VALUES
+    ('GRAND_NETTOYAGE', 'Grand nettoyage à deux', 'menage', 5, 120, 28, 31,
+     FALSE, '13:00', '19:00', TRUE);
 
 
 -- -----------------------------------------------------------------------------
