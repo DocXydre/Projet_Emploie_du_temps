@@ -17,10 +17,37 @@
 -- pas. La saisie manuelle suffit à faire vivre le système : c'est le mode
 -- dégradé, disponible dès le premier jour.
 -- -----------------------------------------------------------------------------
-INSERT INTO source (code, libelle, mode_collecte, frequence_heures, active) VALUES
-    ('MANUELLE',  'Saisie manuelle',            'manuelle', 8760, TRUE),
-    ('IDMC_ICS',  'Emploi du temps IDMC (ADE)', 'ics',        12, FALSE),
-    ('MCDO',      'Portail McDonald''s',        'scraping',   12, FALSE);
+INSERT INTO source (code, libelle, mode_collecte, frequence_heures, url, configuration, active) VALUES
+    ('MANUELLE', 'Saisie manuelle', 'manuelle', 8760, NULL, '{}'::JSONB, TRUE),
+
+    -- Les URL ne sont pas versionnées : celle du planning McDonald's contient
+    -- un jeton d'accès personnel, et celle de l'ADE une référence d'étudiant.
+    -- On les fournit au premier démarrage, par PATCH /sources/{code}, ce que le
+    -- bot Telegram sait faire en collant simplement le lien.
+    --
+    -- Les filtres, eux, sont des données de configuration : changer de groupe au
+    -- second semestre ne doit demander qu'un UPDATE, pas un redéploiement.
+    ('IDMC_ICS', 'Emploi du temps IDMC (ADE)', 'ics', 12, NULL,
+     '{
+        "profil": "ade",
+        "type_occupation": "cours",
+        "groupe": 1,
+        "alternance": false,
+        "langues_suivies": ["anglais", "espagnol"],
+        "langues_possibles": ["anglais", "espagnol", "chinois", "allemand"],
+        "horizon_jours": 60,
+        "historique_jours": 7
+      }'::JSONB,
+     TRUE),
+
+    ('MCDO', 'Planning McDonald''s (Easy at Work)', 'ics', 12, NULL,
+     '{
+        "profil": "easyatwork",
+        "type_occupation": "travail",
+        "horizon_jours": 30,
+        "historique_jours": 7
+      }'::JSONB,
+     TRUE);
 
 
 -- -----------------------------------------------------------------------------
@@ -39,14 +66,14 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
     -- Ménage : des rappels, sans heure. Les durées sont celles d'un petit
     -- appartement : ce sont des tâches de dix minutes, pas des corvées.
     ('ASPIRATEUR',      'Passer l''aspirateur',      'menage',    4,  10,  2,  3, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('POUSSIERE',       'Faire la poussière',        'menage',    4,  15,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
+    ('POUSSIERE',       'Faire la poussière',        'menage',    4,   5,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
     ('RECURAGE',        'Récurer',                   'menage',    4,  15,  7,  8, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
 
     -- Litière : priorité 1, la seule chose qui ne se repousse pas.
-    -- Deux niveaux : le ramassage tous les deux jours, le changement complet
+    -- Deux niveaux : le ramassage tous les deux jours, le vidage complet
     -- une fois par semaine.
     ('LITIERE_CROTTES', 'Litière : ramassage',       'animal',    1,   5,  2,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
-    ('LITIERE_VIDAGE',  'Litière : vidage complet',  'animal',    1,  15,  7,  7, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
+    ('LITIERE_VIDAGE',  'Litière : vidage complet',  'animal',    1,   5,  7,  7, TRUE,  NULL,    NULL,    FALSE, FALSE, FALSE),
 
     -- Machines : heures creuses, ressource unique
     ('LESSIVE_TRAVAIL', 'Lessive de travail',        'linge',     1,  15,  3, 14, FALSE, '21:45', '23:30', TRUE,  TRUE,  FALSE),
@@ -55,7 +82,7 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
 
     -- Suites du linge : des rappels
     ('ETENDRE_LINGE',   'Étendre le linge',          'linge',     2,  15,  1,  1, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('PLIER_LINGE',     'Plier et ranger le linge',  'linge',     4,  20,  1,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE);
+    ('PLIER_LINGE',     'Plier et ranger le linge',  'linge',     4,  10,  1,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE);
 
 
 -- Le grand nettoyage est la seule tâche qui exige deux personnes en même
@@ -87,8 +114,10 @@ SELECT src.id_tache, cible.id_tache, 12
   JOIN tache cible ON cible.code = 'ETENDRE_LINGE'
  WHERE src.code IN ('LESSIVE_TRAVAIL', 'LESSIVE_BLANC');
 
-INSERT INTO enchainement (id_tache_source, id_tache_suivante, delai_max_heures)
-SELECT src.id_tache, cible.id_tache, 48
+-- Le linge étendu le soir se plie le lendemain, pas dans la foulée : d'où un
+-- délai minimum de 12 heures.
+INSERT INTO enchainement (id_tache_source, id_tache_suivante, delai_min_heures, delai_max_heures)
+SELECT src.id_tache, cible.id_tache, 12, 48
   FROM tache src
   JOIN tache cible ON cible.code = 'PLIER_LINGE'
  WHERE src.code = 'ETENDRE_LINGE';

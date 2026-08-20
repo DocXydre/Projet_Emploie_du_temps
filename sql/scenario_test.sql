@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Scénario de vérification
 --
---   ./sql/appliquer.sh --recreer && docker exec -i planif-db psql -U planif -d planif -f - < sql/999_scenario_test.sql
+--   ./sql/appliquer.sh --recreer
+--   docker exec -i planif-db psql -U planif -d planif < sql/scenario_test.sql
 --
 -- Ce fichier n'est jamais appliqué automatiquement : il n'est pas numéroté
 -- comme une migration. Il déroule une semaine type et vérifie que le système

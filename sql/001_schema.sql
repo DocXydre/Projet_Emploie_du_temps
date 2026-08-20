@@ -52,8 +52,19 @@ CREATE TABLE source (
     derniere_collecte  TIMESTAMPTZ,
     etat               VARCHAR(20)  NOT NULL DEFAULT 'ok'
                                     CHECK (etat IN ('ok', 'en_panne')),
+    configuration      JSONB        NOT NULL DEFAULT '{}'::JSONB,
+    id_utilisateur     INTEGER      REFERENCES utilisateur (id_utilisateur),
     active             BOOLEAN      NOT NULL DEFAULT TRUE
 );
+
+COMMENT ON COLUMN source.id_utilisateur IS
+    'À qui appartient cet emploi du temps. Sans cette colonne, l''ordonnanceur
+     ne saurait pas à qui rattacher les occupations qu''il collecte la nuit.';
+
+COMMENT ON COLUMN source.configuration IS
+    'Réglages du collecteur : groupe de TD, langues suivies, horizon. En base
+     plutôt que dans le code, pour qu''un changement de groupe au second
+     semestre ne demande pas de redéploiement.';
 
 COMMENT ON COLUMN source.derniere_collecte IS
     'Dernière collecte réussie. Au-delà de deux fois la fréquence, la source est
@@ -72,6 +83,7 @@ CREATE TABLE occupation (
     libelle         VARCHAR(150) NOT NULL,
     periode         TSTZRANGE    NOT NULL,
     lieu            VARCHAR(100),
+    details         TEXT,
     cle_externe     VARCHAR(200),
     date_collecte   TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
@@ -96,6 +108,52 @@ CREATE TABLE occupation (
 );
 
 CREATE INDEX occupation_periode_idx ON occupation USING gist (periode);
+
+COMMENT ON COLUMN occupation.details IS
+    'Enseignant et salle, tels que publiés par la source. Exportés en
+     DESCRIPTION dans le flux iCalendar : c''est ce qu''on veut lire sur son
+     téléphone en arrivant à la fac.';
+
+
+-- -----------------------------------------------------------------------------
+-- Conflit horaire                                                  (R45, R46)
+--
+-- Une source publie parfois deux occupations au même moment. La contrainte
+-- d'exclusion en refuse une : plutôt que de la perdre, on la garde ici en
+-- attente d'arbitrage.
+--
+-- La règle des deux semaines évite de déranger pour rien : un conflit dans un
+-- mois se résoudra probablement tout seul quand l'emploi du temps sera corrigé.
+-- -----------------------------------------------------------------------------
+CREATE TABLE conflit (
+    id_conflit       SERIAL       PRIMARY KEY,
+    id_occupation    INTEGER      NOT NULL REFERENCES occupation (id_occupation)
+                                  ON DELETE CASCADE,
+    id_source        INTEGER      NOT NULL REFERENCES source (id_source),
+    cle_externe      VARCHAR(200) NOT NULL,
+    libelle          VARCHAR(150) NOT NULL,
+    periode          TSTZRANGE    NOT NULL,
+    lieu             VARCHAR(100),
+    details          TEXT,
+    statut           VARCHAR(20)  NOT NULL DEFAULT 'en_attente'
+                                  CHECK (statut IN ('en_attente', 'resolu')),
+    choix            VARCHAR(20)  CHECK (choix IN ('existante', 'nouvelle')),
+    date_detection   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    date_resolution  TIMESTAMPTZ,
+
+    CONSTRAINT conflit_unique UNIQUE (id_source, cle_externe, id_occupation),
+
+    CONSTRAINT conflit_resolution_coherente CHECK (
+        statut <> 'resolu' OR (choix IS NOT NULL AND date_resolution IS NOT NULL)
+    )
+);
+
+CREATE INDEX conflit_en_attente_idx ON conflit (statut) WHERE statut = 'en_attente';
+
+COMMENT ON COLUMN conflit.choix IS
+    'existante : on garde ce qui est déjà au planning et la nouvelle version est
+     écartée durablement. nouvelle : on remplace. Le choix est mémorisé pour que
+     la collecte suivante ne repose pas la même question.';
 
 
 -- -----------------------------------------------------------------------------
@@ -169,14 +227,21 @@ CREATE TABLE enchainement (
     id_enchainement    SERIAL  PRIMARY KEY,
     id_tache_source    INTEGER NOT NULL REFERENCES tache (id_tache) ON DELETE CASCADE,
     id_tache_suivante  INTEGER NOT NULL REFERENCES tache (id_tache) ON DELETE CASCADE,
+    delai_min_heures   INTEGER NOT NULL DEFAULT 0  CHECK (delai_min_heures >= 0),
     delai_max_heures   INTEGER NOT NULL DEFAULT 24 CHECK (delai_max_heures > 0),
 
     CONSTRAINT enchainement_unique UNIQUE (id_tache_source, id_tache_suivante),
-    CONSTRAINT enchainement_non_reflexif CHECK (id_tache_source <> id_tache_suivante)
+    CONSTRAINT enchainement_non_reflexif CHECK (id_tache_source <> id_tache_suivante),
+    CONSTRAINT enchainement_delais_coherents CHECK (delai_max_heures > delai_min_heures)
 );
 
 COMMENT ON TABLE enchainement IS
     'La poussière déclenche l''aspirateur dans les 24 heures, et jamais avant elle (R12, R23).';
+
+COMMENT ON COLUMN enchainement.delai_min_heures IS
+    'Délai avant lequel la tâche suivante n''a pas de sens. Zéro pour
+     l''aspirateur, qui suit la poussière tout de suite ; douze heures pour le
+     pliage, qui attend que le linge ait séché une nuit.';
 
 
 -- -----------------------------------------------------------------------------

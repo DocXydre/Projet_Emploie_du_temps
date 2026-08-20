@@ -1,0 +1,45 @@
+[project]
+name = "planif"
+version = "0.1.0"
+description = "API de planification personnelle"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "psycopg[binary,pool]>=3.2",
+    "pydantic-settings>=2.5",
+    "icalendar>=6.0",
+    "httpx>=0.27",
+    "apscheduler>=3.10",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.6"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["api*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Depends, Query et Header en valeur par défaut sont l'usage normal de FastAPI,
+# pas l'erreur que B008 cherche à signaler.
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Body",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

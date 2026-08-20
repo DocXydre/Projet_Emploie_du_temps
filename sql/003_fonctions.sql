@@ -577,6 +577,156 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
+-- Bilan du matin                                                 (opération 7)
+--
+-- Une notification par utilisateur, contenant sa journée et ses retards. Les
+-- occurrences annoncées passent à « notifiée », ce qui fige leur créneau : sans
+-- cela, le planning changerait entre le message du matin et le soir.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION bilan_du_matin() RETURNS INTEGER
+LANGUAGE plpgsql AS $$
+DECLARE
+    u          RECORD;
+    o          RECORD;
+    v_lignes   TEXT[];
+    v_retards  TEXT[];
+    v_bloquees TEXT[];
+    v_pannes   TEXT[];
+    v_contenu  TEXT;
+    v_envoyees INTEGER := 0;
+    v_jour     DATE := jour_de(now());
+BEGIN
+    FOR u IN SELECT id_utilisateur, pseudo, role FROM utilisateur WHERE actif LOOP
+        v_lignes   := ARRAY[]::TEXT[];
+        v_retards  := ARRAY[]::TEXT[];
+        v_bloquees := ARRAY[]::TEXT[];
+        v_pannes   := ARRAY[]::TEXT[];
+
+        -- Ce qui est prévu aujourd'hui.
+        FOR o IN
+            SELECT oc.id_occurrence, oc.creneau, oc.rappel_journee, oc.nb_relances,
+                   t.libelle
+              FROM occurrence oc
+              JOIN tache t ON t.id_tache = oc.id_tache
+             WHERE oc.id_utilisateur = u.id_utilisateur
+               AND oc.statut IN ('planifiee', 'notifiee')
+               AND oc.creneau IS NOT NULL
+               AND jour_de(lower(oc.creneau)) = v_jour
+             ORDER BY lower(oc.creneau)
+        LOOP
+            v_lignes := v_lignes || (
+                CASE WHEN o.rappel_journee
+                     THEN '• ' || o.libelle
+                     ELSE '• ' || to_char(lower(o.creneau) AT TIME ZONE 'Europe/Paris', 'HH24hMI')
+                          || ' ' || o.libelle
+                END
+                || CASE WHEN o.nb_relances > 0
+                        THEN ' (en retard depuis ' || o.nb_relances || ' j)'
+                        ELSE '' END);
+
+            -- Le créneau communiqué est figé (R19).
+            UPDATE occurrence SET statut = 'notifiee'
+             WHERE id_occurrence = o.id_occurrence AND statut = 'planifiee';
+        END LOOP;
+
+        -- Ce qui traîne.
+        SELECT array_agg('• ' || tache_libelle || ' (' || jours_de_retard || ' j)'
+                         ORDER BY jours_de_retard DESC)
+          INTO v_retards
+          FROM v_occurrence
+         WHERE id_utilisateur = u.id_utilisateur
+           AND en_retard
+           AND (creneau IS NULL OR jour_de(debut) <> v_jour);
+
+        -- Ce que le moteur n'a pas su placer.
+        SELECT array_agg('• ' || tache_libelle || ' : ' || motif)
+          INTO v_bloquees
+          FROM v_occurrence
+         WHERE id_utilisateur = u.id_utilisateur
+           AND statut = 'a_placer'
+           AND motif IS NOT NULL;
+
+        -- Les pannes de collecte ne concernent que l'administrateur.
+        IF u.role = 'admin' THEN
+            SELECT array_agg('• ' || libelle)
+              INTO v_pannes
+              FROM v_source_sante
+             WHERE etat_calcule = 'en_panne' AND active;
+        END IF;
+
+        v_contenu := '';
+        IF array_length(v_lignes, 1) > 0 THEN
+            v_contenu := 'Aujourd''hui :' || E'\n' || array_to_string(v_lignes, E'\n');
+        END IF;
+        IF array_length(v_retards, 1) > 0 THEN
+            v_contenu := v_contenu || CASE WHEN v_contenu = '' THEN '' ELSE E'\n\n' END
+                         || 'En retard :' || E'\n' || array_to_string(v_retards, E'\n');
+        END IF;
+        IF array_length(v_bloquees, 1) > 0 THEN
+            v_contenu := v_contenu || CASE WHEN v_contenu = '' THEN '' ELSE E'\n\n' END
+                         || 'Sans créneau :' || E'\n' || array_to_string(v_bloquees, E'\n');
+        END IF;
+        IF array_length(v_pannes, 1) > 0 THEN
+            v_contenu := v_contenu || CASE WHEN v_contenu = '' THEN '' ELSE E'\n\n' END
+                         || 'Collecte en panne :' || E'\n' || array_to_string(v_pannes, E'\n');
+        END IF;
+
+        -- Un bilan vide tous les matins ferait couper les notifications en une
+        -- semaine. Quand il n'y a rien à dire, on se tait.
+        IF v_contenu <> '' THEN
+            INSERT INTO notification (id_utilisateur, type, contenu)
+            VALUES (u.id_utilisateur, 'bilan', v_contenu);
+            v_envoyees := v_envoyees + 1;
+        END IF;
+    END LOOP;
+
+    RETURN v_envoyees;
+END $$;
+
+
+-- -----------------------------------------------------------------------------
+-- Relance du soir                                                (opération 8)
+--
+-- Une notification par tâche, et non un récapitulatif : c'est elle qui portera
+-- les boutons « fait / reporter / refuser » dans le bot.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION relance_du_soir() RETURNS INTEGER
+LANGUAGE plpgsql AS $$
+DECLARE
+    o        RECORD;
+    v_creees INTEGER := 0;
+    v_jour   DATE := jour_de(now());
+BEGIN
+    FOR o IN
+        SELECT oc.id_occurrence, oc.id_utilisateur, t.libelle
+          FROM occurrence oc
+          JOIN tache t ON t.id_tache = oc.id_tache
+         WHERE oc.statut = 'notifiee'
+           AND oc.creneau IS NOT NULL
+           AND jour_de(lower(oc.creneau)) = v_jour
+           AND oc.id_utilisateur IS NOT NULL
+         ORDER BY t.priorite
+    LOOP
+        -- Une seule relance par tâche et par soir.
+        CONTINUE WHEN EXISTS (
+            SELECT 1 FROM notification
+             WHERE id_occurrence = o.id_occurrence
+               AND type = 'rappel'
+               AND jour_de(date_creation) = v_jour
+        );
+
+        INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
+        VALUES (o.id_utilisateur, o.id_occurrence, 'rappel',
+                o.libelle || ' : c''est fait ?');
+
+        v_creees := v_creees + 1;
+    END LOOP;
+
+    RETURN v_creees;
+END $$;
+
+
+-- -----------------------------------------------------------------------------
 -- Report d'office du soir                                        (opération 8)
 --
 -- L'occurrence n'est pas recréée : elle glisse au lendemain et son compteur de

@@ -27,7 +27,7 @@ La base refuse ce qui est incohérent, même si un script ou une saisie manuelle
 
 ## État
 
-Le socle SQL est écrit et vérifié : 9 tables, 6 vues, 17 fonctions, 6 triggers. L'API FastAPI, l'export iCalendar et le bot Telegram viennent ensuite.
+Socle SQL, API, collecteurs et boucle quotidienne en place, vérifiés : 10 tables, 7 vues, 19 fonctions, 6 triggers, 75 tests. Reste le bot Telegram.
 
 ## Démarrage
 
@@ -40,29 +40,131 @@ docker compose up -d
 ./sql/appliquer.sh
 ```
 
+Créer les deux comptes, puis rejouer les assignations :
+
+```bash
+docker exec -i planif-db psql -U planif -d planif <<SQL
+INSERT INTO utilisateur (pseudo, nom, role, cle_api) VALUES
+  ('thomas',  'Thomas',  'admin',    'CLÉ_DE_THOMAS'),
+  ('lorette', 'Lorette', 'standard', 'CLÉ_DE_LORETTE');
+SQL
+./sql/appliquer.sh
+```
+
+| Point d'entrée | URL |
+|---|---|
+| Documentation interactive | http://localhost:8000/documentation |
+| Santé | http://localhost:8000/sante |
+| Flux calendrier | http://localhost:8000/planning.ics?cle=CLÉ |
+
+Sur iPhone : Réglages → Calendrier → Comptes → Ajouter → Autre → Ajouter un abonnement, et coller l'URL du flux.
+
 ## Structure
 
 ```
 sql/
-  001_schema.sql       tables, CHECK, contraintes d'exclusion
-  002_vues.sql         planning, retards, santé des sources, stock
-  003_fonctions.sql    disponibilités, génération, projection, placement
-  004_triggers.sql     récurrence, enchaînements, machine unique, stock
-  005_donnees.sql      sources, tâches, enchaînements, articles
-  999_scenario_test.sql   déroulé d'une semaine type, avec assertions
+  001_schema.sql        tables, CHECK, contraintes d'exclusion
+  002_vues.sql          planning, retards, santé des sources, stock
+  003_fonctions.sql     disponibilités, génération, projection, placement
+  004_triggers.sql      récurrence, enchaînements, machine unique, stock
+  005_donnees.sql       sources, tâches, enchaînements, articles
+  006_assignations.sql  qui fait quoi par défaut
+  scenario_test.sql     déroulé d'une semaine type, avec assertions
   appliquer.sh
-docker-compose.yml
-cahier-des-charges.md
+api/
+  main.py                  montage, erreurs normalisées, /sante, /planning.ics
+  base.py                  pool psycopg, sans ORM
+  securite.py              clé d'API
+  erreurs.py               SQLSTATE → statut HTTP
+  calendrier.py            export iCalendar
+  amorcage.py              URL des flux depuis l'environnement
+  ordonnanceur.py          collectes, bilan, relance, report
+  collecteurs/ics.py       lecture des flux, profils ade et easyatwork
+  collecteurs/service.py   collecte et réconciliation, sans HTTP
+  routeurs/                planning, tâches, occurrences, contraintes,
+                           stock, notifications
+tests/                     parcours complet contre un vrai PostgreSQL
+  exemple_ade.ics          extraits réels des flux, pièges compris
+  exemple_mcdo.ics
 ```
+
+## Les collecteurs
+
+Les deux sources sont des flux iCalendar, donc un seul collecteur avec deux profils. Pas de scraping, pas de navigateur headless, pas de mot de passe à stocker.
+
+```bash
+# On donne l'URL une fois — depuis le bot, en collant simplement le lien
+curl -X PATCH -H "X-Cle-Api: $CLE" -H 'Content-Type: application/json' \
+     -d '{"url":"https://..."}' localhost:8000/sources/MCDO
+
+curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/sources/MCDO/collecter
+```
+
+Les URL ne sont **jamais** dans le dépôt : celle du planning McDonald's contient un jeton d'accès personnel. L'API ne la renvoie pas non plus, seulement `url_renseignee: true`.
+
+| Profil | Source | Produit |
+|---|---|---|
+| `ade` | Planning universitaire | des occupations `cours` |
+| `easyatwork` | Planning McDonald's | des occupations `travail` |
+
+Le flux de l'Université de Lorraine a trois pièges, tous couverts par des tests :
+
+- **Chaque cours apparaît deux fois avec le même UID** : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par UID ferait gagner la dernière lue, donc parfois la version vide — la salle disparaîtrait. Le collecteur fusionne par UID en gardant la plus informative.
+- **`SALLE A DEFINIR`** n'est pas une salle, et la capacité entre parenthèses n'intéresse personne. `105,Salle 104 (49 Places)` devient `Salle 104`.
+- **Le groupe s'écrit `gpe1` ou `gpe 2`**, au choix.
+
+Les filtres sont des données, pas du code — ils vivent dans `source.configuration` :
+
+```json
+{
+  "profil": "ade",
+  "type_occupation": "cours",
+  "groupe": 1,
+  "alternance": false,
+  "langues_suivies": ["anglais", "espagnol"],
+  "langues_possibles": ["anglais", "espagnol", "chinois", "allemand"],
+  "horizon_jours": 60,
+  "historique_jours": 7
+}
+```
+
+Changer de groupe au second semestre, c'est un `PATCH`, pas un redéploiement. Passer `alternance` à vrai retire l'espagnol. La collecte renvoie toujours le détail de ce qu'elle a écarté : une collecte muette est indébogable.
+
+```json
+{"lues": 10, "crees": 6, "mis_a_jour": 0, "annules": 0, "conflits": [],
+ "rejets": {"langue non suivie (chinois)": 1, "groupe 2": 2, ...}}
+```
+
+## Les conflits horaires
+
+Une source publie parfois deux occupations au même moment. La contrainte d'exclusion en refuse une — et c'est tant mieux, mais il faut décider laquelle garder.
+
+- **Conflit à plus de deux semaines** : rien. L'emploi du temps sera vraisemblablement corrigé avant que ça compte, et faire arbitrer du bruit use la patience.
+- **Conflit à moins de deux semaines** : la version rejetée est conservée, une notification part, et la question est posée.
+
+```bash
+curl -H "X-Cle-Api: $CLE" localhost:8000/conflits
+curl -X POST -H "X-Cle-Api: $CLE" -H 'Content-Type: application/json' \
+     -d '{"garder":"nouvelle"}' localhost:8000/conflits/3/resoudre
+```
+
+Le choix est mémorisé : garder l'existante écarte durablement l'autre version, et la collecte suivante ne repose pas la même question.
 
 Les fichiers sont rejoués depuis zéro à chaque fois, il n'y a pas encore d'outil de migration. C'est volontaire : tant que la base ne contient pas de données à préserver, `--recreer` est plus simple à comprendre qu'un versionnement.
 
 ## Vérifier
 
 ```bash
+# Le socle SQL
 ./sql/appliquer.sh --recreer
-docker exec -i planif-db psql -U planif -d planif < sql/999_scenario_test.sql
+docker exec -i planif-db psql -U planif -d planif < sql/scenario_test.sql
+
+# L'API, contre la même base
+pip install -e ".[dev]"
+DB_PORT=5432 pytest -q
 ```
+
+Les tests d'API reconstruisent le schéma, créent deux comptes et déroulent un parcours complet : authentification, saisie d'occupations, placement, validation, refus, stock, export iCalendar. Ils ne tournent pas sur des simulacres — c'est la base qui refuse un chevauchement ou une revalidation, et le test le constate.
 
 Le scénario monte une semaine type — cinq journées de cours, quatre shifts, du sommeil — puis vérifie :
 
@@ -94,6 +196,47 @@ Il tourne dans une transaction annulée à la fin : la base reste intacte.
 - Une migration appliquée n'est jamais modifiée, une fois qu'il y aura des données à préserver.
 - Aucun secret dans le dépôt. Les clés d'API et les identifiants de portail passent par l'environnement.
 
+## L'API en pratique
+
+Elle est mince, et c'est voulu. Valider une tâche, c'est une ligne :
+
+```python
+executer("SELECT valider_occurrence(%(id)s, %(acteur)s, %(date)s)", {...})
+```
+
+Le reste — créer l'occurrence suivante à partir de la date réelle, déclencher l'aspirateur après la poussière sans doublon, envoyer les t-shirts au séchage — est fait par les triggers. Le jour où une seconde application, un script ou une saisie directe en SQL passe à côté de l'API, les règles tiennent quand même.
+
+Les erreurs ont une seule forme, `{code, message}`, que l'échec vienne de la base ou de l'API :
+
+```json
+{"code": "chevauchement", "message": "conflicting key value violates exclusion constraint"}
+{"code": "non_reportable", "message": "Cette tâche ne peut pas être repoussée..."}
+```
+
+## La boucle quotidienne
+
+C'est elle qui décide si le système sert à quelque chose : sans elle, le planning existe mais personne ne le regarde.
+
+| Quand | Quoi |
+|---|---|
+| Toutes les heures | Collecte des sources dont la fréquence est écoulée, puis replacement si quelque chose a bougé |
+| 07h00 | Placement, puis bilan du jour et des retards. Les créneaux annoncés sont figés |
+| 21h00 | Un rappel par tâche du jour non validée — c'est lui qui portera les boutons |
+| 00h05 | Report d'office de ce qui n'a pas été fait, compteur de relances incrémenté |
+
+Deux règles comptent plus que les autres :
+
+**Quand il n'y a rien à dire, le système se tait.** Un bilan vide tous les matins ferait couper les notifications en une semaine.
+
+**Une notification est enregistrée avant d'être envoyée.** Le bot vient vider la file et dit ce qu'il a réussi à transmettre ; un échec laisse le message en attente plutôt que de le perdre.
+
+```bash
+curl -H "X-Cle-Api: $CLE" localhost:8000/notifications
+curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/notifications/12/envoyee
+```
+
+L'ordonnanceur et les endpoints appellent les **mêmes fonctions**. Il n'y a donc jamais deux chemins de code pour la même opération, et le chemin de nuit — celui qu'on ne regarde jamais — reste couvert par les tests.
+
 ## Suite
 
-L'API FastAPI par-dessus ce socle : endpoints de lecture branchés sur les vues, endpoints d'action branchés sur les fonctions, export `.ics`, puis le bot Telegram.
+**Bot Telegram** — vider la file de notifications, afficher les boutons « fait / reporter / refuser », et accepter les commandes de consultation et de saisie rapide. Il ne fera qu'appeler cette API.

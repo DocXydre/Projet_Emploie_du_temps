@@ -135,6 +135,12 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R42 | Procédure manuelle | L'utilisateur peut recaler à la main la quantité propre d'un article, quand le compte s'est désynchronisé de la réalité |
 | R43 | Données | Une tâche peut exiger que les deux utilisateurs soient présents en même temps. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
 | R44 | Traitement | Une tâche à deux est placée sur une intersection des disponibilités des deux utilisateurs. S'il n'en existe aucune sur sa fenêtre, le système notifie au lieu de placer la tâche au hasard |
+| R45 | Traitement | Quand une source publie une occupation qui en chevauche une autre, l'occupation refusée est conservée en conflit plutôt que perdue |
+| R46 | Traitement | Un conflit qui commence dans plus de deux semaines n'est pas soumis à arbitrage : l'emploi du temps sera vraisemblablement corrigé d'ici là |
+| R47 | Procédure manuelle | Pour un conflit à moins de deux semaines, l'utilisateur choisit laquelle des deux occupations garder. Le choix est mémorisé et la question ne se repose plus |
+| R48 | Données | Une source déclare son profil de collecte, le type d'occupation qu'elle produit, et son horizon. Ces réglages sont des données, pas du code |
+| R49 | Procédure manuelle | L'URL d'un flux se renseigne depuis le bot. Elle n'est jamais versionnée : celle du planning de travail contient un jeton d'accès personnel |
+| R50 | Données | En alternance, l'espagnol ne fait plus partie des langues suivies. C'est un drapeau de configuration, pas une modification du code |
 
 Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
@@ -279,9 +285,12 @@ erDiagram
 | frequence_heures | INTEGER | non | > 0 | | 24 | | |
 | derniere_collecte | TIMESTAMPTZ | oui | | | | | |
 | etat | VARCHAR(20) | non | 'ok', 'en_panne' | | 'ok' | | |
+| configuration | JSONB | non | | | '{}' | | |
 | active | BOOLEAN | non | | | TRUE | | |
 
-L'URL et les éventuels identifiants ne sont jamais écrits dans le code ni dans le dépôt : ils sont fournis par variable d'environnement au démarrage.
+L'URL n'est jamais écrite dans le code ni dans le dépôt : celle du planning de travail contient un jeton d'accès personnel. Elle est fournie à l'exécution, depuis le bot, et l'API ne la renvoie jamais.
+
+`configuration` porte les réglages du collecteur : profil de lecture, type d'occupation produit, horizon, et pour l'emploi du temps universitaire le groupe de TD et les langues suivies. Ce sont des données : changer de groupe au second semestre ne doit demander qu'une mise à jour, pas un redéploiement.
 
 ### Table : Occupation
 
@@ -371,6 +380,27 @@ Les deux drapeaux `rappel_journee` et `utilise_machine` sont recopiés de la tâ
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
 | date_envoi | TIMESTAMPTZ | oui | obligatoire si statut = 'envoyee' | | | | |
 
+### Table : Conflit
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_conflit | SERIAL | non | | oui | | oui | |
+| id_occupation | INTEGER | non | | | | | Occupation |
+| id_source | INTEGER | non | | | | | Source |
+| cle_externe | VARCHAR(200) | non | | oui avec id_source et id_occupation | | | |
+| libelle | VARCHAR(150) | non | | | | | |
+| periode | TSTZRANGE | non | non vide, bornée | | | | |
+| lieu | VARCHAR(100) | oui | | | | | |
+| details | TEXT | oui | | | | | |
+| statut | VARCHAR(20) | non | 'en_attente', 'resolu' | | 'en_attente' | | |
+| choix | VARCHAR(20) | oui | 'existante', 'nouvelle' ; obligatoire si résolu | | | | |
+| date_detection | TIMESTAMPTZ | non | | | now() | | |
+| date_resolution | TIMESTAMPTZ | oui | obligatoire si résolu | | | | |
+
+`id_occupation` désigne ce qui est déjà au planning ; les colonnes `libelle`, `periode`, `lieu` et `details` décrivent la version que la source voudrait mettre à la place et que la contrainte d'exclusion a refusée.
+
+Le champ `choix` est mémorisé pour que la collecte suivante ne repose pas la même question. Sans lui, garder l'existante ne servirait à rien : la version rejetée reviendrait toutes les douze heures.
+
 ### Table : ArticleTravail
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -448,6 +478,11 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R43 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
 | R44 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
 | R44 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
+| R45 | Une occupation refusée par la contrainte d'exclusion est enregistrée en conflit, avec la version déjà en place | Dynamique forte |
+| R46 | Un conflit à plus de deux semaines n'est pas enregistré : vue `v_conflit`, colonne `a_arbitrer` | Dynamique faible |
+| R47 | Un conflit résolu porte son choix et sa date de résolution | Statique forte |
+| R47 | Un conflit tranché en faveur de l'existant écarte durablement la version rejetée | Dynamique forte |
+| R48 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
 
 ---
 
@@ -461,9 +496,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Acteurs** | Ordonnanceur ou administrateur (principal), collecteur et source externe (secondaires) |
 | **Événement déclencheur** | La fréquence de la source est écoulée, ou l'administrateur force la collecte |
 | **Pré-conditions** | La source existe et est active |
-| **Actions** | 1. Récupérer les données brutes auprès de la source<br>2. Les transformer en occupations, chacune portant une clé externe<br>3. Pour chaque occupation, si la clé externe existe déjà pour cette source, mettre à jour la ligne ; sinon l'insérer<br>4. Supprimer les occupations de cette source qui n'apparaissent plus dans la collecte et qui sont dans le futur<br>5. Mettre à jour `derniere_collecte` et repasser l'état à ok<br>6. Si des occupations ont changé, déclencher l'opération 3 |
-| **Actions alternatives** | Si la source est injoignable ou renvoie des données illisibles, ne rien modifier, laisser `derniere_collecte` inchangée. La vue de santé signalera la panne si le retard dépasse deux fois la fréquence |
-| **Post-conditions** | Les occupations de la source reflètent l'état réel de l'emploi du temps, sans doublon |
+| **Actions** | 1. Récupérer les données brutes auprès de la source, sur une fenêtre glissante<br>2. Les transformer en occupations selon le profil de la source, chacune portant une clé externe<br>3. Fusionner les doublons de clé externe en gardant la version la plus informative<br>4. Écarter ce qui ne concerne pas l'utilisateur : langue non suivie, autre groupe, hors horizon<br>5. Pour chaque occupation, si la clé externe existe déjà pour cette source, mettre à jour la ligne ; sinon l'insérer<br>6. Supprimer les occupations de cette source qui n'apparaissent plus dans la collecte et qui sont dans le futur<br>7. Mettre à jour `derniere_collecte` et repasser l'état à ok<br>8. Si des occupations ont changé, déclencher l'opération 4 |
+| **Actions alternatives** | Si la source est injoignable ou renvoie des données illisibles, ne rien modifier, laisser `derniere_collecte` inchangée. La vue de santé signalera la panne si le retard dépasse deux fois la fréquence.<br>Si une occupation en chevauche une autre, la contrainte d'exclusion la refuse : elle part en conflit (opération 11) plutôt que de faire échouer toute la collecte |
+| **Post-conditions** | Les occupations de la source reflètent l'état réel de l'emploi du temps, sans doublon. Le bilan de collecte dit ce qui a été écarté et pourquoi |
 
 ### Opération 2 : Génération des occurrences manquantes
 
@@ -572,6 +607,18 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Actions** | 1. Vérifier que la période est valide et bornée<br>2. Enregistrer l'occupation rattachée à la source manuelle<br>3. Déclencher l'opération 4, qui inclut la projection de stock si l'occupation est de type travail |
 | **Actions alternatives** | Si la période chevauche une occupation de cours ou de travail existante, la contrainte d'exclusion rejette l'insertion et l'erreur est renvoyée en clair à l'utilisateur |
 | **Post-conditions** | La contrainte est prise en compte et le planning est recalculé. Le système reste utilisable même quand toutes les collectes sont en panne |
+
+### Opération 11 : Arbitrage d'un conflit horaire
+
+| | |
+|---|---|
+| **Objectif** | Décider laquelle de deux occupations simultanées est la bonne |
+| **Acteurs** | Utilisateur (principal), système (secondaire) |
+| **Événement déclencheur** | Une collecte a rencontré un chevauchement à moins de deux semaines |
+| **Pré-conditions** | Le conflit existe et n'est pas déjà tranché |
+| **Actions** | 1. À la détection, enregistrer l'occupation refusée à côté de celle déjà en place, et notifier<br>2. Présenter les deux versions côte à côte : libellé, horaire, salle<br>3. **Garder l'existante** : marquer le conflit résolu ; la version rejetée est écartée durablement, les collectes suivantes ne reposent plus la question<br>4. **Garder la nouvelle** : supprimer l'occupation en place, insérer celle du conflit, marquer résolu<br>5. Déclencher l'opération 4 |
+| **Actions alternatives** | Un conflit qui commence dans plus de deux semaines n'est pas enregistré du tout : il n'a pas à être arbitré maintenant, et l'emploi du temps sera vraisemblablement corrigé avant qu'il ne compte |
+| **Post-conditions** | Une seule occupation occupe le créneau, et le choix est mémorisé |
 
 ---
 

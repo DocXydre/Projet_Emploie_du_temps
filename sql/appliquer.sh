@@ -30,7 +30,9 @@ if [ "${1:-}" = "--recreer" ]; then
     psql_exec -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 fi
 
-for fichier in "$RACINE"/sql/[0-9][0-9][0-9]_*.sql; do
+# Seuls les fichiers numérotés sont des migrations. Le scénario de test, lui,
+# n'a pas de numéro : il ne doit jamais être rejoué automatiquement.
+for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
     echo "→ $(basename "$fichier")"
     psql_exec < "$fichier"
 done

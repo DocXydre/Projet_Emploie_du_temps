@@ -24,7 +24,12 @@ BEGIN
     NEW.rappel_journee  := t.rappel_journee;
     NEW.utilise_machine := t.utilise_machine;
 
-    IF NEW.id_utilisateur IS NULL THEN
+    -- L'assignation par défaut ne s'applique qu'aux occurrences engendrées par
+    -- le système. Une création manuelle dit exactement ce qu'elle veut, y
+    -- compris « personne » : c'est ce qui permet à un refus de laisser la tâche
+    -- libre pour que l'autre la reprenne, plutôt que de la rendre aussitôt à
+    -- celui qui vient de la refuser.
+    IF NEW.id_utilisateur IS NULL AND NEW.origine <> 'manuelle' THEN
         NEW.id_utilisateur := t.id_utilisateur_defaut;
     END IF;
 
@@ -126,6 +131,7 @@ DECLARE
     t          RECORD;
     e          RECORD;
     v_cible    RECORD;
+    v_depart   TIMESTAMPTZ;
     v_limite   TIMESTAMPTZ;
     v_existante INTEGER;
 BEGIN
@@ -150,13 +156,16 @@ BEGIN
         SELECT * INTO v_cible FROM tache WHERE id_tache = e.id_tache_suivante;
         CONTINUE WHEN NOT v_cible.active;
 
+        -- Le délai minimum décale le début de la fenêtre : le linge étendu ce
+        -- soir ne se plie pas dans la foulée, mais le lendemain.
+        v_depart := NEW.date_faite + make_interval(hours => e.delai_min_heures);
         v_limite := NEW.date_faite + make_interval(hours => e.delai_max_heures);
 
         SELECT id_occurrence INTO v_existante
           FROM occurrence
          WHERE id_tache = e.id_tache_suivante
            AND statut IN ('a_placer', 'planifiee', 'notifiee')
-           AND fenetre && tstzrange(NEW.date_faite, v_limite, '[)')
+           AND fenetre && tstzrange(v_depart, v_limite, '[)')
          ORDER BY upper(fenetre)
          LIMIT 1;
 
@@ -164,7 +173,7 @@ BEGIN
             -- Anti-doublon : on repositionne au lieu de créer une deuxième
             -- occurrence de la même tâche.
             UPDATE occurrence
-               SET fenetre = fenetre_pour(v_cible.rappel_journee, NEW.date_faite, v_limite),
+               SET fenetre = fenetre_pour(v_cible.rappel_journee, v_depart, v_limite),
                    creneau = NULL,
                    statut  = 'a_placer',
                    motif   = format('Repositionnée après %s', t.code)
@@ -174,7 +183,7 @@ BEGIN
                                     id_occurrence_source, motif)
             VALUES (v_cible.id_tache,
                     v_cible.id_utilisateur_defaut,
-                    fenetre_pour(v_cible.rappel_journee, NEW.date_faite, v_limite),
+                    fenetre_pour(v_cible.rappel_journee, v_depart, v_limite),
                     'enchainement',
                     NEW.id_occurrence,
                     format('Déclenchée par %s', t.code));
