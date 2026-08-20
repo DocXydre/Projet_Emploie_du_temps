@@ -13,13 +13,21 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import ordonnanceur
-from api.amorcage import amorcer_sources
+from api import bot, ordonnanceur
+from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
 from api.config import configuration
 from api.erreurs import gerer_erreur_http, gerer_erreur_sql, gerer_erreur_validation
-from api.routeurs import contraintes, notifications, occurrences, planning, stock, taches
+from api.routeurs import (
+    absences,
+    contraintes,
+    notifications,
+    occurrences,
+    planning,
+    stock,
+    taches,
+)
 from api.securite import Appelant, Authentifie, appelant_par_url
 
 conf = configuration()
@@ -29,9 +37,12 @@ conf = configuration()
 async def cycle_de_vie(app: FastAPI):
     demarrer_pool()
     amorcer_sources()
+    amorcer_assignations()
     if conf.ordonnanceur_actif:
         ordonnanceur.demarrer()
+        await bot.demarrer_bot()
     yield
+    await bot.arreter_bot()
     ordonnanceur.arreter()
     arreter_pool()
 
@@ -61,6 +72,7 @@ app.include_router(occurrences.routeur)
 app.include_router(contraintes.routeur)
 app.include_router(stock.routeur)
 app.include_router(notifications.routeur)
+app.include_router(absences.routeur)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")
@@ -77,6 +89,7 @@ def sante() -> dict:
         "etat": "ok" if base == "ok" else "degrade",
         "base": base,
         "ordonnanceur": ordonnanceur.taches_programmees(),
+        "bot": bot.identite() or "non démarré",
     }
 
 

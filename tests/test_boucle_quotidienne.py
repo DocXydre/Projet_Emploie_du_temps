@@ -11,12 +11,20 @@ import psycopg
 from tests.conftest import _url
 
 
-def notifications(statut: str | None = None) -> list[dict]:
-    filtre = f"WHERE statut = '{statut}'" if statut else ""
+def notifications(pseudo: str | None = None) -> list[dict]:
+    """Notifications, éventuellement filtrées sur leur destinataire.
+
+    Le filtre est important : chaque utilisateur reçoit son propre bilan, et
+    supposer lequel arrive en premier rendrait les tests fragiles.
+    """
+    filtre = "WHERE u.pseudo = %s" if pseudo else ""
     with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row) as conn:
         return conn.execute(
-            f"SELECT type, contenu, statut, id_occurrence FROM notification {filtre} "
-            f"ORDER BY id_notification"
+            f"SELECT n.type, n.contenu, n.statut, n.id_occurrence, u.pseudo "
+            f"  FROM notification n "
+            f"  JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur "
+            f"  {filtre} ORDER BY n.id_notification",
+            (pseudo,) if pseudo else (),
         ).fetchall()
 
 
@@ -54,7 +62,7 @@ def test_le_bilan_annonce_la_journee_et_fige_les_creneaux(client, thomas):
     creees = client.post("/notifications/bilan", headers=thomas).json()["creees"]
     assert creees >= 1
 
-    bilans = [n for n in notifications() if n["type"] == "bilan"]
+    bilans = [n for n in notifications("thomas") if n["type"] == "bilan"]
     assert bilans
     assert "Passer l'aspirateur" in bilans[0]["contenu"]
 
@@ -88,7 +96,7 @@ def test_le_bilan_signale_les_taches_sans_creneau(client, thomas):
     client.post("/planning/placer", headers=thomas)
     client.post("/notifications/bilan", headers=thomas)
 
-    bilans = [n for n in notifications() if n["type"] == "bilan"]
+    bilans = [n for n in notifications("thomas") if n["type"] == "bilan"]
     assert bilans
     assert "Sans créneau" in bilans[0]["contenu"]
 
@@ -99,7 +107,7 @@ def test_le_bilan_previent_l_administrateur_des_pannes(client, thomas):
     forcer_au_jour_meme("ASPIRATEUR")
     client.post("/notifications/bilan", headers=thomas)
 
-    bilans = [n for n in notifications() if n["type"] == "bilan"]
+    bilans = [n for n in notifications("thomas") if n["type"] == "bilan"]
     assert any("Collecte en panne" in n["contenu"] for n in bilans)
 
 
@@ -119,6 +127,8 @@ def test_la_relance_cible_les_taches_du_jour_non_faites(client, thomas):
     creees = client.post("/notifications/relance", headers=thomas).json()["creees"]
     assert creees >= 1
 
+    # Sans filtre sur le destinataire : la répartition peut confier
+    # l'aspirateur à l'un ou à l'autre selon la charge de chacun.
     rappels = [n for n in notifications() if n["type"] == "rappel"]
     assert any(n["id_occurrence"] == identifiant for n in rappels)
     # Un rappel porte son occurrence : c'est ce qui permettra au bot d'y
@@ -134,7 +144,7 @@ def test_une_tache_deja_faite_n_est_pas_relancee(client, thomas):
 
     client.post("/notifications/relance", headers=thomas)
 
-    rappels = [n for n in notifications() if n["type"] == "rappel"]
+    rappels = [n for n in notifications("thomas") if n["type"] == "rappel"]
     assert all(n["id_occurrence"] != identifiant for n in rappels)
 
 
@@ -165,7 +175,8 @@ def test_la_file_expose_ce_que_le_bot_doit_envoyer(client, thomas):
 
     rappel = next(n for n in file if n["id_occurrence"] == identifiant)
     assert rappel["type"] == "rappel"
-    assert rappel["pseudo"] == "thomas"
+    # Le destinataire est l'assigné du moment, qui dépend de la répartition.
+    assert rappel["pseudo"] in ("thomas", "lorette")
     # Les actions voyagent avec la notification : le bot n'a pas à connaître
     # la machine à états pour afficher ses boutons.
     assert "faite" in rappel["actions_possibles"]

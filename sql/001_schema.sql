@@ -116,6 +116,42 @@ COMMENT ON COLUMN occupation.details IS
 
 
 -- -----------------------------------------------------------------------------
+-- Absence : les jours où l'on n'est pas dans l'appartement       (R57 à R60)
+--
+-- Une absence n'est pas une occupation. Être en cours empêche de faire le
+-- ménage à ce moment-là ; être à Saint-Dié empêche de le faire du tout, et
+-- surtout dispense de le faire : on ne salit pas un appartement où l'on n'est
+-- pas.
+-- -----------------------------------------------------------------------------
+CREATE TABLE absence (
+    id_absence      SERIAL       PRIMARY KEY,
+    id_utilisateur  INTEGER      NOT NULL REFERENCES utilisateur (id_utilisateur),
+    periode         TSTZRANGE    NOT NULL,
+    lieu            VARCHAR(100),
+    origine         VARCHAR(20)  NOT NULL DEFAULT 'manuelle'
+                                 CHECK (origine IN ('manuelle', 'trajet')),
+    commentaire     TEXT,
+    date_creation   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+
+    CONSTRAINT absence_periode_bornee CHECK (
+        NOT isempty(periode)
+        AND lower(periode) IS NOT NULL
+        AND upper(periode) IS NOT NULL
+    ),
+
+    -- On ne peut pas être absent deux fois en même temps.
+    CONSTRAINT absence_sans_chevauchement
+        EXCLUDE USING gist (id_utilisateur WITH =, periode WITH &&)
+);
+
+CREATE INDEX absence_periode_idx ON absence USING gist (periode);
+
+COMMENT ON COLUMN absence.origine IS
+    'manuelle : déclarée au bot, par exemple un départ en voiture.
+     trajet : déduite d''un billet de train confirmé.';
+
+
+-- -----------------------------------------------------------------------------
 -- Conflit horaire                                                  (R45, R46)
 --
 -- Une source publie parfois deux occupations au même moment. La contrainte
@@ -178,6 +214,7 @@ CREATE TABLE tache (
     lave_uniforme          BOOLEAN      NOT NULL DEFAULT FALSE,
     requiert_les_deux      BOOLEAN      NOT NULL DEFAULT FALSE,
     reportable             BOOLEAN      NOT NULL DEFAULT TRUE,
+    recurrente             BOOLEAN      NOT NULL DEFAULT TRUE,
     id_utilisateur_defaut  INTEGER      REFERENCES utilisateur (id_utilisateur),
     active                 BOOLEAN      NOT NULL DEFAULT TRUE,
 
@@ -213,6 +250,11 @@ COMMENT ON COLUMN tache.reportable IS
     'Faux pour la lessive de travail : la repousser reviendrait à se retrouver
      sans uniforme propre (opération 6).';
 
+COMMENT ON COLUMN tache.recurrente IS
+    'Faux pour ce qui n''a de sens qu''à la suite d''autre chose : étendre le
+     linge ne revient pas tous les jours, seulement après une lessive. Ces
+     tâches ne sont créées que par enchaînement (R55).';
+
 COMMENT ON COLUMN tache.requiert_les_deux IS
     'Vrai pour le grand nettoyage : il faut un moment où Thomas et Lorette sont
      libres en même temps. Le placement cherche alors une intersection de
@@ -237,6 +279,27 @@ CREATE TABLE enchainement (
 
 COMMENT ON TABLE enchainement IS
     'La poussière déclenche l''aspirateur dans les 24 heures, et jamais avant elle (R12, R23).';
+
+
+-- -----------------------------------------------------------------------------
+-- Remplacement : faire ceci vaut avoir fait cela                        (R51)
+--
+-- Vider entièrement la litière rend le ramassage des crottes sans objet. Sans
+-- cette notion, les deux tâches tomberaient le même jour et le système
+-- demanderait de faire deux fois le même geste.
+-- -----------------------------------------------------------------------------
+CREATE TABLE remplacement (
+    id_remplacement    SERIAL  PRIMARY KEY,
+    id_tache_faite     INTEGER NOT NULL REFERENCES tache (id_tache) ON DELETE CASCADE,
+    id_tache_couverte  INTEGER NOT NULL REFERENCES tache (id_tache) ON DELETE CASCADE,
+
+    CONSTRAINT remplacement_unique UNIQUE (id_tache_faite, id_tache_couverte),
+    CONSTRAINT remplacement_non_reflexif CHECK (id_tache_faite <> id_tache_couverte)
+);
+
+COMMENT ON TABLE remplacement IS
+    'Valider la tâche source solde aussi la tâche couverte, à la même date. La
+     récurrence de cette dernière repart donc du bon moment (R51).';
 
 COMMENT ON COLUMN enchainement.delai_min_heures IS
     'Délai avant lequel la tâche suivante n''a pas de sens. Zéro pour
@@ -265,7 +328,11 @@ CREATE TABLE occurrence (
     nb_relances           INTEGER      NOT NULL DEFAULT 0 CHECK (nb_relances >= 0),
     motif                 TEXT,
     date_faite            TIMESTAMPTZ,
-    id_occurrence_source  INTEGER      REFERENCES occurrence (id_occurrence),
+    -- ON DELETE SET NULL : les occurrences prévisionnelles sont effacées dès
+    -- qu'une validation réelle les rend fausses. Elles forment une chaîne, et
+    -- sans cela la suppression du premier maillon échouerait.
+    id_occurrence_source  INTEGER      REFERENCES occurrence (id_occurrence)
+                                       ON DELETE SET NULL,
     date_creation         TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
     CONSTRAINT occurrence_fenetre_bornee CHECK (

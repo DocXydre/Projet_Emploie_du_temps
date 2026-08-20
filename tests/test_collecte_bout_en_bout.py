@@ -11,7 +11,21 @@ def collecter(client, thomas, texte: str = EXEMPLE) -> dict:
     reponse = client.post("/sources/IDMC_ICS/collecter", headers=thomas,
                           params={"texte_ics": texte})
     assert reponse.status_code == 200, reponse.text
-    return reponse.json()
+    bilan = reponse.json()
+
+    # Invariant : chaque séance lue est comptée quelque part. C'est ce contrôle
+    # qui a révélé que six chevauchements disparaissaient en silence.
+    assert "non_comptabilisees" not in bilan, bilan
+    return bilan
+
+
+def test_chaque_seance_lue_est_comptabilisee(client, thomas):
+    bilan = collecter(client, thomas)
+
+    total = (bilan["crees"] + bilan["mis_a_jour"] + len(bilan["conflits"])
+             + bilan["conflits_lointains"] + bilan["conflits_deja_signales"]
+             + bilan["ecartees_par_arbitrage"] + sum(bilan["rejets"].values()))
+    assert total == bilan["lues"]
 
 
 def test_la_collecte_cree_les_occupations_filtrees(client, thomas):

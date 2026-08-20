@@ -137,8 +137,22 @@ DECLARE
 BEGIN
     SELECT * INTO t FROM tache WHERE id_tache = NEW.id_tache;
 
+    -- ---- Les prévisions deviennent fausses ----------------------------------
+    --
+    -- Les occurrences pré-générées supposaient que la tâche serait faite en fin
+    -- de fenêtre. La validation dit quand elle l'a vraiment été : tout ce qui
+    -- suivait est à refaire. On efface plutôt que d'annuler, parce qu'une
+    -- prévision jamais annoncée n'est pas un engagement dont il faut garder
+    -- trace — seuls les créneaux communiqués en méritent une.
+    DELETE FROM occurrence
+     WHERE id_tache = NEW.id_tache
+       AND id_occurrence <> NEW.id_occurrence
+       AND origine = 'recurrence'
+       AND statut IN ('a_placer', 'planifiee')
+       AND NOT epinglee;
+
     -- ---- R21 : l'occurrence suivante part de la date réelle ------------------
-    IF t.active THEN
+    IF t.active AND t.recurrente THEN
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
                                 id_occurrence_source)
         VALUES (t.id_tache,
@@ -188,6 +202,20 @@ BEGIN
                     NEW.id_occurrence,
                     format('Déclenchée par %s', t.code));
         END IF;
+    END LOOP;
+
+    -- ---- R51 : faire ceci vaut avoir fait cela ------------------------------
+    --
+    -- L'occurrence couverte est marquée faite à la même date. Ce trigger se
+    -- redéclenche alors pour elle, ce qui recrée sa suivante au bon moment :
+    -- vider la litière un mardi repousse le prochain ramassage au jeudi.
+    FOR e IN SELECT id_tache_couverte FROM remplacement WHERE id_tache_faite = NEW.id_tache LOOP
+        UPDATE occurrence
+           SET statut     = 'faite',
+               date_faite = NEW.date_faite,
+               motif      = format('Couverte par %s', t.code)
+         WHERE id_tache = e.id_tache_couverte
+           AND statut IN ('a_placer', 'planifiee', 'notifiee');
     END LOOP;
 
     -- ---- R36 : le linge lavé n'est pas portable tout de suite ---------------

@@ -37,10 +37,15 @@ def planning(
 
 
 @routeur.post("/placer", summary="Relancer le placement")
-def placer(qui: Authentifie, horizon_jours: int | None = None) -> dict:
+def placer(qui: Authentifie, horizon_jours: int | None = None,
+           stabilite_jours: int | None = None) -> dict:
+    conf = configuration()
     resultat = executer(
-        "SELECT placer_taches(%(horizon)s) AS placees",
-        {"horizon": horizon_jours or configuration().horizon_jours},
+        "SELECT placer_taches(%(horizon)s, %(stabilite)s) AS placees",
+        {
+            "horizon": horizon_jours or conf.horizon_jours,
+            "stabilite": conf.stabilite_jours if stabilite_jours is None else stabilite_jours,
+        },
     )
     assert resultat is not None
 

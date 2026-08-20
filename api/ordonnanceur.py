@@ -52,8 +52,9 @@ def collecter_les_sources_dues() -> dict:
 
 
 def placer() -> int:
-    resultat = executer("SELECT placer_taches(%(h)s) AS placees",
-                        {"h": configuration().horizon_jours})
+    conf = configuration()
+    resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
+                        {"h": conf.horizon_jours, "s": conf.stabilite_jours})
     placees = (resultat or {}).get("placees", 0)
     LOG.info("Placement : %s occurrence(s)", placees)
     return placees

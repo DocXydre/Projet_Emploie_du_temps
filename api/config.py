@@ -20,8 +20,20 @@ class Configuration(BaseSettings):
     # Fuseau d'affichage. Le stockage reste en UTC.
     fuseau: str = "Europe/Paris"
 
-    # Horizon de planification, en jours.
-    horizon_jours: int = 21
+    # Horizon de planification : jusqu'où le moteur place les tâches. Un mois,
+    # pour qu'on puisse s'organiser, mais pas plus : au-delà, une lessive
+    # planifiée ne veut rien dire tant qu'on ignore la charge de la semaine.
+    horizon_jours: int = 35
+
+    # Passé ce délai, un créneau déjà placé ne bouge plus. Un planning qui
+    # change tous les matins ne sert à rien : on ne s'organise pas autour de
+    # quelque chose qui se dérobe.
+    stabilite_jours: int = 7
+
+    # Horizon d'affichage du calendrier : jusqu'où le flux iCalendar expose ce
+    # qu'on connaît. Long, car un cours de novembre est utile à voir même si
+    # aucune tâche ne sera placée ce jour-là.
+    horizon_calendrier_jours: int = 180
 
     # URL des flux. Jamais versionnées : celle du planning de travail contient
     # un jeton d'accès personnel. Elles peuvent aussi être données depuis le bot.

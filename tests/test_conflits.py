@@ -56,6 +56,11 @@ def test_un_conflit_lointain_ne_derange_personne(client, thomas):
     assert bilan["conflits"] == []
     assert client.get("/conflits", headers=thomas).json() == []
 
+    # Ne pas déranger n'est pas la même chose que perdre : la séance écartée
+    # reste comptée, sinon des cours disparaîtraient sans laisser de trace.
+    assert bilan["conflits_lointains"] == 1
+    assert "non_comptabilisees" not in bilan
+
 
 def test_un_conflit_proche_demande_un_arbitrage(client, thomas):
     debut, fin = dans(3, 10), dans(3, 12)

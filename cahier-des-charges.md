@@ -141,6 +141,16 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R48 | Données | Une source déclare son profil de collecte, le type d'occupation qu'elle produit, et son horizon. Ces réglages sont des données, pas du code |
 | R49 | Procédure manuelle | L'URL d'un flux se renseigne depuis le bot. Elle n'est jamais versionnée : celle du planning de travail contient un jeton d'accès personnel |
 | R50 | Données | En alternance, l'espagnol ne fait plus partie des langues suivies. C'est un drapeau de configuration, pas une modification du code |
+| R51 | Traitement | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider entièrement la litière vaut ramassage, et le prochain ramassage repart du jour du vidage |
+| R52 | Traitement | Une collecte rend compte de chaque séance lue. Si les compteurs ne s'équilibrent pas, l'écart est signalé plutôt que passé sous silence |
+| R53 | Traitement | Un rappel est placé sur le jour le moins chargé de sa fenêtre, et à charge égale sur le plus libre. Le premier jour venu entasserait tout le même soir, ce qui garantit que rien ne sera fait |
+| R54 | Traitement | Un créneau prévu dans les sept jours ne bouge plus, même si un replacement a lieu. On ne s'organise pas autour d'un planning qui se dérobe |
+| R55 | Données | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
+| R56 | Traitement | Le planning est établi un mois à l'avance. Les occurrences au-delà de la prochaine sont des prévisions : une validation réelle les efface, et elles sont refaites à partir de la date constatée |
+| R57 | Données | Une absence est une période où l'on n'est pas dans l'appartement. Deux absences d'une même personne ne se chevauchent pas |
+| R58 | Traitement | Aucune tâche domestique n'est placée un jour entièrement couvert par une absence. On ne salit pas un logement où l'on n'est pas, donc on n'a pas à le nettoyer |
+| R59 | Traitement | Les tâches sans assigné fixe reviennent à la personne présente. Si les deux le sont, à celle qui porte le moins de minutes de tâches |
+| R60 | Traitement | Quand personne n'est présent sur toute la fenêtre, la tâche attend le retour au lieu d'être assignée à un absent |
 
 Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
@@ -341,6 +351,16 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | id_tache_suivante | INTEGER | non | ≠ id_tache_source | | | | Tache |
 | delai_max_heures | INTEGER | non | > 0 | | 24 | | |
 
+### Table : Remplacement
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_remplacement | SERIAL | non | | oui | | oui | |
+| id_tache_faite | INTEGER | non | | oui avec id_tache_couverte | | | Tache |
+| id_tache_couverte | INTEGER | non | ≠ id_tache_faite | | | | Tache |
+
+« Faire ceci vaut avoir fait cela ». La relation n'est pas symétrique : vider la litière dispense du ramassage, l'inverse est faux.
+
 ### Table : Occurrence
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -379,6 +399,22 @@ Les deux drapeaux `rappel_journee` et `utilise_machine` sont recopiés de la tâ
 | statut | VARCHAR(20) | non | 'a_envoyer', 'envoyee', 'echec' | | 'a_envoyer' | | |
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
 | date_envoi | TIMESTAMPTZ | oui | obligatoire si statut = 'envoyee' | | | | |
+
+### Table : Absence
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_absence | SERIAL | non | | oui | | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| periode | TSTZRANGE | non | non vide, bornée ; sans chevauchement pour un même utilisateur | | | | |
+| lieu | VARCHAR(100) | oui | | | | | |
+| origine | VARCHAR(20) | non | 'manuelle', 'trajet' | | 'manuelle' | | |
+| commentaire | TEXT | oui | | | | | |
+| date_creation | TIMESTAMPTZ | non | | | now() | | |
+
+Une absence n'est pas une occupation. Être en cours empêche de faire le ménage à ce moment-là ; être à Saint-Dié dispense de le faire, puisqu'on ne salit pas un logement où l'on n'est pas.
+
+Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse la journée de vendredi utilisable, et la geler créerait un retard fictif.
 
 ### Table : Conflit
 
@@ -483,6 +519,17 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R47 | Un conflit résolu porte son choix et sa date de résolution | Statique forte |
 | R47 | Un conflit tranché en faveur de l'existant écarte durablement la version rejetée | Dynamique forte |
 | R48 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
+| R51 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
+| R51 | Valider une tâche solde les occurrences ouvertes des tâches qu'elle couvre : trigger | Dynamique forte |
+| R52 | Le total des compteurs de collecte égale le nombre de séances lues | Dynamique faible |
+| R54 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
+| R55 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
+| R56 | La validation efface les occurrences prévisionnelles de la même tâche | Dynamique forte |
+| R57 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| R57 | `periode` est non vide et bornée | Statique forte |
+| R58 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |
+| R59 | L'assigné est choisi au placement parmi les présents, par charge croissante | Dynamique forte |
+| R60 | Une occurrence sans personne disponible reste sans assigné, avec un motif | Dynamique faible |
 
 ---
 

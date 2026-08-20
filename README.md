@@ -27,7 +27,29 @@ La base refuse ce qui est incohérent, même si un script ou une saisie manuelle
 
 ## État
 
-Socle SQL, API, collecteurs et boucle quotidienne en place, vérifiés : 10 tables, 7 vues, 19 fonctions, 6 triggers, 75 tests. Reste le bot Telegram.
+Complet et vérifié : 12 tables, 7 vues, 24 fonctions, 6 triggers, 128 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
+
+## Le placement
+
+Trois règles décident de tout.
+
+**Le jour le moins chargé, pas le premier venu.** Une fenêtre d'échéance de trois jours existe pour offrir une marge : la prendre au plus tôt entassait sept tâches le même soir, ce qui garantit qu'aucune n'est faite. À charge égale, la journée la plus libre gagne — sinon un jour occupé de 1h à 23h passerait pour idéal du seul fait qu'aucune tâche n'y est encore prévue.
+
+**Un mois d'avance, une semaine figée.** Les occurrences au-delà de la prochaine sont des prévisions : elles supposent une exécution en fin de fenêtre. Valider une tâche les efface, et la chaîne se refait à partir de la date constatée. Ce qui est prévu dans les sept jours ne bouge plus : on ne s'organise pas autour d'un planning qui se dérobe.
+
+**Certaines tâches n'existent que par enchaînement.** Étendre le linge ne revient pas tous les jours, seulement après une lessive.
+
+## L'absence
+
+Une absence n'est pas une occupation. Être en cours empêche de faire le ménage à ce moment-là ; être parti **dispense** de le faire.
+
+```
+/absent 22/08 24/08 Saint-Dié
+```
+
+Le planning se refait aussitôt. Pendant l'absence, les tâches sans assigné fixe reviennent à qui reste. Si les deux sont là, à celui qui porte le moins de minutes — la répartition se mesure en temps, pas en nombre de tâches, sinon récurer vaudrait ramasser la litière. Et si l'appartement est vide, elles attendent le retour.
+
+Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse le vendredi utilisable.
 
 ## Démarrage
 
@@ -237,6 +259,22 @@ curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/notifications/12/envoyee
 
 L'ordonnanceur et les endpoints appellent les **mêmes fonctions**. Il n'y a donc jamais deux chemins de code pour la même opération, et le chemin de nuit — celui qu'on ne regarde jamais — reste couvert par les tests.
 
-## Suite
+## Le bot Telegram
 
-**Bot Telegram** — vider la file de notifications, afficher les boutons « fait / reporter / refuser », et accepter les commandes de consultation et de saisie rapide. Il ne fera qu'appeler cette API.
+Il tourne dans le même processus que l'API — pour deux utilisateurs, un conteneur de plus ne se justifie pas. Sans `TELEGRAM_TOKEN`, il ne démarre pas et l'API fonctionne normalement, les notifications restant en file.
+
+**S'appairer** : envoyer `/demarrer TA_CLE_API` au bot. La clé sert de mot de passe — sans elle, quiconque trouve le nom du bot recevrait le planning.
+
+| Commande | Effet |
+|---|---|
+| `/planning` `/demain` | Ce qui est prévu, horaires puis rappels |
+| `/retards` | Ce qui traîne, avec les boutons |
+| `/stock` | Uniforme et date limite de la prochaine lessive |
+| `/conflits` | Cours en double à départager |
+| `/collecter` | Forcer une collecte |
+| `/lien CODE URL` | Donner l'URL d'un flux — le message est effacé aussitôt, il contient un jeton |
+| `/oublie` | Délier ce compte |
+
+Les rappels du soir portent trois boutons : **Fait**, **Plus tard**, **Non**. Aucune notification n'est envoyée entre 23h30 et 7h30 : faire vibrer un téléphone à 3h du matin pour une poussière est le meilleur moyen de faire couper les notifications.
+
+Toute la logique vit dans `conversation.py`, qui se teste sans parler à Telegram. `bot.py` ne fait que brancher des commandes et des boutons dessus — sinon, vérifier qu'un bouton « Fait » valide la bonne occurrence demanderait un service extérieur.

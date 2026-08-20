@@ -140,6 +140,37 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
+-- Présence dans l'appartement                                     (R57, R58)
+--
+-- On ne compte absent qu'un jour entièrement couvert par une absence. Partir
+-- vendredi soir laisse la journée de vendredi utilisable : la tâche peut être
+-- faite avant le départ, et la geler reviendrait à créer un retard fictif.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION est_absent(p_utilisateur INTEGER, p_jour DATE)
+RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM absence
+         WHERE id_utilisateur = p_utilisateur
+           AND periode @> tstzrange(debut_jour(p_jour), debut_jour(p_jour + 1), '[)')
+    );
+$$;
+
+
+CREATE OR REPLACE FUNCTION presents_le(p_jour DATE)
+RETURNS INTEGER[] LANGUAGE sql STABLE AS $$
+    SELECT COALESCE(array_agg(id_utilisateur ORDER BY id_utilisateur), ARRAY[]::INTEGER[])
+      FROM utilisateur
+     WHERE actif AND NOT est_absent(id_utilisateur, p_jour);
+$$;
+
+
+CREATE OR REPLACE FUNCTION appartement_vide(p_jour DATE)
+RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+    SELECT cardinality(presents_le(p_jour)) = 0;
+$$;
+
+
+-- -----------------------------------------------------------------------------
 -- La machine à laver est une ressource unique de l'appartement           (R35)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION machine_occupee(p_jour DATE, p_sauf INTEGER DEFAULT NULL)
@@ -177,7 +208,9 @@ BEGIN
     v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
 
     WHILE v_jour <= v_dernier LOOP
-        IF NOT (p_machine AND machine_occupee(v_jour)) THEN
+        -- R57 : ni machine ni ménage un jour où l'on n'est pas là.
+        IF NOT est_absent(p_utilisateur, v_jour)
+           AND NOT (p_machine AND machine_occupee(v_jour)) THEN
 
             -- Plage autorisée ce jour-là, ramenée à la fenêtre d'échéance et
             -- à ce qui reste à venir : on ne propose pas 14h quand il est 16h.
@@ -209,10 +242,15 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Recherche d'un jour, pour un rappel sans heure imposée                 (R18)
+-- Recherche d'un jour, pour un rappel sans heure imposée            (R18, R53)
 --
 -- On ne cherche pas un créneau mais une journée qui laisse assez de temps
 -- libre au total, une fois déduits les autres rappels déjà posés ce jour-là.
+--
+-- Et surtout : on retient le jour le **moins chargé** de la fenêtre, pas le
+-- premier venu. Prendre le premier entassait toutes les tâches sur la même
+-- journée, ce qui garantit qu'aucune ne sera faite. La fenêtre d'échéance
+-- existe précisément pour offrir cette marge.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chercher_jour(
     p_utilisateur INTEGER,
@@ -220,15 +258,30 @@ CREATE OR REPLACE FUNCTION chercher_jour(
     p_duree       INTERVAL
 ) RETURNS TSTZRANGE LANGUAGE plpgsql STABLE AS $$
 DECLARE
-    v_jour    DATE;
-    v_dernier DATE;
-    v_deja    INTEGER;
-    v_libre   INTERVAL;
+    -- Au-delà, l'examen de chaque jour coûte plus qu'il ne rapporte : une tâche
+    -- mensuelle n'a pas besoin d'être comparée sur trente et un jours.
+    EXAMEN_MAX CONSTANT INTEGER := 21;
+
+    v_jour       DATE;
+    v_dernier    DATE;
+    v_deja       INTEGER;
+    v_libre      INTERVAL;
+    v_meilleur   DATE     := NULL;
+    v_charge_min INTEGER  := NULL;
+    v_libre_max  INTERVAL := NULL;
 BEGIN
     v_jour    := GREATEST(jour_de(lower(p_fenetre)), jour_de(now()));
-    v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
+    v_dernier := LEAST(jour_de(upper(p_fenetre) - INTERVAL '1 second'),
+                       v_jour + EXAMEN_MAX);
 
     WHILE v_jour <= v_dernier LOOP
+        -- R57 : un jour d'absence ne reçoit rien. On ne fait pas le ménage
+        -- d'un appartement où l'on n'est pas.
+        IF est_absent(p_utilisateur, v_jour) THEN
+            v_jour := v_jour + 1;
+            CONTINUE;
+        END IF;
+
         SELECT COALESCE(sum(t.duree_minutes), 0) INTO v_deja
           FROM occurrence o
           JOIN tache t ON t.id_tache = o.id_tache
@@ -240,14 +293,27 @@ BEGIN
 
         v_libre := temps_libre_jour(p_utilisateur, v_jour) - make_interval(mins => v_deja);
 
-        IF v_libre >= p_duree THEN
-            RETURN tstzrange(debut_jour(v_jour), debut_jour(v_jour + 1), '[)');
+        -- Deux critères, dans cet ordre : d'abord le moins de tâches déjà
+        -- posées, ensuite le plus de temps libre. Le second compte autant que
+        -- le premier — sans lui, une journée occupée de 1h à 23h paraîtrait
+        -- idéale du seul fait qu'aucune tâche n'y est encore prévue.
+        IF v_libre >= p_duree
+           AND (v_charge_min IS NULL
+                OR v_deja < v_charge_min
+                OR (v_deja = v_charge_min AND v_libre > v_libre_max)) THEN
+            v_meilleur   := v_jour;
+            v_charge_min := v_deja;
+            v_libre_max  := v_libre;
         END IF;
 
         v_jour := v_jour + 1;
     END LOOP;
 
-    RETURN NULL;
+    IF v_meilleur IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN tstzrange(debut_jour(v_meilleur), debut_jour(v_meilleur + 1), '[)');
 END $$;
 
 
@@ -257,45 +323,71 @@ END $$;
 -- Une tâche qui a déjà une occurrence en cours est ignorée : c'est ce qui
 -- empêche l'accumulation.
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION generer_occurrences() RETURNS INTEGER
-LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION generer_occurrences(p_horizon_jours INTEGER DEFAULT 35)
+RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
-    t       RECORD;
-    v_ref   TIMESTAMPTZ;
-    v_debut TIMESTAMPTZ;
-    v_fin   TIMESTAMPTZ;
-    v_creees INTEGER := 0;
+    -- Garde-fou : une tâche quotidienne sur un horizon d'un an ferait boucler
+    -- longtemps. Aucune configuration raisonnable n'atteint cette limite.
+    ITERATIONS_MAX CONSTANT INTEGER := 60;
+
+    t         RECORD;
+    v_curseur TIMESTAMPTZ;
+    v_fenetre TSTZRANGE;
+    v_limite  TIMESTAMPTZ;
+    v_tours   INTEGER;
+    v_creees  INTEGER := 0;
 BEGIN
-    FOR t IN SELECT * FROM tache WHERE active ORDER BY priorite LOOP
+    v_limite := now() + make_interval(days => p_horizon_jours);
 
-        CONTINUE WHEN EXISTS (
-            SELECT 1 FROM occurrence
-             WHERE id_tache = t.id_tache
-               AND statut IN ('a_placer', 'planifiee', 'notifiee')
-        );
+    -- R55 : les tâches non récurrentes n'apparaissent que par enchaînement.
+    -- Sans ce filtre, « étendre le linge » reviendrait tous les jours, même
+    -- les semaines où aucune machine ne tourne.
+    FOR t IN SELECT * FROM tache WHERE active AND recurrente ORDER BY priorite LOOP
 
-        -- R21 : la référence est la dernière exécution réelle, jamais la date
-        -- théorique. Une tâche faite en retard ne décale pas tout le planning.
-        SELECT max(date_faite) INTO v_ref
+        -- Où en est cette tâche ? Trois cas, du plus précis au plus flou.
+        SELECT max(upper(fenetre)) INTO v_curseur
           FROM occurrence
-         WHERE id_tache = t.id_tache AND statut = 'faite';
+         WHERE id_tache = t.id_tache
+           AND statut IN ('a_placer', 'planifiee', 'notifiee');
 
-        IF v_ref IS NULL THEN
-            -- Jamais faite : elle est due dès aujourd'hui.
-            v_debut := now();
-            v_fin   := now() + make_interval(days => t.periodicite_max_jours);
-        ELSE
-            v_debut := v_ref + make_interval(days => t.periodicite_min_jours);
-            v_fin   := v_ref + make_interval(days => t.periodicite_max_jours);
+        IF v_curseur IS NULL THEN
+            -- R21 : la référence est la dernière exécution réelle, jamais la
+            -- date théorique. Une tâche faite en retard ne décale pas tout.
+            SELECT max(date_faite) INTO v_curseur
+              FROM occurrence
+             WHERE id_tache = t.id_tache AND statut = 'faite';
+
+            IF v_curseur IS NULL THEN
+                -- Jamais faite : elle est due dès aujourd'hui.
+                v_fenetre := fenetre_pour(
+                    t.rappel_journee, now(),
+                    now() + make_interval(days => t.periodicite_max_jours));
+
+                INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine)
+                VALUES (t.id_tache, t.id_utilisateur_defaut, v_fenetre, 'recurrence');
+
+                v_creees  := v_creees + 1;
+                v_curseur := upper(v_fenetre);
+            END IF;
         END IF;
 
-        INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine)
-        VALUES (t.id_tache,
-                t.id_utilisateur_defaut,
-                fenetre_pour(t.rappel_journee, v_debut, v_fin),
-                'recurrence');
+        -- Prolonger la chaîne jusqu'à l'horizon. Ces occurrences sont des
+        -- prévisions : elles seront effacées et refaites dès qu'une validation
+        -- réelle donnera une meilleure référence.
+        v_tours := 0;
+        WHILE v_curseur < v_limite AND v_tours < ITERATIONS_MAX LOOP
+            v_fenetre := fenetre_pour(
+                t.rappel_journee,
+                v_curseur + make_interval(days => t.periodicite_min_jours),
+                v_curseur + make_interval(days => t.periodicite_max_jours));
 
-        v_creees := v_creees + 1;
+            INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine)
+            VALUES (t.id_tache, t.id_utilisateur_defaut, v_fenetre, 'recurrence');
+
+            v_creees  := v_creees + 1;
+            v_curseur := upper(v_fenetre);
+            v_tours   := v_tours + 1;
+        END LOOP;
     END LOOP;
 
     RETURN v_creees;
@@ -429,12 +521,71 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
+-- À qui revient une tâche                                         (R58, R59)
+--
+-- Une tâche dont l'assignation est fixée garde son assigné, absence ou pas :
+-- le pliage du linge revient à Lorette même quand Thomas est là.
+--
+-- Pour les autres, c'est celui qui est présent qui s'en charge. Si les deux le
+-- sont, celle ou celui qui en a le moins : la répartition se mesure en minutes,
+-- pas en nombre de tâches, sinon récurer vaudrait ramasser la litière.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION choisir_assigne(p_tache INTEGER, p_fenetre TSTZRANGE)
+RETURNS INTEGER LANGUAGE plpgsql STABLE AS $$
+DECLARE
+    t            RECORD;
+    u            RECORD;
+    v_jour       DATE;
+    v_dernier    DATE;
+    v_disponible BOOLEAN;
+    v_charge     INTEGER;
+    v_meilleur   INTEGER := NULL;
+    v_charge_min INTEGER := NULL;
+BEGIN
+    SELECT * INTO t FROM tache WHERE id_tache = p_tache;
+
+    IF t.id_utilisateur_defaut IS NOT NULL THEN
+        RETURN t.id_utilisateur_defaut;
+    END IF;
+
+    v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
+
+    FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif ORDER BY id_utilisateur LOOP
+
+        -- Présent au moins un jour de la fenêtre ?
+        v_disponible := FALSE;
+        v_jour := GREATEST(jour_de(lower(p_fenetre)), jour_de(now()));
+        WHILE v_jour <= v_dernier AND NOT v_disponible LOOP
+            v_disponible := NOT est_absent(u.id_utilisateur, v_jour);
+            v_jour := v_jour + 1;
+        END LOOP;
+
+        CONTINUE WHEN NOT v_disponible;
+
+        SELECT COALESCE(sum(t2.duree_minutes), 0) INTO v_charge
+          FROM occurrence o
+          JOIN tache t2 ON t2.id_tache = o.id_tache
+         WHERE o.id_utilisateur = u.id_utilisateur
+           AND o.statut IN ('a_placer', 'planifiee', 'notifiee');
+
+        IF v_charge_min IS NULL OR v_charge < v_charge_min THEN
+            v_meilleur   := u.id_utilisateur;
+            v_charge_min := v_charge;
+        END IF;
+    END LOOP;
+
+    RETURN v_meilleur;   -- NULL si l'appartement est vide toute la fenêtre
+END $$;
+
+
+-- -----------------------------------------------------------------------------
 -- Placement                                                     (opération 4)
 --
 -- Algorithme glouton : on trie par priorité, puis par échéance, puis par durée
 -- décroissante, et on prend la première place qui convient.
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION placer_taches(p_horizon_jours INTEGER DEFAULT 21)
+CREATE OR REPLACE FUNCTION placer_taches(p_horizon_jours INTEGER DEFAULT 35,
+                                         p_stabilite_jours INTEGER DEFAULT 7)
 RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
     o         RECORD;
@@ -442,22 +593,30 @@ DECLARE
     v_creneau TSTZRANGE;
     v_duree   INTERVAL;
     v_places  INTEGER := 0;
+    v_gele    TIMESTAMPTZ;
+    v_assigne INTEGER;
 BEGIN
-    PERFORM generer_occurrences();
+    PERFORM generer_occurrences(p_horizon_jours);
 
-    FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif LOOP
+    FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif ORDER BY id_utilisateur LOOP
         PERFORM declencher_lessive(u.id_utilisateur);
     END LOOP;
 
-    -- R19 : un créneau notifié ou épinglé ne bouge plus. Sans cette règle, le
-    -- planning change tous les matins et devient inutilisable.
+    -- R19, R54 : un créneau notifié, épinglé, ou prévu dans les prochains jours
+    -- ne bouge plus. Un planning qui change tous les matins ne sert à rien :
+    -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
+    v_gele := now() + make_interval(days => p_stabilite_jours);
+
     UPDATE occurrence
        SET creneau = NULL, statut = 'a_placer', motif = NULL
-     WHERE statut = 'planifiee' AND NOT epinglee;
+     WHERE statut = 'planifiee'
+       AND NOT epinglee
+       AND (creneau IS NULL OR lower(creneau) > v_gele);
 
     FOR o IN
-        SELECT oc.id_occurrence, oc.id_utilisateur, oc.fenetre, oc.rappel_journee,
-               oc.utilise_machine, t.duree_minutes, t.heure_min, t.heure_max,
+        SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,
+               oc.rappel_journee, oc.utilise_machine,
+               t.duree_minutes, t.heure_min, t.heure_max,
                t.requiert_les_deux, t.libelle
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
@@ -466,19 +625,30 @@ BEGIN
            AND lower(oc.fenetre) < now() + make_interval(days => p_horizon_jours)
          ORDER BY t.priorite, upper(oc.fenetre), t.duree_minutes DESC
     LOOP
-        IF o.id_utilisateur IS NULL THEN
+        -- R58 : l'assigné se décide au placement, en fonction de qui est là.
+        v_assigne := COALESCE(o.id_utilisateur, choisir_assigne(o.id_tache, o.fenetre));
+
+        IF v_assigne IS NULL THEN
+            -- R60 : personne dans l'appartement sur toute la fenêtre. On ne
+            -- salit pas ce qu'on n'habite pas : la tâche attend le retour.
             UPDATE occurrence
-               SET motif = 'Non assignée : à attribuer avant de pouvoir être placée'
+               SET id_utilisateur = NULL,
+                   motif = 'Personne dans l''appartement sur cette période'
              WHERE id_occurrence = o.id_occurrence;
             CONTINUE;
+        END IF;
+
+        IF v_assigne IS DISTINCT FROM o.id_utilisateur THEN
+            UPDATE occurrence SET id_utilisateur = v_assigne
+             WHERE id_occurrence = o.id_occurrence;
         END IF;
 
         v_duree := make_interval(mins => o.duree_minutes);
 
         IF o.rappel_journee THEN
-            v_creneau := chercher_jour(o.id_utilisateur, o.fenetre, v_duree);
+            v_creneau := chercher_jour(v_assigne, o.fenetre, v_duree);
         ELSE
-            v_creneau := chercher_creneau(o.id_utilisateur, o.fenetre, v_duree,
+            v_creneau := chercher_creneau(v_assigne, o.fenetre, v_duree,
                                           o.heure_min, o.heure_max, o.utilise_machine,
                                           o.requiert_les_deux);
         END IF;
@@ -596,7 +766,10 @@ DECLARE
     v_envoyees INTEGER := 0;
     v_jour     DATE := jour_de(now());
 BEGIN
-    FOR u IN SELECT id_utilisateur, pseudo, role FROM utilisateur WHERE actif LOOP
+    -- L'ordre est explicite : sans lui, la sortie dépendrait de l'ordre
+    -- physique des lignes, qui change à la première mise à jour venue.
+    FOR u IN SELECT id_utilisateur, pseudo, role FROM utilisateur WHERE actif
+              ORDER BY id_utilisateur LOOP
         v_lignes   := ARRAY[]::TEXT[];
         v_retards  := ARRAY[]::TEXT[];
         v_bloquees := ARRAY[]::TEXT[];

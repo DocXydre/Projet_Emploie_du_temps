@@ -30,15 +30,20 @@ class CollecteImpossible(Exception):
         self.message = message
 
 
-def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int, seance: Seance) -> str | None:
+def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int,
+                         seance: Seance) -> tuple[str, str | None]:
     """Consigne une séance rejetée pour cause de chevauchement.
 
-    R46 : un conflit lointain a toutes les chances d'être corrigé à la source
-    avant qu'il ne compte. Poser la question maintenant reviendrait à faire
-    arbitrer du bruit.
+    Renvoie le sort réservé à la séance et, le cas échéant, sa description.
+    Le premier élément vaut « arbitrable », « lointain » ou « connu » : une
+    collecte doit pouvoir rendre compte de chaque séance lue, sinon des cours
+    disparaissent sans que personne ne s'en aperçoive.
     """
+    # R46 : un conflit lointain a toutes les chances d'être corrigé à la source
+    # avant qu'il ne compte. Poser la question maintenant reviendrait à faire
+    # arbitrer du bruit — mais il faut quand même le compter.
     if seance.debut > datetime.now(seance.debut.tzinfo) + DELAI_ARBITRAGE:
-        return None
+        return "lointain", None
 
     cur.execute(
         """
@@ -53,7 +58,7 @@ def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int, seance: Seanc
     )
     existante = cur.fetchone()
     if existante is None:
-        return None
+        return "lointain", None
 
     cur.execute(
         """
@@ -76,7 +81,7 @@ def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int, seance: Seanc
         },
     )
     if cur.fetchone() is None:
-        return None   # conflit déjà connu
+        return "connu", None   # conflit déjà signalé lors d'une collecte précédente
 
     quand = seance.debut.astimezone().strftime("%d/%m à %Hh%M")
     cur.execute(
@@ -87,7 +92,7 @@ def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int, seance: Seanc
                  f"conflit avec ce qui est déjà prévu. Laquelle garder ?",
         },
     )
-    return f"{seance.libelle} le {quand}"
+    return "arbitrable", f"{seance.libelle} le {quand}"
 
 
 def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
@@ -101,6 +106,9 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
     cles = [s.cle_externe for s in seances]
     cree = modifie = 0
     conflits: list[str] = []
+    # Chaque séance lue doit se retrouver dans exactement un compteur : une
+    # collecte dont les chiffres ne tombent pas juste cache des cours perdus.
+    autres = {"lointain": 0, "connu": 0, "deja_arbitre": 0}
 
     with connexion() as conn, conn.cursor() as cur:
         # Un conflit déjà tranché en faveur de l'existant ne se repose pas :
@@ -116,6 +124,7 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
 
         for seance in seances:
             if seance.cle_externe in ecartees:
+                autres["deja_arbitre"] += 1
                 continue
 
             try:
@@ -159,11 +168,13 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
             except psycopg.errors.ExclusionViolation:
                 # La source publie deux occupations au même moment. C'est une
                 # incohérence de l'emploi du temps, pas de notre code.
-                enregistre = _enregistrer_conflit(cur, id_source, id_utilisateur, seance)
-                if enregistre:
-                    conflits.append(enregistre)
-                LOG.warning("Séance en conflit horaire : %s le %s",
-                            seance.libelle, seance.debut.isoformat())
+                sort, description = _enregistrer_conflit(cur, id_source, id_utilisateur, seance)
+                if description:
+                    conflits.append(description)
+                else:
+                    autres[sort] += 1
+                LOG.warning("Séance en conflit horaire (%s) : %s le %s",
+                            sort, seance.libelle, seance.debut.isoformat())
 
         cur.execute(
             """
@@ -183,7 +194,15 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
             {"s": id_source},
         )
 
-    return {"crees": cree, "mis_a_jour": modifie, "annules": annules, "conflits": conflits}
+    return {
+        "crees": cree,
+        "mis_a_jour": modifie,
+        "annules": annules,
+        "conflits": conflits,
+        "conflits_lointains": autres["lointain"],
+        "conflits_deja_signales": autres["connu"],
+        "ecartees_par_arbitrage": autres["deja_arbitre"],
+    }
 
 
 def collecter_source(code: str, id_utilisateur: int | None = None,
@@ -224,12 +243,30 @@ def collecter_source(code: str, id_utilisateur: int | None = None,
     bilan = reconcilier(source["id_source"], proprietaire, resultat["seances"],
                         reglages.get("type_occupation", "cours"))
 
-    return {
+    compte_rendu = {
         "source": code,
         "lues": resultat["lues"],
         "rejets": resultat["rejets"],
         **bilan,
     }
+
+    # Toute séance lue doit se retrouver quelque part. Sans ce contrôle, des
+    # cours disparaissent en silence entre le flux et le planning — c'est
+    # précisément ce qui est arrivé aux six premiers chevauchements détectés.
+    manquantes = compte_rendu["lues"] - (
+        compte_rendu["crees"]
+        + compte_rendu["mis_a_jour"]
+        + len(compte_rendu["conflits"])
+        + compte_rendu["conflits_lointains"]
+        + compte_rendu["conflits_deja_signales"]
+        + compte_rendu["ecartees_par_arbitrage"]
+        + sum(compte_rendu["rejets"].values())
+    )
+    if manquantes:
+        LOG.error("Collecte %s : %d séance(s) non comptabilisée(s)", code, manquantes)
+        compte_rendu["non_comptabilisees"] = manquantes
+
+    return compte_rendu
 
 
 def sources_a_collecter() -> list[str]:

@@ -84,6 +84,8 @@ def table_rase(base):
         conn.execute("UPDATE article_travail SET quantite_propre = quantite_totale, "
                      "disponible_le = NULL")
         conn.execute("DELETE FROM conflit")
+        conn.execute("DELETE FROM absence")
         conn.execute("UPDATE source SET derniere_collecte = NULL, etat = 'ok', "
                      "url = NULL, active = TRUE")
+        conn.execute("UPDATE utilisateur SET id_telegram = NULL")
     yield

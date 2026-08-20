@@ -27,6 +27,9 @@ INSERT INTO source (code, libelle, mode_collecte, frequence_heures, url, configu
     --
     -- Les filtres, eux, sont des données de configuration : changer de groupe au
     -- second semestre ne doit demander qu'un UPDATE, pas un redéploiement.
+    --
+    -- 150 jours pour l'université : le semestre entier, jusqu'en janvier. Le
+    -- planning de travail, lui, n'est publié qu'à deux ou trois semaines.
     ('IDMC_ICS', 'Emploi du temps IDMC (ADE)', 'ics', 12, NULL,
      '{
         "profil": "ade",
@@ -35,7 +38,7 @@ INSERT INTO source (code, libelle, mode_collecte, frequence_heures, url, configu
         "alternance": false,
         "langues_suivies": ["anglais", "espagnol"],
         "langues_possibles": ["anglais", "espagnol", "chinois", "allemand"],
-        "horizon_jours": 60,
+        "horizon_jours": 150,
         "historique_jours": 7
       }'::JSONB,
      TRUE),
@@ -62,7 +65,6 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
                    rappel_journee, heure_min, heure_max,
                    utilise_machine, lave_uniforme, reportable) VALUES
 
-
     -- Ménage : des rappels, sans heure. Les durées sont celles d'un petit
     -- appartement : ce sont des tâches de dix minutes, pas des corvées.
     ('ASPIRATEUR',      'Passer l''aspirateur',      'menage',    4,  10,  2,  3, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
@@ -78,11 +80,27 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
     -- Machines : heures creuses, ressource unique
     ('LESSIVE_TRAVAIL', 'Lessive de travail',        'linge',     1,  15,  3, 14, FALSE, '21:45', '23:30', TRUE,  TRUE,  FALSE),
     ('LESSIVE_BLANC',   'Lessive de blanc',          'linge',     2,  15,  6,  8, FALSE, '21:45', '23:30', TRUE,  FALSE, TRUE),
-    ('LAVE_VAISSELLE',  'Lancer le lave-vaisselle',  'vaisselle', 2,  10,  3,  4, FALSE, '21:45', '23:30', FALSE, FALSE, TRUE),
+    ('LAVE_VAISSELLE',  'Lancer le lave-vaisselle',  'vaisselle', 2,  10,  3,  4, FALSE, '21:45', '23:30', FALSE, FALSE, TRUE);
 
-    -- Suites du linge : des rappels
-    ('ETENDRE_LINGE',   'Étendre le linge',          'linge',     2,  15,  1,  1, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE),
-    ('PLIER_LINGE',     'Plier et ranger le linge',  'linge',     4,  10,  1,  2, TRUE,  NULL,    NULL,    FALSE, FALSE, TRUE);
+
+-- Les suites du linge n'ont de sens qu'après une machine : elles ne reviennent
+-- pas d'elles-mêmes, seul l'enchaînement les fait apparaître. Sans cela,
+-- « étendre le linge » tomberait tous les jours, y compris les semaines où
+-- aucune lessive ne tourne.
+INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
+                   periodicite_min_jours, periodicite_max_jours,
+                   rappel_journee, recurrente) VALUES
+    ('ETENDRE_LINGE', 'Étendre le linge',         'linge', 2, 15, 1, 1, TRUE, FALSE),
+    ('PLIER_LINGE',   'Plier et ranger le linge', 'linge', 4, 10, 1, 2, TRUE, FALSE);
+
+
+-- Vider entièrement la litière vaut ramassage : on ne fait pas les deux le
+-- même jour, et le prochain ramassage repart du jour du vidage.
+INSERT INTO remplacement (id_tache_faite, id_tache_couverte)
+SELECT faite.id_tache, couverte.id_tache
+  FROM tache faite
+  JOIN tache couverte ON couverte.code = 'LITIERE_CROTTES'
+ WHERE faite.code = 'LITIERE_VIDAGE';
 
 
 -- Le grand nettoyage est la seule tâche qui exige deux personnes en même

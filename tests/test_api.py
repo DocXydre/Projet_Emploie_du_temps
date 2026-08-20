@@ -132,10 +132,13 @@ def test_placement_puis_validation_et_recurrence(client, thomas):
     debut_suivante = datetime.fromisoformat(suivante["echeance_min"])
     assert debut_suivante > datetime.now(UTC) + timedelta(days=6)
 
-    # R22 : l'aspirateur a été déclenché ou repositionné, sans doublon.
-    aspirateurs = [o for o in toutes
-                   if o["tache_code"] == "ASPIRATEUR" and o["statut"] != "faite"]
-    assert len(aspirateurs) == 1
+    # R22 : l'aspirateur a été repositionné, et une seule fois. Le planning
+    # étant pré-généré, plusieurs occurrences coexistent : ce qui compte est
+    # qu'une seule ait été rattachée à la poussière.
+    repositionnes = [o for o in toutes
+                     if o["tache_code"] == "ASPIRATEUR"
+                     and (o["motif"] or "").startswith("Repositionnée")]
+    assert len(repositionnes) == 1
 
 
 def test_revalider_est_refuse(client, thomas):
@@ -262,6 +265,23 @@ def test_le_flux_ics_distingue_journee_entiere_et_horaire(client, thomas):
     assert journees, "les rappels doivent être des événements journée entière"
     assert horaires, "les cours doivent rester des événements horaires"
     assert any("Cours" in str(e["SUMMARY"]) for e in horaires)
+
+
+def test_le_calendrier_va_plus_loin_que_l_horizon_de_planification(client, thomas):
+    # Un cours dans deux mois doit se voir, même si aucune tâche ménagère n'y
+    # sera placée : l'horizon d'affichage n'est pas celui de la planification.
+    lointain = datetime.now(UTC) + timedelta(days=60)
+    client.post("/occupations", headers=thomas, json={
+        "type": "cours", "libelle": "Cours de novembre",
+        "debut": lointain.replace(hour=8, minute=0, second=0, microsecond=0).isoformat(),
+        "fin": lointain.replace(hour=10, minute=0, second=0, microsecond=0).isoformat(),
+    })
+
+    flux = client.get("/planning.ics", params={"cle": "T" * 48})
+    calendrier = Calendar.from_ical(flux.content)
+    titres = [str(e["SUMMARY"]) for e in calendrier.walk("VEVENT")]
+
+    assert any("Cours de novembre" in titre for titre in titres)
 
 
 def test_le_planning_expose_le_motif_de_placement(client, thomas):

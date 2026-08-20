@@ -49,7 +49,9 @@ services:
       ORDONNANCEUR_ACTIF: ${ORDONNANCEUR_ACTIF:-true}
       TZ: UTC
     ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
+      # Par défaut l'API n'écoute que sur la machine. Mettre API_BIND=0.0.0.0
+      # dans .env pour l'atteindre depuis le téléphone, sur le réseau local.
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
 
 volumes:
   donnees:

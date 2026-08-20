@@ -56,7 +56,10 @@ def flux_ics(id_utilisateur: int, jours: int | None = None) -> bytes:
     conf = configuration()
     fuseau = ZoneInfo(conf.fuseau)
     debut = datetime.now(fuseau) - timedelta(days=1)
-    fin = debut + timedelta(days=(jours or conf.horizon_jours) + 1)
+
+    # L'horizon d'affichage n'est pas celui de la planification : on veut voir
+    # ses cours de novembre, même si aucune tâche ménagère n'y sera placée.
+    fin = debut + timedelta(days=(jours or conf.horizon_calendrier_jours) + 1)
 
     lignes = lister(
         """
