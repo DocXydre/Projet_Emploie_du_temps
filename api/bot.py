@@ -22,7 +22,10 @@ from telegram.ext import (
     ContextTypes,
 )
 
+from api import billets, trajets
 from api import conversation as conv
+from api.collecteurs.courriel import BoiteIndisponible
+from api.collecteurs.sncf import TrajetImpossible
 from api.config import configuration
 
 LOG = logging.getLogger(__name__)
@@ -38,6 +41,9 @@ AIDE = """Commandes :
 /stock — uniforme et prochaine lessive
 /conflits — cours en double à départager
 /absent JJ/MM JJ/MM lieu — je ne suis pas à l'appartement
+/train — aller à Saint-Dié : quand, et à quelle heure
+/billets — relever les confirmations SNCF de la boîte
+/calendrier — le lien à abonner sur le téléphone
 /collecter — forcer une collecte
 /lien CODE URL — donner l'URL d'un flux
 /oublie — délier ce compte Telegram"""
@@ -209,6 +215,209 @@ async def absent(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Envoie le lien d'abonnement, là où on en a besoin : sur le téléphone.
+
+    C'est tout l'intérêt de passer par le bot. Le lien contient un jeton de
+    trente-deux caractères que personne ne recopie à la main sans se tromper ;
+    touché depuis Telegram, il ouvre directement l'application Calendrier.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    renouveler = bool(contexte.args and contexte.args[0] in ("renouveler", "reset"))
+    if renouveler:
+        await asyncio.to_thread(conv.renouveler_calendrier, compte["id_utilisateur"])
+
+    lien = await asyncio.to_thread(conv.url_calendrier, compte["id_utilisateur"])
+    if lien is None:
+        await update.effective_message.reply_text(
+            "Je ne sais pas sous quel nom cette machine est joignable depuis "
+            "ton téléphone. Renseigne HOTE_PUBLIC dans le .env — par exemple "
+            "« HOTE_PUBLIC=mon-mac.local:8000 » — puis relance l'API."
+        )
+        return
+
+    entete = ("Nouveau lien. L'ancien ne fonctionne plus, il faut te réabonner.\n\n"
+              if renouveler else
+              "Touche le lien pour t'abonner, puis choisis un rafraîchissement "
+              "toutes les heures.\n\n")
+
+    await update.effective_message.reply_text(
+        f"{entete}{lien['webcal']}\n\n"
+        f"Si ton téléphone refuse ce lien, colle celui-ci :\n{lien['url']}\n\n"
+        f"Il ne donne que la lecture du planning. Pour le révoquer : "
+        f"« /calendrier renouveler »."
+    )
+
+
+async def train(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Propose d'aller à Saint-Dié quand l'emploi du temps le permet.
+
+    On ne demande pas les dates : le système les connaît mieux que la mémoire.
+    Il cherche les creux d'au moins deux jours, et ne propose que des trains
+    qu'on puisse effectivement attraper après le dernier cours ou service.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    creneaux = await asyncio.to_thread(trajets.fenetres, compte["id_utilisateur"])
+    if not creneaux:
+        conf = configuration()
+        await update.effective_message.reply_text(
+            f"Aucun creux de {conf.fenetre_absence_heures} h dans les "
+            f"{conf.horizon_trajets_jours} jours qui viennent. "
+            f"Soit l'emploi du temps est serré, soit les collectes n'ont pas "
+            f"encore ramené la suite du semestre."
+        )
+        return
+
+    if len(creneaux) == 1:
+        await _proposer_aller(update, contexte, compte, rang=1)
+        return
+
+    lignes = [f"{rang}. {trajets.resumer_fenetre(c)}"
+              for rang, c in enumerate(creneaux[:4], start=1)]
+    await update.effective_message.reply_text(
+        "Fenêtres assez longues pour un aller-retour :\n\n" + "\n".join(lignes),
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"Fenêtre {rang}", callback_data=f"train:fenetre:{rang}")]
+            for rang in range(1, min(len(creneaux), 4) + 1)
+        ]),
+    )
+
+
+def _heures(trajet: dict) -> str:
+    return f"{conv._heure(trajet['depart'])} → {conv._heure(trajet['arrivee'])}"
+
+
+async def _proposer_aller(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                          compte: dict, rang: int) -> None:
+    message = update.effective_message
+    try:
+        resultat = await asyncio.to_thread(
+            trajets.proposer_aller, compte["id_utilisateur"], rang)
+    except TrajetImpossible as erreur:
+        await message.reply_text(erreur.message)
+        return
+
+    creneau = resultat["fenetre"]
+    if creneau is None:
+        await message.reply_text("Cette fenêtre n'existe plus. Refais /train.")
+        return
+
+    if not resultat["trajets"]:
+        await message.reply_text(
+            f"{trajets.resumer_fenetre(creneau)}\n\n"
+            f"Aucun train après {conv._heure(creneau['depart_au_plus_tot'])} "
+            f"ce jour-là."
+        )
+        return
+
+    entete = trajets.resumer_fenetre(creneau)
+    if creneau["fin_obligation_avant"] is not None:
+        entete += (f"\n\nTu finis à {conv._heure(creneau['fin_obligation_avant'])} : "
+                   f"premier train attrapable après "
+                   f"{conv._heure(creneau['depart_au_plus_tot'])}.")
+
+    await message.reply_text(
+        entete + "\n\nAller :",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"{_heures(t)} · {t['resume']}",
+                                  callback_data=f"train:aller:{t['id_trajet']}")]
+            for t in resultat["trajets"]
+        ]),
+    )
+
+
+async def _proposer_retour(contexte: ContextTypes.DEFAULT_TYPE, chat_id: int,
+                           id_aller: int) -> None:
+    try:
+        resultat = await asyncio.to_thread(trajets.proposer_retour, id_aller)
+    except TrajetImpossible as erreur:
+        await contexte.bot.send_message(chat_id, erreur.message)
+        return
+
+    boutons = [
+        [InlineKeyboardButton(f"{_heures(t)} · {t['resume']}",
+                              callback_data=f"train:retour:{t['id_trajet']}")]
+        for t in resultat["trajets"]
+    ]
+    # Partir sans savoir quand on rentre est un cas ordinaire. Refuser de
+    # l'enregistrer obligerait à choisir un horaire au hasard.
+    boutons.append([InlineKeyboardButton("Retour à fixer plus tard",
+                                         callback_data=f"train:seul:{id_aller}")])
+
+    entete = "Retour, du premier départ possible :"
+    if not resultat["trajets"]:
+        entete = ("Aucun retour ne rentre dans la fenêtre. "
+                  "Tu peux quand même bloquer l'aller.")
+    elif resultat["retour_au_plus_tard"] is not None:
+        # L'ordre est annoncé parce qu'il n'est pas celui qu'on attend d'une
+        # liste d'horaires : le premier bouton est le dernier train.
+        entete = (f"Retour — rentré avant "
+                  f"{conv._heure(resultat['retour_au_plus_tard'])}. "
+                  f"Du dernier train aux plus tôt :")
+
+    await contexte.bot.send_message(chat_id, entete, reply_markup=InlineKeyboardMarkup(boutons))
+
+
+async def _confirmer_trajet(id_aller: int, id_retour: int | None) -> str:
+    resultat = await asyncio.to_thread(trajets.retenir, id_aller, id_retour)
+    absence = resultat["absence"]
+
+    fin = ("retour à fixer" if id_retour is None
+           else f"rentré le {conv._jour(absence['fin'])}")
+    return (f"C'est noté : parti le {conv._jour(absence['debut'])}, {fin}.\n"
+            f"Les tâches ménagères de ces jours-là sont replacées "
+            f"({resultat['occurrences_replacees']} occurrence(s) repositionnée(s)).\n\n"
+            f"Le billet, lui, reste à acheter.")
+
+
+async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Relève la boîte, puis liste les voyages qui en sont issus.
+
+    Chaque absence née d'un courriel porte un bouton pour l'annuler. C'est la
+    contrepartie de l'automatisme : le lecteur peut se tromper, et se tromper
+    en silence gèlerait deux jours de ménage sans que personne ne comprenne.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    try:
+        bilan = await asyncio.to_thread(billets.relever, compte["id_utilisateur"])
+    except BoiteIndisponible as erreur:
+        await update.effective_message.reply_text(erreur.message)
+        return
+
+    await update.effective_message.reply_text(billets.resume(bilan))
+
+    for revoir in await asyncio.to_thread(billets.a_revoir, 5):
+        await update.effective_message.reply_text(
+            f"Non exploité — {revoir['sujet'] or 'sans sujet'}\n{revoir['motif']}")
+
+    voyages = await asyncio.to_thread(billets.absences_issues_de_billets)
+    for voyage in voyages:
+        reference = f" ({voyage['reference']})" if voyage["reference"] else ""
+        await update.effective_message.reply_text(
+            f"Billet{reference} : absent du {conv._jour(voyage['debut'])} "
+            f"au {conv._jour(voyage['fin'])}"
+            f"{' à ' + voyage['lieu'] if voyage['lieu'] else ''}",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    "Ce n'est pas ça, annule",
+                    callback_data=f"billet:annuler:{voyage['id_absence']}"),
+            ]]),
+        )
+
+    if not voyages and bilan["traites"] == 0:
+        await update.effective_message.reply_text(
+            "Aucun voyage déclaré par courriel pour l'instant.")
+
+
 async def collecter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     compte = await _appelant(update)
     if compte is None:
@@ -291,6 +500,23 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     genre, choix, identifiant = requete.data.split(":", 2)
 
+    # Les trajets se déroulent en plusieurs temps : choisir un aller appelle la
+    # question du retour. On acquitte donc le message courant, puis on pose la
+    # suite dans un nouveau message.
+    if genre == "train":
+        await _bouton_train(update, contexte, compte, choix, identifiant)
+        return
+
+    if genre == "billet":
+        try:
+            replacees = await asyncio.to_thread(trajets.oublier, int(identifiant))
+            reponse = (f"Annulé, les tâches reviennent "
+                       f"({replacees} occurrence(s) replacée(s)).")
+        except Exception as erreur:
+            reponse = _message_lisible(erreur)
+        await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
+        return
+
     try:
         if genre == "tache":
             reponse = await asyncio.to_thread(
@@ -304,6 +530,45 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         reponse = _message_lisible(erreur)
 
     await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
+
+
+async def _bouton_train(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                        compte: dict, choix: str, identifiant: str) -> None:
+    requete = update.callback_query
+    chat = update.effective_chat.id
+
+    if choix == "fenetre":
+        await requete.edit_message_reply_markup(reply_markup=None)
+        await _proposer_aller(update, contexte, compte, rang=int(identifiant))
+        return
+
+    if choix == "aller":
+        await requete.edit_message_text(f"{requete.message.text}\n\n→ aller retenu")
+        await _proposer_retour(contexte, chat, int(identifiant))
+        return
+
+    try:
+        if choix == "retour":
+            aller = await asyncio.to_thread(_aller_du_retour, int(identifiant))
+            reponse = await _confirmer_trajet(aller, int(identifiant))
+        elif choix == "seul":
+            reponse = await _confirmer_trajet(int(identifiant), None)
+        else:
+            raise ValueError(f"Choix inconnu : {choix}")
+    except Exception as erreur:
+        reponse = _message_lisible(erreur)
+
+    await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
+
+
+def _aller_du_retour(id_retour: int) -> int:
+    from api.base import un_seul
+
+    ligne = un_seul("SELECT id_trajet_aller FROM trajet WHERE id_trajet = %(id)s",
+                    {"id": id_retour})
+    if ligne is None or ligne["id_trajet_aller"] is None:
+        raise ValueError("Ce retour n'est rattaché à aucun aller")
+    return ligne["id_trajet_aller"]
 
 
 def _message_lisible(erreur: Exception) -> str:
@@ -361,6 +626,9 @@ def construire() -> Application:
     application.add_handler(CommandHandler("stock", stock))
     application.add_handler(CommandHandler("conflits", conflits))
     application.add_handler(CommandHandler("absent", absent))
+    application.add_handler(CommandHandler("train", train))
+    application.add_handler(CommandHandler("billets", commande_billets))
+    application.add_handler(CommandHandler("calendrier", calendrier))
     application.add_handler(CommandHandler("collecter", collecter))
     application.add_handler(CommandHandler("lien", lien))
     application.add_handler(CommandHandler("oublie", oublie))

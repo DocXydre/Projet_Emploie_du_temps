@@ -151,6 +151,22 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R58 | Traitement | Aucune tâche domestique n'est placée un jour entièrement couvert par une absence. On ne salit pas un logement où l'on n'est pas, donc on n'a pas à le nettoyer |
 | R59 | Traitement | Les tâches sans assigné fixe reviennent à la personne présente. Si les deux le sont, à celle qui porte le moins de minutes de tâches |
 | R60 | Traitement | Quand personne n'est présent sur toute la fenêtre, la tâche attend le retour au lieu d'être assignée à un absent |
+| R61 | Données | L'abonnement au calendrier s'authentifie par un jeton distinct de la clé d'API. Cette adresse est conservée en clair par le téléphone et rejouée à chaque rafraîchissement : elle ne doit ouvrir que la lecture du planning |
+| R62 | Traitement | Renouveler le jeton de calendrier invalide les abonnements en place. La clé d'API et l'appairage du bot n'en sont pas affectés |
+| R63 | Données | Une fenêtre de départ est un creux d'au moins 48 h sans cours ni travail. Le sommeil n'en est pas un : dormir n'empêche pas d'être ailleurs. En deçà, le trajet coûte plus que le séjour ne rapporte |
+| R64 | Traitement | Un train ne se propose que s'il part au moins 30 min après la fin de la dernière obligation, et le retour doit ramener 30 min avant la suivante. Sans cette marge, on propose des trains qu'on regarde partir |
+| R65 | Données | Un horaire proposé n'est pas une donnée du système : il vient de la SNCF, change sans prévenir, et n'est conservé que le temps d'être choisi ou écarté |
+| R66 | Traitement | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan encore tenable, pas un plan devenu impossible |
+| R67 | Traitement | Retenir un aller et un retour crée l'absence correspondante, du départ jusqu'à l'arrivée du retour |
+| R68 | Traitement | Les autres horaires proposés pour le même départ sont écartés, non supprimés. Relire ce qui avait été proposé aide à comprendre un choix |
+| R69 | Traitement | Un aller retenu sans retour gèle jusqu'à la prochaine obligation connue. Partir sans savoir quand on rentre est un cas ordinaire |
+| R70 | Procédure manuelle | L'achat du billet reste à la charge de la personne. Une proposition retenue est une intention, pas une réservation |
+| R71 | Traitement | Les retours se cherchent à partir de l'heure limite d'arrivée, et sont proposés du dernier train possible vers les plus tôt. Rentrer le plus tard qu'on peut est le comportement voulu : avec un cours à 16h30, le train attendu est celui de 14h42, pas celui du matin |
+| R72 | Données | Un courriel n'est lu qu'une fois. Son en-tête Message-ID lui tient lieu d'identité |
+| R73 | Données | Seuls les courriels venant des domaines officiels de SNCF Connect sont analysés. Les faux courriels au nom de la SNCF sont répandus, et un expéditeur non vérifié pourrait déclarer une absence |
+| R74 | Traitement | Un billet lu crée l'aller, le retour s'il figure, puis l'absence — par le même chemin qu'une réservation faite depuis le bot |
+| R75 | Traitement | Un courriel d'expéditeur légitime qu'on n'a pas su lire est conservé avec son motif. Le format ne nous appartient pas : ce sera le seul indice disponible le jour où il changera |
+| R76 | Traitement | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler. Geler deux jours de ménage en silence sur une analyse fausse est le défaut à éviter avant tous les autres |
 
 Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
@@ -193,6 +209,7 @@ erDiagram
         varchar pseudo UK
         varchar role
         varchar cle_api UK
+        varchar jeton_calendrier UK
         bigint  id_telegram UK
     }
     SOURCE {
@@ -279,6 +296,7 @@ erDiagram
 | role | VARCHAR(20) | non | 'admin', 'standard' | | 'standard' | | |
 | fuseau | VARCHAR(50) | non | | | 'Europe/Paris' | | |
 | cle_api | VARCHAR(64) | non | longueur >= 32 | oui | | | |
+| jeton_calendrier | VARCHAR(64) | non | | oui | UUID sans tirets | | |
 | id_telegram | BIGINT | oui | | oui | | | |
 | actif | BOOLEAN | non | | | TRUE | | |
 | date_creation | DATE | non | | | CURRENT_DATE | | |
@@ -416,6 +434,47 @@ Une absence n'est pas une occupation. Être en cours empêche de faire le ménag
 
 Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse la journée de vendredi utilisable, et la geler créerait un retard fictif.
 
+### Table : Trajet
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_trajet | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| sens | VARCHAR(10) | non | 'aller', 'retour' | | | | |
+| periode | TSTZRANGE | non | non vide, bornée | | | | |
+| origine | VARCHAR(100) | non | | | | | |
+| destination | VARCHAR(100) | non | | | | | |
+| correspondances | SMALLINT | non | >= 0 | | 0 | | |
+| resume | VARCHAR(200) | oui | | | | | |
+| statut | VARCHAR(20) | non | 'proposee', 'retenue', 'ecartee' | | 'proposee' | | |
+| id_trajet_aller | BIGINT | oui | renseigné seulement si sens = 'retour' | | | | Trajet |
+| id_absence | INTEGER | oui | | | | | Absence |
+| date_creation | TIMESTAMPTZ | non | | | now() | | |
+
+Une fenêtre de départ, elle, n'a pas de table. C'est le résultat d'un calcul sur les occupations, et lui donner une clé obligerait à la tenir à jour à chaque collecte — pour un objet dont la durée de vie utile se compte en secondes.
+
+Un trajet retenu n'est pas un billet. Le système propose des horaires et gèle le ménage en conséquence ; l'achat reste manuel (R70).
+
+### Table : Courriel
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_courriel | BIGINT | non | | oui | identité | oui | |
+| identifiant | VARCHAR(255) | non | | oui | | | |
+| expediteur | VARCHAR(255) | non | | | | | |
+| sujet | VARCHAR(500) | oui | | | | | |
+| recu_le | TIMESTAMPTZ | oui | | | | | |
+| statut | VARCHAR(20) | non | 'traite', 'ignore', 'illisible', 'refuse' | | | | |
+| motif | TEXT | oui | | | | | |
+| reference | VARCHAR(20) | oui | | | | | |
+| id_utilisateur | INTEGER | oui | | | | | Utilisateur |
+| id_absence | INTEGER | oui | | | | | Absence |
+| traite_le | TIMESTAMPTZ | non | | | now() | | |
+
+Cette table ne stocke pas les courriels, seulement ce qu'on en a fait. Les quatre statuts se lisent ainsi : **traite**, une absence en est née ; **ignore**, expéditeur non reconnu ou courriel sans billet ; **illisible**, expéditeur légitime mais analyse échouée ; **refuse**, billet compris mais absence rejetée par la base, le plus souvent parce qu'elle en chevauche une autre.
+
+La distinction entre *ignore* et *illisible* porte tout l'intérêt de la table. Un prospectus ignoré ne demande rien à personne. Un courriel légitime devenu illisible signale que le format a changé — et sans lui, le jour où plus aucune absence ne se déclare, rien n'indiquerait pourquoi (R75).
+
 ### Table : Conflit
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -530,6 +589,21 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R58 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |
 | R59 | L'assigné est choisi au placement parmi les présents, par charge croissante | Dynamique forte |
 | R60 | Une occurrence sans personne disponible reste sans assigné, avec un motif | Dynamique faible |
+| R61 | `jeton_calendrier` est unique et non nul, engendré par défaut à la création du compte | Statique forte |
+| R62 | Le flux iCalendar n'accepte que `jeton_calendrier` ; la clé d'API y est refusée, et réciproquement | Dynamique forte |
+| R63 | Une fenêtre n'est pas stockée : c'est le résultat de `fenetres_de_depart`, filtré sur sa durée | Dynamique forte |
+| R64 | Les bornes `depart_au_plus_tot` et `retour_au_plus_tard` sont calculées, jamais saisies | Dynamique forte |
+| R65 | `sens` appartient à {aller, retour}, `statut` à {proposee, retenue, ecartee}, `periode` est bornée et non vide | Statique forte |
+| R65 | Un `id_trajet_aller` n'est renseigné que sur un trajet de sens 'retour' | Statique forte |
+| R66 | Le replacement libère les créneaux gelés dont l'assigné est absent ce jour-là | Dynamique forte |
+| R67 | Le retour ne peut pas partir avant l'arrivée de l'aller | Dynamique forte |
+| R67 | Deux trajets retenus qui se chevauchent sont refusés par la contrainte d'exclusion sur `absence` | Statique forte |
+| R69 | Sans retour, la fin de l'absence est déduite de la prochaine obligation | Dynamique faible |
+| R71 | La recherche de retour interroge la SNCF par heure d'arrivée, non par heure de départ | Dynamique forte |
+| R72 | `identifiant` est unique sur la table Courriel | Statique forte |
+| R73 | Le domaine de l'expéditeur est comparé en entier à la liste blanche : un suffixe ne suffit pas | Dynamique forte |
+| R74 | Un billet passe par `retenir_trajet`, donc se heurte aux mêmes refus qu'une réservation manuelle | Dynamique forte |
+| R75 | `statut` appartient à {traite, ignore, illisible, refuse} | Statique forte |
 
 ---
 
@@ -676,8 +750,20 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 ```
 Planning
   GET    /planning?debut=&fin=            planning consolidé
-  GET    /planning.ics?cle=               flux iCalendar
+  GET    /planning.ics?cle=               flux iCalendar (jeton de calendrier)
+  GET    /moi/calendrier                  URL d'abonnement à donner au téléphone
+  POST   /moi/calendrier/renouveler       révoque les abonnements en place
   POST   /planning/placer                 relance le placement
+
+Trajets
+  GET    /trajets/fenetres                creux assez longs pour partir
+  POST   /trajets/aller?rang=             horaires de départ possibles
+  POST   /trajets/retour?aller=           horaires de retour possibles
+  POST   /trajets/retenir                 retient l'aller-retour, crée l'absence
+  GET    /trajets                         trajets retenus à venir
+  DELETE /trajets/absence/{id}            annule un trajet retenu
+  POST   /trajets/courriels               relève les confirmations d'achat
+  GET    /trajets/courriels/a-revoir      courriels SNCF non exploités
 
 Tâches
   GET    /taches                          liste des tâches récurrentes

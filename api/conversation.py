@@ -65,6 +65,46 @@ def desappairer(id_telegram: int) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Abonnement au calendrier
+# ---------------------------------------------------------------------------
+
+def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | None:
+    """URL d'abonnement au flux iCalendar, ou None si l'hôte est inconnu.
+
+    `HOTE_PUBLIC` l'emporte toujours sur `defaut`, qui n'est qu'un repli tiré de
+    la requête reçue. Sans cette priorité, interroger l'API depuis le Mac
+    renverrait « localhost », adresse qui ne veut rien dire pour le téléphone.
+
+    Deux formes de la même adresse. La première se colle dans un navigateur ou
+    un champ d'abonnement ; la seconde, en `webcal://`, ouvre directement la
+    boîte de dialogue d'abonnement quand on la touche sur un téléphone — ce qui
+    évite de recopier un jeton de trente-deux caractères à la main.
+    """
+    ligne = un_seul(
+        "SELECT jeton_calendrier FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
+        {"u": id_utilisateur},
+    )
+    if ligne is None:
+        return None
+
+    hote = (configuration().hote_public or defaut or "").strip().rstrip("/")
+    if not hote:
+        return None
+    hote = hote.split("://", 1)[-1]
+
+    chemin = f"{hote}/planning.ics?cle={ligne['jeton_calendrier']}"
+    return {"url": f"http://{chemin}", "webcal": f"webcal://{chemin}", "hote": hote}
+
+
+def renouveler_calendrier(id_utilisateur: int) -> str | None:
+    """Invalide l'abonnement en place et en rend un nouveau."""
+    ligne = un_seul(
+        "SELECT renouveler_jeton_calendrier(%(u)s) AS jeton", {"u": id_utilisateur}
+    )
+    return ligne["jeton"] if ligne else None
+
+
+# ---------------------------------------------------------------------------
 # Heures de silence
 # ---------------------------------------------------------------------------
 

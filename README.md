@@ -27,7 +27,7 @@ La base refuse ce qui est incohérent, même si un script ou une saisie manuelle
 
 ## État
 
-Complet et vérifié : 12 tables, 7 vues, 24 fonctions, 6 triggers, 128 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
+Complet et vérifié : 14 tables, 9 vues, 27 fonctions, 6 triggers, 215 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
 
 ## Le placement
 
@@ -50,6 +50,89 @@ Une absence n'est pas une occupation. Être en cours empêche de faire le ménag
 Le planning se refait aussitôt. Pendant l'absence, les tâches sans assigné fixe reviennent à qui reste. Si les deux sont là, à celui qui porte le moins de minutes — la répartition se mesure en temps, pas en nombre de tâches, sinon récurer vaudrait ramasser la litière. Et si l'appartement est vide, elles attendent le retour.
 
 Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse le vendredi utilisable.
+
+## Le train
+
+`/absent` suppose qu'on connaisse déjà ses dates. `/train` part de l'autre bout : le système cherche lui-même les creux, puis demande à la SNCF des horaires qu'on puisse réellement attraper.
+
+```
+/train
+
+Fenêtres assez longues pour un aller-retour :
+
+1. ven 28/08 17h35 → lun 31/08 08h00 (62 h)
+2. ven 11/09 16h00 → lun 14/09 08h00 (64 h)
+
+[Fenêtre 1]  [Fenêtre 2]
+```
+
+Choisir une fenêtre déclenche la recherche d'horaires. Le premier train proposé n'est pas le premier du soir mais **le premier qu'on puisse attraper** : trente minutes après la fin du dernier cours, le temps d'aller à la gare. Sans cette marge, le système proposerait un train qu'on regarde partir depuis l'amphi.
+
+```
+Tu finis à 17h35 : premier train attrapable après 18h05.
+
+Aller :
+[18h12 → 19h47 · TER direct]
+[19h42 → 21h52 · TER, 1 correspondance à Lunéville]
+```
+
+Le retour se cherche dans l'autre sens. On ne veut pas le premier train qui ramène, on veut **le dernier qui ramène à temps** — chaque heure gagnée est une heure de plus sur place. Avec un cours à 16h30 et trente minutes pour rentrer de la gare, il faut être arrivé à 16h00 : le train proposé en premier est celui de 14h42, et les trois suivants sont de plus en plus tôt.
+
+```
+Retour — rentré avant 16h00. Du dernier train aux plus tôt :
+[14h42 → 16h00 · TER direct]
+[12h10 → 13h45 · TER direct]
+[10h05 → 11h40 · TER, 1 correspondance à Lunéville]
+[Retour à fixer plus tard]
+```
+
+Concrètement, la SNCF est interrogée **par heure d'arrivée** et non par heure de départ : demander les premiers trains après une heure donnée ne ferait jamais remonter ceux du soir. Le retour est aussi borné par le bas — pas moins de douze heures sur place, rester une heure à Saint-Dié n'est pas un séjour.
+
+Le bouton **Retour à fixer plus tard** existe : partir sans savoir quand on rentre est un cas ordinaire, et refuser de l'enregistrer obligerait à choisir un horaire au hasard. L'absence court alors jusqu'à la prochaine obligation connue.
+
+Une fois l'aller-retour retenu, l'absence est déclarée et le ménage se replace tout seul.
+
+**Deux limites, assumées.** Le système n'achète pas le billet — une proposition retenue est une intention, pas une réservation. Et sans `SNCF_TOKEN`, les fenêtres se calculent quand même : seule la proposition d'horaires devient impossible, et le bot le dit au lieu de planter.
+
+## Le billet acheté ailleurs
+
+Acheter un billet est déjà une déclaration d'absence. La refaire à la main est du travail en double, et le travail en double finit par ne plus être fait. L'API lit les confirmations SNCF, et l'absence se déclare seule.
+
+**Rien à changer à ton compte SNCF ni à ton adresse.** Sur Gmail, un libellé est un dossier IMAP : un filtre pose le libellé, et l'API ne lit que celui-là.
+
+Dans Gmail → Paramètres → Filtres → *Créer un filtre* :
+
+| Champ | Valeur |
+|---|---|
+| De | `sncf-connect.com OR info.sncf.com OR connect.sncf` |
+| Action | Appliquer le libellé `SNCF` |
+
+Coche *Appliquer aussi ce filtre aux conversations correspondantes* pour rattraper l'existant. Puis un mot de passe d'application : Google → Sécurité → validation en deux étapes → Mots de passe d'application. Le mot de passe habituel est refusé par IMAP.
+
+```
+IMAP_HOTE=imap.gmail.com
+IMAP_UTILISATEUR=tmathis.dev@gmail.com
+IMAP_MOT_DE_PASSE=le_mot_de_passe_d_application
+IMAP_DOSSIER=SNCF
+```
+
+Sans filtre, `IMAP_DOSSIER=INBOX` fonctionne aussi : `IMAP_FILTRE_EXPEDITEUR=sncf` demande au serveur de ne rendre que ces courriels-là, plutôt que de rapatrier des milliers de messages pour en analyser trois.
+
+**La boîte est ouverte en lecture seule**, et les messages lus avec `BODY.PEEK` : rien n'est marqué comme lu, rien n'est déplacé, rien n'est supprimé. Un système qui fait disparaître le gras des messages non lus dans le dos de son propriétaire ne se fait pardonner qu'une fois.
+
+Ce qu'il faut savoir quand même : **un mot de passe d'application donne accès à tout le courrier**, pas seulement au libellé. Le nôtre ne lit que `SNCF`, mais le mot de passe lui-même n'est pas limité. Il vit dans ton `.env`, sur ta machine, dans un fichier non versionné — acceptable pour un usage personnel, et révocable en un clic depuis ton compte Google si tu changes d'avis.
+
+La relève tourne toutes les deux heures, et `/billets` la déclenche à la main.
+
+**Trois précautions, dans l'ordre où elles comptent.**
+
+Seuls les domaines officiels de SNCF Connect sont analysés — `mail.sncf-connect.com`, `mail.sncfconnect.com`, `info.sncf.com`, `connect.sncf`. Les faux courriels au nom de la SNCF sont assez répandus pour que ce soit une vraie protection : sans elle, n'importe qui pourrait geler deux jours de ménage en t'envoyant un mail. La comparaison porte sur le domaine entier, pas sur un suffixe — `sncf-connect.com.attaquant.net` est refusé.
+
+Une absence déclarée sans que tu l'aies demandée **s'annonce**, avec un bouton pour l'annuler. C'est la contrepartie de l'automatisme : le lecteur peut se tromper, et se tromper en silence est le pire défaut possible ici.
+
+Un courriel légitime que le lecteur **n'a pas su lire est conservé** avec son motif, et `/billets` te le montre. Le format de ces mails ne nous appartient pas : il changera. Sans cette trace, le jour où plus aucune absence ne se déclarerait, rien n'indiquerait pourquoi.
+
+**Une réserve honnête.** Le lecteur est écrit d'après la forme habituelle de ces récapitulatifs — une date, puis gare, heure, gare, heure — et non d'après un vrai courriel de ta boîte. Il faudra sans doute l'ajuster à la première confirmation réelle. C'est précisément à ça que sert le statut *illisible*.
 
 ## Démarrage
 
@@ -77,9 +160,36 @@ SQL
 |---|---|
 | Documentation interactive | http://localhost:8000/documentation |
 | Santé | http://localhost:8000/sante |
-| Flux calendrier | http://localhost:8000/planning.ics?cle=CLÉ |
+| URL d'abonnement | http://localhost:8000/moi/calendrier |
 
-Sur iPhone : Réglages → Calendrier → Comptes → Ajouter → Autre → Ajouter un abonnement, et coller l'URL du flux.
+## S'abonner depuis le téléphone
+
+L'adresse du flux contient le nom de la machine. Y mettre une adresse IP condamne l'abonnement : elle change d'un réseau à l'autre, et le téléphone continue d'interroger une adresse qui ne répond plus. Le nom Bonjour du Mac, lui, ne change pas.
+
+```bash
+scutil --get LocalHostName        # → macbook-de-thomas
+```
+
+Dans `.env` :
+
+```
+HOTE_PUBLIC=macbook-de-thomas.local:8000
+API_BIND=0.0.0.0
+```
+
+`API_BIND` compte autant que le reste : par défaut l'API n'écoute que sur la machine elle-même, et le téléphone ne la voit pas. `0.0.0.0` l'ouvre au réseau local — à ne faire que sur un réseau de confiance.
+
+Puis, dans Telegram :
+
+```
+/calendrier
+```
+
+Le bot renvoie un lien `webcal://` qui ouvre directement la boîte d'abonnement. C'est tout l'intérêt de passer par lui : le jeton fait trente-deux caractères et personne ne le recopie sans se tromper. À défaut, l'adresse en clair est dans la même réponse, et sur iPhone l'abonnement manuel se fait par Réglages → Calendrier → Comptes → Ajouter → Autre → Ajouter un abonnement.
+
+**Le lien n'est pas la clé d'API.** Il ne donne que la lecture du planning, parce qu'il vit en clair dans le téléphone, dans ses sauvegardes, et repart à chaque rafraîchissement. S'il fuite, `/calendrier renouveler` le révoque : il faut alors se réabonner, mais rien d'autre ne bouge.
+
+Une réserve, qui décidera de l'utilité du système au quotidien : **rien de tout cela ne fonctionne quand le Mac est éteint ou endormi.** Le calendrier ne se rafraîchit plus, et surtout l'ordonnanceur ne tourne plus — pas de collecte, pas de bilan à 7h, pas de relance à 21h. Une machine allumée en permanence lève les deux problèmes à la fois.
 
 ## Structure
 
@@ -91,18 +201,25 @@ sql/
   004_triggers.sql      récurrence, enchaînements, machine unique, stock
   005_donnees.sql       sources, tâches, enchaînements, articles
   006_assignations.sql  qui fait quoi par défaut
+  007_jeton_calendrier.sql  abonnement iCalendar séparé de la clé d'API
+  008_trajets.sql       fenêtres de départ, propositions d'horaires
+  009_courriels.sql     trace de ce qui a été lu dans la boîte
   scenario_test.sql     déroulé d'une semaine type, avec assertions
   appliquer.sh
 api/
   main.py                  montage, erreurs normalisées, /sante, /planning.ics
   base.py                  pool psycopg, sans ORM
-  securite.py              clé d'API
+  securite.py              clé d'API, et jeton de calendrier pour le flux
   erreurs.py               SQLSTATE → statut HTTP
   calendrier.py            export iCalendar
   amorcage.py              URL des flux depuis l'environnement
   ordonnanceur.py          collectes, bilan, relance, report
   collecteurs/ics.py       lecture des flux, profils ade et easyatwork
   collecteurs/service.py   collecte et réconciliation, sans HTTP
+  collecteurs/sncf.py      horaires de train, API Navitia
+  collecteurs/courriel.py  confirmations d'achat, liste blanche et analyse
+  trajets.py               fenêtres, propositions, absence qui en découle
+  billets.py               du courriel lu à l'absence déclarée
   routeurs/                planning, tâches, occurrences, contraintes,
                            stock, notifications
 tests/                     parcours complet contre un vrai PostgreSQL
@@ -172,7 +289,15 @@ curl -X POST -H "X-Cle-Api: $CLE" -H 'Content-Type: application/json' \
 
 Le choix est mémorisé : garder l'existante écarte durablement l'autre version, et la collecte suivante ne repose pas la même question.
 
-Les fichiers sont rejoués depuis zéro à chaque fois, il n'y a pas encore d'outil de migration. C'est volontaire : tant que la base ne contient pas de données à préserver, `--recreer` est plus simple à comprendre qu'un versionnement.
+## Les migrations
+
+`./sql/appliquer.sh` applique ce qui manque, et rien d'autre. Chaque fichier est enregistré dans `schema_migration` avec l'empreinte de son contenu.
+
+Un fichier **modifié** est rejoué s'il porte un commentaire `rejouable` en tête — c'est le cas de `002`, `003`, `004`, `007` et `008`, qui ne contiennent que des `CREATE OR REPLACE` et des `IF NOT EXISTS`. Sans ce mécanisme, corriger une fonction dans le dépôt ne changeait rien en base : la migration était marquée appliquée, et la correction ne partait jamais.
+
+Les autres — `001` qui crée les tables, `005` et `006` qui insèrent — ne se rejouent pas. S'ils changent, le script le signale et n'applique rien : il faut écrire une migration nouvelle. C'est le seul moyen sûr de modifier une table déjà remplie.
+
+`--recreer` efface tout et repart de zéro. À n'utiliser que sur une base sans données à perdre.
 
 ## Vérifier
 
@@ -271,6 +396,10 @@ Il tourne dans le même processus que l'API — pour deux utilisateurs, un conte
 | `/retards` | Ce qui traîne, avec les boutons |
 | `/stock` | Uniforme et date limite de la prochaine lessive |
 | `/conflits` | Cours en double à départager |
+| `/absent JJ/MM JJ/MM lieu` | Je ne suis pas à l'appartement — le planning se refait aussitôt |
+| `/train` | Aller à Saint-Dié : fenêtres, horaires proposés, absence déclarée |
+| `/billets` | Relever la boîte, lister les voyages détectés et ceux qu'on n'a pas su lire |
+| `/calendrier` | Le lien d'abonnement, envoyé là où on en a besoin. `renouveler` en donne un nouveau et coupe l'ancien |
 | `/collecter` | Forcer une collecte |
 | `/lien CODE URL` | Donner l'URL d'un flux — le message est effacé aussitôt, il contient un jeton |
 | `/oublie` | Délier ce compte |

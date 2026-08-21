@@ -1,3 +1,5 @@
+-- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
+--             EXISTS. Le rejouer après modification est sans effet de bord.
 -- =============================================================================
 -- 002 : vues
 --

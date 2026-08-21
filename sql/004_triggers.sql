@@ -1,3 +1,8 @@
+-- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
+--             EXISTS. Le rejouer après modification est sans effet de bord.
+--             Les déclencheurs utilisent CREATE OR REPLACE TRIGGER, apparu
+--             avec PostgreSQL 14 — sans quoi rejouer échouerait sur un
+--             déclencheur déjà posé.
 -- =============================================================================
 -- 004 : triggers
 --
@@ -36,7 +41,7 @@ BEGIN
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER occurrence_heriter_tache
+CREATE OR REPLACE TRIGGER occurrence_heriter_tache
     BEFORE INSERT ON occurrence
     FOR EACH ROW EXECUTE FUNCTION trg_occurrence_heriter_tache();
 
@@ -63,7 +68,7 @@ BEGIN
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER occurrence_transition
+CREATE OR REPLACE TRIGGER occurrence_transition
     BEFORE UPDATE ON occurrence
     FOR EACH ROW EXECUTE FUNCTION trg_occurrence_transition();
 
@@ -90,7 +95,7 @@ BEGIN
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER occurrence_close
+CREATE OR REPLACE TRIGGER occurrence_close
     BEFORE UPDATE OF statut, date_faite, fenetre, creneau ON occurrence
     FOR EACH ROW EXECUTE FUNCTION trg_occurrence_close();
 
@@ -117,7 +122,7 @@ BEGIN
     RETURN NEW;
 END $$;
 
-CREATE TRIGGER occurrence_machine_unique
+CREATE OR REPLACE TRIGGER occurrence_machine_unique
     BEFORE INSERT OR UPDATE OF creneau, statut ON occurrence
     FOR EACH ROW EXECUTE FUNCTION trg_machine_unique();
 
@@ -247,7 +252,7 @@ BEGIN
     RETURN NULL;
 END $$;
 
-CREATE TRIGGER occurrence_apres_validation
+CREATE OR REPLACE TRIGGER occurrence_apres_validation
     AFTER UPDATE OF statut ON occurrence
     FOR EACH ROW
     WHEN (NEW.statut = 'faite' AND OLD.statut IS DISTINCT FROM 'faite')
@@ -279,7 +284,7 @@ BEGIN
     RETURN NULL;
 END $$;
 
-CREATE TRIGGER mouvement_appliquer
+CREATE OR REPLACE TRIGGER mouvement_appliquer
     AFTER INSERT ON mouvement_stock
     FOR EACH ROW EXECUTE FUNCTION trg_mouvement_appliquer();
 

@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 from icalendar import Calendar
 
+from tests.conftest import JETON_THOMAS
+
 
 def demain(heure: int, minute: int = 0) -> datetime:
     base = datetime.now(UTC) + timedelta(days=1)
@@ -248,7 +250,7 @@ def test_le_flux_ics_distingue_journee_entiere_et_horaire(client, thomas):
     })
     client.post("/planning/placer", headers=thomas)
 
-    reponse = client.get("/planning.ics", params={"cle": "T" * 48})
+    reponse = client.get("/planning.ics", params={"cle": JETON_THOMAS})
     assert reponse.status_code == 200
     assert reponse.headers["content-type"].startswith("text/calendar")
 
@@ -277,7 +279,7 @@ def test_le_calendrier_va_plus_loin_que_l_horizon_de_planification(client, thoma
         "fin": lointain.replace(hour=10, minute=0, second=0, microsecond=0).isoformat(),
     })
 
-    flux = client.get("/planning.ics", params={"cle": "T" * 48})
+    flux = client.get("/planning.ics", params={"cle": JETON_THOMAS})
     calendrier = Calendar.from_ical(flux.content)
     titres = [str(e["SUMMARY"]) for e in calendrier.walk("VEVENT")]
 

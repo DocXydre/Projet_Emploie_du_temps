@@ -51,6 +51,31 @@ def collecter_les_sources_dues() -> dict:
     return bilans
 
 
+def relever_la_boite() -> dict:
+    """Lit les confirmations d'achat, et déclare les absences qui en découlent.
+
+    Une boîte non configurée est un cas normal, pas une panne : la relève ne
+    fait rien et l'on n'en parle qu'une fois, en journal.
+    """
+    from api import billets
+    from api.collecteurs.courriel import BoiteIndisponible
+
+    try:
+        bilan = billets.relever(annoncer=True)
+    except BoiteIndisponible as erreur:
+        LOG.info("Relève de la boîte impossible : %s", erreur.message)
+        return {}
+    except Exception:
+        # Le relevé tourne sans surveillance : il ne doit pas emporter
+        # l'ordonnanceur avec lui.
+        LOG.exception("Échec de la relève de la boîte")
+        return {}
+
+    if bilan.get("traites") or bilan.get("illisibles"):
+        LOG.info("Relève : %s", bilan)
+    return bilan
+
+
 def placer() -> int:
     conf = configuration()
     resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
@@ -92,6 +117,13 @@ def demarrer() -> BackgroundScheduler:
 
     ordonnanceur.add_job(collecter_les_sources_dues, IntervalTrigger(hours=1),
                          id="collectes", name="Collecte des sources dues",
+                         max_instances=1, coalesce=True)
+
+    # Toutes les deux heures : un billet s'achète rarement dans la minute où
+    # l'on veut que le ménage se replace, et relever plus souvent ne ferait
+    # qu'ouvrir plus de connexions IMAP pour rien.
+    ordonnanceur.add_job(relever_la_boite, IntervalTrigger(hours=2),
+                         id="boite", name="Relève des confirmations SNCF",
                          max_instances=1, coalesce=True)
 
     ordonnanceur.add_job(bilan_du_matin, CronTrigger(hour=7, minute=0),

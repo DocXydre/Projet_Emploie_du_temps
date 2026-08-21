@@ -8,12 +8,12 @@ stock — vit dans PostgreSQL.
 from contextlib import asynccontextmanager
 
 import psycopg
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import bot, ordonnanceur
+from api import bot, conversation, ordonnanceur
 from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
@@ -27,6 +27,7 @@ from api.routeurs import (
     planning,
     stock,
     taches,
+    trajets,
 )
 from api.securite import Appelant, Authentifie, appelant_par_url
 
@@ -73,6 +74,7 @@ app.include_router(contraintes.routeur)
 app.include_router(stock.routeur)
 app.include_router(notifications.routeur)
 app.include_router(absences.routeur)
+app.include_router(trajets.routeur)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")
@@ -96,6 +98,42 @@ def sante() -> dict:
 @app.get("/moi", tags=["Système"], summary="Profil de l'appelant")
 def moi(qui: Authentifie) -> Appelant:
     return qui
+
+
+@app.get("/moi/calendrier", tags=["Planning"], summary="URL d'abonnement au calendrier")
+def abonnement(qui: Authentifie, requete: Request) -> dict:
+    """Adresse à donner à l'application Calendrier du téléphone.
+
+    L'hôte vient de `HOTE_PUBLIC` s'il est renseigné, sinon de la requête
+    elle-même. La différence compte : une réponse construite depuis la requête
+    dit « localhost » quand on l'interroge depuis le Mac, ce qui ne veut rien
+    dire pour le téléphone. HOTE_PUBLIC sert à donner une bonne fois le nom par
+    lequel les autres appareils joignent la machine.
+    """
+    lien = conversation.url_calendrier(qui.id_utilisateur, requete.url.netloc)
+    assert lien is not None
+    return {
+        **lien,
+        "deduit_de_la_requete": not conf.hote_public,
+        "note": (
+            "Cette URL ne donne que la lecture du planning. Elle se renouvelle "
+            "par POST /moi/calendrier/renouveler, ce qui coupe les abonnements "
+            "en place."
+        ),
+    }
+
+
+@app.post(
+    "/moi/calendrier/renouveler",
+    tags=["Planning"],
+    summary="Renouveler le jeton d'abonnement",
+)
+def renouveler_abonnement(qui: Authentifie, requete: Request) -> dict:
+    """Révoque l'abonnement en place. Il faudra se réabonner avec la nouvelle URL."""
+    conversation.renouveler_calendrier(qui.id_utilisateur)
+    lien = conversation.url_calendrier(qui.id_utilisateur, requete.url.netloc)
+    assert lien is not None
+    return lien
 
 
 @app.get(

@@ -4,7 +4,9 @@ from pathlib import Path
 
 from icalendar import Calendar
 
-EXEMPLE = (Path(__file__).parent / "exemple_ade.ics").read_text(encoding="utf-8")
+from tests.conftest import JETON_THOMAS
+
+EXEMPLE =(Path(__file__).parent / "exemple_ade.ics").read_text(encoding="utf-8")
 
 
 def collecter(client, thomas, texte: str = EXEMPLE) -> dict:
@@ -62,7 +64,7 @@ def test_la_salle_et_l_enseignant_arrivent_dans_le_calendrier(client, thomas):
     algo = next(o for o in occupations if "Algo IA" in o["libelle"])
     assert algo["lieu"] == "Amphi 201"
 
-    flux = client.get("/planning.ics", params={"cle": "T" * 48, "jours": 400})
+    flux = client.get("/planning.ics", params={"cle": JETON_THOMAS, "jours": 400})
     calendrier = Calendar.from_ical(flux.content)
 
     evenements = {str(e["SUMMARY"]): e for e in calendrier.walk("VEVENT")}

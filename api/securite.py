@@ -56,9 +56,33 @@ def appelant_par_url(cle: Annotated[str | None, Query()] = None) -> Appelant:
     """Variante pour le flux iCalendar.
 
     Les applications de calendrier ne savent pas envoyer d'en-tête personnalisé :
-    la clé passe donc dans l'URL. C'est le seul endroit où on l'accepte.
+    le jeton passe donc dans l'URL. Et comme cette URL est conservée en clair
+    par le téléphone, recopiée dans ses sauvegardes et rejouée à chaque
+    rafraîchissement, ce n'est pas la clé d'API qui y voyage mais un jeton
+    distinct, qui ne donne que la lecture du planning.
     """
-    return _par_cle(cle)
+    if not cle:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "jeton_absent",
+                    "message": "Paramètre « cle » requis dans l'URL d'abonnement"},
+        )
+
+    ligne = un_seul(
+        """
+        SELECT id_utilisateur, pseudo, role
+          FROM utilisateur
+         WHERE jeton_calendrier = %(jeton)s AND actif
+        """,
+        {"jeton": cle},
+    )
+    if ligne is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "jeton_invalide",
+                    "message": "Abonnement inconnu ou renouvelé depuis"},
+        )
+    return Appelant(**ligne)
 
 
 def exiger_admin(qui: Annotated[Appelant, Depends(appelant)]) -> Appelant:

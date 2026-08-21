@@ -22,6 +22,11 @@ RACINE = Path(os.environ.get("PLANIF_RACINE") or Path(__file__).resolve().parent
 CLE_THOMAS = "T" * 48
 CLE_LORETTE = "L" * 48
 
+# Le flux iCalendar ne s'authentifie pas avec la clé d'API : cette URL vit en
+# clair dans le téléphone, elle ne doit donc ouvrir que la lecture du planning.
+JETON_THOMAS = "t" * 32
+JETON_LORETTE = "l" * 32
+
 
 def _url() -> str:
     return (
@@ -43,11 +48,11 @@ def base():
 
         conn.execute(
             """
-            INSERT INTO utilisateur (pseudo, nom, role, cle_api) VALUES
-                ('thomas', 'Thomas', 'admin', %s),
-                ('lorette', 'Lorette', 'standard', %s)
+            INSERT INTO utilisateur (pseudo, nom, role, cle_api, jeton_calendrier) VALUES
+                ('thomas', 'Thomas', 'admin', %s, %s),
+                ('lorette', 'Lorette', 'standard', %s, %s)
             """,
-            (CLE_THOMAS, CLE_LORETTE),
+            (CLE_THOMAS, JETON_THOMAS, CLE_LORETTE, JETON_LORETTE),
         )
         # Rejoué après création des comptes : c'est là que les assignations
         # par défaut prennent effet.
@@ -84,8 +89,17 @@ def table_rase(base):
         conn.execute("UPDATE article_travail SET quantite_propre = quantite_totale, "
                      "disponible_le = NULL")
         conn.execute("DELETE FROM conflit")
+        conn.execute("DELETE FROM courriel")
+        conn.execute("DELETE FROM trajet")
         conn.execute("DELETE FROM absence")
         conn.execute("UPDATE source SET derniere_collecte = NULL, etat = 'ok', "
                      "url = NULL, active = TRUE")
         conn.execute("UPDATE utilisateur SET id_telegram = NULL")
+        # Un test qui renouvelle son jeton d'abonnement ne doit pas invalider
+        # l'URL de calendrier des suivants.
+        conn.execute(
+            "UPDATE utilisateur SET jeton_calendrier = CASE pseudo "
+            "WHEN 'thomas' THEN %s ELSE %s END",
+            (JETON_THOMAS, JETON_LORETTE),
+        )
     yield

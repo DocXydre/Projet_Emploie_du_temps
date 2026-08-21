@@ -1,3 +1,5 @@
+-- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
+--             EXISTS. Le rejouer après modification est sans effet de bord.
 -- =============================================================================
 -- 003 : fonctions
 --
@@ -607,11 +609,19 @@ BEGIN
     -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
     v_gele := now() + make_interval(days => p_stabilite_jours);
 
+    -- R66 : sauf si la personne n'est plus là ce jour-là. Le gel protège un
+    -- plan encore tenable ; il n'a pas à protéger un plan devenu impossible.
+    -- Sans cette exception, déclarer un départ pour le week-end prochain — le
+    -- cas courant, puisqu'on s'y prend rarement un mois à l'avance — ne
+    -- déplacerait rien du tout.
     UPDATE occurrence
        SET creneau = NULL, statut = 'a_placer', motif = NULL
      WHERE statut = 'planifiee'
        AND NOT epinglee
-       AND (creneau IS NULL OR lower(creneau) > v_gele);
+       AND (creneau IS NULL
+            OR lower(creneau) > v_gele
+            OR (id_utilisateur IS NOT NULL
+                AND est_absent(id_utilisateur, jour_de(lower(creneau)))));
 
     FOR o IN
         SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,

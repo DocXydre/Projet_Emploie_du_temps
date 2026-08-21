@@ -41,11 +41,32 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-planif}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       FUSEAU: ${FUSEAU:-Europe/Paris}
-      HORIZON_JOURS: ${HORIZON_JOURS:-21}
+      # Ces trois valeurs de repli doivent rester celles de api/config.py :
+      # seules les variables listées ici entrent dans le conteneur, et un repli
+      # qui diverge remplacerait silencieusement la valeur du code.
+      HORIZON_JOURS: ${HORIZON_JOURS:-35}
+      STABILITE_JOURS: ${STABILITE_JOURS:-7}
+      HORIZON_CALENDRIER_JOURS: ${HORIZON_CALENDRIER_JOURS:-180}
+      # Nom par lequel le téléphone joint cette machine. Sans lui, l'API sait
+      # encore fabriquer l'URL d'abonnement à partir de la requête reçue, mais
+      # le bot, qui n'en a aucune, ne le peut pas.
+      HOTE_PUBLIC: ${HOTE_PUBLIC:-}
       # URL des flux : lues au démarrage si la source n'en a pas encore.
       IDMC_URL_ICS: ${IDMC_URL_ICS:-}
       MCDO_URL_ICS: ${MCDO_URL_ICS:-}
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
+      SNCF_TOKEN: ${SNCF_TOKEN:-}
+      GARE_DOMICILE: ${GARE_DOMICILE:-NANCY}
+      GARE_FAMILLE: ${GARE_FAMILLE:-SAINT_DIE}
+      MARGE_TRAJET_MINUTES: ${MARGE_TRAJET_MINUTES:-30}
+      FENETRE_ABSENCE_HEURES: ${FENETRE_ABSENCE_HEURES:-48}
+      IMAP_HOTE: ${IMAP_HOTE:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_UTILISATEUR: ${IMAP_UTILISATEUR:-}
+      IMAP_MOT_DE_PASSE: ${IMAP_MOT_DE_PASSE:-}
+      IMAP_DOSSIER: ${IMAP_DOSSIER:-INBOX}
+      IMAP_FILTRE_EXPEDITEUR: ${IMAP_FILTRE_EXPEDITEUR:-sncf}
+      IMAP_DEPUIS_JOURS: ${IMAP_DEPUIS_JOURS:-30}
       ORDONNANCEUR_ACTIF: ${ORDONNANCEUR_ACTIF:-true}
       TZ: UTC
     ports:

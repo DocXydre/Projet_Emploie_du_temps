@@ -28,6 +28,8 @@ CREATE TABLE utilisateur (
     fuseau          VARCHAR(50)  NOT NULL DEFAULT 'Europe/Paris',
     cle_api         VARCHAR(64)  NOT NULL UNIQUE
                                  CHECK (length(cle_api) >= 32),
+    jeton_calendrier VARCHAR(64) NOT NULL UNIQUE
+                                 DEFAULT replace(gen_random_uuid()::TEXT, '-', ''),
     id_telegram     BIGINT       UNIQUE,
     actif           BOOLEAN      NOT NULL DEFAULT TRUE,
     date_creation   DATE         NOT NULL DEFAULT CURRENT_DATE
@@ -35,6 +37,11 @@ CREATE TABLE utilisateur (
 
 COMMENT ON COLUMN utilisateur.cle_api IS
     'Authentification de l''API. Générée hors base, jamais versionnée (R1).';
+
+COMMENT ON COLUMN utilisateur.jeton_calendrier IS
+    'Abonnement iCalendar seul. Distinct de la clé d''API car il voyage dans '
+    'une URL que le téléphone conserve en clair : s''il fuite, il ne donne que '
+    'la lecture du planning, et se renouvelle sans rien casser d''autre (R61).';
 
 
 -- -----------------------------------------------------------------------------

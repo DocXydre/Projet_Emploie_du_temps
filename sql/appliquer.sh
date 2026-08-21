@@ -39,30 +39,87 @@ fi
 psql_exec -c "
     CREATE TABLE IF NOT EXISTS schema_migration (
         fichier     TEXT        PRIMARY KEY,
+        empreinte   TEXT,
         applique_le TIMESTAMPTZ NOT NULL DEFAULT now()
-    );"
+    );
+    ALTER TABLE schema_migration ADD COLUMN IF NOT EXISTS empreinte TEXT;"
+
+# Un fichier corrigé doit repartir en base, sinon la correction ne sert à rien.
+# Mais tous ne peuvent pas être rejoués : réexécuter des CREATE TABLE ou des
+# INSERT de données de référence échouerait, ou dupliquerait. Les fichiers qui
+# le supportent le déclarent en tête, par un commentaire « rejouable ». Les
+# autres sont signalés et laissés tels quels, à traiter par une migration
+# nouvelle — c'est le seul moyen sûr de modifier une table déjà remplie.
+empreinte_de() {
+    if command -v sha256sum > /dev/null; then sha256sum "$1" | cut -d' ' -f1
+    else shasum -a 256 "$1" | cut -d' ' -f1; fi
+}
 
 # Seuls les fichiers numérotés sont des migrations. Le scénario de test, lui,
 # n'a pas de numéro : il ne doit jamais être rejoué automatiquement.
 applique=0
+rejoue=0
+divergents=""
 for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
     nom="$(basename "$fichier")"
+    empreinte="$(empreinte_de "$fichier")"
 
-    deja="$(psql_exec --tuples-only --no-align \
-            --command "SELECT 1 FROM schema_migration WHERE fichier = '$nom'")"
-    if [ -n "$deja" ]; then
+    connue="$(psql_exec --tuples-only --no-align \
+              --command "SELECT COALESCE(empreinte, '') FROM schema_migration
+                          WHERE fichier = '$nom'")"
+
+    if [ -z "$connue" ] && [ -n "$(psql_exec --tuples-only --no-align \
+            --command "SELECT 1 FROM schema_migration WHERE fichier = '$nom'")" ]; then
+        # Appliqué avant que les empreintes n'existent : on ne sait pas si le
+        # fichier a changé depuis. Pour un fichier rejouable, la réponse sûre
+        # est de le rejouer — c'est gratuit, et cela garantit que la base
+        # correspond au dépôt. Enregistrer l'empreinte sans rejouer figerait
+        # au contraire une divergence pour toujours.
+        if head -5 "$fichier" | grep -qi "rejouable"; then
+            echo "↻ $nom (empreinte inconnue, rejoué par sécurité)"
+            psql_exec < "$fichier"
+            rejoue=$((rejoue + 1))
+        else
+            echo "· $nom (déjà appliqué, empreinte adoptée)"
+        fi
+        psql_exec -c "UPDATE schema_migration
+                         SET empreinte = '$empreinte', applique_le = now()
+                       WHERE fichier = '$nom';"
+        continue
+    fi
+
+    if [ "$connue" = "$empreinte" ]; then
         echo "· $nom (déjà appliqué)"
         continue
     fi
 
-    echo "→ $nom"
+    if [ -n "$connue" ]; then
+        if ! head -5 "$fichier" | grep -qi "rejouable"; then
+            divergents="$divergents $nom"
+            echo "! $nom a changé mais ne se rejoue pas : écris une nouvelle migration"
+            continue
+        fi
+        echo "↻ $nom (modifié, rejoué)"
+        rejoue=$((rejoue + 1))
+    else
+        echo "→ $nom"
+        applique=$((applique + 1))
+    fi
+
     psql_exec < "$fichier"
-    psql_exec -c "INSERT INTO schema_migration (fichier) VALUES ('$nom');"
-    applique=$((applique + 1))
+    psql_exec -c "INSERT INTO schema_migration (fichier, empreinte)
+                  VALUES ('$nom', '$empreinte')
+                  ON CONFLICT (fichier)
+                  DO UPDATE SET empreinte = EXCLUDED.empreinte, applique_le = now();"
 done
 
 echo
-echo "$applique migration(s) appliquée(s)."
+echo "$applique migration(s) appliquée(s), $rejoue rejouée(s)."
+if [ -n "$divergents" ]; then
+    echo
+    echo "Attention — ces fichiers ont changé sans être rejouables :$divergents"
+    echo "Leurs modifications ne sont PAS en base."
+fi
 
 echo
 echo "Contenu :"
