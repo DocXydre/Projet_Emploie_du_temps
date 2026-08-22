@@ -27,7 +27,7 @@ La base refuse ce qui est incohérent, même si un script ou une saisie manuelle
 
 ## État
 
-Complet et vérifié : 14 tables, 9 vues, 27 fonctions, 6 triggers, 215 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
+Complet et vérifié : 15 tables, 9 vues, 33 fonctions, 6 triggers, 278 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
 
 ## Le placement
 
@@ -50,6 +50,71 @@ Une absence n'est pas une occupation. Être en cours empêche de faire le ménag
 Le planning se refait aussitôt. Pendant l'absence, les tâches sans assigné fixe reviennent à qui reste. Si les deux sont là, à celui qui porte le moins de minutes — la répartition se mesure en temps, pas en nombre de tâches, sinon récurer vaudrait ramasser la litière. Et si l'appartement est vide, elles attendent le retour.
 
 Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse le vendredi utilisable.
+
+**Et surtout, la main reste au propriétaire.** Tout le reste — billets lus, horaires proposés, fenêtres calculées — déduit des absences, et se trompe la moitié du temps : on rentre en voiture, on prolonge d'un jour, on repart plus tôt.
+
+```
+/parti Lunéville     je pars maintenant, retour inconnu
+/retour              je suis rentré, rendez-moi mes tâches
+```
+
+`/parti` gèle jusqu'à la prochaine obligation connue plutôt que de choisir une durée au hasard qu'il faudrait corriger ensuite. `/retour` ferme l'absence à l'instant présent : c'est la commande qui rattrape toutes les autres, y compris un billet lu de travers.
+
+## Le calendrier de chacun
+
+L'université publie, McDonald's publie, on collecte. Pour tout le reste — ce que fait Lorette, ce que Thomas a hors des cours — chacun tient son calendrier dans l'application qu'il utilise déjà, le publie, et donne le lien.
+
+**Sur iPhone ou Mac.** Créer un calendrier dédié dans l'app Calendrier, par exemple « Perso ». Puis, dans la liste des calendriers, toucher le ⓘ à côté de son nom → activer **Calendrier public** → **Partager le lien**. On obtient une adresse en `webcal://p12-caldav.icloud.com/…`.
+
+Dans Telegram :
+
+```
+/lien PERSO_LORETTE webcal://p12-caldav.icloud.com/published/…
+/lien PERSO_THOMAS  webcal://…
+```
+
+Le bot efface le message aussitôt — un lien de calendrier publié est une adresse secrète — puis convertit et active la source. `webcal://` n'est pas un protocole mais du HTTPS avec un préfixe qui dit au téléphone d'ouvrir Calendrier : laissé tel quel, il ferait échouer la collecte sur une erreur incompréhensible.
+
+Ensuite, tout ce qui est ajouté dans ce calendrier devient une occupation, collectée toutes les six heures. Le ménage se place autour.
+
+**Trois différences avec les flux universitaires**, voulues.
+
+Rien n'est nettoyé. Les profils ADE et Easy at Work corrigent des libellés produits par des machines ; ici, ce que la personne a écrit est ce qu'elle voulait dire, et corriger serait présumer.
+
+Aucun filtre de groupe ni de langue ne s'applique — sinon un cours d'espagnol du soir disparaîtrait.
+
+Les événements peuvent **se chevaucher**. Un calendrier personnel contient souvent un rendez-vous posé sur une plage plus large, et refuser la collecte pour ça serait absurde. Les cours et les shifts, eux, restent soumis à la contrainte d'exclusion.
+
+Une limite : les événements « journée entière » sont ignorés. Sans heure de début ni de fin, ils bloqueraient une journée entière de ménage sur ce qui n'est souvent qu'une note.
+
+## Le week-end proposé
+
+Le système savait déjà repérer un creux de deux jours. Il ne le disait que si on le lui demandait — ce qui suppose d'y penser, et si l'on y pensait on n'aurait pas besoin du système.
+
+Chaque matin à 7h10, il regarde les quinze jours qui viennent. Quand il trouve un week-end sans cours ni service, il l'annonce :
+
+```
+Week-end libre repéré à Lusse
+ven 12/09 17h35 → lun 15/09 08h00
+
+Rien de prévu sur cette période. On regarde les trains ?
+
+[Voir les trains]  [Non merci]
+```
+
+**Voir les trains** enchaîne directement sur `/train` pour cette fenêtre. **Non merci** clôt la question — on ne revient jamais à la charge sur un week-end décliné.
+
+Sans réponse, une **seule relance** trois jours avant, parce qu'entre les deux on a oublié. Jamais deux le même jour, jamais une troisième : répéter chaque matin transformerait un service en harcèlement, et la réponse serait de couper les notifications.
+
+La proposition s'affiche aussi au calendrier, en bandeau sur toute la période :
+
+```
+Proposition : Week-end libre à Lusse ?
+```
+
+**Une proposition ne gèle rien.** C'est la distinction qui compte : elle s'affiche pour qu'on y pense, mais le ménage continue de s'y placer normalement. Seul un trajet retenu, un billet lu ou un `/parti` crée une absence. Confondre les deux bloquerait des journées entières sur un simple « et si ».
+
+Elle disparaît d'elle-même dès qu'on a répondu — un refus, un billet acheté, un départ déclaré — ou quand le week-end est passé.
 
 ## Le train
 
@@ -111,7 +176,7 @@ Coche *Appliquer aussi ce filtre aux conversations correspondantes* pour rattrap
 
 ```
 IMAP_HOTE=imap.gmail.com
-IMAP_UTILISATEUR=tmathis.dev@gmail.com
+IMAP_UTILISATEUR=ton.adresse@gmail.com
 IMAP_MOT_DE_PASSE=le_mot_de_passe_d_application
 IMAP_DOSSIER=SNCF
 ```
@@ -122,7 +187,11 @@ Sans filtre, `IMAP_DOSSIER=INBOX` fonctionne aussi : `IMAP_FILTRE_EXPEDITEUR=snc
 
 Ce qu'il faut savoir quand même : **un mot de passe d'application donne accès à tout le courrier**, pas seulement au libellé. Le nôtre ne lit que `SNCF`, mais le mot de passe lui-même n'est pas limité. Il vit dans ton `.env`, sur ta machine, dans un fichier non versionné — acceptable pour un usage personnel, et révocable en un clic depuis ton compte Google si tu changes d'avis.
 
-La relève tourne toutes les deux heures, et `/billets` la déclenche à la main.
+La relève tourne toutes les deux heures, et `/billets` la déclenche à la main. Elle procède en deux passes : les Message-ID d'abord, puis les corps des seuls courriels neufs. Un libellé qui contient cent soixante-dix confirmations les téléchargeait sinon toutes, toutes les deux heures, pour n'en retenir aucune.
+
+En cas de doute, `python3 outils/tester_boite.py` teste l'accès et liste les dossiers ; `--corps 2` montre le texte des derniers courriels tel que le lecteur le voit. L'outil n'utilise que la bibliothèque standard et ne dépend pas du projet : il doit tourner quand l'API ne tourne pas, sur une machine où rien n'est installé.
+
+Après chaque correction du lecteur, `DELETE /trajets/courriels/a-revoir` oublie les courriels non exploités pour qu'ils soient relus. Les réussis ne sont pas touchés : les relire recréerait des absences déjà déclarées.
 
 **Trois précautions, dans l'ordre où elles comptent.**
 
@@ -132,7 +201,21 @@ Une absence déclarée sans que tu l'aies demandée **s'annonce**, avec un bouto
 
 Un courriel légitime que le lecteur **n'a pas su lire est conservé** avec son motif, et `/billets` te le montre. Le format de ces mails ne nous appartient pas : il changera. Sans cette trace, le jour où plus aucune absence ne se déclarerait, rien n'indiquerait pourquoi.
 
-**Une réserve honnête.** Le lecteur est écrit d'après la forme habituelle de ces récapitulatifs — une date, puis gare, heure, gare, heure — et non d'après un vrai courriel de ta boîte. Il faudra sans doute l'ajuster à la première confirmation réelle. C'est précisément à ça que sert le statut *illisible*.
+**Ce que ces courriels contiennent vraiment.** Le corps ne porte que l'horodatage du paiement — le récapitulatif part en pièce jointe. Tout est dans le sujet :
+
+```
+Votre voyage St Die Des Vosges - Nancy, aller le dimanche 6 février 2022
+```
+
+Deux gares, un sens, une date. Jamais d'heure. Le lecteur essaie donc le corps d'abord, et bascule sur le sujet quand celui-ci ne donne rien.
+
+Sans horaire, on ne gèle que **les journées dont on est certain** : l'absence commence au lendemain du départ et s'arrête au matin du retour. Partir le 2 et rentrer le 6 gèle les 3, 4 et 5 — les deux jours de trajet restent utilisables, puisqu'on ignore à quelle heure le train passe. Se tromper dans ce sens fait faire une lessive de trop, jamais un retard.
+
+Aucun appariement entre courriels n'est nécessaire, et c'est ce qui rend la chose sûre : **un billet vers Saint-Dié ouvre l'absence, un billet qui en revient la ferme.** Les courriels d'une relève sont traités dans l'ordre du voyage et non dans celui de la boîte, sinon un aller se heurterait à l'absence encore ouverte du voyage précédent.
+
+Le sens se juge sur la destination, pas sur une gare de domicile : on part tantôt de Nancy, tantôt de Lunéville, et seule la gare famille est un point fixe.
+
+Un **retour acheté seul** — le cas de qui part sans savoir quand il rentre — ferme l'absence en cours à son heure d'arrivée. C'est le geste de `/retour`, déclenché par le billet au lieu de la main.
 
 ## Démarrage
 
@@ -204,6 +287,9 @@ sql/
   007_jeton_calendrier.sql  abonnement iCalendar séparé de la clé d'API
   008_trajets.sql       fenêtres de départ, propositions d'horaires
   009_courriels.sql     trace de ce qui a été lu dans la boîte
+  010_depart_retour.sql départ et retour déclarés à la main
+  011_calendriers_perso.sql  un calendrier publié par personne
+  012_propositions.sql  week-ends repérés, et le planning consolidé
   scenario_test.sql     déroulé d'une semaine type, avec assertions
   appliquer.sh
 api/
@@ -220,6 +306,7 @@ api/
   collecteurs/courriel.py  confirmations d'achat, liste blanche et analyse
   trajets.py               fenêtres, propositions, absence qui en découle
   billets.py               du courriel lu à l'absence déclarée
+  propositions.py          repérer un week-end libre, l'annoncer, relancer
   routeurs/                planning, tâches, occurrences, contraintes,
                            stock, notifications
 tests/                     parcours complet contre un vrai PostgreSQL
@@ -396,7 +483,9 @@ Il tourne dans le même processus que l'API — pour deux utilisateurs, un conte
 | `/retards` | Ce qui traîne, avec les boutons |
 | `/stock` | Uniforme et date limite de la prochaine lessive |
 | `/conflits` | Cours en double à départager |
-| `/absent JJ/MM JJ/MM lieu` | Je ne suis pas à l'appartement — le planning se refait aussitôt |
+| `/parti lieu` | Je pars maintenant, retour inconnu — gèle jusqu'à la prochaine obligation |
+| `/retour` | Je suis rentré, y compris en voiture et plus tôt que prévu |
+| `/absent JJ/MM JJ/MM lieu` | Absence connue à l'avance — le planning se refait aussitôt |
 | `/train` | Aller à Saint-Dié : fenêtres, horaires proposés, absence déclarée |
 | `/billets` | Relever la boîte, lister les voyages détectés et ceux qu'on n'a pas su lire |
 | `/calendrier` | Le lien d'abonnement, envoyé là où on en a besoin. `renouveler` en donne un nouveau et coupe l'ancien |

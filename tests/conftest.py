@@ -57,6 +57,7 @@ def base():
         # Rejoué après création des comptes : c'est là que les assignations
         # par défaut prennent effet.
         conn.execute((RACINE / "sql" / "006_assignations.sql").read_text())
+        conn.execute("SELECT assigner_calendriers_perso()")
     yield
 
 
@@ -89,11 +90,15 @@ def table_rase(base):
         conn.execute("UPDATE article_travail SET quantite_propre = quantite_totale, "
                      "disponible_le = NULL")
         conn.execute("DELETE FROM conflit")
+        conn.execute("DELETE FROM proposition")
         conn.execute("DELETE FROM courriel")
         conn.execute("DELETE FROM trajet")
         conn.execute("DELETE FROM absence")
+        # Les calendriers personnels naissent inactifs, faute d'URL : les
+        # rallumer ici les ferait passer pour des sources en panne dans tous
+        # les tests qui vérifient le bilan du matin.
         conn.execute("UPDATE source SET derniere_collecte = NULL, etat = 'ok', "
-                     "url = NULL, active = TRUE")
+                     "url = NULL, active = (code NOT LIKE 'PERSO\\_%')")
         conn.execute("UPDATE utilisateur SET id_telegram = NULL")
         # Un test qui renouvelle son jeton d'abonnement ne doit pas invalider
         # l'URL de calendrier des suivants.

@@ -46,6 +46,20 @@ def appairer(cle_api: str, id_telegram: int) -> dict | None:
     )
 
 
+def url_collectable(url: str) -> str:
+    """Ramène une URL d'abonnement à quelque chose qu'un client HTTP sait lire.
+
+    Apple, Google et Outlook proposent tous un lien `webcal://`. Ce n'est pas
+    un protocole : c'est du HTTPS avec un préfixe qui dit au système
+    d'exploitation d'ouvrir l'application Calendrier. Le laisser tel quel ferait
+    échouer la collecte sur une erreur incompréhensible.
+    """
+    url = url.strip()
+    if url.lower().startswith("webcal://"):
+        return "https://" + url[len("webcal://"):]
+    return url
+
+
 def compte_de(id_telegram: int) -> dict | None:
     return un_seul(
         """
@@ -268,6 +282,42 @@ def declarer_absence(id_utilisateur: int, debut: datetime, fin: datetime,
     )
 
 
+def partir(id_utilisateur: int, lieu: str | None = None) -> dict | None:
+    """« Je pars maintenant », sans savoir quand je rentre.
+
+    Le cas le plus fréquent, et celui qu'aucune déduction ne couvre : on monte
+    en voiture, on décide sur place. L'absence court jusqu'à la prochaine
+    obligation connue, et se ferme au retour.
+    """
+    ligne = un_seul("SELECT partir_maintenant(%(u)s, %(l)s) AS id_absence",
+                    {"u": id_utilisateur, "l": lieu})
+    if ligne is None:
+        return None
+    return un_seul(
+        "SELECT id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu "
+        "  FROM absence WHERE id_absence = %(id)s",
+        {"id": ligne["id_absence"]},
+    )
+
+
+def rentrer(id_utilisateur: int) -> dict | None:
+    """« Je suis rentré ». Ferme l'absence en cours à l'instant présent.
+
+    Rend None si aucune absence n'était en cours : ce n'est pas une erreur,
+    seulement une nouvelle à annoncer autrement.
+    """
+    ligne = un_seul("SELECT terminer_absence(%(u)s) AS id_absence",
+                    {"u": id_utilisateur})
+    if ligne is None or ligne["id_absence"] is None:
+        return None
+
+    return un_seul(
+        "SELECT id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu "
+        "  FROM absence WHERE id_absence = %(id)s",
+        {"id": ligne["id_absence"]},
+    )
+
+
 def absences_a_venir(id_utilisateur: int) -> list[dict]:
     return lister(
         """
@@ -384,7 +434,7 @@ def notifications_a_envoyer(limite: int = 20) -> list[dict]:
     return lister(
         """
         SELECT n.id_notification, n.id_utilisateur, u.id_telegram,
-               n.id_occurrence, n.type, n.contenu,
+               n.id_occurrence, n.id_proposition, n.type, n.contenu,
                o.tache_libelle, o.actions_possibles
           FROM notification n
           JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur

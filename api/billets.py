@@ -12,19 +12,21 @@ récupérés, ce qui permet de rejouer une boîte entière dans les tests.
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 import psycopg
 
 from api.base import executer, lister, un_seul
 from api.collecteurs import courriel as lecteur
-from api.collecteurs.courriel import Lecture, Segment
+from api.collecteurs.courriel import NOMS_LISIBLES, Lecture, Segment
 from api.collecteurs.sncf import GARES
 
 LOG = logging.getLogger(__name__)
 
 # Nom lisible d'une gare, pour que l'absence dise « Saint-Dié-des-Vosges » et
-# non « SAINT_DIE ».
-NOMS = {code: nom for code, (_, nom) in GARES.items()}
+# non « SAINT_DIE ». Les gares lues dans les courriels ne sont pas toutes
+# connues de Navitia : Lunéville sert de départ sans qu'on y cherche d'horaire.
+NOMS = {**NOMS_LISIBLES, **{code: nom for code, (_, nom) in GARES.items()}}
 
 
 def _deja_vu(identifiant: str) -> bool:
@@ -78,6 +80,59 @@ def _enregistrer_segment(id_utilisateur: int, segment: Segment,
     return ligne["id_trajet"]
 
 
+def _quand(lecture: Lecture) -> datetime:
+    """Date du voyage, ou à défaut celle du courriel.
+
+    Sert uniquement à ordonner le traitement. Un courriel sans date exploitable
+    passe en dernier : il ne déclenchera rien, autant qu'il ne s'intercale pas
+    au milieu d'une série qui, elle, a un sens chronologique.
+    """
+    if lecture.segments:
+        return lecture.segments[0].depart
+    return lecture.recu_le or datetime.max.replace(tzinfo=UTC)
+
+
+def _appliquer_sans_horaire(segment: Segment, id_utilisateur: int) -> dict:
+    """Billet dont on connaît le jour, pas l'heure.                       (R80)
+
+    Aucun appariement n'est nécessaire, et c'est ce qui rend la chose sûre :
+    un billet vers la gare famille ouvre l'absence, un billet qui en revient
+    la ferme. Les deux courriels arrivent d'ordinaire ensemble, mais rien
+    n'oblige à ce qu'ils soient traités ensemble.
+
+    Les bornes sont prises au jour entier, et volontairement à l'intérieur du
+    voyage : l'absence commence au lendemain du départ et s'arrête au matin du
+    retour. Sans horaire, ce sont les seules journées dont on soit certain —
+    et se tromper dans ce sens fait faire une lessive de trop, non un retard.
+    """
+    jour = segment.depart.date()
+
+    if segment.sens == "aller":
+        try:
+            cree = un_seul(
+                "SELECT partir_maintenant(%(u)s, %(lieu)s, "
+                "                         debut_jour(%(jour)s::DATE + 1)) AS id_absence",
+                {"u": id_utilisateur, "lieu": NOMS.get(segment.arrivee_gare),
+                 "jour": jour},
+            )
+        except psycopg.Error as erreur:
+            diag = erreur.diag.message_primary if erreur.diag else str(erreur)
+            return {"statut": "refuse", "motif": diag}
+
+        assert cree is not None
+        return {"statut": "traite", "id_absence": cree["id_absence"]}
+
+    ferme = un_seul(
+        "SELECT terminer_absence(%(u)s, debut_jour(%(jour)s::DATE)) AS id_absence",
+        {"u": id_utilisateur, "jour": jour},
+    )
+    if ferme is None or ferme["id_absence"] is None:
+        # Le billet de retour d'un voyage qu'on n'a jamais enregistré : rien à
+        # fermer, et rien d'anormal. Le noter traité évite d'y revenir.
+        return {"statut": "traite", "motif": "Retour noté, aucune absence ouverte"}
+    return {"statut": "traite", "id_absence": ferme["id_absence"]}
+
+
 def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
     """Crée les trajets du billet, puis l'absence qui en découle.
 
@@ -85,15 +140,32 @@ def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
     traite pas le cas de deux allers : ce serait deux voyages, et les
     enregistrer comme un seul gèlerait le ménage entre les deux.
     """
+    if len(lecture.segments) == 1 and lecture.segments[0].sans_horaire:
+        return _appliquer_sans_horaire(lecture.segments[0], id_utilisateur)
+
     allers = [s for s in lecture.segments if s.sens == "aller"]
     retours = [s for s in lecture.segments if s.sens == "retour"]
+
+    if len(retours) > 1:
+        return {"statut": "illisible",
+                "motif": f"{len(retours)} retours reconnus dans le même billet"}
+
+    if not allers and len(retours) == 1:
+        # Un retour acheté seul, ce qui arrive quand on part sans savoir quand
+        # on rentre. Il ferme l'absence en cours, à son heure d'arrivée cette
+        # fois — c'est le même geste que « /retour », déclenché par le billet.
+        ferme = un_seul(
+            "SELECT terminer_absence(%(u)s, %(quand)s) AS id_absence",
+            {"u": id_utilisateur, "quand": retours[0].arrivee},
+        )
+        if ferme is None or ferme["id_absence"] is None:
+            return {"statut": "traite",
+                    "motif": "Retour noté, aucune absence ouverte"}
+        return {"statut": "traite", "id_absence": ferme["id_absence"]}
 
     if len(allers) != 1:
         return {"statut": "illisible",
                 "motif": f"{len(allers)} aller(s) reconnu(s) au lieu d'un seul"}
-    if len(retours) > 1:
-        return {"statut": "illisible",
-                "motif": f"{len(retours)} retours reconnus dans le même billet"}
 
     id_aller = _enregistrer_segment(id_utilisateur, allers[0])
     id_retour = (_enregistrer_segment(id_utilisateur, retours[0], id_aller)
@@ -127,7 +199,11 @@ def relever(id_utilisateur: int | None = None,
     une notification ferait double emploi (R76).
     """
     if messages is None:
-        messages = lecteur.relever_imap()
+        # Les identifiants déjà traités partent avec la demande : le serveur
+        # n'a alors à rendre que les corps des courriels neufs.
+        connus = {ligne["identifiant"] for ligne in lister(
+            "SELECT identifiant FROM courriel")}
+        messages = lecteur.relever_imap(connus=connus)
 
     if id_utilisateur is None:
         proprietaire = un_seul(
@@ -140,8 +216,10 @@ def relever(id_utilisateur: int | None = None,
     bilan = {"lus": len(messages), "traites": 0, "ignores": 0,
              "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": []}
 
-    for brut in messages:
-        lecture = lecteur.analyser(brut)
+    # Dans l'ordre du voyage, pas dans celui de la boîte. Un aller traité avant
+    # le retour du voyage précédent se heurterait à une absence encore
+    # ouverte, et serait refusé pour une raison qui n'existe pas.
+    for lecture in sorted(map(lecteur.analyser, messages), key=_quand):
 
         if _deja_vu(lecture.identifiant):
             bilan["deja_vus"] += 1
@@ -158,7 +236,10 @@ def relever(id_utilisateur: int | None = None,
 
         if resultat["statut"] == "traite":
             bilan["traites"] += 1
-            bilan["absences"].append(resultat["id_absence"])
+            # Un billet de retour sans aller connu est traité sans rien créer :
+            # il n'y avait pas d'absence à fermer.
+            if resultat.get("id_absence") is not None:
+                bilan["absences"].append(resultat["id_absence"])
         else:
             bilan["illisibles" if resultat["statut"] == "illisible"
                   else "refuses"] += 1
@@ -189,6 +270,19 @@ def a_revoir(limite: int = 10) -> list[dict]:
         "  FROM v_courriel_a_revoir LIMIT %(n)s",
         {"n": limite},
     )
+
+
+def oublier_les_rates() -> int:
+    """Efface la trace des courriels non exploités, pour qu'ils soient relus.
+
+    Corriger le lecteur ne sert à rien si les courriels sur lesquels il a
+    échoué restent marqués comme vus. Les succès, eux, ne sont pas touchés :
+    les relire recréerait des absences déjà déclarées.
+    """
+    lignes = lister(
+        "DELETE FROM courriel WHERE statut IN ('illisible', 'refuse') "
+        "RETURNING id_courriel")
+    return len(lignes)
 
 
 def absences_issues_de_billets() -> list[dict]:

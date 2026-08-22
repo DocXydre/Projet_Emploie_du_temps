@@ -70,6 +70,17 @@ class Configuration(BaseSettings):
     # sûr pour qu'un billet le soit.
     horizon_trajets_jours: int = 45
 
+    # Le lieu tel qu'on le nomme, qui n'est pas la gare. On va à Lusse, on
+    # descend à Saint-Dié.
+    lieu_famille: str = "Lusse"
+
+    # Quinze jours avant : un billet coûte encore peu et l'on peut s'organiser.
+    proposition_delai_jours: int = 14
+
+    # Trois jours avant : la relance, parce qu'entre les deux on a oublié. Une
+    # seule, sans quoi le service devient du harcèlement et l'on coupe tout.
+    proposition_relance_jours: int = 3
+
     # --- Boîte aux lettres --------------------------------------------------
     # Boîte où arrivent les confirmations SNCF. Sans configuration, la relève ne
     # démarre pas et le reste fonctionne normalement.

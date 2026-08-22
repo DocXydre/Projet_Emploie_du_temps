@@ -37,6 +37,34 @@ def _traduire(erreur: TrajetImpossible) -> HTTPException:
     )
 
 
+@routeur.get("/propositions", summary="Week-ends repérés en attente de réponse")
+def lister_propositions(qui: Authentifie) -> list[dict]:
+    from api import propositions
+
+    return propositions.en_attente(qui.id_utilisateur)
+
+
+@routeur.post("/propositions/tour", summary="Repérer, annoncer, relancer")
+def tour(qui: Administrateur) -> dict:
+    from api import propositions
+
+    return propositions.tour_de_ronde(qui.id_utilisateur)
+
+
+@routeur.delete("/propositions/{id_proposition}", summary="Décliner un week-end")
+def ecarter(id_proposition: int, qui: Authentifie) -> dict:
+    from api import propositions
+
+    ecartee = propositions.ecarter(id_proposition)
+    if ecartee is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "introuvable",
+                    "message": f"Proposition {id_proposition} inconnue ou déjà tranchée"},
+        )
+    return ecartee
+
+
 @routeur.get("/fenetres", summary="Creux assez longs pour partir")
 def lister_fenetres(qui: Authentifie, jours: int | None = None,
                     heures: int | None = None) -> list[dict]:
@@ -116,3 +144,14 @@ def relever(qui: Administrateur, demande: DemandeReleve | None = Body(default=No
 @routeur.get("/courriels/a-revoir", summary="Courriels SNCF non exploités")
 def a_revoir(qui: Authentifie, limite: int = 10) -> list[dict]:
     return billets.a_revoir(limite)
+
+
+@routeur.delete("/courriels/a-revoir", summary="Réessayer les courriels ratés")
+def reessayer(qui: Administrateur) -> dict:
+    """Oublie les courriels non exploités, pour que la relève les relise.
+
+    À lancer après chaque correction du lecteur : sans cela, les courriels sur
+    lesquels il avait échoué resteraient marqués comme vus, et la correction
+    n'aurait aucun effet visible.
+    """
+    return {"oublies": billets.oublier_les_rates()}

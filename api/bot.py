@@ -22,7 +22,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from api import billets, trajets
+from api import billets, propositions, trajets
 from api import conversation as conv
 from api.collecteurs.courriel import BoiteIndisponible
 from api.collecteurs.sncf import TrajetImpossible
@@ -40,7 +40,9 @@ AIDE = """Commandes :
 /retards — ce qui traîne
 /stock — uniforme et prochaine lessive
 /conflits — cours en double à départager
-/absent JJ/MM JJ/MM lieu — je ne suis pas à l'appartement
+/parti lieu — je pars maintenant, retour inconnu
+/retour — je suis rentré, rendez-moi mes tâches
+/absent JJ/MM JJ/MM lieu — absence connue à l'avance
 /train — aller à Saint-Dié : quand, et à quelle heure
 /billets — relever les confirmations SNCF de la boîte
 /calendrier — le lien à abonner sur le téléphone
@@ -418,6 +420,57 @@ async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE) 
             "Aucun voyage déclaré par courriel pour l'instant.")
 
 
+async def parti(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """« Je pars maintenant. » Le cas qu'aucune déduction ne couvre."""
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    lieu = " ".join(contexte.args) or None
+    try:
+        creee = await asyncio.to_thread(conv.partir, compte["id_utilisateur"], lieu)
+    except Exception as erreur:
+        await update.effective_message.reply_text(_message_lisible(erreur))
+        return
+
+    from api.ordonnanceur import placer
+    replacees = await asyncio.to_thread(placer)
+
+    await update.effective_message.reply_text(
+        f"Bonne route{' à ' + lieu if lieu else ''}. Rien à faire jusqu'au "
+        f"{conv._jour(creee['fin'])} ({replacees} occurrence(s) replacée(s)).\n"
+        f"Envoie « /retour » en rentrant, même plus tôt que prévu."
+    )
+
+
+async def retour(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """« Je suis rentré. » Y compris en voiture, y compris en avance.
+
+    C'est la commande qui rattrape toutes les autres : un billet lu de travers,
+    un trajet annulé, un retour improvisé. Sans elle, le ménage resterait gelé
+    jusqu'à une date que plus rien ne justifie.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    ferme = await asyncio.to_thread(conv.rentrer, compte["id_utilisateur"])
+    if ferme is None:
+        await update.effective_message.reply_text(
+            "Tu n'es pas noté absent en ce moment — rien à fermer.")
+        return
+
+    from api.ordonnanceur import placer
+    replacees = await asyncio.to_thread(placer)
+
+    await update.effective_message.reply_text(
+        f"Content de te revoir. Absence close, "
+        f"{replacees} occurrence(s) replacée(s).\n"
+        f"Tu retrouveras tes tâches dès demain — aujourd'hui n'est plus une "
+        f"journée entièrement absente."
+    )
+
+
 async def collecter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     compte = await _appelant(update)
     if compte is None:
@@ -453,12 +506,16 @@ async def lien(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text("Usage : /lien IDMC_ICS https://...")
         return
 
-    code, url = contexte.args[0].upper(), contexte.args[1]
+    code, url = contexte.args[0].upper(), conv.url_collectable(contexte.args[1])
     from api.base import executer
 
+    # Donner l'URL vaut demande de collecte : une source qu'on renseigne pour
+    # la laisser éteinte n'existe pas. Les calendriers personnels naissent
+    # inactifs faute d'adresse, et s'allument ici (R83).
     modifiee = await asyncio.to_thread(
         executer,
-        "UPDATE source SET url = %(url)s WHERE code = %(code)s RETURNING code",
+        "UPDATE source SET url = %(url)s, active = TRUE, etat = 'ok' "
+        " WHERE code = %(code)s RETURNING code",
         {"code": code, "url": url},
     )
     if modifiee is None:
@@ -489,6 +546,15 @@ def _boutons(id_occurrence: int) -> InlineKeyboardMarkup:
     ]])
 
 
+def _boutons_proposition(id_proposition: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("Voir les trains",
+                             callback_data=f"prop:trains:{id_proposition}"),
+        InlineKeyboardButton("Non merci",
+                             callback_data=f"prop:non:{id_proposition}"),
+    ]])
+
+
 async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     requete = update.callback_query
     await requete.answer()
@@ -505,6 +571,10 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     # suite dans un nouveau message.
     if genre == "train":
         await _bouton_train(update, contexte, compte, choix, identifiant)
+        return
+
+    if genre == "prop":
+        await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
         return
 
     if genre == "billet":
@@ -561,6 +631,37 @@ async def _bouton_train(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
     await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
 
 
+async def _bouton_proposition(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                              compte: dict, choix: str, id_proposition: int) -> None:
+    """Répondre à une proposition : regarder les trains, ou décliner."""
+    requete = update.callback_query
+
+    if choix == "non":
+        await asyncio.to_thread(propositions.ecarter, id_proposition)
+        # R89 : on ne revient pas à la charge sur un week-end décliné.
+        await requete.edit_message_text(
+            f"{requete.message.text}\n\n→ Noté, je n'en reparle plus.")
+        return
+
+    proposition = await asyncio.to_thread(propositions.detail, id_proposition)
+    if proposition is None:
+        await requete.edit_message_text(
+            f"{requete.message.text}\n\n→ Cette proposition n'existe plus.")
+        return
+
+    rang = await asyncio.to_thread(
+        trajets.rang_contenant, compte["id_utilisateur"], proposition["debut"])
+    if rang is None:
+        # L'emploi du temps a changé depuis l'annonce : un cours est tombé au
+        # milieu, la fenêtre n'existe plus.
+        await requete.edit_message_text(
+            f"{requete.message.text}\n\n→ Ce creux a disparu de l'emploi du temps.")
+        return
+
+    await requete.edit_message_reply_markup(reply_markup=None)
+    await _proposer_aller(update, contexte, compte, rang)
+
+
 def _aller_du_retour(id_retour: int) -> int:
     from api.base import un_seul
 
@@ -593,6 +694,10 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         # autant qu'il y a de tâches, ce qui ne veut rien dire.
         if notification["type"] == "rappel" and notification["id_occurrence"]:
             boutons = _boutons(notification["id_occurrence"])
+        elif notification.get("id_proposition"):
+            # Une proposition sans réponse possible ne serait qu'une alerte de
+            # plus : ce sont les boutons qui en font une conversation.
+            boutons = _boutons_proposition(notification["id_proposition"])
 
         try:
             await contexte.bot.send_message(
@@ -626,6 +731,8 @@ def construire() -> Application:
     application.add_handler(CommandHandler("stock", stock))
     application.add_handler(CommandHandler("conflits", conflits))
     application.add_handler(CommandHandler("absent", absent))
+    application.add_handler(CommandHandler("parti", parti))
+    application.add_handler(CommandHandler("retour", retour))
     application.add_handler(CommandHandler("train", train))
     application.add_handler(CommandHandler("billets", commande_billets))
     application.add_handler(CommandHandler("calendrier", calendrier))

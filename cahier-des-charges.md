@@ -167,6 +167,20 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R74 | Traitement | Un billet lu crée l'aller, le retour s'il figure, puis l'absence — par le même chemin qu'une réservation faite depuis le bot |
 | R75 | Traitement | Un courriel d'expéditeur légitime qu'on n'a pas su lire est conservé avec son motif. Le format ne nous appartient pas : ce sera le seul indice disponible le jour où il changera |
 | R76 | Traitement | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler. Geler deux jours de ménage en silence sur une analyse fausse est le défaut à éviter avant tous les autres |
+| R77 | Traitement | Le retour se déclare à la main et ferme l'absence à l'instant présent. Un trajet prévu n'engage à rien : on rentre en voiture, ou plus tôt que le billet |
+| R78 | Traitement | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue, faute de quoi il faudrait choisir une durée au hasard puis la corriger |
+| R79 | Données | Quand le corps d'une confirmation ne porte aucun trajet, le sujet est lu. Il nomme les deux gares, le sens et la date, mais jamais l'heure |
+| R80 | Traitement | Un billet sans horaire vers la gare famille ouvre l'absence au lendemain de son jour, et un billet qui en revient la ferme au matin de son jour. Seules les journées entièrement certaines sont gelées, et aucun appariement entre courriels n'est nécessaire |
+| R81 | Traitement | Le sens d'un trajet se juge sur sa destination, non sur la gare de domicile. On part tantôt de Nancy, tantôt de Lunéville ; la gare famille, elle, ne change pas |
+| R82 | Traitement | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée. C'est le geste de « je suis rentré », déclenché par le billet plutôt qu'à la main |
+| R83 | Données | Chacun publie son calendrier depuis l'application qu'il utilise déjà et en donne le lien. Une source sans URL naît inactive : une collecte qui échoue toutes les heures ferait passer la source pour en panne |
+| R84 | Données | Les occupations issues d'un calendrier personnel ne sont pas soumises à la contrainte d'exclusion. Un rendez-vous posé sur une plage plus large est ordinaire, et refuser la collecte pour ce motif serait absurde |
+| R85 | Traitement | Un calendrier personnel appartient à la personne que son code désigne. Le rattachement se fait avant l'assignation générale, qui attribuerait sinon toute source orpheline à l'administrateur |
+| R86 | Données | Une proposition de week-end est une suggestion, non une absence. Elle s'affiche au calendrier et n'a aucun effet sur le placement des tâches : confondre les deux gèlerait des journées sur un simple « et si » |
+| R87 | Traitement | Deux propositions vivantes ne se chevauchent pas. Un cours ajouté déplace les bornes d'une fenêtre de quelques heures ; sans cette règle, le même week-end serait proposé à chaque collecte |
+| R88 | Traitement | Une proposition couverte par une absence est soldée, quelle que soit l'origine de cette absence. Une proposition dont le week-end est passé est périmée |
+| R89 | Traitement | Un week-end décliné ne revient jamais. Revenir à la charge sur un refus est le meilleur moyen de faire couper les notifications |
+| R90 | Traitement | Une proposition s'annonce une fois quinze jours avant, et se relance une seule fois trois jours avant. Jamais deux fois le même jour |
 
 Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
@@ -604,6 +618,16 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R73 | Le domaine de l'expéditeur est comparé en entier à la liste blanche : un suffixe ne suffit pas | Dynamique forte |
 | R74 | Un billet passe par `retenir_trajet`, donc se heurte aux mêmes refus qu'une réservation manuelle | Dynamique forte |
 | R75 | `statut` appartient à {traite, ignore, illisible, refuse} | Statique forte |
+| R77 | Fermer une absence qui commence à l'instant donné l'efface, faute de quoi la période serait vide | Dynamique forte |
+| R78 | Un départ est refusé si une absence est déjà en cours à cet instant | Dynamique forte |
+| R79 | Un sujet est retenu s'il contient « voyage », deux gares distinctes et une date | Dynamique forte |
+| R80 | Les courriels d'une relève sont traités dans l'ordre du voyage, non dans celui de la boîte | Dynamique forte |
+| R83 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
+| R84 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
+| R85 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |
+| R86 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
+| R87 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| R90 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
 
 ---
 
@@ -756,6 +780,9 @@ Planning
   POST   /planning/placer                 relance le placement
 
 Trajets
+  GET    /trajets/propositions            week-ends repérés, en attente
+  POST   /trajets/propositions/tour       repère, annonce, relance
+  DELETE /trajets/propositions/{id}       décline un week-end
   GET    /trajets/fenetres                creux assez longs pour partir
   POST   /trajets/aller?rang=             horaires de départ possibles
   POST   /trajets/retour?aller=           horaires de retour possibles
@@ -764,6 +791,7 @@ Trajets
   DELETE /trajets/absence/{id}            annule un trajet retenu
   POST   /trajets/courriels               relève les confirmations d'achat
   GET    /trajets/courriels/a-revoir      courriels SNCF non exploités
+  DELETE /trajets/courriels/a-revoir      les oublie, pour qu'ils soient relus
 
 Tâches
   GET    /taches                          liste des tâches récurrentes

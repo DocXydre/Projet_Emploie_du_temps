@@ -76,6 +76,22 @@ def relever_la_boite() -> dict:
     return bilan
 
 
+def proposer_les_weekends() -> dict:
+    """Repère les week-ends libres, les annonce, et relance une fois.
+
+    Une fois par jour suffit : un creux de deux jours n'apparaît pas dans
+    l'heure, et annoncer deux fois le même week-end le même jour serait le
+    plus sûr moyen de faire couper les notifications.
+    """
+    from api import propositions
+
+    try:
+        return propositions.tour_de_ronde()
+    except Exception:
+        LOG.exception("Échec des propositions de week-end")
+        return {}
+
+
 def placer() -> int:
     conf = configuration()
     resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
@@ -128,6 +144,12 @@ def demarrer() -> BackgroundScheduler:
 
     ordonnanceur.add_job(bilan_du_matin, CronTrigger(hour=7, minute=0),
                          id="bilan", name="Bilan du matin", coalesce=True)
+
+    # Après le bilan du matin : on lit ses messages une fois, et la
+    # proposition arrive dans la même fournée que le reste.
+    ordonnanceur.add_job(proposer_les_weekends, CronTrigger(hour=7, minute=10),
+                         id="weekends", name="Propositions de week-end",
+                         coalesce=True)
 
     ordonnanceur.add_job(relance_du_soir, CronTrigger(hour=21, minute=0),
                          id="relance", name="Relance du soir", coalesce=True)

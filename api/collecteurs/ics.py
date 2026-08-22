@@ -172,9 +172,31 @@ def _seance_easyatwork(uid: str, resume: str, debut: datetime, fin: datetime,
     )
 
 
+# --- Profil calendrier personnel --------------------------------------------
+
+def _seance_perso(uid: str, resume: str, debut: datetime, fin: datetime,
+                  location: str | None, description: str | None) -> Seance:
+    """Un événement saisi à la main dans une application de calendrier.
+
+    Rien à normaliser : ce que la personne a écrit est ce qu'elle voulait dire.
+    Les profils ADE et Easy at Work nettoient parce qu'ils lisent des flux
+    engendrés par des machines ; ici, corriger serait présumer.
+    """
+    return Seance(
+        cle_externe=uid,
+        libelle=resume.strip(),
+        debut=debut,
+        fin=fin,
+        lieu=(location or "").strip() or None,
+        details=(description or "").strip() or None,
+        richesse=1,
+    )
+
+
 PROFILS = {
     "ade": _seance_ade,
     "easyatwork": _seance_easyatwork,
+    "perso": _seance_perso,
 }
 
 

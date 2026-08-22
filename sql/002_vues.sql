@@ -106,48 +106,13 @@ SELECT * FROM v_occurrence WHERE en_retard ORDER BY priorite, echeance_max;
 -- -----------------------------------------------------------------------------
 -- Planning consolidé : c'est cette vue que lit l'export iCalendar        (R29)
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_planning AS
-SELECT
-    'occupation'                       AS nature,
-    o.id_occupation                    AS id,
-    o.id_utilisateur,
-    o.type                             AS categorie,
-    o.libelle,
-    o.periode,
-    lower(o.periode)                   AS debut,
-    upper(o.periode)                   AS fin,
-    FALSE                              AS journee_entiere,
-    NULL::VARCHAR                      AS statut,
-    o.lieu,
-    o.details                          AS motif,
-    0                                  AS nb_relances
-FROM occupation o
-
-UNION ALL
-
-SELECT
-    'tache'                            AS nature,
-    o.id_occurrence                    AS id,
-    o.id_utilisateur,
-    t.categorie,
-    t.libelle,
-    o.creneau                          AS periode,
-    lower(o.creneau)                   AS debut,
-    upper(o.creneau)                   AS fin,
-    o.rappel_journee                   AS journee_entiere,
-    o.statut,
-    NULL::VARCHAR                      AS lieu,
-    o.motif,
-    o.nb_relances
-FROM occurrence o
-JOIN tache t ON t.id_tache = o.id_tache
-WHERE o.creneau IS NOT NULL
-  AND o.statut IN ('planifiee', 'notifiee');
-
-COMMENT ON VIEW v_planning IS
-    'Occupations et tâches placées dans une seule vue. Le drapeau
-     journee_entiere décide si l''export produit un VEVENT horaire ou un
-     VEVENT journée entière (R29).';
+-- v_planning est définie dans `012_propositions.sql`, et non ici.
+--
+-- Elle réunit les occupations, les tâches placées et les propositions de
+-- week-end ; cette dernière table n'existe qu'à partir de la migration 012, et
+-- une vue ne peut pas précéder ce qu'elle interroge. La définir là-bas est
+-- moins joli que de la garder avec les autres vues, mais laisse une seule
+-- définition — et une vue en double finit toujours par diverger.
 
 
 -- -----------------------------------------------------------------------------

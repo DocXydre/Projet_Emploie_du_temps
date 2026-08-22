@@ -255,3 +255,110 @@ def test_la_presence_est_lisible_jour_par_jour(client, thomas):
     absent = next(p for p in presence if p["jour"] == minuit(3).date().isoformat())
     moi = identifiant(client, CLE_THOMAS)
     assert moi not in absent["presents"]
+
+
+# ---------------------------------------------------------------------------
+# Départ et retour déclarés à la main
+# ---------------------------------------------------------------------------
+
+def test_partir_maintenant_gele_jusqu_a_la_prochaine_obligation(client, thomas):
+    reprise = datetime.now(PARIS) + timedelta(days=3)
+    reprise = reprise.replace(hour=8, minute=0, second=0, microsecond=0)
+    client.post("/occupations", headers=thomas, json={
+        "type": "cours", "libelle": "Reprise",
+        "debut": reprise.isoformat(),
+        "fin": (reprise + timedelta(hours=2)).isoformat(),
+    })
+
+    creee = client.post("/absences/depart", headers=thomas,
+                        params={"lieu": "Lunéville"}).json()
+
+    # R78 : choisir une durée au hasard obligerait à la corriger ensuite.
+    assert datetime.fromisoformat(creee["fin"]) == reprise
+    assert creee["lieu"] == "Lunéville"
+
+
+def test_partir_deux_fois_de_suite_est_refuse(client, thomas):
+    client.post("/absences/depart", headers=thomas)
+    seconde = client.post("/absences/depart", headers=thomas)
+    assert seconde.status_code == 409
+
+
+def test_le_retour_ferme_l_absence_a_l_instant_present(client, thomas):
+    debut = datetime.now(PARIS) - timedelta(days=2)
+    client.post("/absences", headers=thomas, json={
+        "debut": debut.isoformat(),
+        "fin": (datetime.now(PARIS) + timedelta(days=3)).isoformat(),
+        "lieu": "Saint-Dié",
+    })
+
+    ferme = client.post("/absences/retour", headers=thomas).json()
+
+    # R77 : rentrer en voiture, plus tôt que le billet, est un cas ordinaire.
+    fin = datetime.fromisoformat(ferme["fin"])
+    assert fin < datetime.now(PARIS) + timedelta(minutes=1)
+    assert fin > debut
+
+
+def test_le_retour_rend_les_jours_au_menage(client, thomas):
+    client.post("/absences", headers=thomas, json={
+        "debut": (datetime.now(PARIS) - timedelta(days=1)).isoformat(),
+        "fin": (datetime.now(PARIS) + timedelta(days=5)).isoformat(),
+    })
+    client.post("/planning/placer", headers=thomas)
+
+    moi = identifiant(client, CLE_THOMAS)
+    demain = (datetime.now(PARIS) + timedelta(days=2)).date().isoformat()
+
+    avant = [o for o in client.get("/occurrences", headers=thomas).json()
+             if o["id_utilisateur"] == moi
+             and (o.get("creneau_debut") or "").startswith(demain)]
+    assert avant == []
+
+    client.post("/absences/retour", headers=thomas)
+
+    presence = client.get("/absences/presence", headers=thomas).json()
+    ce_jour = next(p for p in presence
+                   if p["jour"] == (datetime.now(PARIS) + timedelta(days=2))
+                   .date().isoformat())
+    assert moi in ce_jour["presents"]
+
+
+def test_rentrer_sans_etre_parti_le_dit_gentiment(client, thomas):
+    reponse = client.post("/absences/retour", headers=thomas)
+    assert reponse.status_code == 404
+    assert reponse.json()["code"] == "aucune_absence"
+
+
+def test_rentrer_a_la_seconde_du_depart_efface_l_absence(client, thomas):
+    # Cas limite, mais réel : on déclare son départ puis on renonce dans la
+    # minute. Tronquer produirait une période vide, que la base refuserait —
+    # on efface donc au lieu de tronquer.
+    debut = datetime.now(PARIS) + timedelta(days=2)
+    client.post("/absences", headers=thomas, json={
+        "debut": debut.isoformat(),
+        "fin": (debut + timedelta(days=2)).isoformat(),
+    })
+
+    with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row,
+                         autocommit=True) as conn:
+        rendu = conn.execute(
+            "SELECT terminer_absence(%s, %s) AS id",
+            (identifiant(client, CLE_THOMAS), debut),
+        ).fetchone()
+
+    assert rendu["id"] is not None
+    assert client.get("/absences", headers=thomas).json() == []
+
+
+def test_une_absence_a_venir_ne_se_ferme_pas_par_retour(client, thomas):
+    # Rentrer d'un voyage pas encore commencé n'a pas de sens : c'est une
+    # annulation, et elle passe par la suppression de l'absence.
+    debut = datetime.now(PARIS) + timedelta(days=2)
+    client.post("/absences", headers=thomas, json={
+        "debut": debut.isoformat(),
+        "fin": (debut + timedelta(days=2)).isoformat(),
+    })
+
+    assert client.post("/absences/retour", headers=thomas).status_code == 404
+    assert len(client.get("/absences", headers=thomas).json()) == 1

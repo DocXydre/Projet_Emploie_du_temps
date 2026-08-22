@@ -57,6 +57,16 @@ VARIANTES = {
         "saint die des vosges", "saint-die-des-vosges", "st die des vosges",
         "st-die-des-vosges", "saint die", "st die",
     ),
+    # Lunéville est sur la ligne, et sert de point de départ certaines fois.
+    # Ce qui compte n'est pas de savoir d'où l'on part, mais où l'on va : tout
+    # ce qui n'est pas la gare famille est du côté de la maison.
+    "LUNEVILLE": ("luneville", "lunéville"),
+}
+
+NOMS_LISIBLES = {
+    "NANCY": "Nancy-Ville",
+    "SAINT_DIE": "Saint-Dié-des-Vosges",
+    "LUNEVILLE": "Lunéville",
 }
 
 MOIS = {
@@ -82,6 +92,11 @@ DATE_COURTE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 REFERENCE = re.compile(
     r"(?i:dossier|r[ée]f[ée]rence|r[ée]servation)\D{0,30}?\b([A-Z]{6})\b")
 
+# Un sujet de confirmation contient « voyage ». Les prospectus n'en contiennent
+# pas, et c'est le seul mot sur lequel on peut compter : le reste de la phrase
+# change de forme d'une année sur l'autre.
+MOT_VOYAGE = re.compile(r"\bvoyage\b")
+
 # « durée 1h35 » n'est pas un horaire. Sans cette exclusion, la durée du trajet
 # se glisserait dans la suite des heures et décalerait tout.
 AVANT_DUREE = re.compile(r"(dur[ée]e?|trajet\s+de|environ)\W{0,12}$")
@@ -93,10 +108,19 @@ class Segment:
     arrivee_gare: str
     depart: datetime
     arrivee: datetime
+    # Vrai quand le trajet vient du sujet : on connaît le jour, pas l'heure.
+    sans_horaire: bool = False
 
     @property
     def sens(self) -> str:
-        return "aller" if self.depart_gare == configuration().gare_domicile else "retour"
+        """Ce qui compte n'est pas d'où l'on part, mais où l'on va.
+
+        Comparer au domicile supposerait qu'il soit toujours le même — or on
+        part tantôt de Nancy, tantôt de Lunéville. La gare famille, elle, ne
+        change pas : aller vers elle est un aller, en revenir est un retour.
+        """
+        famille = configuration().gare_famille
+        return "aller" if self.arrivee_gare == famille else "retour"
 
 
 @dataclass
@@ -259,6 +283,71 @@ def segments_de(texte: str) -> list[Segment]:
     return segments
 
 
+def segment_du_sujet(sujet: str) -> Segment | None:
+    """Trajet lu dans le sujet, quand le corps n'en porte aucun.          (R79)
+
+    « Votre voyage St Die Des Vosges - Nancy, aller le dimanche 6 février 2022 »
+    contient tout ce qui compte sauf l'heure : les deux gares, le sens et la
+    date. Le corps de ces courriels, lui, ne contient que l'horodatage du
+    paiement — le récapitulatif voyage dans une pièce jointe.
+
+    Faute d'horaire, on borne la journée entière. Ce n'est pas une estimation
+    déguisée : la suite ne retiendra que les journées entièrement couvertes,
+    et une journée entière est précisément ce qu'on sait.
+
+    On repère les gares plutôt que d'imposer une forme de phrase. Le tiret qui
+    sépare les deux villes disparaît à la normalisation, et la tournure change
+    d'une année sur l'autre — mais deux gares suivies d'une date se
+    reconnaissent quelle que soit la ponctuation autour.
+    """
+    texte = normaliser(sujet)
+    if not MOT_VOYAGE.search(texte):
+        return None
+
+    gares: list[str] = []
+    for trouve in GARE.finditer(texte):
+        gare = _gare_de(trouve.group(0))
+        if gare is not None and (not gares or gares[-1] != gare):
+            gares.append(gare)
+
+    if len(gares) < 2 or gares[0] == gares[1]:
+        return None
+
+    longue = DATE_LONGUE.search(texte)
+    if longue is not None:
+        jour, mois, annee = (int(longue.group(1)), MOIS[longue.group(2)],
+                             int(longue.group(3)))
+    else:
+        courte = DATE_COURTE.search(texte)
+        if courte is None:
+            return None
+        jour, mois, annee = (int(courte.group(1)), int(courte.group(2)),
+                             int(courte.group(3)))
+
+    fuseau = ZoneInfo(configuration().fuseau)
+    minuit = datetime(annee, mois, jour, tzinfo=fuseau)
+
+    return Segment(depart_gare=gares[0], arrivee_gare=gares[1],
+                   depart=minuit, arrivee=minuit + timedelta(days=1),
+                   sans_horaire=True)
+
+
+def _pourquoi_rien(normalise: str) -> str:
+    """Dit ce qui a été vu, plutôt que ce qui a manqué.
+
+    « Aucun trajet reconnu » ne permet pas de corriger quoi que ce soit : on ne
+    sait pas si la gare est inconnue, si les heures sont écrites autrement, ou
+    si la date manque. Compter ce qu'on a trouvé répond aux trois d'un coup.
+    """
+    gares = sorted({g for m in GARE.finditer(normalise)
+                    if (g := _gare_de(m.group(0))) is not None})
+    heures = len(HEURE.findall(normalise))
+    dates = len(DATE_LONGUE.findall(normalise)) + len(DATE_COURTE.findall(normalise))
+
+    return (f"Aucun trajet reconnu — gares connues vues : "
+            f"{', '.join(gares) or 'aucune'} ; heures : {heures} ; dates : {dates}")
+
+
 def expediteur_reconnu(adresse: str) -> bool:
     adresse = adresse.lower()
     domaine = adresse.rpartition("@")[2].strip(" >")
@@ -305,12 +394,26 @@ def analyser(brut: bytes) -> Lecture:
     lecture.reference = reference.group(1) if reference else None
 
     lecture.segments = segments_de(texte)
+
     if not lecture.segments:
-        connu = any(mot in normalise for mot in ("billet", "voyage", "commande"))
-        lecture.statut = "illisible" if connu else "ignore"
+        # R79 : le corps de ces confirmations ne porte que l'horodatage du
+        # paiement — le récapitulatif part en pièce jointe. Le sujet, lui,
+        # nomme les deux gares, le sens et la date.
+        depuis_sujet = segment_du_sujet(sujet)
+        if depuis_sujet is not None:
+            lecture.segments = [depuis_sujet]
+
+    if not lecture.segments:
+        # Ce qui fait d'un courriel un billet, ce n'est pas le mot « commande »
+        # mais la présence d'une gare. Un abonnement, une carte de réduction,
+        # un reçu : tout cela est une commande sans trajet, et le signaler
+        # éternellement serait du bruit. En revanche, une gare reconnue sans
+        # trajet exploitable est une vraie anomalie, à corriger (R75).
+        gares = GARE.search(normalise) or GARE.search(normaliser(sujet))
+        lecture.statut = "illisible" if gares else "ignore"
         lecture.motif = (
-            "Aucun trajet reconnu entre les gares connues"
-            if connu else "Courriel sans billet"
+            _pourquoi_rien(normalise) if gares
+            else "Commande sans trajet : abonnement, carte ou reçu"
         )
         return lecture
 
@@ -383,8 +486,24 @@ def _selectionner(boite: imaplib.IMAP4_SSL, dossier: str) -> None:
     )
 
 
-def relever_imap(depuis_jours: int | None = None) -> list[bytes]:
-    """Récupère les courriels récents. C'est la seule fonction qui parle au réseau."""
+def identifiant_de(entete: bytes) -> str:
+    """Message-ID lu dans un en-tête seul, sans avoir rapatrié le corps."""
+    trouve = re.search(rb"(?im)^message-id:\s*(.+)$", entete)
+    return trouve.group(1).decode(errors="replace").strip() if trouve else ""
+
+
+def relever_imap(depuis_jours: int | None = None,
+                 connus: set[str] | None = None) -> list[bytes]:
+    """Récupère les courriels récents. C'est la seule fonction qui parle au réseau.
+
+    Deux passes plutôt qu'une. On demande d'abord les seuls Message-ID, on
+    écarte ce qui a déjà été traité, et on ne rapatrie en entier que le reste.
+
+    La différence n'est pas théorique : un libellé qui contient cent soixante-dix
+    confirmations les téléchargeait toutes, toutes les deux heures, pour
+    n'en retenir aucune. Un en-tête pèse quelques centaines d'octets, un
+    courriel de confirmation avec ses images en pèse cent fois plus.
+    """
     conf = configuration()
     if not (conf.imap_hote and conf.imap_utilisateur and conf.imap_mot_de_passe):
         raise BoiteIndisponible(
@@ -407,8 +526,29 @@ def relever_imap(depuis_jours: int | None = None) -> list[bytes]:
                 raise BoiteIndisponible("recherche_refusee",
                                         "La boîte a refusé la recherche")
 
+            numeros = (reponse[0] or b"").split()
+            connus = connus or set()
+
+            # Première passe : les en-têtes seuls, pour savoir ce qui est neuf.
+            a_lire = []
+            for numero in numeros:
+                statut, donnees = boite.fetch(
+                    numero, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+                if statut != "OK" or not donnees or not isinstance(donnees[0], tuple):
+                    # En-tête illisible : on rapatrie quand même, l'analyse
+                    # tranchera. Mieux vaut un courriel de trop qu'un billet
+                    # perdu faute d'identifiant.
+                    a_lire.append(numero)
+                    continue
+                if identifiant_de(donnees[0][1]) not in connus:
+                    a_lire.append(numero)
+
+            LOG.info("Relève : %s courriel(s) dans le dossier, %s à lire",
+                     len(numeros), len(a_lire))
+
+            # Seconde passe : le corps, uniquement pour les nouveaux.
             messages = []
-            for numero in (reponse[0] or b"").split():
+            for numero in a_lire:
                 statut, donnees = boite.fetch(numero, "(BODY.PEEK[])")
                 if statut == "OK" and donnees and isinstance(donnees[0], tuple):
                     messages.append(donnees[0][1])

@@ -52,6 +52,20 @@ def fenetres(id_utilisateur: int, jours: int | None = None,
     )
 
 
+def rang_contenant(id_utilisateur: int, instant: datetime) -> int | None:
+    """Rang de la fenêtre qui contient cet instant, ou None si elle a disparu.
+
+    Sert à faire le lien entre une proposition annoncée il y a quinze jours et
+    la fenêtre d'aujourd'hui : entre les deux, un cours a pu tomber au milieu
+    et faire disparaître le creux. Mieux vaut le dire que proposer des trains
+    pour un week-end qui n'est plus libre.
+    """
+    for rang, creneau in enumerate(fenetres(id_utilisateur), start=1):
+        if creneau["debut"] <= instant < creneau["fin"]:
+            return rang
+    return None
+
+
 def fenetre(id_utilisateur: int, rang: int = 1) -> dict | None:
     """La n-ième fenêtre à venir, comptée à partir de 1.
 

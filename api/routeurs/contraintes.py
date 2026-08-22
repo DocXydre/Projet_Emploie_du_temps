@@ -148,6 +148,16 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
             detail={"code": "rien_a_modifier", "message": "Aucun champ fourni"},
         )
 
+    if "url" in champs:
+        from api.conversation import url_collectable
+
+        # Les applications de calendrier proposent des liens « webcal:// ».
+        # Ce n'est pas un protocole, seulement du HTTPS déguisé.
+        champs["url"] = url_collectable(champs["url"])
+        # Donner l'URL vaut demande de collecte : une source renseignée mais
+        # laissée éteinte n'a pas de raison d'être.
+        champs.setdefault("active", True)
+
     if "configuration" in champs:
         champs["configuration"] = Json(champs["configuration"])
 

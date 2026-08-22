@@ -84,6 +84,30 @@ def annuler(id_absence: int, qui: Authentifie) -> None:
         )
 
 
+@routeur.post("/depart", status_code=status.HTTP_201_CREATED,
+              summary="Je pars maintenant")
+def partir(qui: Authentifie, lieu: str | None = None) -> dict:
+    from api import conversation, ordonnanceur
+
+    creee = conversation.partir(qui.id_utilisateur, lieu)
+    assert creee is not None
+    return {**creee, "occurrences_replacees": ordonnanceur.placer()}
+
+
+@routeur.post("/retour", summary="Je suis rentré")
+def rentrer(qui: Authentifie) -> dict:
+    from api import conversation, ordonnanceur
+
+    ferme = conversation.rentrer(qui.id_utilisateur)
+    if ferme is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "aucune_absence",
+                    "message": "Aucune absence en cours à fermer"},
+        )
+    return {**ferme, "occurrences_replacees": ordonnanceur.placer()}
+
+
 @routeur.get("/presence", summary="Qui est là, jour par jour")
 def presence(qui: Authentifie, jours: int = 14) -> list[dict]:
     """Vue calendaire de la présence, pour comprendre d'un coup d'œil qui fait quoi."""

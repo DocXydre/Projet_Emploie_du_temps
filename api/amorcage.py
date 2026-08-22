@@ -59,14 +59,23 @@ def amorcer_assignations() -> int:
     les tâches resteraient sans assigné et le moteur refuserait de les placer.
     La logique elle-même vit dans `006_assignations.sql` — on ne fait ici que
     l'appeler, pour qu'il n'y ait pas deux définitions à maintenir.
+
+    L'ordre des deux appels n'est pas indifférent : `appliquer_assignations`
+    attribue à l'administrateur toute source encore orpheline, ce qui lui
+    donnerait le calendrier personnel de Lorette. Les calendriers se
+    rattachent donc d'abord à leur propriétaire (R85).
     """
+    touchees = 0
     try:
+        perso = executer("SELECT assigner_calendriers_perso() AS touchees")
+        touchees += (perso or {}).get("touchees", 0)
+
         resultat = executer("SELECT appliquer_assignations() AS touchees")
     except psycopg.Error as erreur:
         LOG.warning("Assignations reportées : %s", erreur.diag.message_primary or erreur)
         return 0
 
-    touchees = (resultat or {}).get("touchees", 0)
+    touchees += (resultat or {}).get("touchees", 0)
     if touchees:
         LOG.info("Assignations par défaut : %s ligne(s) mise(s) à jour", touchees)
     return touchees

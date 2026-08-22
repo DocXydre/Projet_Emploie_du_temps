@@ -34,6 +34,7 @@ PREFIXES = {
     "vaisselle": "Vaisselle",
     "animal": "Chat",
     "admin": "Admin",
+    "trajet": "Proposition",
 }
 
 
@@ -91,8 +92,13 @@ def flux_ics(id_utilisateur: int, jours: int | None = None) -> bytes:
             # DTSTART;VALUE=DATE : la bibliothèque le produit dès qu'on lui
             # passe un objet date et non un datetime.
             jour = ligne["debut"].astimezone(fuseau).date()
+            # La fin réelle, et non systématiquement le lendemain : un rappel
+            # tient sur une journée, une proposition de week-end sur trois. La
+            # borne de fin d'un événement journée entière est exclusive, donc
+            # la date de fin convient telle quelle.
+            fin = max(ligne["fin"].astimezone(fuseau).date(), jour + timedelta(days=1))
             evenement.add("dtstart", jour)
-            evenement.add("dtend", jour + timedelta(days=1))
+            evenement.add("dtend", fin)
             evenement.add("transp", "TRANSPARENT")  # ne bloque pas la journée
         else:
             evenement.add("dtstart", ligne["debut"].astimezone(fuseau))
