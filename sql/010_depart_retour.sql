@@ -1,19 +1,16 @@
 -- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
 --             EXISTS. Le rejouer après modification est sans effet de bord.
 -- =============================================================================
--- 010 — Départ et retour déclarés à la main                          (R77–R78)
--- =============================================================================
--- Tout ce qui précède déduit les absences : des billets, des horaires, des
--- fenêtres. C'est utile et c'est faux la moitié du temps. On rentre en voiture,
--- on prolonge d'un jour, on repart plus tôt, on décide sur place.
+-- 010 : départ et retour déclarés à la main                   (ABS-6, ABS-7)
 --
--- Ces deux fonctions rendent la main. Elles ne remplacent rien : elles closent
--- ce que le reste avait prévu, à l'instant où on le dit.
+-- Tout le reste déduit les absences : billets, horaires, fenêtres. Ces deux
+-- fonctions rendent la main, en fermant ou en ouvrant une absence à l'instant
+-- où on le dit.
 -- =============================================================================
 
 
 -- -----------------------------------------------------------------------------
--- Déclarer son retour                                                     (R77)
+-- Déclarer son retour                                                     (ABS-6)
 --
 -- Un trajet prévu n'engage à rien. Fermer l'absence à l'instant présent rend
 -- au ménage les jours qui restaient gelés — y compris celui-ci, puisqu'une
@@ -55,11 +52,11 @@ END $$;
 
 COMMENT ON FUNCTION terminer_absence IS
     'Ferme l''absence en cours à l''instant donné, et rend les jours restants '
-    'au ménage (R77).';
+    'au ménage (ABS-6).';
 
 
 -- -----------------------------------------------------------------------------
--- Déclarer son départ, sans savoir quand on rentre                        (R78)
+-- Déclarer son départ, sans savoir quand on rentre                        (ABS-7)
 --
 -- Même raisonnement que pour un aller sans retour : l'absence court jusqu'à ce
 -- qui nous rappelle. Choisir une durée au hasard serait pire, puisqu'il
@@ -103,4 +100,4 @@ END $$;
 
 COMMENT ON FUNCTION partir_maintenant IS
     'Ouvre une absence à l''instant présent, jusqu''à la prochaine obligation '
-    'connue (R78).';
+    'connue (ABS-7).';

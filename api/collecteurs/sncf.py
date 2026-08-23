@@ -1,16 +1,15 @@
 """Horaires de train, via l'API SNCF (Navitia).
 
-Ce module ne connaît que les horaires. Il ne sait pas ce qu'est une fenêtre de
-départ, ni ce qu'est une absence : il reçoit deux gares et un intervalle, et
-rend des trajets. Le reste se décide dans la base.
+Ce module ne connaît que les horaires : il reçoit deux gares et un intervalle,
+et rend des trajets. Les fenêtres de départ et les absences se décident
+ailleurs.
 
-L'API rend des heures locales sans décalage — « 20260828T181200 » — parce que la
-couverture `sncf` est tout entière à l'heure de Paris. On leur rattache donc le
-fuseau configuré au moment de les lire, plutôt que de manipuler des instants
-sans fuseau qui finiraient par être pris pour de l'UTC.
+Navitia rend des heures locales sans décalage (« 20260828T181200 ») : on leur
+rattache le fuseau configuré à la lecture, sinon elles finiraient prises pour
+de l'UTC.
 
-Comme pour les flux iCalendar, la réponse peut être injectée telle quelle : les
-tests rejouent une réponse enregistrée au lieu d'interroger le réseau.
+Comme pour les flux iCalendar, une réponse déjà obtenue peut être injectée, ce
+dont les tests se servent pour ne pas dépendre du réseau.
 """
 
 from __future__ import annotations
@@ -187,15 +186,8 @@ def chercher(
 ) -> list[Trajet]:
     """Trajets partant après `pas_avant`, et arrivés avant `arrive_avant`.
 
-    Les deux bornes ne se valent pas. La première est une contrainte physique —
-    on ne monte pas dans un train qu'on ne peut pas atteindre. La seconde est un
-    engagement : être rentré à temps pour le premier cours qui suit.
-
-    `au_plus_tard` renverse la recherche, et c'est ce qui distingue un aller
-    d'un retour. À l'aller on veut partir dès qu'on peut ; au retour on veut
-    rentrer le plus tard possible, puisque chaque heure gagnée est une heure de
-    plus sur place. Les trajets rendus vont alors du dernier possible vers les
-    plus tôt.
+    `au_plus_tard` renverse la recherche, ce qui distingue un aller d'un
+    retour : on part dès qu'on peut, on rentre le plus tard possible.
     """
     gare_depart = GARES.get(depart, (depart, depart))[0]
     gare_arrivee = GARES.get(arrivee, (arrivee, arrivee))[0]

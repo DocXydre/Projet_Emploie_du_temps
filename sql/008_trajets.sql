@@ -1,32 +1,25 @@
 -- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
 --             EXISTS. Le rejouer après modification est sans effet de bord.
 -- =============================================================================
--- 008 — Trajets en train                                             (R63–R70)
--- =============================================================================
--- Aller à Saint-Dié suppose deux choses que le système connaît déjà : un creux
--- assez long dans l'emploi du temps, et une absence à déclarer au retour. Ce
--- fichier fait le lien entre les deux, et n'ajoute qu'une table — les horaires
--- viennent de la SNCF et ne se stockent que le temps d'être choisis.
+-- 008 : trajets en train                                      (TRJ-1 à TRJ-8)
 --
--- Ce que le système ne fait pas : acheter le billet. Il propose des horaires et
--- gèle les tâches ménagères en conséquence. L'achat reste manuel, et une
--- proposition retenue n'est donc qu'une intention (R70).
+-- Partir suppose deux choses que le système connaît déjà : un creux assez long
+-- dans l'emploi du temps, et une absence à déclarer. Ce fichier fait le lien.
+--
+-- Les horaires viennent de la SNCF et ne sont stockés que le temps d'être
+-- choisis. L'achat du billet reste manuel (TRJ-8).
 -- =============================================================================
 
 
 -- -----------------------------------------------------------------------------
--- Fenêtres de départ                                                 (R63, R64)
+-- Fenêtres de départ                                                 (TRJ-1, TRJ-2)
 --
--- Une fenêtre est un creux d'au moins N heures sans cours ni travail. Le sommeil
--- n'en est pas un : dormir n'empêche pas d'être à Saint-Dié. Les absences déjà
--- déclarées sont retirées, sans quoi on proposerait un aller pour un week-end
--- où l'on est déjà parti.
+-- Un creux d'au moins N heures sans cours ni travail. Le sommeil ne compte
+-- pas, et les absences déjà déclarées sont retirées.
 --
--- L'arithmétique des multirange donne les bornes gratuitement : un creux
--- commence exactement quand finit l'obligation qui le précède, et finit quand
--- commence la suivante. Reste à distinguer une vraie borne du simple bord de
--- l'horizon interrogé — d'où les NULL, qui disent « rien ne t'attend de ce
--- côté-là » plutôt que d'inventer une contrainte.
+-- L'arithmétique des multirange donne les bornes : un creux commence quand
+-- finit l'obligation qui le précède. Les colonnes valent NULL au bord de
+-- l'horizon, où il n'y a pas d'obligation à signaler.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fenetres_de_depart(
     p_utilisateur   INTEGER,
@@ -77,7 +70,7 @@ CREATE OR REPLACE FUNCTION fenetres_de_depart(
            CASE WHEN lower(c.plage) > (SELECT lower(plage) FROM horizon)
                 THEN lower(c.plage) END,
            CASE WHEN upper(c.plage) < p_fin THEN upper(c.plage) END,
-           -- R64 : le temps d'aller à la gare.
+           -- TRJ-2 : le temps d'aller à la gare.
            CASE WHEN lower(c.plage) > (SELECT lower(plage) FROM horizon)
                 THEN lower(c.plage) + make_interval(mins => p_marge_minutes)
                 ELSE lower(c.plage) END,
@@ -91,13 +84,13 @@ $$;
 
 COMMENT ON FUNCTION fenetres_de_depart IS
     'Creux d''au moins N heures sans cours ni travail, avec les bornes '
-    'utilisables pour chercher un train (R63, R64).';
+    'utilisables pour chercher un train (TRJ-1, TRJ-2).';
 
 
 -- -----------------------------------------------------------------------------
--- Table : Trajet                                                     (R65–R70)
+-- Table : Trajet                                                     (TRJ-4 à TRJ-8)
 --
--- R65 : les horaires ne sont pas des données du système. Ils appartiennent à
+-- TRJ-4 : les horaires ne sont pas des données du système. Ils appartiennent à
 -- la SNCF, changent sans prévenir, et n'ont d'intérêt que le temps qu'on en
 -- choisisse un. On ne les stocke donc que sous forme de propositions, avec un
 -- statut qui dit ce qu'elles sont devenues.
@@ -130,7 +123,7 @@ CREATE INDEX IF NOT EXISTS trajet_par_utilisateur
 
 COMMENT ON TABLE trajet IS
     'Propositions d''horaires. Retenir un aller et un retour crée l''absence '
-    'correspondante ; le billet, lui, s''achète ailleurs (R70).';
+    'correspondante ; le billet, lui, s''achète ailleurs (TRJ-8).';
 
 
 -- Rien ici n'interdit de retenir deux fois le même week-end : c'est la
@@ -166,15 +159,12 @@ SELECT t.id_trajet,
 
 
 -- -----------------------------------------------------------------------------
--- Retenir un trajet                                                  (R67–R69)
+-- Retenir un trajet                                                  (TRJ-5–TRJ-7)
 --
--- Le geste central : choisir des horaires devient une absence, donc un planning
--- ménager qui se refait tout seul. C'est la seule raison d'être de la table.
+-- Choisir des horaires crée l'absence, et le planning ménager se refait.
 --
--- Le retour peut manquer. Partir sans savoir quand on rentre est un cas
--- ordinaire, et refuser de l'enregistrer obligerait à choisir un horaire au
--- hasard pour contenter le modèle. L'absence court alors jusqu'à la prochaine
--- obligation connue (R69).
+-- Le retour peut manquer : partir sans savoir quand on rentre est ordinaire.
+-- L'absence court alors jusqu'à la prochaine obligation connue (TRJ-7).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION retenir_trajet(
     p_aller  BIGINT,
@@ -211,7 +201,7 @@ BEGIN
                       || ', retour ' || to_char(upper(v_retour.periode) AT TIME ZONE 'Europe/Paris',
                                                 'DD/MM HH24"h"MI');
     ELSE
-        -- R69 : sans retour choisi, l'absence court jusqu'à ce qui nous rappelle.
+        -- TRJ-7 : sans retour choisi, l'absence court jusqu'à ce qui nous rappelle.
         SELECT f.fin INTO v_fin
           FROM fenetres_de_depart(v_aller.id_utilisateur,
                                   lower(v_aller.periode) - INTERVAL '1 hour',
@@ -235,7 +225,7 @@ BEGIN
        SET statut = 'retenue', id_absence = v_absence
      WHERE id_trajet IN (p_aller, p_retour);
 
-    -- R68 : les autres horaires du même choix n'ont plus lieu d'être. On les
+    -- TRJ-6 : les autres horaires du même choix n'ont plus lieu d'être. On les
     -- écarte plutôt que de les supprimer : relire ce qui avait été proposé
     -- aide à comprendre un choix, six mois plus tard.
     UPDATE trajet
@@ -251,5 +241,5 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION retenir_trajet IS
-    'Transforme des horaires choisis en absence déclarée (R67). Le retour peut '
-    'manquer : l''absence court alors jusqu''à la prochaine obligation (R69).';
+    'Transforme des horaires choisis en absence déclarée (TRJ-5). Le retour peut '
+    'manquer : l''absence court alors jusqu''à la prochaine obligation (TRJ-7).';

@@ -1,19 +1,13 @@
 """Export iCalendar.
 
-Le format prévoit un composant VTODO pour les tâches à cocher, mais il est
-inutilisable ici : un calendrier abonné qui ne contient que des VTODO s'affiche
-vide dans l'application Calendrier d'iOS, et un calendrier abonné est de toute
-façon en lecture seule.
+Le format prévoit un composant VTODO pour les tâches à cocher, inutilisable
+ici : un calendrier abonné qui n'en contient que s'affiche vide sur iOS, et un
+abonnement est de toute façon en lecture seule.
 
-On produit donc uniquement des VEVENT :
-  - un événement horaire pour les occupations et les tâches à heure imposée ;
-  - un événement journée entière (DTSTART;VALUE=DATE) pour les rappels.
+On produit donc uniquement des VEVENT — horaires pour les occupations et les
+tâches à heure imposée, journée entière pour les rappels.
 
-Le second cas correspond exactement à la sémantique voulue — à faire ce jour-là,
-sans heure précise — et s'affiche en bandeau en haut de la journée.
-
-La validation, elle, ne passe jamais par le calendrier : elle se fait dans
-Telegram ou par l'API. Le calendrier sert à voir, le bot sert à agir.
+La validation passe par Telegram ou par l'API : le calendrier sert à voir.
 """
 
 from datetime import datetime, timedelta

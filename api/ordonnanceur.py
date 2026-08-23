@@ -1,15 +1,16 @@
 """Déclenchement périodique : collectes, placement, notifications.
 
-Le rythme suit le cahier des charges :
-
     toutes les heures   collecter les sources dont la fréquence est écoulée
+    toutes les 2 h      relever les confirmations SNCF
+    toutes les 6 h      calendriers personnels
     07h00               bilan du matin, puis placement
+    07h10               propositions de week-end
     21h00               relance sur les tâches du jour non faites
+    00h02               consommation de l'uniforme
     00h05               report d'office de ce qui n'a pas été fait
 
-Chaque tâche appelle la même fonction que l'endpoint correspondant. Il n'y a
-donc jamais deux chemins de code pour la même opération, et le chemin de nuit
-— celui qu'on ne regarde jamais — reste couvert par les tests de l'API.
+Chaque tâche appelle la même fonction que l'endpoint correspondant : le chemin
+de nuit reste ainsi couvert par les tests de l'API.
 """
 
 import logging

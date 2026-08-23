@@ -1,9 +1,8 @@
-"""Amorçage au démarrage : renseigner les URL des flux depuis l'environnement.
+"""Amorçage au démarrage : URL des flux et assignations par défaut.
 
 Les URL ne sont pas versionnées — celle du planning de travail contient un
-jeton d'accès personnel. Elles sont donc fournies par variable d'environnement,
-et écrites en base au premier démarrage seulement : une URL déjà renseignée
-depuis le bot n'est jamais écrasée.
+jeton personnel. Elles viennent de l'environnement et ne sont écrites qu'au
+premier démarrage : une URL déjà donnée par le bot n'est jamais écrasée.
 """
 
 import logging
@@ -56,14 +55,10 @@ def amorcer_assignations() -> int:
     """Rejoue les assignations par défaut.
 
     Les comptes sont souvent créés après les migrations : sans ce rattrapage,
-    les tâches resteraient sans assigné et le moteur refuserait de les placer.
-    La logique elle-même vit dans `006_assignations.sql` — on ne fait ici que
-    l'appeler, pour qu'il n'y ait pas deux définitions à maintenir.
+    les tâches resteraient sans assigné.
 
-    L'ordre des deux appels n'est pas indifférent : `appliquer_assignations`
-    attribue à l'administrateur toute source encore orpheline, ce qui lui
-    donnerait le calendrier personnel de Lorette. Les calendriers se
-    rattachent donc d'abord à leur propriétaire (R85).
+    L'ordre compte : `appliquer_assignations` donne à l'administrateur toute
+    source orpheline, donc les calendriers personnels passent d'abord (COL-16).
     """
     touchees = 0
     try:

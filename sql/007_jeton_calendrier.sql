@@ -1,20 +1,14 @@
 -- rejouable : ce fichier ne contient que des CREATE OR REPLACE ou des IF NOT
 --             EXISTS. Le rejouer après modification est sans effet de bord.
 -- =============================================================================
--- 007 — Jeton d'abonnement au calendrier                                  (R61)
--- =============================================================================
--- Jusqu'ici le flux iCalendar s'authentifiait avec la clé d'API. Cette clé
--- voyage alors dans une URL que le téléphone garde en clair, recopie dans ses
--- sauvegardes et transmet à chaque rafraîchissement. Si elle fuite, elle donne
--- accès à toute l'API : déclarer des absences, valider des tâches, changer les
--- sources.
+-- 007 : jeton d'abonnement au calendrier                              (UTI-2)
 --
--- On sépare donc les deux. Le jeton de calendrier ne permet que de lire le
--- planning, et se renouvelle en une requête sans rien casser d'autre — il
--- suffit de réabonner le téléphone.
+-- Le flux iCalendar s'authentifiait avec la clé d'API. Or cette URL est
+-- conservée en clair par le téléphone et rejouée à chaque rafraîchissement :
+-- si elle fuite, elle ouvre toute l'API.
 --
--- Cette migration est écrite pour être rejouable : sur une base neuve, la
--- colonne existe déjà (001), et tout ce qui suit devient sans effet.
+-- Le jeton de calendrier ne donne que la lecture du planning, et se renouvelle
+-- sans toucher au reste.
 -- =============================================================================
 
 ALTER TABLE utilisateur
@@ -37,11 +31,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS utilisateur_jeton_calendrier_key
 COMMENT ON COLUMN utilisateur.jeton_calendrier IS
     'Abonnement iCalendar seul. Distinct de la clé d''API car il voyage dans '
     'une URL que le téléphone conserve en clair : s''il fuite, il ne donne que '
-    'la lecture du planning, et se renouvelle sans rien casser d''autre (R61).';
+    'la lecture du planning, et se renouvelle sans rien casser d''autre (UTI-2).';
 
 
 -- -----------------------------------------------------------------------------
--- Renouvellement                                                          (R62)
+-- Renouvellement                                                          (UTI-3)
 -- -----------------------------------------------------------------------------
 -- Révoquer, c'est remplacer. Les abonnements existants cessent aussitôt de
 -- fonctionner, ce qui est précisément l'effet recherché.
@@ -54,4 +48,4 @@ RETURNS VARCHAR LANGUAGE sql AS $$
 $$;
 
 COMMENT ON FUNCTION renouveler_jeton_calendrier IS
-    'Invalide l''abonnement calendrier en place et en rend un nouveau (R62).';
+    'Invalide l''abonnement calendrier en place et en rend un nouveau (UTI-3).';

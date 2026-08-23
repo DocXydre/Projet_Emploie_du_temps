@@ -1,16 +1,8 @@
-"""Aller à Saint-Dié : trouver quand, trouver comment, geler le ménage.
+"""Aller à Saint-Dié : quand partir, à quelle heure, et le ménage qui suit.
 
-Trois choses se rencontrent ici, et aucune n'appartient à ce module.
-
-Quand partir est une question d'emploi du temps, et la base y répond seule avec
-`fenetres_de_depart` : un creux d'au moins deux jours sans cours ni service.
-
-Comment y aller est une question d'horaires, et la SNCF y répond. On ne garde
-ses réponses que le temps qu'un horaire soit choisi.
-
-Ce qu'il advient du ménage est une question d'absence, et la base y répond
-encore : retenir un trajet crée l'absence, l'absence libère les jours, et le
-placement se refait tout seul.
+Trois choses se rencontrent ici. Quand partir vient de `fenetres_de_depart`,
+côté base. Comment y aller vient de la SNCF. Ce qu'il advient du ménage vient
+de l'absence que crée un trajet retenu.
 
 Ce module ne fait que les mettre en présence.
 """
@@ -143,15 +135,11 @@ def proposer_aller(id_utilisateur: int, rang: int = 1,
 def proposer_retour(id_trajet_aller: int, charge: dict | None = None) -> dict:
     """Horaires pour rentrer, une fois l'aller choisi.
 
-    Deux bornes encadrent la recherche. On ne repart pas avant d'être arrivé —
-    et pas non plus dans la foulée : rester deux heures à Saint-Dié n'est pas
-    un séjour. Et il faut être rentré avant la première obligation qui suit,
-    avec la même marge qu'à l'aller.
+    Deux bornes : douze heures sur place au minimum, et rentré avant la
+    première obligation qui suit.
 
-    R71 : la recherche part de la seconde borne, pas de la première. Le retour
-    qu'on veut est le dernier qui ramène à temps, et les suivants sont proposés
-    de plus en plus tôt — chaque heure gagnée est une heure de plus sur place.
-    C'est l'inverse de l'aller, où l'on veut partir dès que possible.
+    TRJ-3 : la recherche part de la seconde borne, car le retour voulu est le
+    dernier qui ramène à temps.
     """
     aller = un_seul(
         """

@@ -6,14 +6,13 @@
 -- =============================================================================
 -- 004 : triggers
 --
--- Ce sont les contraintes « dynamiques fortes » de la section 7 du cahier des
--- charges : celles qu'un CHECK ne sait pas exprimer parce qu'elles portent sur
--- une transition, sur une autre table, ou sur l'heure courante.
+-- Les contraintes qu'un CHECK ne sait pas exprimer : celles qui portent sur
+-- une transition d'état, sur une autre table, ou sur l'heure courante.
 -- =============================================================================
 
 
 -- -----------------------------------------------------------------------------
--- Une occurrence hérite de la nature de sa tâche                          (R7)
+-- Une occurrence hérite de la nature de sa tâche                          (TAC-2)
 --
 -- Dénormalisation assumée : une contrainte d'exclusion ne sait pas lire une
 -- table liée. Ces deux drapeaux conditionnent le chevauchement et la règle de
@@ -47,19 +46,19 @@ CREATE OR REPLACE TRIGGER occurrence_heriter_tache
 
 
 -- -----------------------------------------------------------------------------
--- Contrôle des transitions de statut                            (R21, R25)
+-- Contrôle des transitions de statut                            (EXE-1, EXE-5)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_occurrence_transition() RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN
-    -- R21 : on ne valide pas une tâche dans le futur. Ce contrôle ne peut pas
+    -- EXE-1 : on ne valide pas une tâche dans le futur. Ce contrôle ne peut pas
     -- être un CHECK, now() n'étant pas immutable.
     IF NEW.date_faite IS NOT NULL AND NEW.date_faite > now() THEN
         RAISE EXCEPTION 'Une tâche ne peut pas être validée dans le futur'
               USING ERRCODE = 'check_violation';
     END IF;
 
-    -- R26 : le compteur de relances ne redescend jamais.
+    -- EXE-6 : le compteur de relances ne redescend jamais.
     IF NEW.nb_relances < OLD.nb_relances THEN
         RAISE EXCEPTION 'Le compteur de relances ne peut pas diminuer'
               USING ERRCODE = 'check_violation';
@@ -74,7 +73,7 @@ CREATE OR REPLACE TRIGGER occurrence_transition
 
 
 -- -----------------------------------------------------------------------------
--- Une occurrence close ne se touche plus                                 (R25)
+-- Une occurrence close ne se touche plus                                 (EXE-5)
 --
 -- Comparer les valeurs avant et après ne suffit pas : revalider une occurrence
 -- dans la même transaction réécrit date_faite avec le même now(), puisque
@@ -101,7 +100,7 @@ CREATE OR REPLACE TRIGGER occurrence_close
 
 
 -- -----------------------------------------------------------------------------
--- Une seule machine par jour                                             (R35)
+-- Une seule machine par jour                                             (UNI-12)
 --
 -- Le chevauchement ne suffit pas : deux lessives à 21h45 et 23h00 ne se
 -- chevauchent pas mais ne peuvent pas tourner le même soir.
@@ -128,7 +127,7 @@ CREATE OR REPLACE TRIGGER occurrence_machine_unique
 
 
 -- -----------------------------------------------------------------------------
--- Après validation : récurrence, enchaînements et stock     (R21, R22, R23, R36)
+-- Après validation : récurrence, enchaînements et stock     (EXE-1, EXE-2, EXE-3, UNI-13)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_occurrence_apres_validation() RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
@@ -156,7 +155,7 @@ BEGIN
        AND statut IN ('a_placer', 'planifiee')
        AND NOT epinglee;
 
-    -- ---- R21 : l'occurrence suivante part de la date réelle ------------------
+    -- ---- EXE-1 : l'occurrence suivante part de la date réelle ------------------
     IF t.active AND t.recurrente THEN
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
                                 id_occurrence_source)
@@ -169,7 +168,7 @@ BEGIN
                 NEW.id_occurrence);
     END IF;
 
-    -- ---- R22, R23 : enchaînements, sans doublon et jamais avant la source ----
+    -- ---- EXE-2, EXE-3 : enchaînements, sans doublon et jamais avant la source ----
     FOR e IN SELECT * FROM enchainement WHERE id_tache_source = NEW.id_tache LOOP
 
         SELECT * INTO v_cible FROM tache WHERE id_tache = e.id_tache_suivante;
@@ -209,7 +208,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- ---- R51 : faire ceci vaut avoir fait cela ------------------------------
+    -- ---- TAC-10 : faire ceci vaut avoir fait cela ------------------------------
     --
     -- L'occurrence couverte est marquée faite à la même date. Ce trigger se
     -- redéclenche alors pour elle, ce qui recrée sa suivante au bon moment :
@@ -223,7 +222,7 @@ BEGIN
            AND statut IN ('a_placer', 'planifiee', 'notifiee');
     END LOOP;
 
-    -- ---- R36 : le linge lavé n'est pas portable tout de suite ---------------
+    -- ---- UNI-13 : le linge lavé n'est pas portable tout de suite ---------------
     --
     -- Seuls les articles qui avaient des unités sales partent en séchage. Un
     -- pantalon déjà propre ne devient pas indisponible parce qu'on a lavé les
@@ -260,7 +259,7 @@ CREATE OR REPLACE TRIGGER occurrence_apres_validation
 
 
 -- -----------------------------------------------------------------------------
--- Le stock se recalcule à chaque mouvement                               (R15)
+-- Le stock se recalcule à chaque mouvement                               (UNI-3)
 --
 -- quantite_propre n'est jamais écrite directement par l'API : elle est le
 -- résultat du journal des mouvements.
@@ -290,7 +289,7 @@ CREATE OR REPLACE TRIGGER mouvement_appliquer
 
 
 -- -----------------------------------------------------------------------------
--- Une journée de travail consomme de l'uniforme                          (R31)
+-- Une journée de travail consomme de l'uniforme                          (UNI-4)
 --
 -- Le mouvement est enregistré quand la journée de travail est passée : c'est
 -- le moment où le vêtement est réellement sale.

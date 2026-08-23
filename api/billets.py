@@ -1,12 +1,11 @@
 """De la confirmation d'achat à l'absence déclarée.
 
-Le chemin est court et volontairement sans raccourci : un billet lu est
-enregistré comme n'importe quel trajet, puis retenu par la même fonction que
-celle du bot. Rien ne justifierait un second chemin d'écriture — c'est ainsi
-qu'on se retrouve avec deux façons de créer une absence qui divergent.
+Un billet lu est enregistré comme n'importe quel trajet, puis retenu par la
+même fonction que celle du bot : un second chemin d'écriture finirait par
+diverger du premier.
 
-Ce module ne parle ni à IMAP ni à la SNCF. Il reçoit des courriels bruts, déjà
-récupérés, ce qui permet de rejouer une boîte entière dans les tests.
+Ce module ne parle ni à IMAP ni à la SNCF. Il reçoit des courriels bruts, ce
+qui permet de rejouer une boîte entière dans les tests.
 """
 
 from __future__ import annotations
@@ -39,7 +38,7 @@ def _deja_vu(identifiant: str) -> bool:
 def _consigner(lecture: Lecture, statut: str, motif: str | None,
                id_utilisateur: int | None = None,
                id_absence: int | None = None) -> None:
-    """Garde trace, y compris des courriels dont on n'a rien su faire (R75)."""
+    """Garde trace, y compris des courriels dont on n'a rien su faire (BIL-8)."""
     executer(
         """
         INSERT INTO courriel (identifiant, expediteur, sujet, recu_le, statut,
@@ -93,17 +92,13 @@ def _quand(lecture: Lecture) -> datetime:
 
 
 def _appliquer_sans_horaire(segment: Segment, id_utilisateur: int) -> dict:
-    """Billet dont on connaît le jour, pas l'heure.                       (R80)
+    """Billet dont on connaît le jour, pas l'heure.                     (BIL-6)
 
-    Aucun appariement n'est nécessaire, et c'est ce qui rend la chose sûre :
-    un billet vers la gare famille ouvre l'absence, un billet qui en revient
-    la ferme. Les deux courriels arrivent d'ordinaire ensemble, mais rien
-    n'oblige à ce qu'ils soient traités ensemble.
+    Aucun appariement entre courriels n'est nécessaire : un billet vers la gare
+    famille ouvre l'absence, un billet qui en revient la ferme.
 
-    Les bornes sont prises au jour entier, et volontairement à l'intérieur du
-    voyage : l'absence commence au lendemain du départ et s'arrête au matin du
-    retour. Sans horaire, ce sont les seules journées dont on soit certain —
-    et se tromper dans ce sens fait faire une lessive de trop, non un retard.
+    Les bornes sont prises à l'intérieur du voyage — lendemain du départ, matin
+    du retour — car ce sont les seules journées certaines.
     """
     jour = segment.depart.date()
 
@@ -190,13 +185,11 @@ def relever(id_utilisateur: int | None = None,
             annoncer: bool = False) -> dict:
     """Lit la boîte, déclare les absences trouvées, et rend compte de tout.
 
-    Le compte rendu détaille chaque sort possible. Un relevé qui ne dirait que
-    « trois absences créées » laisserait invisible le courriel qu'on n'a pas su
-    lire, c'est-à-dire précisément celui qui demande une correction.
+    Le compte rendu détaille chaque sort possible : un relevé qui ne dirait que
+    « trois absences créées » masquerait le courriel qu'on n'a pas su lire.
 
-    `annoncer` sert à la relève automatique : elle dépose une notification,
-    puisque personne ne regarde. Appelée depuis le bot, la réponse suffit et
-    une notification ferait double emploi (R76).
+    `annoncer` sert à la relève automatique, qui dépose une notification
+    puisque personne ne regarde (BIL-9).
     """
     if messages is None:
         # Les identifiants déjà traités partent avec la demande : le serveur
@@ -251,7 +244,7 @@ def relever(id_utilisateur: int | None = None,
         bilan["occurrences_replacees"] = placer()
 
     if annoncer and (bilan["traites"] or bilan["illisibles"] or bilan["refuses"]):
-        # R76 : une absence déclarée sans qu'on l'ait demandée doit s'annoncer.
+        # BIL-9 : une absence déclarée sans qu'on l'ait demandée doit s'annoncer.
         # Geler deux jours de ménage en silence sur une analyse fausse est le
         # défaut qu'il faut éviter avant tous les autres.
         executer(
@@ -311,7 +304,7 @@ def resume(bilan: dict) -> str:
         lignes.append(f"{bilan['refuses']} billet(s) refusé(s) — sans doute une "
                       f"absence déjà déclarée sur les mêmes dates.")
     if bilan["illisibles"]:
-        # R75 : le dire, sinon le format change et plus rien n'arrive sans
+        # BIL-8 : le dire, sinon le format change et plus rien n'arrive sans
         # qu'on sache pourquoi.
         lignes.append(f"{bilan['illisibles']} courriel(s) SNCF que je n'ai pas su "
                       f"lire. Le format a peut-être changé : « /billets » les liste.")

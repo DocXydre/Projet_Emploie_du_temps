@@ -1,11 +1,11 @@
 """Ce que le bot sait faire, indépendamment de Telegram.
 
-Tout ce qui se teste est ici : appairage, mise en forme des messages, exécution
-des actions, heures de silence. `bot.py` ne fait plus que brancher ces fonctions
-sur des commandes et des boutons.
+Appairage, mise en forme des messages, exécution des actions, heures de
+silence. `bot.py` ne fait que brancher ces fonctions sur des commandes et des
+boutons.
 
-La séparation n'est pas gratuite : sans elle, la seule façon de vérifier qu'un
-bouton « fait » valide bien la bonne occurrence serait de parler à Telegram.
+Sans cette séparation, vérifier qu'un bouton « fait » valide la bonne
+occurrence demanderait de parler à Telegram.
 """
 
 from __future__ import annotations
@@ -85,14 +85,11 @@ def desappairer(id_telegram: int) -> bool:
 def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | None:
     """URL d'abonnement au flux iCalendar, ou None si l'hôte est inconnu.
 
-    `HOTE_PUBLIC` l'emporte toujours sur `defaut`, qui n'est qu'un repli tiré de
-    la requête reçue. Sans cette priorité, interroger l'API depuis le Mac
-    renverrait « localhost », adresse qui ne veut rien dire pour le téléphone.
+    `HOTE_PUBLIC` l'emporte sur `defaut`, qui n'est qu'un repli tiré de la
+    requête : interrogée depuis le Mac, l'API renverrait sinon « localhost ».
 
-    Deux formes de la même adresse. La première se colle dans un navigateur ou
-    un champ d'abonnement ; la seconde, en `webcal://`, ouvre directement la
-    boîte de dialogue d'abonnement quand on la touche sur un téléphone — ce qui
-    évite de recopier un jeton de trente-deux caractères à la main.
+    Deux formes de la même adresse, dont une en `webcal://` qui ouvre
+    directement la boîte d'abonnement d'un téléphone.
     """
     ligne = un_seul(
         "SELECT jeton_calendrier FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",

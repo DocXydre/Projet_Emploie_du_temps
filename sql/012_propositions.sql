@@ -1,19 +1,14 @@
 -- rejouable : ce fichier ne contient que des CREATE OR REPLACE et des IF NOT
 --             EXISTS.
 -- =============================================================================
--- 012 — Propositions de week-end                                     (R86–R90)
--- =============================================================================
--- Le système sait depuis longtemps repérer un creux de deux jours. Il ne le
--- disait que si on le lui demandait, ce qui suppose d'y penser — et si l'on y
--- pensait, on n'aurait pas besoin du système.
+-- 012 : propositions de week-end                              (WKD-1 à WKD-5)
 --
--- Deux échéances, et deux seulement. Quinze jours avant, parce qu'un billet
--- pris tôt coûte moins cher et qu'on peut encore s'organiser. Trois jours
--- avant, parce qu'entre les deux on a oublié.
+-- Le système savait repérer un creux de deux jours, mais ne le disait que sur
+-- demande. Il l'annonce désormais quinze jours avant, et relance une fois
+-- trois jours avant.
 --
--- Une proposition n'est pas une absence. Elle n'a aucun effet sur le ménage :
--- elle s'affiche au calendrier et attend une réponse. Confondre les deux
--- gèlerait des journées sur une simple suggestion.
+-- Une proposition n'est pas une absence : elle s'affiche au calendrier et
+-- n'a aucun effet sur le placement (WKD-1).
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS proposition (
@@ -31,7 +26,7 @@ CREATE TABLE IF NOT EXISTS proposition (
     relancee_le    TIMESTAMPTZ,
     date_creation  TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    -- R87 : deux propositions vivantes ne se chevauchent pas. Un cours ajouté
+    -- WKD-2 : deux propositions vivantes ne se chevauchent pas. Un cours ajouté
     -- déplace les bornes d'une fenêtre de quelques heures ; sans cette
     -- contrainte, le même week-end serait proposé une fois par collecte.
     CONSTRAINT proposition_sans_doublon
@@ -44,7 +39,7 @@ CREATE INDEX IF NOT EXISTS proposition_a_traiter
 
 COMMENT ON TABLE proposition IS
     'Suggestion de week-end, sans effet sur le planning. Devient une absence
-     seulement si on retient un trajet (R86).';
+     seulement si on retient un trajet (WKD-1).';
 
 
 -- La notification doit pouvoir renvoyer à ce qu'elle annonce, sinon le bot ne
@@ -65,7 +60,7 @@ ALTER TABLE notification
 
 
 -- -----------------------------------------------------------------------------
--- Entretien : ce que le temps a tranché                                   (R88)
+-- Entretien : ce que le temps a tranché                                   (WKD-3)
 --
 -- Une proposition dont le week-end est passé n'attend plus de réponse, et une
 -- proposition couverte par une absence a obtenu la sienne — qu'elle soit
@@ -97,7 +92,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Repérer les week-ends libres                                       (R86, R89)
+-- Repérer les week-ends libres                                       (WKD-1, WKD-4)
 --
 -- On regarde plus loin que le délai voulu avant de filtrer : une fenêtre qui
 -- commence dans treize jours et finit dans seize serait tronquée par
@@ -137,11 +132,11 @@ END $$;
 
 COMMENT ON FUNCTION proposer_weekends IS
     'Crée une proposition par creux assez long commençant dans le délai donné.
-     Idempotente : rejouée le lendemain, elle ne crée rien de nouveau (R87).';
+     Idempotente : rejouée le lendemain, elle ne crée rien de nouveau (WKD-2).';
 
 
 -- -----------------------------------------------------------------------------
--- Relancer, une fois                                                      (R90)
+-- Relancer, une fois                                                      (WKD-5)
 --
 -- Une seule relance, et seulement si la première est restée sans réponse.
 -- Répéter tous les jours transformerait un service en harcèlement, et la

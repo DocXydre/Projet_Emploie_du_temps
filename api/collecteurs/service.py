@@ -1,9 +1,8 @@
 """Orchestration d'une collecte : récupérer, filtrer, réconcilier.
 
 Ce module ne connaît pas HTTP. L'endpoint et l'ordonnanceur l'appellent de la
-même façon, ce qui évite d'avoir deux chemins de code pour la même opération —
-et évite surtout que le chemin de nuit, celui qu'on ne regarde jamais, diverge
-silencieusement de celui qu'on teste.
+même façon, pour qu'il n'existe pas deux chemins de code pour la même
+opération.
 """
 
 import logging
@@ -17,7 +16,7 @@ from api.collecteurs.ics import collecter as collecter_flux
 
 LOG = logging.getLogger(__name__)
 
-# R46 : au-delà de ce délai, un conflit ne mérite pas qu'on dérange.
+# COL-11 : au-delà de ce délai, un conflit ne mérite pas qu'on dérange.
 DELAI_ARBITRAGE = timedelta(days=14)
 
 
@@ -39,7 +38,7 @@ def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int,
     collecte doit pouvoir rendre compte de chaque séance lue, sinon des cours
     disparaissent sans que personne ne s'en aperçoive.
     """
-    # R46 : un conflit lointain a toutes les chances d'être corrigé à la source
+    # COL-11 : un conflit lointain a toutes les chances d'être corrigé à la source
     # avant qu'il ne compte. Poser la question maintenant reviendrait à faire
     # arbitrer du bruit — mais il faut quand même le compter.
     if seance.debut > datetime.now(seance.debut.tzinfo) + DELAI_ARBITRAGE:

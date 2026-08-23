@@ -3,8 +3,8 @@
 -- =============================================================================
 -- 003 : fonctions
 --
--- Le calcul des disponibilités, la génération des occurrences, la projection du
--- stock et le placement vivent ici. L'API se contente de les appeler.
+-- Disponibilités, génération des occurrences, projection du stock et
+-- placement. L'API se contente de les appeler.
 --
 -- Le fuseau d'affichage est Europe/Paris : c'est lui qui définit ce qu'est
 -- « une journée ». Le stockage reste en UTC.
@@ -29,7 +29,7 @@ $$;
 -- Fenêtre d'échéance d'une occurrence
 --
 -- Pour un rappel, la fenêtre est alignée sur des journées entières : c'est ce
--- qui permet ensuite au créneau « journée entière » d'y être inclus (R10).
+-- qui permet ensuite au créneau « journée entière » d'y être inclus (TAC-5).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION fenetre_pour(
     p_rappel_journee BOOLEAN,
@@ -49,7 +49,7 @@ $$;
 
 -- -----------------------------------------------------------------------------
 -- Disponibilités : l'horizon moins les occupations, moins les créneaux placés
---                                                                        (R16)
+--                                                                        (PLA-1)
 --
 -- Les multirange de PostgreSQL font tout le travail : on agrège tout ce qui est
 -- occupé en un seul multirange, et on le soustrait de l'horizon. Pas de boucle,
@@ -93,7 +93,7 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- Disponibilités communes à tous les utilisateurs actifs                 (R44)
+-- Disponibilités communes à tous les utilisateurs actifs                 (PLA-9)
 --
 -- Le grand nettoyage se fait à deux : il ne suffit pas que Thomas soit libre,
 -- il faut que Lorette le soit au même moment. On intersecte donc les
@@ -142,7 +142,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Présence dans l'appartement                                     (R57, R58)
+-- Présence dans l'appartement                                     (ABS-1, ABS-2)
 --
 -- On ne compte absent qu'un jour entièrement couvert par une absence. Partir
 -- vendredi soir laisse la journée de vendredi utilisable : la tâche peut être
@@ -173,7 +173,7 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- La machine à laver est une ressource unique de l'appartement           (R35)
+-- La machine à laver est une ressource unique de l'appartement           (UNI-12)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION machine_occupee(p_jour DATE, p_sauf INTEGER DEFAULT NULL)
 RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
@@ -189,7 +189,7 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- Recherche d'un créneau horaire, pour une tâche à heure imposée         (R17)
+-- Recherche d'un créneau horaire, pour une tâche à heure imposée         (PLA-2)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chercher_creneau(
     p_utilisateur INTEGER,
@@ -210,7 +210,7 @@ BEGIN
     v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
 
     WHILE v_jour <= v_dernier LOOP
-        -- R57 : ni machine ni ménage un jour où l'on n'est pas là.
+        -- ABS-1 : ni machine ni ménage un jour où l'on n'est pas là.
         IF NOT est_absent(p_utilisateur, v_jour)
            AND NOT (p_machine AND machine_occupee(v_jour)) THEN
 
@@ -244,15 +244,12 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Recherche d'un jour, pour un rappel sans heure imposée            (R18, R53)
+-- Recherche d'un jour, pour un rappel sans heure imposée            (PLA-3, PLA-4)
 --
--- On ne cherche pas un créneau mais une journée qui laisse assez de temps
--- libre au total, une fois déduits les autres rappels déjà posés ce jour-là.
+-- On cherche une journée assez libre, pas un créneau précis.
 --
--- Et surtout : on retient le jour le **moins chargé** de la fenêtre, pas le
--- premier venu. Prendre le premier entassait toutes les tâches sur la même
--- journée, ce qui garantit qu'aucune ne sera faite. La fenêtre d'échéance
--- existe précisément pour offrir cette marge.
+-- Et le jour le moins chargé de la fenêtre, pas le premier venu : prendre le
+-- premier entassait toutes les tâches sur la même journée.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chercher_jour(
     p_utilisateur INTEGER,
@@ -277,7 +274,7 @@ BEGIN
                        v_jour + EXAMEN_MAX);
 
     WHILE v_jour <= v_dernier LOOP
-        -- R57 : un jour d'absence ne reçoit rien. On ne fait pas le ménage
+        -- ABS-1 : un jour d'absence ne reçoit rien. On ne fait pas le ménage
         -- d'un appartement où l'on n'est pas.
         IF est_absent(p_utilisateur, v_jour) THEN
             v_jour := v_jour + 1;
@@ -341,7 +338,7 @@ DECLARE
 BEGIN
     v_limite := now() + make_interval(days => p_horizon_jours);
 
-    -- R55 : les tâches non récurrentes n'apparaissent que par enchaînement.
+    -- TAC-8 : les tâches non récurrentes n'apparaissent que par enchaînement.
     -- Sans ce filtre, « étendre le linge » reviendrait tous les jours, même
     -- les semaines où aucune machine ne tourne.
     FOR t IN SELECT * FROM tache WHERE active AND recurrente ORDER BY priorite LOOP
@@ -353,7 +350,7 @@ BEGIN
            AND statut IN ('a_placer', 'planifiee', 'notifiee');
 
         IF v_curseur IS NULL THEN
-            -- R21 : la référence est la dernière exécution réelle, jamais la
+            -- EXE-1 : la référence est la dernière exécution réelle, jamais la
             -- date théorique. Une tâche faite en retard ne décale pas tout.
             SELECT max(date_faite) INTO v_curseur
               FROM occurrence
@@ -429,7 +426,7 @@ BEGIN
             IF v_jours_couverts < 1 THEN
                 article          := a.code;
                 jour_rupture     := j.jour;
-                -- R33 : il faut que le linge soit lavé, puis sec, avant le shift.
+                -- UNI-10 : il faut que le linge soit lavé, puis sec, avant le shift.
                 echeance_lessive := j.debut_premier_shift
                                     - make_interval(hours => a.heures_sechage)
                                     - v_duree_cycle;
@@ -445,7 +442,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Déclenchement de la lessive de travail                     (R33, R34)
+-- Déclenchement de la lessive de travail                     (UNI-10, UNI-11)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION declencher_lessive(p_utilisateur INTEGER) RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -468,7 +465,7 @@ BEGIN
         RETURN 0;   -- le stock tient sur tous les shifts connus
     END IF;
 
-    -- R34 : trop tard pour que le linge sèche. On alerte au lieu de planifier
+    -- UNI-11 : trop tard pour que le linge sèche. On alerte au lieu de planifier
     -- une tâche qui ne résoudrait rien.
     --
     -- Ce contrôle vient avant celui de l'occurrence existante : sinon une
@@ -523,7 +520,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- À qui revient une tâche                                         (R58, R59)
+-- À qui revient une tâche                                         (ABS-2, ABS-3)
 --
 -- Une tâche dont l'assignation est fixée garde son assigné, absence ou pas :
 -- le pliage du linge revient à Lorette même quand Thomas est là.
@@ -564,7 +561,7 @@ BEGIN
 
         CONTINUE WHEN NOT v_disponible;
 
-        -- R98 : seules les tâches domestiques entrent dans la balance. Le
+        -- PLA-10 : seules les tâches domestiques entrent dans la balance. Le
         -- sport est personnel : le compter reviendrait à faire payer ses
         -- séances de piscine en heures de ménage, et à donner l'appartement
         -- entier à l'autre.
@@ -611,12 +608,12 @@ BEGIN
         PERFORM declencher_lessive(u.id_utilisateur);
     END LOOP;
 
-    -- R19, R54 : un créneau notifié, épinglé, ou prévu dans les prochains jours
+    -- PLA-5, PLA-6 : un créneau notifié, épinglé, ou prévu dans les prochains jours
     -- ne bouge plus. Un planning qui change tous les matins ne sert à rien :
     -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
     v_gele := now() + make_interval(days => p_stabilite_jours);
 
-    -- R66 : sauf si la personne n'est plus là ce jour-là. Le gel protège un
+    -- ABS-5 : sauf si la personne n'est plus là ce jour-là. Le gel protège un
     -- plan encore tenable ; il n'a pas à protéger un plan devenu impossible.
     -- Sans cette exception, déclarer un départ pour le week-end prochain — le
     -- cas courant, puisqu'on s'y prend rarement un mois à l'avance — ne
@@ -642,11 +639,11 @@ BEGIN
            AND lower(oc.fenetre) < now() + make_interval(days => p_horizon_jours)
          ORDER BY t.priorite, upper(oc.fenetre), t.duree_minutes DESC
     LOOP
-        -- R58 : l'assigné se décide au placement, en fonction de qui est là.
+        -- ABS-2 : l'assigné se décide au placement, en fonction de qui est là.
         v_assigne := COALESCE(o.id_utilisateur, choisir_assigne(o.id_tache, o.fenetre));
 
         IF v_assigne IS NULL THEN
-            -- R60 : personne dans l'appartement sur toute la fenêtre. On ne
+            -- ABS-4 : personne dans l'appartement sur toute la fenêtre. On ne
             -- salit pas ce qu'on n'habite pas : la tâche attend le retour.
             UPDATE occurrence
                SET id_utilisateur = NULL,
@@ -679,7 +676,7 @@ BEGIN
                                           o.requiert_les_deux);
         END IF;
 
-        -- R20 : une occurrence non plaçable n'est jamais supprimée. Elle garde
+        -- PLA-8 : une occurrence non plaçable n'est jamais supprimée. Elle garde
         -- son statut et reçoit un motif lisible.
         IF v_creneau IS NULL THEN
             UPDATE occurrence
@@ -694,7 +691,7 @@ BEGIN
                            END
              WHERE id_occurrence = o.id_occurrence;
 
-            -- R44 : quand il n'existe aucune intersection, on le dit. Placer la
+            -- PLA-9 : quand il n'existe aucune intersection, on le dit. Placer la
             -- tâche au hasard reviendrait à proposer un moment où l'un des deux
             -- n'est pas là, ce qui décrédibilise tout le reste du planning.
             IF o.requiert_les_deux THEN
@@ -829,7 +826,7 @@ BEGIN
                         THEN ' (en retard depuis ' || o.nb_relances || ' j)'
                         ELSE '' END);
 
-            -- Le créneau communiqué est figé (R19).
+            -- Le créneau communiqué est figé (PLA-5).
             UPDATE occurrence SET statut = 'notifiee'
              WHERE id_occurrence = o.id_occurrence AND statut = 'planifiee';
         END LOOP;
@@ -936,7 +933,7 @@ END $$;
 --
 -- L'occurrence n'est pas recréée : elle glisse au lendemain et son compteur de
 -- relances augmente. C'est ce qui permet de dire « en retard depuis 3 jours »
--- plutôt que de laisser une chaîne d'occurrences abandonnées (R26).
+-- plutôt que de laisser une chaîne d'occurrences abandonnées (EXE-6).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION reporter_taches_du_jour() RETURNS INTEGER
 LANGUAGE plpgsql AS $$

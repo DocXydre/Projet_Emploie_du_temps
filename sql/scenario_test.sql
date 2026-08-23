@@ -51,7 +51,7 @@ SELECT u.id_utilisateur, s.id_source, 'sommeil', 'Sommeil',
   FROM utilisateur u, source s, generate_series(0, 21) j
  WHERE u.pseudo = 'thomas' AND s.code = 'MANUELLE';
 
-\echo '--- R3 : deux shifts qui se chevauchent doivent être refusés ---'
+\echo '--- COL-2 : deux shifts qui se chevauchent doivent être refusés ---'
 DO $$
 BEGIN
     INSERT INTO occupation (id_utilisateur, id_source, type, libelle, periode)
@@ -78,7 +78,7 @@ SELECT to_char(debut AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS debut,
  WHERE debut < now() + INTERVAL '3 days'
  ORDER BY debut, journee_entiere;
 
-\echo '--- R11 : aucune tâche à heure imposée ne se chevauche ---'
+\echo '--- TAC-6 : aucune tâche à heure imposée ne se chevauche ---'
 SELECT count(*) AS chevauchements_interdits
   FROM occurrence a JOIN occurrence b
     ON a.id_occurrence < b.id_occurrence
@@ -87,12 +87,12 @@ SELECT count(*) AS chevauchements_interdits
  WHERE NOT a.rappel_journee AND NOT b.rappel_journee
    AND a.statut IN ('planifiee','notifiee') AND b.statut IN ('planifiee','notifiee');
 
-\echo '--- R35 : jamais deux machines le même jour ---'
+\echo '--- UNI-12 : jamais deux machines le même jour ---'
 SELECT jour_de(lower(creneau)) AS jour, count(*) AS machines
   FROM occurrence WHERE utilise_machine AND creneau IS NOT NULL
  GROUP BY 1 HAVING count(*) > 1;
 
-\echo '--- R17 : les machines sont bien placées en heures creuses ---'
+\echo '--- PLA-2 : les machines sont bien placées en heures creuses ---'
 SELECT t.code, to_char(lower(o.creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS lancement
   FROM occurrence o JOIN tache t USING (id_tache)
  WHERE t.utilise_machine AND o.creneau IS NOT NULL ORDER BY o.creneau;
@@ -117,7 +117,7 @@ SELECT tache_code, statut, origine, motif,
        to_char(echeance_max AT TIME ZONE 'Europe/Paris','DD/MM HH24:MI') AS au
   FROM v_occurrence WHERE tache_code IN ('POUSSIERE','ASPIRATEUR') ORDER BY tache_code, id_occurrence;
 
-\echo '--- R25 : revalider doit être refusé ---'
+\echo '--- EXE-5 : revalider doit être refusé ---'
 DO $$
 DECLARE v_id INTEGER;
 BEGIN
@@ -128,7 +128,7 @@ EXCEPTION WHEN check_violation THEN
     RAISE NOTICE 'OK : revalidation refusée';
 END $$;
 
-\echo '--- R21 : valider dans le futur doit être refusé ---'
+\echo '--- EXE-1 : valider dans le futur doit être refusé ---'
 DO $$
 DECLARE v_id INTEGER;
 BEGIN
@@ -160,7 +160,7 @@ SELECT article, jour_rupture,
 
 SELECT declencher_lessive((SELECT id_utilisateur FROM utilisateur WHERE pseudo='thomas')) AS lessives_creees;
 
-\echo '--- R34 : échéance déjà dépassée pour les t-shirts, une alerte doit exister ---'
+\echo '--- UNI-11 : échéance déjà dépassée pour les t-shirts, une alerte doit exister ---'
 SELECT type, statut, contenu FROM notification;
 
 SELECT tache_code, statut, origine, motif,

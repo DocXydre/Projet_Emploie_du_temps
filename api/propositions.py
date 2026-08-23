@@ -1,17 +1,10 @@
 """Proposer un week-end plutôt que d'attendre qu'on le demande.
 
-Le système savait déjà repérer un creux de deux jours. Il ne le disait que si
-on le lui demandait, ce qui suppose d'y penser — et si l'on y pensait, on
-n'aurait pas besoin du système.
+Deux échéances : quinze jours avant, quand un billet coûte encore peu, et trois
+jours avant, parce qu'entre les deux on a oublié. Pas de troisième relance.
 
-Deux échéances, et deux seulement. Quinze jours avant, quand un billet coûte
-encore peu et qu'on peut s'organiser. Trois jours avant, parce qu'entre les
-deux on a oublié. Une troisième relance ne servirait qu'à faire couper les
-notifications.
-
-Une proposition ne gèle rien. Elle s'affiche au calendrier, attend une réponse,
-et disparaît dès qu'on en a une — un « non merci », un billet acheté, ou un
-départ déclaré à la main.
+Une proposition ne gèle rien. Elle s'affiche au calendrier et disparaît dès
+qu'on y a répondu — un refus, un billet acheté, ou un départ déclaré.
 """
 
 from __future__ import annotations

@@ -1,11 +1,10 @@
-"""Bot Telegram : recevoir les rappels, valider d'un bouton.
+"""Bot Telegram : commandes, boutons, envoi des notifications.
 
 Ce module ne contient que du branchement. Ce que le bot sait faire vit dans
 `conversation.py`, qui se teste sans parler à Telegram.
 
-Le bot tourne dans le même processus que l'API : pour deux utilisateurs, un
-conteneur de plus ne se justifie pas. Sans jeton, il ne démarre simplement pas
-et l'API fonctionne normalement, les notifications restant en file.
+Le bot tourne dans le processus de l'API. Sans jeton, il ne démarre pas et le
+reste fonctionne, les notifications restant en file.
 """
 
 from __future__ import annotations
@@ -576,7 +575,7 @@ async def lien(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     # Donner l'URL vaut demande de collecte : une source qu'on renseigne pour
     # la laisser éteinte n'existe pas. Les calendriers personnels naissent
-    # inactifs faute d'adresse, et s'allument ici (R83).
+    # inactifs faute d'adresse, et s'allument ici (COL-14).
     modifiee = await asyncio.to_thread(
         executer,
         "UPDATE source SET url = %(url)s, active = TRUE, etat = 'ok' "
@@ -759,7 +758,7 @@ async def _bouton_proposition(update: Update, contexte: ContextTypes.DEFAULT_TYP
 
     if choix == "non":
         await asyncio.to_thread(propositions.ecarter, id_proposition)
-        # R89 : on ne revient pas à la charge sur un week-end décliné.
+        # WKD-4 : on ne revient pas à la charge sur un week-end décliné.
         await requete.edit_message_text(
             f"{requete.message.text}\n\n→ Noté, je n'en reparle plus.")
         return
@@ -829,7 +828,7 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
             )
             await asyncio.to_thread(conv.marquer_envoyee, notification["id_notification"], True)
         except Exception:
-            # R28 : un échec d'envoi laisse la notification en attente.
+            # NOT-2 : un échec d'envoi laisse la notification en attente.
             LOG.exception("Envoi impossible, notification %s conservée",
                           notification["id_notification"])
             await asyncio.to_thread(conv.marquer_envoyee, notification["id_notification"], False)

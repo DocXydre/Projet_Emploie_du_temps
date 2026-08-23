@@ -1,12 +1,9 @@
 -- =============================================================================
 -- 005 : données de référence
 --
--- Ce ne sont pas des données personnelles, ce sont les règles du système :
--- les sources, les tâches récurrentes, leurs enchaînements et les articles de
--- travail. Rien ici ne doit rester secret, et rien ici n'est un identifiant.
---
--- Les comptes utilisateurs sont créés par le script d'installation, à partir de
--- variables d'environnement. Aucune clé d'API n'est écrite dans ce fichier.
+-- Sources, tâches récurrentes, enchaînements et articles de travail. Rien de
+-- personnel ici : les comptes et leurs clés sont créés à l'installation, à
+-- partir de variables d'environnement.
 -- =============================================================================
 
 

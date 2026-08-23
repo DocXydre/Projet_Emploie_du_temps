@@ -1,14 +1,13 @@
 -- =============================================================================
 -- 001 : schéma
 --
--- Les commentaires renvoient aux règles de gestion du cahier des charges (R1…R42)
--- et aux contraintes d'intégrité de la section 7.
+-- Conventions du projet :
+--   - horodatages en TIMESTAMPTZ, donc stockés en UTC ;
+--   - plages horaires en TSTZRANGE plutôt que deux colonnes début / fin ;
+--   - énumérations en VARCHAR + CHECK, modifiables par migration.
 --
--- Conventions :
---   - tous les horodatages sont des TIMESTAMPTZ, donc stockés en UTC ;
---   - les plages horaires sont des TSTZRANGE, pas deux colonnes début et fin ;
---   - les énumérations sont des VARCHAR contraints par CHECK : lisibles en SQL
---     et modifiables par migration, sans type ENUM à faire évoluer.
+-- Les codes entre parenthèses renvoient aux règles de gestion du cahier
+-- des charges (section 3).
 -- =============================================================================
 
 -- Nécessaire pour mêler l'égalité sur un entier et le chevauchement sur un
@@ -17,7 +16,7 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 
 -- -----------------------------------------------------------------------------
--- Utilisateur                                                             (R1)
+-- Utilisateur                                                             (UTI-1)
 -- -----------------------------------------------------------------------------
 CREATE TABLE utilisateur (
     id_utilisateur  SERIAL       PRIMARY KEY,
@@ -36,16 +35,16 @@ CREATE TABLE utilisateur (
 );
 
 COMMENT ON COLUMN utilisateur.cle_api IS
-    'Authentification de l''API. Générée hors base, jamais versionnée (R1).';
+    'Authentification de l''API. Générée hors base, jamais versionnée (UTI-1).';
 
 COMMENT ON COLUMN utilisateur.jeton_calendrier IS
     'Abonnement iCalendar seul. Distinct de la clé d''API car il voyage dans '
     'une URL que le téléphone conserve en clair : s''il fuite, il ne donne que '
-    'la lecture du planning, et se renouvelle sans rien casser d''autre (R61).';
+    'la lecture du planning, et se renouvelle sans rien casser d''autre (UTI-2).';
 
 
 -- -----------------------------------------------------------------------------
--- Source de contraintes                                                   (R4)
+-- Source de contraintes                                                   (COL-3)
 -- -----------------------------------------------------------------------------
 CREATE TABLE source (
     id_source          SERIAL       PRIMARY KEY,
@@ -75,11 +74,11 @@ COMMENT ON COLUMN source.configuration IS
 
 COMMENT ON COLUMN source.derniere_collecte IS
     'Dernière collecte réussie. Au-delà de deux fois la fréquence, la source est
-     déclarée en panne par la vue v_source_sante (R30).';
+     déclarée en panne par la vue v_source_sante (COL-9).';
 
 
 -- -----------------------------------------------------------------------------
--- Occupation : contrainte dure et non déplaçable                     (R2, R3, R5)
+-- Occupation : contrainte dure et non déplaçable                     (COL-1, COL-2, COL-4)
 -- -----------------------------------------------------------------------------
 CREATE TABLE occupation (
     id_occupation   SERIAL       PRIMARY KEY,
@@ -101,12 +100,12 @@ CREATE TABLE occupation (
         AND upper(periode) IS NOT NULL
     ),
 
-    -- R5 : la clé externe permet de retrouver l'occupation à la collecte
+    -- COL-4 : la clé externe permet de retrouver l'occupation à la collecte
     -- suivante et de la mettre à jour au lieu de la dupliquer. Plusieurs NULL
     -- ne se gênent pas entre eux, la saisie manuelle n'est donc pas contrainte.
     CONSTRAINT occupation_cle_externe_unique UNIQUE (id_source, cle_externe),
 
-    -- R3 : on ne peut pas être en cours et en shift au même moment. Le sommeil
+    -- COL-2 : on ne peut pas être en cours et en shift au même moment. Le sommeil
     -- et les occupations personnelles sont exclus de la règle : ils peuvent
     -- légitimement recouvrir un shift de nuit.
     CONSTRAINT occupation_sans_chevauchement
@@ -123,7 +122,7 @@ COMMENT ON COLUMN occupation.details IS
 
 
 -- -----------------------------------------------------------------------------
--- Absence : les jours où l'on n'est pas dans l'appartement       (R57 à R60)
+-- Absence : les jours où l'on n'est pas dans l'appartement       (ABS-1 à ABS-4)
 --
 -- Une absence n'est pas une occupation. Être en cours empêche de faire le
 -- ménage à ce moment-là ; être à Saint-Dié empêche de le faire du tout, et
@@ -159,7 +158,7 @@ COMMENT ON COLUMN absence.origine IS
 
 
 -- -----------------------------------------------------------------------------
--- Conflit horaire                                                  (R45, R46)
+-- Conflit horaire                                                  (COL-10, COL-11)
 --
 -- Une source publie parfois deux occupations au même moment. La contrainte
 -- d'exclusion en refuse une : plutôt que de la perdre, on la garde ici en
@@ -200,7 +199,7 @@ COMMENT ON COLUMN conflit.choix IS
 
 
 -- -----------------------------------------------------------------------------
--- Tâche récurrente                                             (R6, R7, R8)
+-- Tâche récurrente                                             (TAC-1, TAC-2, TAC-3)
 -- -----------------------------------------------------------------------------
 CREATE TABLE tache (
     id_tache               SERIAL       PRIMARY KEY,
@@ -228,7 +227,7 @@ CREATE TABLE tache (
     CONSTRAINT tache_periodicite_coherente
         CHECK (periodicite_max_jours >= periodicite_min_jours),
 
-    -- R7 : une tâche est soit un rappel dans la journée, sans heure, soit une
+    -- TAC-2 : une tâche est soit un rappel dans la journée, sans heure, soit une
     -- tâche à heure imposée, et elle déclare alors ses deux bornes.
     CONSTRAINT tache_nature_coherente CHECK (
         (rappel_journee AND heure_min IS NULL AND heure_max IS NULL)
@@ -239,7 +238,7 @@ CREATE TABLE tache (
     -- Laver l'uniforme suppose de faire tourner la machine.
     CONSTRAINT tache_lavage_coherent CHECK (NOT lave_uniforme OR utilise_machine),
 
-    -- R43 : chercher un moment où deux personnes sont libres en même temps n'a
+    -- TAC-9 : chercher un moment où deux personnes sont libres en même temps n'a
     -- de sens que sur des heures précises. Un rappel « dans la journée » ne dit
     -- rien de la simultanéité.
     CONSTRAINT tache_duo_coherent CHECK (NOT requiert_les_deux OR NOT rappel_journee)
@@ -251,7 +250,7 @@ COMMENT ON COLUMN tache.priorite IS
 
 COMMENT ON COLUMN tache.rappel_journee IS
     'Vrai : à faire ce jour-là, sans heure. Sortira en événement journée entière
-     dans le flux iCalendar. Faux : créneau horaire précis (R7, R29).';
+     dans le flux iCalendar. Faux : créneau horaire précis (TAC-2, NOT-3).';
 
 COMMENT ON COLUMN tache.reportable IS
     'Faux pour la lessive de travail : la repousser reviendrait à se retrouver
@@ -260,17 +259,17 @@ COMMENT ON COLUMN tache.reportable IS
 COMMENT ON COLUMN tache.recurrente IS
     'Faux pour ce qui n''a de sens qu''à la suite d''autre chose : étendre le
      linge ne revient pas tous les jours, seulement après une lessive. Ces
-     tâches ne sont créées que par enchaînement (R55).';
+     tâches ne sont créées que par enchaînement (TAC-8).';
 
 COMMENT ON COLUMN tache.requiert_les_deux IS
     'Vrai pour le grand nettoyage : il faut un moment où Thomas et Lorette sont
      libres en même temps. Le placement cherche alors une intersection de
      disponibilités, et notifie s''il n''en existe aucune plutôt que de placer
-     la tâche au hasard (R43, R44).';
+     la tâche au hasard (TAC-9, PLA-9).';
 
 
 -- -----------------------------------------------------------------------------
--- Enchaînement entre tâches                                              (R12)
+-- Enchaînement entre tâches                                              (TAC-7)
 -- -----------------------------------------------------------------------------
 CREATE TABLE enchainement (
     id_enchainement    SERIAL  PRIMARY KEY,
@@ -285,11 +284,11 @@ CREATE TABLE enchainement (
 );
 
 COMMENT ON TABLE enchainement IS
-    'La poussière déclenche l''aspirateur dans les 24 heures, et jamais avant elle (R12, R23).';
+    'La poussière déclenche l''aspirateur dans les 24 heures, et jamais avant elle (TAC-7, EXE-3).';
 
 
 -- -----------------------------------------------------------------------------
--- Remplacement : faire ceci vaut avoir fait cela                        (R51)
+-- Remplacement : faire ceci vaut avoir fait cela                        (TAC-10)
 --
 -- Vider entièrement la litière rend le ramassage des crottes sans objet. Sans
 -- cette notion, les deux tâches tomberaient le même jour et le système
@@ -306,7 +305,7 @@ CREATE TABLE remplacement (
 
 COMMENT ON TABLE remplacement IS
     'Valider la tâche source solde aussi la tâche couverte, à la même date. La
-     récurrence de cette dernière repart donc du bon moment (R51).';
+     récurrence de cette dernière repart donc du bon moment (TAC-10).';
 
 COMMENT ON COLUMN enchainement.delai_min_heures IS
     'Délai avant lequel la tâche suivante n''a pas de sens. Zéro pour
@@ -315,7 +314,7 @@ COMMENT ON COLUMN enchainement.delai_min_heures IS
 
 
 -- -----------------------------------------------------------------------------
--- Occurrence : une exécution concrète                    (R9, R10, R11, R26)
+-- Occurrence : une exécution concrète                    (TAC-4, TAC-5, TAC-6, EXE-6)
 -- -----------------------------------------------------------------------------
 CREATE TABLE occurrence (
     id_occurrence         SERIAL       PRIMARY KEY,
@@ -348,17 +347,17 @@ CREATE TABLE occurrence (
         AND upper(fenetre) IS NOT NULL
     ),
 
-    -- R10 : on ne place jamais une tâche hors de sa fenêtre d'échéance.
+    -- TAC-5 : on ne place jamais une tâche hors de sa fenêtre d'échéance.
     CONSTRAINT occurrence_creneau_dans_fenetre
         CHECK (creneau IS NULL OR creneau <@ fenetre),
 
-    -- R21 : une occurrence faite porte toujours sa date réelle d'exécution.
+    -- EXE-1 : une occurrence faite porte toujours sa date réelle d'exécution.
     -- Le contrôle « jamais dans le futur » est un trigger : now() n'est pas
     -- immutable et ne peut pas figurer dans un CHECK.
     CONSTRAINT occurrence_faite_datee
         CHECK (statut <> 'faite' OR date_faite IS NOT NULL),
 
-    -- R11 : deux tâches à heure imposée ne se chevauchent pas. Les rappels
+    -- TAC-6 : deux tâches à heure imposée ne se chevauchent pas. Les rappels
     -- d'une même journée, eux, cohabitent : sinon on ne pourrait pas faire
     -- l'aspirateur et la litière le même mardi.
     CONSTRAINT occurrence_sans_chevauchement
@@ -375,7 +374,7 @@ CREATE INDEX occurrence_fenetre_idx ON occurrence USING gist (fenetre);
 COMMENT ON COLUMN occurrence.nb_relances IS
     'Nombre de reports d''office. Ne limite rien : une tâche revient jusqu''à
      ce qu''elle soit faite. Sert à afficher « en retard depuis 3 jours » et à
-     repérer les tâches qu''on ne fait jamais (R26).';
+     repérer les tâches qu''on ne fait jamais (EXE-6).';
 
 COMMENT ON COLUMN occurrence.rappel_journee IS
     'Recopié de la tâche par trigger. Dénormalisation assumée : une contrainte
@@ -383,11 +382,11 @@ COMMENT ON COLUMN occurrence.rappel_journee IS
 
 COMMENT ON COLUMN occurrence.motif IS
     'Raison du placement ou de l''échec. C''est ce qui rend le système
-     compréhensible plutôt qu''arbitraire (R20).';
+     compréhensible plutôt qu''arbitraire (PLA-8).';
 
 
 -- -----------------------------------------------------------------------------
--- Notification                                                     (R27, R28)
+-- Notification                                                     (NOT-1, NOT-2)
 -- -----------------------------------------------------------------------------
 CREATE TABLE notification (
     id_notification  SERIAL       PRIMARY KEY,
@@ -409,11 +408,11 @@ CREATE INDEX notification_a_envoyer_idx ON notification (statut) WHERE statut = 
 
 COMMENT ON TABLE notification IS
     'Enregistrée d''abord, envoyée ensuite. Un échec d''envoi laisse la ligne
-     en attente et ne la perd pas (R28).';
+     en attente et ne la perd pas (NOT-2).';
 
 
 -- -----------------------------------------------------------------------------
--- Stock de vêtements de travail                              (R13, R14, R15)
+-- Stock de vêtements de travail                              (UNI-1, UNI-2, UNI-3)
 -- -----------------------------------------------------------------------------
 CREATE TABLE article_travail (
     id_article       SERIAL       PRIMARY KEY,
@@ -434,10 +433,10 @@ CREATE TABLE article_travail (
 COMMENT ON COLUMN article_travail.disponible_le IS
     'Un vêtement lavé n''est pas un vêtement portable. Tant que cette date
      n''est pas atteinte, les unités en séchage ne comptent pas dans le stock
-     utilisable (R36).';
+     utilisable (UNI-13).';
 
 COMMENT ON COLUMN article_travail.quantite_propre IS
-    'Maintenue par trigger à chaque mouvement, jamais écrite directement (R15).';
+    'Maintenue par trigger à chaque mouvement, jamais écrite directement (UNI-3).';
 
 CREATE TABLE mouvement_stock (
     id_mouvement    SERIAL       PRIMARY KEY,
@@ -454,4 +453,4 @@ CREATE INDEX mouvement_article_idx ON mouvement_stock (id_article, date_mouvemen
 
 COMMENT ON TABLE mouvement_stock IS
     'Journal du stock. On peut toujours reconstituer pourquoi il ne restait
-     qu''un t-shirt propre un mardi soir (R15).';
+     qu''un t-shirt propre un mardi soir (UNI-3).';

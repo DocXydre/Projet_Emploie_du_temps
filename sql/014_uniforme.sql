@@ -1,42 +1,35 @@
 -- rejouable : ADD COLUMN IF NOT EXISTS et CREATE OR REPLACE.
 -- =============================================================================
--- 014 — Consommation réelle de l'uniforme                          (R100–R102)
--- =============================================================================
--- Le stock d'uniforme n'a jamais bougé depuis la mise en service, pour une
--- raison simple : `consommer_uniforme` existait, et personne ne l'appelait. La
--- projection de lessive tournait donc sur un stock éternellement plein, et
--- n'a jamais rien déclenché.
+-- 014 : consommation de l'uniforme                            (UNI-5 à UNI-7)
 --
--- La version d'origine avait un second défaut, plus discret. Elle salissait le
--- pantalon quand le numéro du jour était pair — une parité de calendrier. Or
--- la règle n'est pas « un jour sur deux » mais « une journée travaillée sur
--- deux » : travailler lundi et jeudi doit salir le pantalon au second service,
--- pas selon la date qu'il portait.
+-- La fonction de consommation existait mais n'était appelée nulle part : le
+-- stock restait plein et la projection de lessive ne déclenchait jamais rien.
 --
--- D'où un compteur de journées portées, qui ne bouge que les jours travaillés.
+-- Elle salissait de plus le pantalon un jour de calendrier sur deux, alors que
+-- la règle porte sur les journées travaillées. D'où un compteur.
 -- =============================================================================
 
 ALTER TABLE article_travail
     ADD COLUMN IF NOT EXISTS journees_portees SMALLINT NOT NULL DEFAULT 0
         CHECK (journees_portees >= 0);
 
--- R101 : sans cette date, relancer la consommation deux fois dans la journée
+-- UNI-6 : sans cette date, relancer la consommation deux fois dans la journée
 -- salirait deux t-shirts pour un seul service.
 ALTER TABLE article_travail
     ADD COLUMN IF NOT EXISTS dernier_jour_compte DATE;
 
 COMMENT ON COLUMN article_travail.journees_portees IS
     'Journées de travail depuis la dernière mise au sale. Remis à zéro quand
-     l''article part au linge (R100).';
+     l''article part au linge (UNI-5).';
 
 COMMENT ON COLUMN article_travail.dernier_jour_compte IS
     'Dernière journée déjà comptée. Rend la consommation rejouable : le Mac
      dort, l''ordonnanceur saute des jours, et il faut pouvoir rattraper sans
-     compter deux fois (R101).';
+     compter deux fois (UNI-6).';
 
 
 -- -----------------------------------------------------------------------------
--- Consommer une journée de travail                                 (R100, R101)
+-- Consommer une journée de travail                                 (UNI-5, UNI-6)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION consommer_uniforme(p_jour DATE) RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -53,7 +46,7 @@ BEGIN
     END IF;
 
     FOR a IN SELECT * FROM article_travail ORDER BY id_article LOOP
-        -- R101 : journée déjà comptée, on passe. C'est ce qui permet de
+        -- UNI-6 : journée déjà comptée, on passe. C'est ce qui permet de
         -- rattraper plusieurs jours d'un coup sans rien salir en double.
         CONTINUE WHEN a.dernier_jour_compte IS NOT NULL
                   AND a.dernier_jour_compte >= p_jour;
@@ -80,16 +73,13 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Rattraper les journées manquées                                        (R102)
+-- Rattraper les journées manquées                                        (UNI-7)
 --
--- L'ordonnanceur ne tourne que quand la machine est allumée, et une machine
--- s'éteint. Consommer « hier » suffirait sur un serveur ; sur un portable, ce
--- serait perdre une semaine de services au premier week-end.
+-- L'ordonnanceur ne tourne que machine allumée : ne traiter qu'hier ferait
+-- perdre une semaine de services au premier week-end. On repart donc du
+-- dernier jour compté.
 --
--- On repart donc du dernier jour compté, quel qu'il soit, et l'on remonte
--- jusqu'à hier. Aujourd'hui est volontairement exclu : le service n'est peut-
--- être pas fini, et compter un t-shirt le matin pour un shift du soir revient
--- à annoncer une lessive qu'on n'a pas encore méritée.
+-- Aujourd'hui est exclu : un service du soir n'est pas fini le matin.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rattraper_uniforme(p_max_jours INTEGER DEFAULT 60)
 RETURNS INTEGER LANGUAGE plpgsql AS $$
@@ -114,7 +104,7 @@ END $$;
 
 COMMENT ON FUNCTION rattraper_uniforme IS
     'Consomme toutes les journées travaillées non encore comptées, jusqu''à
-     hier inclus. Idempotente (R102).';
+     hier inclus. Idempotente (UNI-7).';
 
 
 -- Un lavage remet le compteur à zéro : c'est le sens même de « propre ».

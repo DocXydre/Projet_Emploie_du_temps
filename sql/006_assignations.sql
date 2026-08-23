@@ -2,12 +2,8 @@
 -- 006 : assignations par défaut
 --
 -- Qui fait quoi, et à qui appartiennent les emplois du temps collectés. Ces
--- affectations dépendent des comptes, qui n'existent pas forcément quand les
--- migrations sont appliquées : la logique vit donc dans une fonction, que
--- l'API rejoue à chaque démarrage.
---
--- Une seule définition, deux appelants : la migration ci-dessous et le code
--- d'amorçage. C'est ce qui évite que les deux divergent.
+-- affectations supposent que les comptes existent, ce qui n'est pas garanti
+-- au moment des migrations : d'où une fonction, rejouée à chaque démarrage.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION appliquer_assignations() RETURNS INTEGER
@@ -29,7 +25,7 @@ BEGIN
     -- Tout le reste n'est assigné à personne en particulier : c'est le
     -- placement qui décide, en fonction de qui est présent et de qui en a déjà
     -- le plus. Une assignation figée ici empêcherait la réattribution pendant
-    -- les absences (R58, R59).
+    -- les absences (ABS-2, ABS-3).
 
     -- Les emplois du temps collectés sont ceux de Thomas. Sans ce rattachement,
     -- l'ordonnanceur ne saurait pas à qui affecter les cours qu'il ramène.

@@ -1,23 +1,16 @@
 """Lecture des confirmations d'achat SNCF.
 
-Acheter un billet est déjà une déclaration d'absence. La refaire à la main dans
-le bot est du travail en double, et le travail en double finit par ne plus être
-fait — d'où ce module.
+Deux précautions structurent le module.
 
-Deux précautions le structurent.
+Sécurité : les faux courriels au nom de la SNCF sont répandus, et un courriel
+non vérifié pourrait déclarer une absence. La liste des expéditeurs acceptés
+est fermée (BIL-2).
 
-La première est une question de sécurité. Les faux courriels SNCF sont
-répandus, et un mail non vérifié pourrait geler deux jours de ménage, ou pire
-si l'analyse servait un jour à autre chose. Seuls les expéditeurs officiels
-sont analysés, et la liste est fermée (R73).
+Robustesse : le format de ces courriels change sans préavis. L'analyse est donc
+tolérante, et ce qu'elle ne sait pas lire est conservé avec son motif plutôt
+que jeté (BIL-8).
 
-La seconde est une question d'honnêteté. Le format de ces courriels n'est pas
-un contrat : il change quand la SNCF le décide. L'analyse est donc tolérante,
-et surtout, ce qu'elle ne sait pas lire est conservé avec son motif plutôt que
-jeté (R75). C'est la seule façon de corriger le lecteur.
-
-IMAP et analyse sont séparés : les tests rejouent des courriels enregistrés,
-sans jamais ouvrir de connexion.
+IMAP et analyse sont séparés : les tests rejouent des courriels enregistrés.
 """
 
 from __future__ import annotations
@@ -38,7 +31,7 @@ from api.config import configuration
 
 LOG = logging.getLogger(__name__)
 
-# R73 : les domaines réellement utilisés par SNCF Connect. Tout le reste est
+# BIL-2 : les domaines réellement utilisés par SNCF Connect. Tout le reste est
 # ignoré sans être analysé — c'est une liste blanche, pas un filtre anti-spam.
 EXPEDITEURS = (
     "mail.sncf-connect.com",
@@ -284,21 +277,14 @@ def segments_de(texte: str) -> list[Segment]:
 
 
 def segment_du_sujet(sujet: str) -> Segment | None:
-    """Trajet lu dans le sujet, quand le corps n'en porte aucun.          (R79)
+    """Trajet lu dans le sujet, quand le corps n'en porte aucun.        (BIL-3)
 
     « Votre voyage St Die Des Vosges - Nancy, aller le dimanche 6 février 2022 »
-    contient tout ce qui compte sauf l'heure : les deux gares, le sens et la
-    date. Le corps de ces courriels, lui, ne contient que l'horodatage du
-    paiement — le récapitulatif voyage dans une pièce jointe.
+    donne les deux gares, le sens et la date ; le corps ne contient que
+    l'horodatage du paiement.
 
-    Faute d'horaire, on borne la journée entière. Ce n'est pas une estimation
-    déguisée : la suite ne retiendra que les journées entièrement couvertes,
-    et une journée entière est précisément ce qu'on sait.
-
-    On repère les gares plutôt que d'imposer une forme de phrase. Le tiret qui
-    sépare les deux villes disparaît à la normalisation, et la tournure change
-    d'une année sur l'autre — mais deux gares suivies d'une date se
-    reconnaissent quelle que soit la ponctuation autour.
+    Faute d'horaire, on borne la journée entière. On repère les gares plutôt
+    qu'une forme de phrase : la tournure change d'une année sur l'autre.
     """
     texte = normaliser(sujet)
     if not MOT_VOYAGE.search(texte):
@@ -396,7 +382,7 @@ def analyser(brut: bytes) -> Lecture:
     lecture.segments = segments_de(texte)
 
     if not lecture.segments:
-        # R79 : le corps de ces confirmations ne porte que l'horodatage du
+        # BIL-3 : le corps de ces confirmations ne porte que l'horodatage du
         # paiement — le récapitulatif part en pièce jointe. Le sujet, lui,
         # nomme les deux gares, le sens et la date.
         depuis_sujet = segment_du_sujet(sujet)
@@ -408,7 +394,7 @@ def analyser(brut: bytes) -> Lecture:
         # mais la présence d'une gare. Un abonnement, une carte de réduction,
         # un reçu : tout cela est une commande sans trajet, et le signaler
         # éternellement serait du bruit. En revanche, une gare reconnue sans
-        # trajet exploitable est une vraie anomalie, à corriger (R75).
+        # trajet exploitable est une vraie anomalie, à corriger (BIL-8).
         gares = GARE.search(normalise) or GARE.search(normaliser(sujet))
         lecture.statut = "illisible" if gares else "ignore"
         lecture.motif = (
@@ -451,7 +437,7 @@ def criteres_recherche(depuis: datetime, filtre_expediteur: str = "") -> tuple[s
     Le filtre sur l'expéditeur compte surtout quand on lit directement la boîte
     de réception : rapatrier plusieurs milliers de courriels pour en analyser
     trois serait long et sans objet. Il ne remplace pas la liste blanche, qui
-    reste seule juge de ce qu'on accepte (R73) — un serveur qui filtrerait mal
+    reste seule juge de ce qu'on accepte (BIL-2) — un serveur qui filtrerait mal
     ne doit pas pouvoir faire entrer un courriel non vérifié.
     """
     criteres: list[str] = ["SINCE", depuis.strftime("%d-%b-%Y")]
@@ -494,15 +480,11 @@ def identifiant_de(entete: bytes) -> str:
 
 def relever_imap(depuis_jours: int | None = None,
                  connus: set[str] | None = None) -> list[bytes]:
-    """Récupère les courriels récents. C'est la seule fonction qui parle au réseau.
+    """Récupère les courriels récents. Seule fonction du module qui parle au réseau.
 
-    Deux passes plutôt qu'une. On demande d'abord les seuls Message-ID, on
-    écarte ce qui a déjà été traité, et on ne rapatrie en entier que le reste.
-
-    La différence n'est pas théorique : un libellé qui contient cent soixante-dix
-    confirmations les téléchargeait toutes, toutes les deux heures, pour
-    n'en retenir aucune. Un en-tête pèse quelques centaines d'octets, un
-    courriel de confirmation avec ses images en pèse cent fois plus.
+    Deux passes : les Message-ID d'abord, puis les corps des seuls courriels
+    neufs. Un libellé de cent soixante-dix confirmations les téléchargeait
+    sinon toutes, toutes les deux heures (BIL-1).
     """
     conf = configuration()
     if not (conf.imap_hote and conf.imap_utilisateur and conf.imap_mot_de_passe):

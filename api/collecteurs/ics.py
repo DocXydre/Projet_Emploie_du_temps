@@ -1,24 +1,16 @@
-"""Collecte des contraintes dures depuis des flux iCalendar.
+"""Collecte des emplois du temps depuis des flux iCalendar.
 
-Deux sources, deux profils, un seul collecteur.
+Deux profils, un seul collecteur.
 
-**Profil `ade`** — emploi du temps universitaire (Université de Lorraine). Le
-flux a trois particularités qu'il faut connaître avant de lire le code :
+`ade` — emploi du temps universitaire. Le flux a trois particularités :
+chaque cours y apparaît deux fois sous le même UID, une version vide et une
+version portant la salle et l'enseignant ; la salle vaut parfois « SALLE A
+DEFINIR » ; le groupe de TD s'écrit tantôt « gpe1 », tantôt « gpe 1 ».
 
-1. *Chaque cours apparaît deux fois, avec le même UID.* Une version dépouillée
-   (LOCATION et DESCRIPTION vides) et une version enrichie qui porte la salle et
-   l'enseignant. Réconcilier bêtement par UID ferait gagner la dernière lue, donc
-   parfois la version vide : la salle disparaîtrait du calendrier. On fusionne
-   donc par UID en gardant la version la plus informative.
-2. *La salle n'est pas toujours attribuée.* « SALLE A DEFINIR » est courant pour
-   les semaines à venir, et le champ est vide plus loin dans le semestre.
-3. *Le libellé porte le groupe de TD*, avec une orthographe variable : « gpe1 »,
-   « gpe 1 », « gpe 2 ».
+`easyatwork` — planning McDonald's. Un UID stable par service, pas de doublon,
+mais plusieurs mois de passé qu'il est inutile de recharger.
 
-**Profil `easyatwork`** — planning McDonald's. Beaucoup plus simple : un UID
-stable par shift, pas de doublon, et un titre toujours identique. La seule
-subtilité est que le flux contient plusieurs mois de passé, qu'il ne sert à rien
-de recharger indéfiniment.
+`perso` — calendrier tenu à la main. Rien à normaliser.
 """
 
 from __future__ import annotations

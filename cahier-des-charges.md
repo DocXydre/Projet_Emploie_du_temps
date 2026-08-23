@@ -87,115 +87,177 @@ L'API est mince : elle reçoit une requête, appelle une fonction SQL ou lit une
 
 ## 3. Règles de gestion
 
-Les règles sont classées en trois catégories : les règles sur les données, les règles sur les traitements et les règles sur les procédures manuelles.
+Les règles sont regroupées par domaine. Chaque code est stable : ajouter une règle
+n'oblige jamais à renuméroter les autres, ni à reprendre les commentaires du code
+qui les citent.
 
-| Règle | Type | Description |
+Trois types, selon la manière dont la règle est tenue : **D** pour une règle sur
+les données, garantie par le schéma ; **T** pour un traitement, réalisé par une
+fonction ou un trigger ; **M** pour une procédure manuelle, à la charge de
+l'utilisateur.
+
+### 3.1 Utilisateurs et accès — `UTI`
+
+| Code | Type | Règle |
 |---|---|---|
-| R1 | Données | Le système gère deux utilisateurs, l'un administrateur et l'autre standard. Chaque utilisateur possède une clé d'API et éventuellement un identifiant Telegram |
-| R2 | Données | Une occupation est une plage horaire subie et non déplaçable : cours, shift, sommeil. Elle appartient à un utilisateur et provient d'une source |
-| R3 | Données | Deux occupations de type cours ou travail ne peuvent pas se chevaucher pour un même utilisateur |
-| R4 | Données | Une source déclare son mode de collecte et sa fréquence. Elle conserve la date de sa dernière collecte réussie |
-| R5 | Données | Une occupation issue d'une collecte porte une clé externe, unique pour sa source, qui permet de la retrouver à la collecte suivante |
-| R6 | Données | Une tâche récurrente est définie par une catégorie, une durée, une priorité de 1 à 5 et une périodicité minimale et maximale en jours. Elle ne porte aucune date |
-| R7 | Données | Une tâche est soit un rappel dans la journée, sans heure imposée, soit une tâche à heure imposée. Une tâche à heure imposée déclare une fenêtre horaire, par exemple une machine à laver après 21h45 |
-| R8 | Données | Une tâche déclare si elle mobilise la machine à laver, qui est une ressource unique |
-| R9 | Données | Une occurrence est une exécution concrète d'une tâche. Elle porte une fenêtre d'échéance, et non une date unique |
-| R10 | Données | Le créneau placé d'une occurrence est inclus dans sa fenêtre d'échéance et dure au moins le temps prévu par la tâche |
-| R11 | Données | Deux occurrences à heure imposée ne peuvent pas se chevaucher pour un même utilisateur. Les rappels d'une même journée, eux, cohabitent |
-| R12 | Données | Une tâche peut en déclencher une autre dans un délai maximal. La poussière déclenche l'aspirateur dans les 24 heures |
-| R13 | Données | Un article de travail est défini par sa quantité totale, un seuil de sécurité, le nombre de jours de travail qu'une unité couvre et une durée de séchage |
-| R14 | Données | La quantité propre d'un article ne dépasse jamais sa quantité totale et ne descend jamais sous zéro |
-| R15 | Données | Chaque changement de stock est historisé avec son type, sa quantité et sa date |
-| R16 | Traitement | Les disponibilités d'un utilisateur sont l'horizon moins ses occupations, moins les créneaux déjà placés |
-| R17 | Traitement | Le système place les occurrences par priorité croissante, puis par échéance croissante, dans la première disponibilité assez longue et compatible avec la fenêtre horaire de la tâche |
-| R18 | Traitement | Une tâche sans heure imposée est affectée à un jour, pas à une heure. Le système vérifie seulement que la journée laisse assez de temps libre au total |
-| R19 | Traitement | Un créneau déjà notifié à l'utilisateur n'est plus déplacé par un placement ultérieur |
-| R20 | Traitement | Une occurrence qui ne trouve aucun créneau reste à placer, avec un motif lisible, et n'est jamais supprimée |
-| R21 | Traitement | La validation d'une occurrence enregistre la date réelle d'exécution et crée automatiquement l'occurrence suivante à partir de cette date, jamais à partir de l'échéance théorique |
-| R22 | Traitement | La validation d'une occurrence déclenche les tâches enchaînées. Si une occurrence de la tâche suivante existe déjà dans le délai, elle est repositionnée au lieu d'être dupliquée |
-| R23 | Traitement | Une tâche déclenchée par enchaînement ne peut jamais être placée avant la tâche qui l'a déclenchée |
-| R24 | Traitement | Une occurrence est en retard si sa fenêtre d'échéance est dépassée, ou si elle a déjà subi au moins un report d'office. C'est le système qui le calcule, jamais celui qui affiche |
-| R25 | Traitement | Le statut d'une occurrence ne peut pas régresser : une occurrence faite ne peut pas redevenir planifiée |
-| R26 | Traitement | Une occurrence du jour qui n'est pas validée le soir est reportée d'office au lendemain et re-notifiée. Le nombre de relances est conservé et croît tant que la tâche n'est pas faite |
-| R27 | Traitement | Chaque matin, le système notifie chaque utilisateur des tâches du jour et de ses tâches en retard |
-| R28 | Traitement | Une notification est d'abord enregistrée en base, puis envoyée. Un échec d'envoi laisse la notification en attente et ne la perd pas |
-| R29 | Traitement | Le flux iCalendar expose les occupations et les occurrences placées. Une occurrence sans heure imposée devient un événement journée entière, une occurrence à heure imposée devient un événement horaire |
-| R30 | Traitement | Une source dont la dernière collecte réussie remonte à plus de deux fois sa fréquence est déclarée en panne et l'administrateur en est averti |
-| R31 | Traitement | Chaque journée d'occupation de type travail consomme une unité de chaque article, selon le nombre de jours que cette unité couvre |
-| R32 | Traitement | La quantité propre projetée d'un article est sa quantité propre actuelle moins la consommation prévue par les shifts à venir |
-| R33 | Traitement | Dès que la quantité propre projetée d'un article passe sous son seuil de sécurité, le système crée une occurrence de lessive dont l'échéance est le début du shift menacé, moins la durée de séchage, moins la durée du cycle |
-| R34 | Traitement | Si cette échéance est déjà dépassée au moment du calcul, la lessive est signalée en alerte immédiate plutôt que planifiée |
-| R35 | Traitement | Deux occurrences mobilisant la machine à laver ne peuvent pas être placées le même jour |
-| R36 | Traitement | La validation d'une lessive ne rend pas les vêtements immédiatement portables : ils redeviennent disponibles à la date de validation plus la durée de séchage |
-| R37 | Procédure manuelle | L'utilisateur valide, reporte ou refuse une occurrence, depuis le bot ou depuis l'API |
-| R38 | Procédure manuelle | La validation peut être rétroactive : l'utilisateur déclare avoir fait la tâche la veille |
-| R39 | Procédure manuelle | L'administrateur peut forcer un créneau, qui devient épinglé et n'est plus déplacé |
-| R40 | Procédure manuelle | Les occupations peuvent être saisies à la main, ce qui permet au système de fonctionner même quand une collecte échoue |
-| R41 | Procédure manuelle | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
-| R42 | Procédure manuelle | L'utilisateur peut recaler à la main la quantité propre d'un article, quand le compte s'est désynchronisé de la réalité |
-| R43 | Données | Une tâche peut exiger que les deux utilisateurs soient présents en même temps. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
-| R44 | Traitement | Une tâche à deux est placée sur une intersection des disponibilités des deux utilisateurs. S'il n'en existe aucune sur sa fenêtre, le système notifie au lieu de placer la tâche au hasard |
-| R45 | Traitement | Quand une source publie une occupation qui en chevauche une autre, l'occupation refusée est conservée en conflit plutôt que perdue |
-| R46 | Traitement | Un conflit qui commence dans plus de deux semaines n'est pas soumis à arbitrage : l'emploi du temps sera vraisemblablement corrigé d'ici là |
-| R47 | Procédure manuelle | Pour un conflit à moins de deux semaines, l'utilisateur choisit laquelle des deux occupations garder. Le choix est mémorisé et la question ne se repose plus |
-| R48 | Données | Une source déclare son profil de collecte, le type d'occupation qu'elle produit, et son horizon. Ces réglages sont des données, pas du code |
-| R49 | Procédure manuelle | L'URL d'un flux se renseigne depuis le bot. Elle n'est jamais versionnée : celle du planning de travail contient un jeton d'accès personnel |
-| R50 | Données | En alternance, l'espagnol ne fait plus partie des langues suivies. C'est un drapeau de configuration, pas une modification du code |
-| R51 | Traitement | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider entièrement la litière vaut ramassage, et le prochain ramassage repart du jour du vidage |
-| R52 | Traitement | Une collecte rend compte de chaque séance lue. Si les compteurs ne s'équilibrent pas, l'écart est signalé plutôt que passé sous silence |
-| R53 | Traitement | Un rappel est placé sur le jour le moins chargé de sa fenêtre, et à charge égale sur le plus libre. Le premier jour venu entasserait tout le même soir, ce qui garantit que rien ne sera fait |
-| R54 | Traitement | Un créneau prévu dans les sept jours ne bouge plus, même si un replacement a lieu. On ne s'organise pas autour d'un planning qui se dérobe |
-| R55 | Données | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
-| R56 | Traitement | Le planning est établi un mois à l'avance. Les occurrences au-delà de la prochaine sont des prévisions : une validation réelle les efface, et elles sont refaites à partir de la date constatée |
-| R57 | Données | Une absence est une période où l'on n'est pas dans l'appartement. Deux absences d'une même personne ne se chevauchent pas |
-| R58 | Traitement | Aucune tâche domestique n'est placée un jour entièrement couvert par une absence. On ne salit pas un logement où l'on n'est pas, donc on n'a pas à le nettoyer |
-| R59 | Traitement | Les tâches sans assigné fixe reviennent à la personne présente. Si les deux le sont, à celle qui porte le moins de minutes de tâches |
-| R60 | Traitement | Quand personne n'est présent sur toute la fenêtre, la tâche attend le retour au lieu d'être assignée à un absent |
-| R61 | Données | L'abonnement au calendrier s'authentifie par un jeton distinct de la clé d'API. Cette adresse est conservée en clair par le téléphone et rejouée à chaque rafraîchissement : elle ne doit ouvrir que la lecture du planning |
-| R62 | Traitement | Renouveler le jeton de calendrier invalide les abonnements en place. La clé d'API et l'appairage du bot n'en sont pas affectés |
-| R63 | Données | Une fenêtre de départ est un creux d'au moins 48 h sans cours ni travail. Le sommeil n'en est pas un : dormir n'empêche pas d'être ailleurs. En deçà, le trajet coûte plus que le séjour ne rapporte |
-| R64 | Traitement | Un train ne se propose que s'il part au moins 30 min après la fin de la dernière obligation, et le retour doit ramener 30 min avant la suivante. Sans cette marge, on propose des trains qu'on regarde partir |
-| R65 | Données | Un horaire proposé n'est pas une donnée du système : il vient de la SNCF, change sans prévenir, et n'est conservé que le temps d'être choisi ou écarté |
-| R66 | Traitement | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan encore tenable, pas un plan devenu impossible |
-| R67 | Traitement | Retenir un aller et un retour crée l'absence correspondante, du départ jusqu'à l'arrivée du retour |
-| R68 | Traitement | Les autres horaires proposés pour le même départ sont écartés, non supprimés. Relire ce qui avait été proposé aide à comprendre un choix |
-| R69 | Traitement | Un aller retenu sans retour gèle jusqu'à la prochaine obligation connue. Partir sans savoir quand on rentre est un cas ordinaire |
-| R70 | Procédure manuelle | L'achat du billet reste à la charge de la personne. Une proposition retenue est une intention, pas une réservation |
-| R71 | Traitement | Les retours se cherchent à partir de l'heure limite d'arrivée, et sont proposés du dernier train possible vers les plus tôt. Rentrer le plus tard qu'on peut est le comportement voulu : avec un cours à 16h30, le train attendu est celui de 14h42, pas celui du matin |
-| R72 | Données | Un courriel n'est lu qu'une fois. Son en-tête Message-ID lui tient lieu d'identité |
-| R73 | Données | Seuls les courriels venant des domaines officiels de SNCF Connect sont analysés. Les faux courriels au nom de la SNCF sont répandus, et un expéditeur non vérifié pourrait déclarer une absence |
-| R74 | Traitement | Un billet lu crée l'aller, le retour s'il figure, puis l'absence — par le même chemin qu'une réservation faite depuis le bot |
-| R75 | Traitement | Un courriel d'expéditeur légitime qu'on n'a pas su lire est conservé avec son motif. Le format ne nous appartient pas : ce sera le seul indice disponible le jour où il changera |
-| R76 | Traitement | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler. Geler deux jours de ménage en silence sur une analyse fausse est le défaut à éviter avant tous les autres |
-| R77 | Traitement | Le retour se déclare à la main et ferme l'absence à l'instant présent. Un trajet prévu n'engage à rien : on rentre en voiture, ou plus tôt que le billet |
-| R78 | Traitement | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue, faute de quoi il faudrait choisir une durée au hasard puis la corriger |
-| R79 | Données | Quand le corps d'une confirmation ne porte aucun trajet, le sujet est lu. Il nomme les deux gares, le sens et la date, mais jamais l'heure |
-| R80 | Traitement | Un billet sans horaire vers la gare famille ouvre l'absence au lendemain de son jour, et un billet qui en revient la ferme au matin de son jour. Seules les journées entièrement certaines sont gelées, et aucun appariement entre courriels n'est nécessaire |
-| R81 | Traitement | Le sens d'un trajet se juge sur sa destination, non sur la gare de domicile. On part tantôt de Nancy, tantôt de Lunéville ; la gare famille, elle, ne change pas |
-| R82 | Traitement | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée. C'est le geste de « je suis rentré », déclenché par le billet plutôt qu'à la main |
-| R83 | Données | Chacun publie son calendrier depuis l'application qu'il utilise déjà et en donne le lien. Une source sans URL naît inactive : une collecte qui échoue toutes les heures ferait passer la source pour en panne |
-| R84 | Données | Les occupations issues d'un calendrier personnel ne sont pas soumises à la contrainte d'exclusion. Un rendez-vous posé sur une plage plus large est ordinaire, et refuser la collecte pour ce motif serait absurde |
-| R85 | Traitement | Un calendrier personnel appartient à la personne que son code désigne. Le rattachement se fait avant l'assignation générale, qui attribuerait sinon toute source orpheline à l'administrateur |
-| R86 | Données | Une proposition de week-end est une suggestion, non une absence. Elle s'affiche au calendrier et n'a aucun effet sur le placement des tâches : confondre les deux gèlerait des journées sur un simple « et si » |
-| R87 | Traitement | Deux propositions vivantes ne se chevauchent pas. Un cours ajouté déplace les bornes d'une fenêtre de quelques heures ; sans cette règle, le même week-end serait proposé à chaque collecte |
-| R88 | Traitement | Une proposition couverte par une absence est soldée, quelle que soit l'origine de cette absence. Une proposition dont le week-end est passé est périmée |
-| R89 | Traitement | Un week-end décliné ne revient jamais. Revenir à la charge sur un refus est le meilleur moyen de faire couper les notifications |
-| R90 | Traitement | Une proposition s'annonce une fois quinze jours avant, et se relance une seule fois trois jours avant. Jamais deux fois le même jour |
-| R91 | Données | Une séance de sport se fait dans un lieu, et un lieu a des heures. Proposer un créneau hors ouverture reviendrait à proposer une porte close |
-| R92 | Données | Un lieu sans aucun horaire déclaré est ouvert en permanence, dans ses bornes de bon sens. Mais « aucune plage ce jour-là » n'est pas « ouvert en permanence » : la piscine est fermée le dimanche |
-| R93 | Traitement | Le créneau réservé comprend le trajet aller et retour. Sa durée dépend du jour : cinq minutes depuis la fac, vingt depuis l'appartement |
-| R94 | Données | Le quota de sport est hebdomadaire, non périodique. « Trois fois par semaine » ne se traduit pas en « tous les 2,33 jours » |
-| R95 | Traitement | Une séance qui finit après l'heure tardive d'un lieu exige un repos minimum avant la prochaine obligation. La règle ne vise que la nuit : une séance d'après-midi y échappe |
-| R96 | Traitement | Une seule séance par jour. Trois séances entassées le même après-midi ne font pas trois séances |
-| R97 | Données | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux. La piscine n'ouvre que deux heures à midi ; la salle, ouverte tout le jour, proposerait sinon 9h du matin |
-| R98 | Traitement | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
-| R99 | Données | Un lieu peut être fermé sur une période entière, indépendamment de ses heures hebdomadaires. Un SUAPS ferme l'été, aux vacances et entre deux semestres — plus de trois mois par an |
-| R100 | Traitement | Un article d'uniforme part au sale après un nombre de **journées travaillées**, non de jours de calendrier. Travailler lundi puis jeudi salit le pantalon au second service, pas selon la date |
-| R101 | Traitement | Une journée déjà comptée ne se recompte pas. La machine s'éteint, l'ordonnanceur saute des jours et rattrape : sans cette garde, rattraper salirait deux t-shirts pour un seul service |
-| R102 | Traitement | La consommation remonte jusqu'à hier inclus, et jamais aujourd'hui. Un service du soir n'est pas fini le matin, et le compter d'avance annoncerait une lessive qu'on n'a pas méritée |
-| R103 | Traitement | Un retour de linge propre remet à zéro le compteur de journées portées. C'est le sens même de « propre » |
+| UTI-1 | D | Le système gère deux utilisateurs, un administrateur et un standard. Chacun possède une clé d'API et, éventuellement, un identifiant Telegram |
+| UTI-2 | D | L'abonnement au calendrier s'authentifie par un jeton distinct de la clé d'API. Cette adresse vit en clair dans le téléphone : elle ne doit ouvrir que la lecture du planning |
+| UTI-3 | T | Renouveler le jeton de calendrier invalide les abonnements en place, sans toucher à la clé d'API ni à l'appairage du bot |
 
-Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
+### 3.2 Sources et collecte — `COL`
+
+| Code | Type | Règle |
+|---|---|---|
+| COL-1 | D | Une occupation est une plage horaire subie : cours, service, sommeil. Elle appartient à un utilisateur et provient d'une source |
+| COL-2 | D | Deux occupations de type cours ou travail ne peuvent pas se chevaucher pour un même utilisateur |
+| COL-3 | D | Une source déclare son mode de collecte et sa fréquence, et conserve la date de sa dernière collecte réussie |
+| COL-4 | D | Une occupation collectée porte une clé externe, unique pour sa source, qui permet de la retrouver à la collecte suivante plutôt que de la dupliquer |
+| COL-5 | D | Une source déclare son profil de lecture, le type d'occupation qu'elle produit et son horizon. Ces réglages sont des données, pas du code |
+| COL-6 | D | En alternance, l'espagnol sort des langues suivies. C'est un drapeau de configuration |
+| COL-7 | M | L'URL d'un flux se renseigne depuis le bot et n'est jamais versionnée : celle du planning de travail contient un jeton d'accès personnel |
+| COL-8 | T | Une collecte rend compte de chaque séance lue. Si les compteurs ne s'équilibrent pas, l'écart est signalé |
+| COL-9 | T | Une source dont la dernière collecte réussie remonte à plus de deux fois sa fréquence est déclarée en panne, et l'administrateur en est averti |
+| COL-10 | T | Une occupation refusée pour cause de chevauchement est conservée en conflit plutôt que perdue |
+| COL-11 | T | Un conflit qui commence dans plus de deux semaines n'est pas soumis à arbitrage : l'emploi du temps sera vraisemblablement corrigé d'ici là |
+| COL-12 | M | Pour un conflit plus proche, l'utilisateur choisit laquelle des deux occupations garder. Le choix est mémorisé |
+| COL-13 | M | Les occupations peuvent être saisies à la main, ce qui permet au système de fonctionner quand une collecte échoue |
+| COL-14 | D | Chacun publie son calendrier personnel depuis son application et en donne le lien. Une source sans URL naît inactive, sans quoi elle passerait pour en panne |
+| COL-15 | D | Les occupations d'un calendrier personnel échappent à la contrainte d'exclusion : un rendez-vous posé sur une plage plus large est ordinaire |
+| COL-16 | T | Un calendrier personnel appartient à la personne que son code désigne. Ce rattachement précède l'assignation générale, qui donnerait sinon toute source orpheline à l'administrateur |
+
+### 3.3 Tâches et occurrences — `TAC`
+
+| Code | Type | Règle |
+|---|---|---|
+| TAC-1 | D | Une tâche récurrente déclare une catégorie, une durée, une priorité de 1 à 5 et une périodicité minimale et maximale en jours. Elle ne porte aucune date |
+| TAC-2 | D | Une tâche est soit un rappel dans la journée, sans heure, soit une tâche à heure imposée déclarant sa fenêtre horaire |
+| TAC-3 | D | Une tâche déclare si elle mobilise la machine à laver, ressource unique du logement |
+| TAC-4 | D | Une occurrence est une exécution concrète d'une tâche. Elle porte une fenêtre d'échéance, et non une date unique |
+| TAC-5 | D | Le créneau placé d'une occurrence est inclus dans sa fenêtre et dure au moins le temps prévu |
+| TAC-6 | D | Deux occurrences à heure imposée ne peuvent pas se chevaucher pour un même utilisateur. Les rappels d'une même journée, eux, cohabitent |
+| TAC-7 | D | Une tâche peut en déclencher une autre dans un délai maximal : la poussière déclenche l'aspirateur sous 24 h |
+| TAC-8 | D | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
+| TAC-9 | D | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
+| TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider la litière vaut ramassage |
+
+### 3.4 Placement — `PLA`
+
+| Code | Type | Règle |
+|---|---|---|
+| PLA-1 | T | Les disponibilités d'un utilisateur sont l'horizon moins ses occupations, moins les créneaux déjà placés |
+| PLA-2 | T | Les occurrences sont placées par priorité croissante, puis par échéance croissante, dans la première disponibilité assez longue et compatible avec la fenêtre horaire de la tâche |
+| PLA-3 | T | Une tâche sans heure imposée est affectée à un jour, pas à une heure : seul le temps libre total de la journée est vérifié |
+| PLA-4 | T | Un rappel va sur le jour le moins chargé de sa fenêtre, et à charge égale sur le plus libre. Prendre le premier jour venu entasserait tout le même soir |
+| PLA-5 | T | Un créneau déjà notifié n'est plus déplacé par un placement ultérieur |
+| PLA-6 | T | Un créneau prévu dans les sept jours ne bouge plus : on ne s'organise pas autour d'un planning qui se dérobe |
+| PLA-7 | T | Le planning est établi un mois à l'avance. Au-delà de la prochaine, les occurrences sont des prévisions : une validation réelle les efface et la chaîne se refait |
+| PLA-8 | T | Une occurrence sans créneau reste à placer, avec un motif lisible, et n'est jamais supprimée |
+| PLA-9 | T | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
+| PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
+
+### 3.5 Exécution et suivi — `EXE`
+
+| Code | Type | Règle |
+|---|---|---|
+| EXE-1 | T | Valider une occurrence enregistre la date réelle d'exécution et crée la suivante à partir de cette date, jamais de l'échéance théorique |
+| EXE-2 | T | Valider déclenche les tâches enchaînées. Si une occurrence de la tâche suivante existe déjà dans le délai, elle est repositionnée plutôt que dupliquée |
+| EXE-3 | T | Une tâche déclenchée par enchaînement n'est jamais placée avant celle qui l'a déclenchée |
+| EXE-4 | T | Une occurrence est en retard si sa fenêtre est dépassée ou si elle a subi au moins un report. C'est le système qui le calcule, jamais l'affichage |
+| EXE-5 | D | Le statut d'une occurrence ne régresse pas : une occurrence faite ne redevient pas planifiée |
+| EXE-6 | T | Une occurrence du jour non validée le soir est reportée d'office au lendemain et re-notifiée. Le compteur de relances croît tant qu'elle n'est pas faite |
+| EXE-7 | M | L'utilisateur valide, reporte ou refuse une occurrence, depuis le bot ou l'API |
+| EXE-8 | M | La validation peut être rétroactive : déclarer avoir fait la tâche la veille |
+| EXE-9 | M | L'administrateur peut épingler un créneau, qui n'est alors plus déplacé |
+| EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
+
+### 3.6 Absences et présence — `ABS`
+
+| Code | Type | Règle |
+|---|---|---|
+| ABS-1 | D | Une absence est une période hors du logement. Deux absences d'une même personne ne se chevauchent pas |
+| ABS-2 | T | Aucune tâche domestique n'est placée un jour entièrement couvert par une absence : on ne salit pas un logement où l'on n'est pas |
+| ABS-3 | T | Les tâches sans assigné fixe reviennent à la personne présente. Si les deux le sont, à celle qui porte le moins de minutes |
+| ABS-4 | T | Quand personne n'est présent sur toute la fenêtre, la tâche attend le retour au lieu d'être assignée à un absent |
+| ABS-5 | T | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan tenable, pas un plan devenu impossible |
+| ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu |
+| ABS-7 | M | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue |
+
+### 3.7 Trajets en train — `TRJ`
+
+| Code | Type | Règle |
+|---|---|---|
+| TRJ-1 | D | Une fenêtre de départ est un creux d'au moins 48 h sans cours ni travail. En deçà, le trajet coûte plus que le séjour ne rapporte |
+| TRJ-2 | T | Un aller ne se propose que s'il part au moins 30 min après la dernière obligation ; un retour doit ramener 30 min avant la suivante |
+| TRJ-3 | T | Les retours se cherchent à partir de l'heure limite d'arrivée, du dernier train possible vers les plus tôt. Avec un cours à 16h30, le train attendu est celui de 14h42 |
+| TRJ-4 | D | Un horaire proposé n'est pas une donnée du système : il vient de la SNCF et n'est conservé que le temps d'être choisi ou écarté |
+| TRJ-5 | T | Retenir un aller et un retour crée l'absence correspondante, du départ à l'arrivée du retour |
+| TRJ-6 | T | Les autres horaires proposés sont écartés, non supprimés : relire ce qui avait été proposé aide à comprendre un choix |
+| TRJ-7 | T | Un aller retenu sans retour gèle jusqu'à la prochaine obligation connue |
+| TRJ-8 | M | L'achat du billet reste manuel. Une proposition retenue est une intention, pas une réservation |
+
+### 3.8 Billets lus par courriel — `BIL`
+
+| Code | Type | Règle |
+|---|---|---|
+| BIL-1 | D | Un courriel n'est lu qu'une fois. Son en-tête `Message-ID` lui tient lieu d'identité |
+| BIL-2 | D | Seuls les courriels des domaines officiels de SNCF Connect sont analysés. Les faux courriels au nom de la SNCF sont répandus |
+| BIL-3 | D | Quand le corps ne porte aucun trajet, le sujet est lu : il nomme les deux gares, le sens et la date, jamais l'heure |
+| BIL-4 | T | Le sens d'un trajet se juge sur sa destination, non sur la gare de domicile : on part tantôt de Nancy, tantôt de Lunéville |
+| BIL-5 | T | Un billet lu crée l'aller, le retour s'il figure, puis l'absence — par le même chemin qu'une réservation faite au bot |
+| BIL-6 | T | Un billet sans horaire vers la gare famille ouvre l'absence au lendemain, et un billet qui en revient la ferme au matin. Seules les journées certaines sont gelées |
+| BIL-7 | T | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée |
+| BIL-8 | T | Un courriel d'expéditeur légitime qu'on n'a pas su lire est conservé avec son motif : le format ne nous appartient pas et changera |
+| BIL-9 | T | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler |
+
+### 3.9 Propositions de week-end — `WKD`
+
+| Code | Type | Règle |
+|---|---|---|
+| WKD-1 | D | Une proposition est une suggestion, non une absence. Elle s'affiche au calendrier et n'a aucun effet sur le placement |
+| WKD-2 | T | Deux propositions vivantes ne se chevauchent pas. Sans cette règle, un cours ajouté ferait reproposer le même week-end à chaque collecte |
+| WKD-3 | T | Une proposition couverte par une absence est soldée, quelle qu'en soit l'origine. Passée, elle est périmée |
+| WKD-4 | T | Un week-end décliné ne revient jamais : revenir à la charge est le meilleur moyen de faire couper les notifications |
+| WKD-5 | T | Une proposition s'annonce quinze jours avant et se relance une seule fois trois jours avant, jamais deux fois le même jour |
+
+### 3.10 Séances de sport — `SPT`
+
+| Code | Type | Règle |
+|---|---|---|
+| SPT-1 | D | Une séance se fait dans un lieu, et un lieu a des heures d'ouverture. Proposer un créneau hors ouverture reviendrait à proposer une porte close |
+| SPT-2 | D | Un lieu sans aucun horaire déclaré est ouvert en permanence, dans ses bornes de bon sens. Mais « aucune plage ce jour-là » n'est pas « ouvert en permanence » |
+| SPT-3 | D | Un lieu peut être fermé sur une période entière : un SUAPS ferme l'été, aux vacances et entre deux semestres |
+| SPT-4 | T | Le créneau réservé comprend le trajet aller et retour, dont la durée dépend du jour : cinq minutes depuis la fac, vingt depuis le logement |
+| SPT-5 | D | Le quota est hebdomadaire, non périodique : « trois fois par semaine » ne se traduit pas en « tous les 2,33 jours » |
+| SPT-6 | T | Une seule séance par jour. Trois séances entassées le même après-midi n'en font pas trois |
+| SPT-7 | T | Une séance qui finit après l'heure tardive d'un lieu exige un repos avant la prochaine obligation. La règle ne vise que la nuit |
+| SPT-8 | D | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux : la piscine n'ouvre que deux heures à midi, la salle est ouverte tout le jour |
+
+### 3.11 Uniforme et stock — `UNI`
+
+| Code | Type | Règle |
+|---|---|---|
+| UNI-1 | D | Un article de travail déclare sa quantité totale, un seuil de sécurité, le nombre de journées qu'une unité couvre et une durée de séchage |
+| UNI-2 | D | La quantité propre ne dépasse jamais la quantité totale et ne descend jamais sous zéro |
+| UNI-3 | D | Chaque changement de stock est historisé avec son type, sa quantité et sa date |
+| UNI-4 | T | Chaque journée travaillée use l'uniforme : un t-shirt par service, un pantalon toutes les deux journées |
+| UNI-5 | T | Le décompte porte sur des **journées travaillées**, non sur des jours de calendrier. Travailler lundi puis jeudi salit le pantalon au second service |
+| UNI-6 | T | Une journée déjà comptée ne se recompte pas : la machine s'éteint, l'ordonnanceur rattrape, et rattraper ne doit rien salir en double |
+| UNI-7 | T | La consommation remonte jusqu'à hier inclus, jamais aujourd'hui : un service du soir n'est pas fini le matin |
+| UNI-8 | T | Un retour de linge propre remet à zéro le compteur de journées portées |
+| UNI-9 | T | La quantité propre projetée est la quantité actuelle moins la consommation prévue par les services à venir |
+| UNI-10 | T | Dès que la projection passe sous le seuil, une lessive est créée dont l'échéance est le service menacé, moins le séchage, moins le cycle |
+| UNI-11 | T | Si cette échéance est déjà dépassée, la lessive est signalée en alerte plutôt que planifiée |
+| UNI-12 | T | Deux occurrences mobilisant la machine ne sont pas placées le même jour |
+| UNI-13 | T | Valider une lessive ne rend pas le linge portable : il redevient disponible à la date de validation plus la durée de séchage |
+| UNI-14 | M | La quantité propre peut être recalée à la main quand le compte s'écarte de la réalité |
+
+### 3.12 Notifications et calendrier — `NOT`
+
+| Code | Type | Règle |
+|---|---|---|
+| NOT-1 | T | Chaque matin, le système notifie les tâches du jour et celles en retard |
+| NOT-2 | T | Une notification est enregistrée en base avant d'être envoyée. Un échec d'envoi la laisse en attente et ne la perd pas |
+| NOT-3 | T | Le flux iCalendar expose les occupations et les occurrences placées. Une tâche sans heure devient un événement journée entière, une tâche à heure imposée un événement horaire |
 
 ---
 
@@ -565,90 +627,90 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 | Règle visée | Description | Type |
 |---|---|---|
-| R1 | `role` appartient à {admin, standard}, `cle_api` unique et d'au moins 32 caractères | Statique forte |
-| R2 | Une occupation référence un utilisateur et une source existants | Statique forte |
-| R2 | `periode` est non vide et bornée des deux côtés | Statique forte |
-| R3 | Deux occupations de type cours ou travail ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle | Statique forte |
-| R4 | `frequence_heures > 0`, `etat` appartient à {ok, en_panne} | Statique forte |
-| R5 | Le couple (`id_source`, `cle_externe`) est unique quand la clé externe est renseignée | Statique forte |
-| R6 | `priorite` entre 1 et 5, `duree_minutes > 0`, `periodicite_max_jours >= periodicite_min_jours` | Statique forte |
-| R7 | Une tâche à heure imposée déclare ses deux bornes horaires avec `heure_max > heure_min` ; une tâche de type rappel n'en déclare aucune | Statique forte |
-| R7 | `rappel_journee` et `utilise_machine` sont recopiés de la tâche vers l'occurrence : trigger | Dynamique forte |
-| R9 | `fenetre` est non vide et bornée | Statique forte |
-| R10 | `creneau` est inclus dans `fenetre` | Statique forte |
-| R10 | La durée du créneau est au moins égale à `duree_minutes` de la tâche | Statique forte |
-| R11 | Deux occurrences à heure imposée ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle sur `NOT rappel_journee` et les statuts planifiée et notifiée | Statique forte |
-| R12 | Un enchaînement n'est pas réflexif, et le couple (source, suivante) est unique | Statique forte |
-| R13 | `quantite_totale > 0`, `jours_par_unite > 0`, `heures_sechage > 0`, `seuil_securite` entre 0 et `quantite_totale` | Statique forte |
-| R14 | `quantite_propre` reste entre 0 et `quantite_totale` | Statique forte |
-| R15 | `quantite` d'un mouvement est non nulle ; `quantite_propre` est recalculée à chaque mouvement : trigger | Dynamique forte |
-| R17 | Le placement respecte la fenêtre horaire de la tâche | Dynamique forte |
-| R19 | Une occurrence notifiée ou épinglée n'est pas déplacée par le placement | Dynamique forte |
-| R20 | Une occurrence non plaçable garde le statut à placer et reçoit un motif | Dynamique faible |
-| R21 | `date_faite` est renseignée dès que le statut passe à faite, et n'est jamais dans le futur | Statique forte |
-| R21 | Le passage au statut faite crée l'occurrence suivante : trigger | Dynamique forte |
-| R22 | Le passage au statut faite crée ou repositionne les occurrences enchaînées : trigger | Dynamique forte |
-| R23 | Une occurrence issue d'un enchaînement a une fenêtre qui commence à la date d'exécution de sa source | Dynamique forte |
-| R25 | Le statut ne régresse pas : les statuts faite, reportée et abandonnée sont terminaux : trigger | Dynamique forte |
-| R26 | `nb_relances >= 0`, et il n'augmente que d'une unité par report d'office : trigger | Dynamique forte |
-| R28 | `date_envoi` est renseignée dès que le statut passe à envoyée | Statique forte |
-| R30 | Une source est en panne quand `now() - derniere_collecte > 2 × frequence_heures` : vue | Dynamique faible |
-| R33 | La lessive créée par le stock a la priorité 1 et n'est pas reportable | Dynamique forte |
-| R35 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
-| R36 | La validation d'une lessive fixe `disponible_le` à la date de validation plus `heures_sechage` : trigger | Dynamique forte |
-| R36 | Les unités en séchage ne comptent pas dans le stock utilisable tant que `disponible_le` n'est pas atteint : vue | Dynamique forte |
-| R43 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
-| R44 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
-| R44 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
-| R45 | Une occupation refusée par la contrainte d'exclusion est enregistrée en conflit, avec la version déjà en place | Dynamique forte |
-| R46 | Un conflit à plus de deux semaines n'est pas enregistré : vue `v_conflit`, colonne `a_arbitrer` | Dynamique faible |
-| R47 | Un conflit résolu porte son choix et sa date de résolution | Statique forte |
-| R47 | Un conflit tranché en faveur de l'existant écarte durablement la version rejetée | Dynamique forte |
-| R48 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
-| R51 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
-| R51 | Valider une tâche solde les occurrences ouvertes des tâches qu'elle couvre : trigger | Dynamique forte |
-| R52 | Le total des compteurs de collecte égale le nombre de séances lues | Dynamique faible |
-| R54 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
-| R55 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
-| R56 | La validation efface les occurrences prévisionnelles de la même tâche | Dynamique forte |
-| R57 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
-| R57 | `periode` est non vide et bornée | Statique forte |
-| R58 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |
-| R59 | L'assigné est choisi au placement parmi les présents, par charge croissante | Dynamique forte |
-| R60 | Une occurrence sans personne disponible reste sans assigné, avec un motif | Dynamique faible |
-| R61 | `jeton_calendrier` est unique et non nul, engendré par défaut à la création du compte | Statique forte |
-| R62 | Le flux iCalendar n'accepte que `jeton_calendrier` ; la clé d'API y est refusée, et réciproquement | Dynamique forte |
-| R63 | Une fenêtre n'est pas stockée : c'est le résultat de `fenetres_de_depart`, filtré sur sa durée | Dynamique forte |
-| R64 | Les bornes `depart_au_plus_tot` et `retour_au_plus_tard` sont calculées, jamais saisies | Dynamique forte |
-| R65 | `sens` appartient à {aller, retour}, `statut` à {proposee, retenue, ecartee}, `periode` est bornée et non vide | Statique forte |
-| R65 | Un `id_trajet_aller` n'est renseigné que sur un trajet de sens 'retour' | Statique forte |
-| R66 | Le replacement libère les créneaux gelés dont l'assigné est absent ce jour-là | Dynamique forte |
-| R67 | Le retour ne peut pas partir avant l'arrivée de l'aller | Dynamique forte |
-| R67 | Deux trajets retenus qui se chevauchent sont refusés par la contrainte d'exclusion sur `absence` | Statique forte |
-| R69 | Sans retour, la fin de l'absence est déduite de la prochaine obligation | Dynamique faible |
-| R71 | La recherche de retour interroge la SNCF par heure d'arrivée, non par heure de départ | Dynamique forte |
-| R72 | `identifiant` est unique sur la table Courriel | Statique forte |
-| R73 | Le domaine de l'expéditeur est comparé en entier à la liste blanche : un suffixe ne suffit pas | Dynamique forte |
-| R74 | Un billet passe par `retenir_trajet`, donc se heurte aux mêmes refus qu'une réservation manuelle | Dynamique forte |
-| R75 | `statut` appartient à {traite, ignore, illisible, refuse} | Statique forte |
-| R77 | Fermer une absence qui commence à l'instant donné l'efface, faute de quoi la période serait vide | Dynamique forte |
-| R78 | Un départ est refusé si une absence est déjà en cours à cet instant | Dynamique forte |
-| R79 | Un sujet est retenu s'il contient « voyage », deux gares distinctes et une date | Dynamique forte |
-| R80 | Les courriels d'une relève sont traités dans l'ordre du voyage, non dans celui de la boîte | Dynamique forte |
-| R83 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
-| R84 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
-| R85 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |
-| R86 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
-| R87 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
-| R90 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
-| R91 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
-| R94 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
-| R95 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
-| R97 | `preference` appartient à {tot, tard} | Statique forte |
-| R99 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
-| R99 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
-| R100 | `journees_portees` est positif ou nul, et remis à zéro à chaque mise au sale | Dynamique forte |
-| R101 | `dernier_jour_compte` ne recule jamais : une journée antérieure est ignorée | Dynamique forte |
+| UTI-1 | `role` appartient à {admin, standard}, `cle_api` unique et d'au moins 32 caractères | Statique forte |
+| COL-1 | Une occupation référence un utilisateur et une source existants | Statique forte |
+| COL-1 | `periode` est non vide et bornée des deux côtés | Statique forte |
+| COL-2 | Deux occupations de type cours ou travail ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle | Statique forte |
+| COL-3 | `frequence_heures > 0`, `etat` appartient à {ok, en_panne} | Statique forte |
+| COL-4 | Le couple (`id_source`, `cle_externe`) est unique quand la clé externe est renseignée | Statique forte |
+| TAC-1 | `priorite` entre 1 et 5, `duree_minutes > 0`, `periodicite_max_jours >= periodicite_min_jours` | Statique forte |
+| TAC-2 | Une tâche à heure imposée déclare ses deux bornes horaires avec `heure_max > heure_min` ; une tâche de type rappel n'en déclare aucune | Statique forte |
+| TAC-2 | `rappel_journee` et `utilise_machine` sont recopiés de la tâche vers l'occurrence : trigger | Dynamique forte |
+| TAC-4 | `fenetre` est non vide et bornée | Statique forte |
+| TAC-5 | `creneau` est inclus dans `fenetre` | Statique forte |
+| TAC-5 | La durée du créneau est au moins égale à `duree_minutes` de la tâche | Statique forte |
+| TAC-6 | Deux occurrences à heure imposée ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle sur `NOT rappel_journee` et les statuts planifiée et notifiée | Statique forte |
+| TAC-7 | Un enchaînement n'est pas réflexif, et le couple (source, suivante) est unique | Statique forte |
+| UNI-1 | `quantite_totale > 0`, `jours_par_unite > 0`, `heures_sechage > 0`, `seuil_securite` entre 0 et `quantite_totale` | Statique forte |
+| UNI-2 | `quantite_propre` reste entre 0 et `quantite_totale` | Statique forte |
+| UNI-3 | `quantite` d'un mouvement est non nulle ; `quantite_propre` est recalculée à chaque mouvement : trigger | Dynamique forte |
+| PLA-2 | Le placement respecte la fenêtre horaire de la tâche | Dynamique forte |
+| PLA-5 | Une occurrence notifiée ou épinglée n'est pas déplacée par le placement | Dynamique forte |
+| PLA-8 | Une occurrence non plaçable garde le statut à placer et reçoit un motif | Dynamique faible |
+| EXE-1 | `date_faite` est renseignée dès que le statut passe à faite, et n'est jamais dans le futur | Statique forte |
+| EXE-1 | Le passage au statut faite crée l'occurrence suivante : trigger | Dynamique forte |
+| EXE-2 | Le passage au statut faite crée ou repositionne les occurrences enchaînées : trigger | Dynamique forte |
+| EXE-3 | Une occurrence issue d'un enchaînement a une fenêtre qui commence à la date d'exécution de sa source | Dynamique forte |
+| EXE-5 | Le statut ne régresse pas : les statuts faite, reportée et abandonnée sont terminaux : trigger | Dynamique forte |
+| EXE-6 | `nb_relances >= 0`, et il n'augmente que d'une unité par report d'office : trigger | Dynamique forte |
+| NOT-2 | `date_envoi` est renseignée dès que le statut passe à envoyée | Statique forte |
+| COL-9 | Une source est en panne quand `now() - derniere_collecte > 2 × frequence_heures` : vue | Dynamique faible |
+| UNI-10 | La lessive créée par le stock a la priorité 1 et n'est pas reportable | Dynamique forte |
+| UNI-12 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
+| UNI-13 | La validation d'une lessive fixe `disponible_le` à la date de validation plus `heures_sechage` : trigger | Dynamique forte |
+| UNI-13 | Les unités en séchage ne comptent pas dans le stock utilisable tant que `disponible_le` n'est pas atteint : vue | Dynamique forte |
+| TAC-9 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
+| PLA-9 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
+| PLA-9 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
+| COL-10 | Une occupation refusée par la contrainte d'exclusion est enregistrée en conflit, avec la version déjà en place | Dynamique forte |
+| COL-11 | Un conflit à plus de deux semaines n'est pas enregistré : vue `v_conflit`, colonne `a_arbitrer` | Dynamique faible |
+| COL-12 | Un conflit résolu porte son choix et sa date de résolution | Statique forte |
+| COL-12 | Un conflit tranché en faveur de l'existant écarte durablement la version rejetée | Dynamique forte |
+| COL-5 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
+| TAC-10 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
+| TAC-10 | Valider une tâche solde les occurrences ouvertes des tâches qu'elle couvre : trigger | Dynamique forte |
+| COL-8 | Le total des compteurs de collecte égale le nombre de séances lues | Dynamique faible |
+| PLA-6 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
+| TAC-8 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
+| PLA-7 | La validation efface les occurrences prévisionnelles de la même tâche | Dynamique forte |
+| ABS-1 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| ABS-1 | `periode` est non vide et bornée | Statique forte |
+| ABS-2 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |
+| ABS-3 | L'assigné est choisi au placement parmi les présents, par charge croissante | Dynamique forte |
+| ABS-4 | Une occurrence sans personne disponible reste sans assigné, avec un motif | Dynamique faible |
+| UTI-2 | `jeton_calendrier` est unique et non nul, engendré par défaut à la création du compte | Statique forte |
+| UTI-3 | Le flux iCalendar n'accepte que `jeton_calendrier` ; la clé d'API y est refusée, et réciproquement | Dynamique forte |
+| TRJ-1 | Une fenêtre n'est pas stockée : c'est le résultat de `fenetres_de_depart`, filtré sur sa durée | Dynamique forte |
+| TRJ-2 | Les bornes `depart_au_plus_tot` et `retour_au_plus_tard` sont calculées, jamais saisies | Dynamique forte |
+| TRJ-4 | `sens` appartient à {aller, retour}, `statut` à {proposee, retenue, ecartee}, `periode` est bornée et non vide | Statique forte |
+| TRJ-4 | Un `id_trajet_aller` n'est renseigné que sur un trajet de sens 'retour' | Statique forte |
+| ABS-5 | Le replacement libère les créneaux gelés dont l'assigné est absent ce jour-là | Dynamique forte |
+| TRJ-5 | Le retour ne peut pas partir avant l'arrivée de l'aller | Dynamique forte |
+| TRJ-5 | Deux trajets retenus qui se chevauchent sont refusés par la contrainte d'exclusion sur `absence` | Statique forte |
+| TRJ-7 | Sans retour, la fin de l'absence est déduite de la prochaine obligation | Dynamique faible |
+| TRJ-3 | La recherche de retour interroge la SNCF par heure d'arrivée, non par heure de départ | Dynamique forte |
+| BIL-1 | `identifiant` est unique sur la table Courriel | Statique forte |
+| BIL-2 | Le domaine de l'expéditeur est comparé en entier à la liste blanche : un suffixe ne suffit pas | Dynamique forte |
+| BIL-5 | Un billet passe par `retenir_trajet`, donc se heurte aux mêmes refus qu'une réservation manuelle | Dynamique forte |
+| BIL-8 | `statut` appartient à {traite, ignore, illisible, refuse} | Statique forte |
+| ABS-6 | Fermer une absence qui commence à l'instant donné l'efface, faute de quoi la période serait vide | Dynamique forte |
+| ABS-7 | Un départ est refusé si une absence est déjà en cours à cet instant | Dynamique forte |
+| BIL-3 | Un sujet est retenu s'il contient « voyage », deux gares distinctes et une date | Dynamique forte |
+| BIL-6 | Les courriels d'une relève sont traités dans l'ordre du voyage, non dans celui de la boîte | Dynamique forte |
+| COL-14 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
+| COL-15 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
+| COL-16 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |
+| WKD-1 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
+| WKD-2 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| WKD-5 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
+| SPT-1 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
+| SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
+| SPT-7 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
+| SPT-8 | `preference` appartient à {tot, tard} | Statique forte |
+| SPT-3 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| SPT-3 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
+| UNI-5 | `journees_portees` est positif ou nul, et remis à zéro à chaque mise au sale | Dynamique forte |
+| UNI-6 | `dernier_jour_compte` ne recule jamais : une journée antérieure est ignorée | Dynamique forte |
 
 ---
 

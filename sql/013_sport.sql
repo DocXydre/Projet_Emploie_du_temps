@@ -1,22 +1,11 @@
 -- rejouable : DROP/ADD de contrainte, CREATE TABLE IF NOT EXISTS, INSERT
 --             idempotents et CREATE OR REPLACE.
 -- =============================================================================
--- 013 — Séances de sport                                             (R91–R97)
--- =============================================================================
--- Une séance de sport ressemble à une tâche : elle revient, elle dure, elle se
--- place dans un creux. Trois choses l'en distinguent, et ce sont elles qui
--- justifient ce fichier.
+-- 013 : séances de sport                                      (SPT-1 à SPT-8)
 --
--- Le lieu a des heures. La piscine n'ouvre au public qu'entre midi et 14h ;
--- proposer un créneau à 15h reviendrait à proposer une porte fermée.
---
--- Le trajet compte. Vingt minutes à pied dans chaque sens ne sont pas du
--- sport, mais elles occupent l'agenda. Les ignorer ferait tenir une séance
--- d'une heure dans un creux d'une heure, et manquer le cours suivant.
---
--- Le quota est hebdomadaire, non périodique. « Trois fois par semaine » ne se
--- traduit pas en « tous les 2,33 jours » : on ne veut pas d'un intervalle, on
--- veut un compte tenu semaine par semaine.
+-- Une séance ressemble à une tâche, à trois différences près : le lieu a des
+-- heures d'ouverture, le trajet aller-retour occupe l'agenda, et le quota est
+-- hebdomadaire plutôt que périodique.
 -- =============================================================================
 
 
@@ -28,7 +17,7 @@ ALTER TABLE tache ADD CONSTRAINT tache_categorie_check
 
 
 -- -----------------------------------------------------------------------------
--- Lieux                                                              (R91, R93)
+-- Lieux                                                              (SPT-1, SPT-4)
 --
 -- Deux distances, parce qu'on ne part pas toujours du même endroit. Un jour de
 -- cours, la piscine du SUAPS est à cinq minutes de l'amphi ; un jour sans, elle
@@ -48,12 +37,12 @@ CREATE TABLE IF NOT EXISTS lieu_sport (
     heure_min        TIME         NOT NULL DEFAULT '07:00',
     heure_max        TIME         NOT NULL DEFAULT '22:00',
 
-    -- R95 : au-delà de cette heure, une séance empiète sur la nuit. On exige
+    -- SPT-7 : au-delà de cette heure, une séance empiète sur la nuit. On exige
     -- alors un repos avant la prochaine obligation.
     heure_tardive    TIME,
     repos_heures     SMALLINT     NOT NULL DEFAULT 0 CHECK (repos_heures >= 0),
 
-    -- R97 : au plus tôt ou au plus tard dans le creux. La piscine n'ouvre que
+    -- SPT-8 : au plus tôt ou au plus tard dans le creux. La piscine n'ouvre que
     -- deux heures à midi, et l'on veut la première ; la salle est ouverte tout
     -- le jour, et prendre le plus tôt y proposerait 7h du matin.
     preference       VARCHAR(4)   NOT NULL DEFAULT 'tot'
@@ -66,7 +55,7 @@ CREATE TABLE IF NOT EXISTS lieu_sport (
 
 
 -- -----------------------------------------------------------------------------
--- Heures d'ouverture                                                      (R92)
+-- Heures d'ouverture                                                      (SPT-2)
 --
 -- Un lieu sans aucune ligne d'ouverture est réputé ouvert en permanence, dans
 -- les bornes de `heure_min` et `heure_max`. C'est le cas de la salle, et ça
@@ -86,7 +75,7 @@ CREATE TABLE IF NOT EXISTS ouverture (
 
 
 -- -----------------------------------------------------------------------------
--- Fermetures                                                             (R99)
+-- Fermetures                                                             (SPT-3)
 --
 -- Les heures d'ouverture disent une semaine type. Elles ne disent rien de
 -- l'été, des vacances de Noël ni de l'entre-deux-semestres — et un SUAPS ferme
@@ -118,7 +107,7 @@ CREATE TABLE IF NOT EXISTS tache_lieu (
     PRIMARY KEY (id_tache, id_lieu)
 );
 
--- R94 : le quota est hebdomadaire. NULL pour tout ce qui garde une périodicité.
+-- SPT-5 : le quota est hebdomadaire. NULL pour tout ce qui garde une périodicité.
 ALTER TABLE tache ADD COLUMN IF NOT EXISTS quota_hebdomadaire SMALLINT
     CHECK (quota_hebdomadaire IS NULL OR quota_hebdomadaire > 0);
 
@@ -138,7 +127,7 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- Trajet à prévoir un jour donné                                          (R93)
+-- Trajet à prévoir un jour donné                                          (SPT-4)
 --
 -- On ne sait pas où l'on sera à l'heure près, mais on sait si l'on a cours ce
 -- jour-là. C'est une approximation, et elle penche du bon côté : compter vingt
@@ -165,12 +154,12 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- Plages ouvertes un jour donné                                           (R92)
+-- Plages ouvertes un jour donné                                           (SPT-2)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION plages_ouvertes(p_lieu INTEGER, p_jour DATE)
 RETURNS SETOF TSTZRANGE LANGUAGE sql STABLE AS $$
     WITH bornes AS (
-        -- R99 : un lieu fermé ce jour-là n'a aucune plage, quelles que soient
+        -- SPT-3 : un lieu fermé ce jour-là n'a aucune plage, quelles que soient
         -- ses heures habituelles.
         SELECT l.heure_min, l.heure_max
           FROM lieu_sport l
@@ -214,7 +203,7 @@ $$;
 
 
 -- -----------------------------------------------------------------------------
--- Repos avant la prochaine obligation                                     (R95)
+-- Repos avant la prochaine obligation                                     (SPT-7)
 --
 -- Ne mord que sur les séances tardives. Une séance de 14h suivie d'un cours à
 -- 18h ne pose aucun problème ; c'est celle de 22h30 avant un cours à 8h qui en
@@ -251,7 +240,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Chercher un créneau de sport                                       (R91–R96)
+-- Chercher un créneau de sport                                       (SPT-1 à SPT-8)
 --
 -- Rend le créneau **trajet compris** : c'est ce temps-là qu'il faut réserver.
 -- Le lieu retenu sort par `p_lieu_retenu`, puisqu'une même séance peut se
@@ -283,7 +272,7 @@ BEGIN
     v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
 
     WHILE v_jour <= v_dernier LOOP
-        -- R96 : une seule séance par jour. Trois séances entassées le même
+        -- SPT-6 : une seule séance par jour. Trois séances entassées le même
         -- après-midi ne font pas trois séances.
         IF est_absent(p_utilisateur, v_jour)
            OR EXISTS (SELECT 1 FROM occurrence o
@@ -372,7 +361,7 @@ END $$;
 
 
 -- -----------------------------------------------------------------------------
--- Engendrer les séances de la semaine                                     (R94)
+-- Engendrer les séances de la semaine                                     (SPT-5)
 --
 -- Une occurrence par séance due, avec la semaine entière pour fenêtre. Le
 -- placement se charge ensuite de les répartir — c'est lui qui sait quels jours
@@ -496,18 +485,14 @@ ON CONFLICT (id_tache, id_lieu) DO NOTHING;
 
 
 -- -----------------------------------------------------------------------------
--- Planning consolidé                                                (R29, R86)
+-- Planning consolidé                                                (NOT-3, WKD-1)
 --
--- Définie ici et non avec les autres vues : elle interroge `proposition` et
--- `lieu_sport`, qui n'existent qu'à partir des migrations 012 et 013, et une vue ne peut pas précéder ce
--- qu'elle lit. Une seule définition, quitte à ce qu'elle ne soit pas rangée
--- avec ses semblables — une vue en double finit toujours par diverger.
+-- Définie ici, et non avec les autres vues : elle lit `proposition` et
+-- `lieu_sport`, créées en 012 et 013. Une vue ne peut pas précéder ses tables.
 --
--- DROP puis CREATE, et non CREATE OR REPLACE : la colonne `id` passe d'INTEGER
--- à BIGINT du fait des propositions, et PostgreSQL refuse de changer le type
--- d'une colonne de vue en place. Sans CASCADE, volontairement : si une autre
--- vue venait un jour à en dépendre, mieux vaut que la migration échoue bruyamment
--- que de la voir disparaître en silence.
+-- DROP puis CREATE plutôt que CREATE OR REPLACE : la colonne `id` passe
+-- d'INTEGER à BIGINT, ce qu'un remplacement en place ne permet pas. Sans
+-- CASCADE, pour qu'une dépendance oubliée fasse échouer la migration.
 -- -----------------------------------------------------------------------------
 DROP VIEW IF EXISTS v_planning;
 
@@ -552,7 +537,7 @@ WHERE o.creneau IS NOT NULL
 
 UNION ALL
 
--- R86 : une proposition n'occupe rien et ne gèle rien. Elle s'affiche pour
+-- WKD-1 : une proposition n'occupe rien et ne gèle rien. Elle s'affiche pour
 -- qu'on y pense, et quitte le calendrier dès qu'on a répondu.
 SELECT
     'proposition'                      AS nature,
@@ -575,6 +560,6 @@ WHERE p.statut = 'proposee';
 COMMENT ON VIEW v_planning IS
     'Occupations, tâches placées et propositions dans une seule vue. Le drapeau
      journee_entiere décide si l''export produit un VEVENT horaire ou un
-     VEVENT journée entière (R29).';
+     VEVENT journée entière (NOT-3).';
 
 

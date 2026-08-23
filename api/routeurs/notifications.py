@@ -2,7 +2,7 @@
 
 Une notification est d'abord enregistrée, puis envoyée. Le bot vient vider la
 file et signale ce qu'il a réussi à transmettre : un échec d'envoi laisse la
-ligne en attente plutôt que de la perdre (R28).
+ligne en attente plutôt que de la perdre (NOT-2).
 """
 
 from fastapi import APIRouter, HTTPException, status

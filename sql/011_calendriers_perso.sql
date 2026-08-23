@@ -1,23 +1,14 @@
 -- rejouable : ce fichier ne contient que des CREATE OR REPLACE, des IF NOT
 --             EXISTS et des INSERT idempotents.
 -- =============================================================================
--- 011 — Calendriers personnels                                       (R83–R85)
--- =============================================================================
--- Jusqu'ici, les emplois du temps venaient de flux qu'on subit : l'université
--- publie, McDonald's publie, on collecte. Lorette n'a rien de tel, et Thomas a
--- des choses qui ne figurent dans aucun de ces deux flux.
+-- 011 : calendriers personnels                              (COL-14 à COL-16)
 --
--- La solution est celle qui demande le moins : chacun tient son calendrier
--- dans l'application qu'il utilise déjà, le publie, et donne le lien. Le
--- collecteur iCalendar existe et ne change pas — seul le profil de lecture
--- diffère, puisqu'il n'y a rien à nettoyer dans ce qu'une personne a écrit
--- elle-même.
+-- Chacun tient son calendrier dans son application, le publie, et donne le
+-- lien. Le collecteur iCalendar ne change pas, seul le profil de lecture
+-- diffère : il n'y a rien à nettoyer dans ce qu'une personne a écrit.
 --
--- Ces occupations sont de type « autre » et non « cours » : elles ne sont donc
--- pas soumises à la contrainte d'exclusion, et deux événements peuvent se
--- chevaucher. C'est délibéré — un calendrier personnel contient souvent un
--- rendez-vous posé sur une plage plus large, et refuser la collecte pour ça
--- serait absurde (R84).
+-- Ces occupations sont de type « autre », donc hors de la contrainte
+-- d'exclusion : deux événements personnels peuvent se chevaucher (COL-15).
 -- =============================================================================
 
 INSERT INTO source (code, libelle, mode_collecte, frequence_heures, url,
@@ -45,19 +36,17 @@ ON CONFLICT (code) DO NOTHING;
 COMMENT ON COLUMN source.active IS
     'Les calendriers personnels naissent inactifs : sans URL, une collecte
      échouerait toutes les heures et ferait passer la source pour en panne.
-     Donner l''URL les active (R83).';
+     Donner l''URL les active (COL-14).';
 
 
 -- -----------------------------------------------------------------------------
--- Rattachement des calendriers à leur propriétaire                        (R85)
+-- Rattachement des calendriers à leur propriétaire                        (COL-16)
 --
--- L'ordre compte. `appliquer_assignations` attribue à Thomas toute source
--- encore orpheline — ce qui lui donnerait le calendrier de Lorette. Cette
--- fonction-ci doit donc passer avant, et c'est ce que fait l'amorçage.
+-- L'ordre compte : `appliquer_assignations` donne à l'administrateur toute
+-- source orpheline, donc cette fonction doit passer avant.
 --
--- Le rattachement se lit dans le code de la source : PERSO_LORETTE appartient
--- à lorette. Une convention plutôt qu'une table de correspondance, parce
--- qu'une table de deux lignes qu'il faut tenir à jour est une table de trop.
+-- Le propriétaire se lit dans le code : PERSO_LORETTE appartient à lorette.
+-- Une convention suffit, une table de correspondance de deux lignes non.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION assigner_calendriers_perso() RETURNS INTEGER
 LANGUAGE plpgsql AS $$

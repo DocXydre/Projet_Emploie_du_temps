@@ -3,15 +3,14 @@
 -- =============================================================================
 -- 002 : vues
 --
--- Tout ce qu'un client doit afficher est calculé ici. Aucune logique métier ne
--- doit vivre dans l'API ni dans une future application : si un client devait
--- calculer lui-même qu'une tâche est en retard, c'est que la base aurait dû le
--- dire (R24).
+-- Tout ce qu'un client affiche est calculé ici. Si un client devait décider
+-- lui-même qu'une tâche est en retard, la règle finirait par exister en deux
+-- versions (EXE-4).
 -- =============================================================================
 
 
 -- -----------------------------------------------------------------------------
--- Santé des sources                                                      (R30)
+-- Santé des sources                                                      (COL-9)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_source_sante AS
 SELECT
@@ -67,7 +66,7 @@ SELECT
     o.motif,
     o.date_faite,
 
-    -- R24, R26 : c'est la base qui dit qu'une tâche est en retard.
+    -- EXE-4, EXE-6 : c'est la base qui dit qu'une tâche est en retard.
     --
     -- Deux façons de l'être : une échéance dépassée, ou au moins un report
     -- d'office. Le report repousse la fenêtre au lendemain, donc sans le
@@ -86,7 +85,7 @@ SELECT
         ELSE 0
     END                                                   AS jours_de_retard,
 
-    -- R25 : les transitions encore possibles, pour que le client sache quels
+    -- EXE-5 : les transitions encore possibles, pour que le client sache quels
     -- boutons afficher sans connaître la machine à états.
     CASE o.statut
         WHEN 'a_placer'  THEN ARRAY['faite', 'reportee', 'abandonnee']
@@ -104,7 +103,7 @@ SELECT * FROM v_occurrence WHERE en_retard ORDER BY priorite, echeance_max;
 
 
 -- -----------------------------------------------------------------------------
--- Planning consolidé : c'est cette vue que lit l'export iCalendar        (R29)
+-- Planning consolidé : c'est cette vue que lit l'export iCalendar        (NOT-3)
 -- -----------------------------------------------------------------------------
 -- v_planning est définie dans `012_propositions.sql`, et non ici.
 --
@@ -116,7 +115,7 @@ SELECT * FROM v_occurrence WHERE en_retard ORDER BY priorite, echeance_max;
 
 
 -- -----------------------------------------------------------------------------
--- Conflits en attente d'arbitrage                                   (R45, R46)
+-- Conflits en attente d'arbitrage                                   (COL-10, COL-11)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_conflit AS
 SELECT
@@ -140,7 +139,7 @@ SELECT
     c.lieu                        AS lieu_nouvelle,
     c.details                     AS details_nouvelle,
 
-    -- R46 : au-delà de deux semaines, on ne dérange pas. L'emploi du temps a
+    -- COL-11 : au-delà de deux semaines, on ne dérange pas. L'emploi du temps a
     -- toutes les chances d'être corrigé d'ici là.
     (lower(c.periode) <= now() + INTERVAL '14 days') AS a_arbitrer,
     EXTRACT(DAY FROM lower(c.periode) - now())::INTEGER AS dans_combien_de_jours
@@ -154,7 +153,7 @@ COMMENT ON VIEW v_conflit IS
 
 
 -- -----------------------------------------------------------------------------
--- Stock réellement utilisable                                            (R36)
+-- Stock réellement utilisable                                            (UNI-13)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW v_stock AS
 SELECT
