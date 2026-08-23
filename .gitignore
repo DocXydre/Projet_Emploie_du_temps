@@ -14,3 +14,9 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Tests : conservés en local, hors du dépôt public.
+tests/
+
+# Spécification de la version Java, abandonnée après le changement de pile.
+cahier-des-charges-planification.md

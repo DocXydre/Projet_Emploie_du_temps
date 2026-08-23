@@ -1,581 +1,167 @@
-# Système de planification personnelle
+# Planificateur personnel
 
-Une API qui croise des emplois du temps hétérogènes — cours à l'IDMC, shifts McDonald's, saisies manuelles — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, litière, lessives.
+API qui croise des emplois du temps hétérogènes — cours, shifts McDonald's, calendriers personnels — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport.
 
-Le résultat sort en flux iCalendar, à afficher dans n'importe quelle application de calendrier, et en notifications Telegram avec boutons de validation.
-
+Projet personnel, M1 MIAGE (Université de Lorraine).
 Spécification complète : [`cahier-des-charges.md`](cahier-des-charges.md).
 
-## Le parti pris
+---
 
-**Les règles métier vivent dans PostgreSQL**, pas dans le code applicatif. Contraintes `CHECK`, contraintes d'exclusion GiST, vues, fonctions PL/pgSQL et triggers. L'API n'est qu'une couche mince qui appelle et expose.
+## Le problème
 
-Concrètement :
+Je travaille en horaires variables au McDonald's, j'ai des cours qui changent chaque semaine, et je pars régulièrement en train chez ma famille. Le ménage, les lessives et le sport passent à la trappe — non par mauvaise volonté, mais parce que les caser demande de croiser mentalement trois plannings qui bougent tout le temps.
 
-| Règle | Où elle vit |
+Le système fait ce croisement à ma place et rend deux choses : **un calendrier** à afficher sur le téléphone, et **un bot Telegram** pour cocher ce qui est fait.
+
+```
+Aujourd'hui :
+  08h00–11h00  Cours : Algo IA — Amphi 201
+  11h55–13h05  Sport : Piscine du SUAPS
+  17h00–23h00  Travail : Shift McDonald's
+
+  ○ Passer l'aspirateur
+  ○ Ramasser la litière
+```
+
+---
+
+## Le parti pris technique
+
+**Les règles métier vivent dans PostgreSQL, pas dans le code Python.** C'est le choix structurant du projet, et le sujet de mon cours de conception de systèmes d'information.
+
+L'API est une couche mince : elle appelle des fonctions et expose des vues. Elle ne décide de rien.
+
+| Règle | Où elle est tenue |
 |---|---|
-| Deux cours ne peuvent pas se chevaucher | Contrainte d'exclusion `EXCLUDE USING gist` |
-| Deux tâches à heure imposée non plus | Contrainte d'exclusion partielle |
-| Une occurrence faite ne peut plus bouger | Trigger sur colonnes |
-| La récurrence repart de la date réelle | Trigger après validation |
-| La poussière déclenche l'aspirateur en 24 h | Trigger, avec règle anti-doublon |
-| Le linge lavé n'est pas portable tout de suite | Trigger + vue `v_stock` |
-| Un service porté use l'uniforme | `consommer_uniforme`, compteur de journées |
-| Le grand nettoyage exige que vous soyez libres tous les deux | `disponibilites_communes`, intersection de multirange |
+| Deux cours ne peuvent pas se chevaucher | `EXCLUDE USING gist` |
+| Une occurrence faite ne peut plus être modifiée | Trigger sur colonnes |
+| La récurrence repart de la date réelle, pas théorique | Trigger après validation |
+| Le linge lavé n'est pas portable tout de suite | Trigger + vue |
+| Le grand nettoyage exige que nous soyons libres tous les deux | Intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
 
-La base refuse ce qui est incohérent, même si un script ou une saisie manuelle contourne l'API un jour.
+L'intérêt est concret : si un script, une saisie manuelle ou un futur front-end contourne l'API, la base refuse quand même ce qui est incohérent. Et il n'existe qu'une seule définition de « en retard », donc aucun client ne peut en inventer une autre.
 
-## État
+**Ce que PostgreSQL apporte ici**, au-delà du stockage :
 
-Complet et vérifié : 19 tables, 9 vues, 41 fonctions, 7 triggers, 313 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
-
-## Le placement
-
-Trois règles décident de tout.
-
-**Le jour le moins chargé, pas le premier venu.** Une fenêtre d'échéance de trois jours existe pour offrir une marge : la prendre au plus tôt entassait sept tâches le même soir, ce qui garantit qu'aucune n'est faite. À charge égale, la journée la plus libre gagne — sinon un jour occupé de 1h à 23h passerait pour idéal du seul fait qu'aucune tâche n'y est encore prévue.
-
-**Un mois d'avance, une semaine figée.** Les occurrences au-delà de la prochaine sont des prévisions : elles supposent une exécution en fin de fenêtre. Valider une tâche les efface, et la chaîne se refait à partir de la date constatée. Ce qui est prévu dans les sept jours ne bouge plus : on ne s'organise pas autour d'un planning qui se dérobe.
-
-**Certaines tâches n'existent que par enchaînement.** Étendre le linge ne revient pas tous les jours, seulement après une lessive.
-
-## L'absence
-
-Une absence n'est pas une occupation. Être en cours empêche de faire le ménage à ce moment-là ; être parti **dispense** de le faire.
-
-```
-/absent 22/08 24/08 Saint-Dié
-```
-
-Le planning se refait aussitôt. Pendant l'absence, les tâches sans assigné fixe reviennent à qui reste. Si les deux sont là, à celui qui porte le moins de minutes — la répartition se mesure en temps, pas en nombre de tâches, sinon récurer vaudrait ramasser la litière. Et si l'appartement est vide, elles attendent le retour.
-
-Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse le vendredi utilisable.
-
-**Et surtout, la main reste au propriétaire.** Tout le reste — billets lus, horaires proposés, fenêtres calculées — déduit des absences, et se trompe la moitié du temps : on rentre en voiture, on prolonge d'un jour, on repart plus tôt.
-
-```
-/parti Lunéville     je pars maintenant, retour inconnu
-/retour              je suis rentré, rendez-moi mes tâches
-```
-
-`/parti` gèle jusqu'à la prochaine obligation connue plutôt que de choisir une durée au hasard qu'il faudrait corriger ensuite. `/retour` ferme l'absence à l'instant présent : c'est la commande qui rattrape toutes les autres, y compris un billet lu de travers.
-
-## Le calendrier de chacun
-
-L'université publie, McDonald's publie, on collecte. Pour tout le reste — ce que fait Lorette, ce que Thomas a hors des cours — chacun tient son calendrier dans l'application qu'il utilise déjà, le publie, et donne le lien.
-
-**Sur iPhone ou Mac.** Créer un calendrier dédié dans l'app Calendrier, par exemple « Perso ». Puis, dans la liste des calendriers, toucher le ⓘ à côté de son nom → activer **Calendrier public** → **Partager le lien**. On obtient une adresse en `webcal://p12-caldav.icloud.com/…`.
-
-Dans Telegram :
-
-```
-/lien PERSO_LORETTE webcal://p12-caldav.icloud.com/published/…
-/lien PERSO_THOMAS  webcal://…
-```
-
-Le bot efface le message aussitôt — un lien de calendrier publié est une adresse secrète — puis convertit et active la source. `webcal://` n'est pas un protocole mais du HTTPS avec un préfixe qui dit au téléphone d'ouvrir Calendrier : laissé tel quel, il ferait échouer la collecte sur une erreur incompréhensible.
-
-Ensuite, tout ce qui est ajouté dans ce calendrier devient une occupation, collectée toutes les six heures. Le ménage se place autour.
-
-**Trois différences avec les flux universitaires**, voulues.
-
-Rien n'est nettoyé. Les profils ADE et Easy at Work corrigent des libellés produits par des machines ; ici, ce que la personne a écrit est ce qu'elle voulait dire, et corriger serait présumer.
-
-Aucun filtre de groupe ni de langue ne s'applique — sinon un cours d'espagnol du soir disparaîtrait.
-
-Les événements peuvent **se chevaucher**. Un calendrier personnel contient souvent un rendez-vous posé sur une plage plus large, et refuser la collecte pour ça serait absurde. Les cours et les shifts, eux, restent soumis à la contrainte d'exclusion.
-
-Une limite : les événements « journée entière » sont ignorés. Sans heure de début ni de fin, ils bloqueraient une journée entière de ménage sur ce qui n'est souvent qu'une note.
-
-## L'uniforme
-
-Chaque journée travaillée use l'uniforme : un t-shirt à chaque service, un pantalon toutes les deux journées. Quand le stock propre s'approche du seuil, une lessive est déclenchée assez tôt pour que le linge sèche.
-
-**Des journées travaillées, pas des jours de calendrier.** La première version salissait le pantalon quand le numéro du jour était pair. Travailler lundi puis jeudi le laissait propre, ou le salissait deux fois, selon la date. C'est un compteur maintenant : il n'avance que les jours où l'on a servi.
-
-**Rattrapage plutôt que veille.** L'ordonnanceur ne tourne que quand la machine est allumée. Ne traiter qu'hier reviendrait à perdre une semaine de services au premier week-end : la consommation remonte donc jusqu'au dernier jour compté, quel qu'il soit. Une journée déjà comptée ne se recompte jamais.
-
-Aujourd'hui est volontairement exclu. Un service de 17h n'est pas fini le matin, et le compter d'avance annoncerait une lessive qu'on n'a pas encore méritée.
-
-```bash
-curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/stock/consommer
-```
-
-Ce défaut méritait d'être noté : la fonction existait depuis le début et **personne ne l'appelait**. La projection de lessive tournait donc sur un stock éternellement plein, et n'a jamais rien déclenché.
-
-## Le sport
-
-Trois séances par semaine, placées comme les tâches — mais avec trois contraintes que le ménage n'a pas.
-
-**Le lieu a des heures.** La piscine du SUAPS n'ouvre au public qu'entre midi et 14h, et à 16h, en semaine. Proposer 15h reviendrait à proposer une porte close. La salle, elle, n'a aucun horaire déclaré : c'est ainsi qu'on dit « ouverte en permanence » sans écrire sept lignes identiques. La nuance porte tout — *aucune plage ce jour-là* n'est pas *ouvert en permanence*, et la première version proposait un bain le dimanche à 6h40.
-
-**Le trajet compte.** Cinq minutes à pied depuis la fac, vingt depuis l'appartement. Le système regarde s'il y a cours ce jour-là pour trancher, et réserve le créneau **trajet compris** :
-
-```
-Sport : Piscine du SUAPS
-lundi 11h55 → 13h05          5 min + 1h de nage + 5 min
-```
-
-L'oublier ferait tenir une heure de piscine dans un creux d'une heure, et manquer le cours de 13h.
-
-**La nuit se protège.** La salle est ouverte 24h/24, ce qui n'est une bonne nouvelle que si l'on peut dormir ensuite. Une séance qui finit après 21h exige dix heures avant le prochain cours ou service. La règle ne vise que la nuit : une séance à 15h avant un cours à 18h n'est pas concernée.
-
-Deux préférences complètent le tableau. La piscine se cherche **au plus tôt** — sa première ouverture est midi, celle que tu préfères. La salle se cherche **au plus tard**, parce qu'y prendre le plus tôt proposerait 9h du matin.
-
-Le quota est hebdomadaire et non périodique : « trois fois par semaine » ne se traduit pas en « tous les 2,33 jours ». Une seule séance par jour, sinon trois séances entassées le même après-midi n'en font pas trois.
-
-**Ce que le sport ne fait pas.** Il n'entre pas dans la répartition équitable du ménage. Le compter reviendrait à payer ses séances de piscine en heures d'aspirateur — et à donner l'appartement entier à l'autre.
-
-**Un lieu ferme.** Les heures d'ouverture disent une semaine type ; elles ne disent rien de l'été, des vacances ni de l'entre-deux-semestres. Un SUAPS ferme plus de trois mois par an, et sans cette notion le moteur proposerait tout l'été des créneaux devant un bâtiment vide.
-
-La pause estivale 2026 est déclarée d'après l'annonce du site — *« Fin des enseignements pour cette année universitaire 2025/26. Reprise des activités le 07 septembre 2026 »*. D'ici là, toutes les séances vont à la salle.
+- `TSTZRANGE` et l'arithmétique de multirange — les disponibilités se calculent en une soustraction d'ensembles, sans boucle ;
+- `EXCLUDE USING gist` — le non-chevauchement est une contrainte, pas une vérification applicative ;
+- des fonctions PL/pgSQL pour le placement, appelées à l'identique par l'API et par l'ordonnanceur.
 
 ```sql
-INSERT INTO fermeture (id_lieu, periode, motif)
-SELECT id_lieu, DATERANGE('2026-10-24', '2026-11-02'), 'Vacances de la Toussaint'
-  FROM lieu_sport WHERE code = 'PISCINE_SUAPS';
+-- Les moments libres : l'horizon, moins tout ce qui l'occupe.
+SELECT unnest(
+    tstzmultirange(tstzrange(p_debut, p_fin, '[)'))
+    - COALESCE((SELECT range_agg(plage) FROM occupe), '{}'::TSTZMULTIRANGE)
+);
 ```
 
-La borne haute est exclue : le 2 novembre est le premier jour rouvert.
+---
 
-**Les horaires sont déclarés, pas scrapés**, et c'est un choix. Le site du SUAPS est une boutique PrestaShop où chaque activité est une fiche produit, et les horaires sont *« ajustés en permanence en fonction des demandes, des besoins et du calendrier universitaire »*. Un analyseur HTML se casserait à la première refonte, alors qu'un `UPDATE` d'une ligne ne se casse jamais :
-
-```sql
-UPDATE ouverture SET heure_debut = '12:15'
- WHERE id_lieu = (SELECT id_lieu FROM lieu_sport WHERE code = 'PISCINE_SUAPS');
-```
-
-S'y ajoute une raison de fait : le programme 2026/27 n'est pas encore en ligne. On ne peut pas écrire un analyseur pour une page qui n'existe pas.
-
-## Le week-end proposé
-
-Le système savait déjà repérer un creux de deux jours. Il ne le disait que si on le lui demandait — ce qui suppose d'y penser, et si l'on y pensait on n'aurait pas besoin du système.
-
-Chaque matin à 7h10, il regarde les quinze jours qui viennent. Quand il trouve un week-end sans cours ni service, il l'annonce :
+## Architecture
 
 ```
-Week-end libre repéré à Lusse
-ven 12/09 17h35 → lun 15/09 08h00
-
-Rien de prévu sur cette période. On regarde les trains ?
-
-[Voir les trains]  [Non merci]
+   Flux ADE (ICS) ─┐
+Flux McDo (ICS) ───┼──▶ Collecteurs ──▶ ┌──────────────┐
+Calendriers perso ─┘                    │              │
+                                        │  PostgreSQL  │ ◀── règles métier
+   API SNCF (Navitia) ──▶ Trajets ──▶   │              │     contraintes
+   Boîte mail (IMAP) ──▶ Billets ──▶    └──────┬───────┘     fonctions
+                                               │
+                                    ┌──────────┴──────────┐
+                                    │   FastAPI (mince)   │
+                                    └──────────┬──────────┘
+                                               │
+                              ┌────────────────┴────────────────┐
+                         Flux iCalendar                  Bot Telegram
+                        (lecture seule)              (boutons, validation)
 ```
 
-**Voir les trains** enchaîne directement sur `/train` pour cette fenêtre. **Non merci** clôt la question — on ne revient jamais à la charge sur un week-end décliné.
+**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot. Docker Compose pour l'ensemble.
 
-Sans réponse, une **seule relance** trois jours avant, parce qu'entre les deux on a oublié. Jamais deux le même jour, jamais une troisième : répéter chaque matin transformerait un service en harcèlement, et la réponse serait de couper les notifications.
+Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idée de mettre la logique dans la base.
 
-La proposition s'affiche aussi au calendrier, en bandeau sur toute la période :
+---
 
-```
-Proposition : Week-end libre à Lusse ?
-```
+## Quelques problèmes rencontrés
 
-**Une proposition ne gèle rien.** C'est la distinction qui compte : elle s'affiche pour qu'on y pense, mais le ménage continue de s'y placer normalement. Seul un trajet retenu, un billet lu ou un `/parti` crée une absence. Confondre les deux bloquerait des journées entières sur un simple « et si ».
+Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
 
-Elle disparaît d'elle-même dès qu'on a répondu — un refus, un billet acheté, un départ déclaré — ou quand le week-end est passé.
+**Le flux de l'université publie chaque cours deux fois**, avec le même identifiant : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par identifiant faisait gagner la dernière lue — donc parfois la version vide, et la salle disparaissait du calendrier. La fusion garde la version la plus informative.
 
-## Le train
+**Une collecte perdait six cours en silence.** Les compteurs affichaient « 80 lues, 51 créées » sans que la différence soit expliquée. J'ai ajouté un invariant : chaque séance lue doit être comptée quelque part, sinon l'écart est signalé. C'est ce contrôle qui a révélé que des chevauchements disparaissaient sans trace.
 
-`/absent` suppose qu'on connaisse déjà ses dates. `/train` part de l'autre bout : le système cherche lui-même les creux, puis demande à la SNCF des horaires qu'on puisse réellement attraper.
+**Toutes les tâches se posaient le même jour.** Le moteur prenait le premier créneau disponible dans la fenêtre d'échéance, ce qui entassait sept rappels sur un seul soir — donc aucun n'était fait. Il choisit maintenant le jour le moins chargé, et à charge égale le plus libre.
 
-```
-/train
+**Le gel du planning neutralisait les absences.** Un créneau prévu dans les sept jours ne bougeait plus, ce qui est souhaitable — sauf quand on déclare partir ce week-end-là. Le gel protège un plan encore tenable, pas un plan devenu impossible.
 
-Fenêtres assez longues pour un aller-retour :
+**Une migration corrigée n'atteignait jamais la base.** Le script sautait tout fichier déjà appliqué, même modifié depuis. Il compare désormais une empreinte SHA-256 et rejoue les fichiers qui se déclarent idempotents.
 
-1. ven 28/08 17h35 → lun 31/08 08h00 (62 h)
-2. ven 11/09 16h00 → lun 14/09 08h00 (64 h)
+---
 
-[Fenêtre 1]  [Fenêtre 2]
-```
+## Fonctionnalités
 
-Choisir une fenêtre déclenche la recherche d'horaires. Le premier train proposé n'est pas le premier du soir mais **le premier qu'on puisse attraper** : trente minutes après la fin du dernier cours, le temps d'aller à la gare. Sans cette marge, le système proposerait un train qu'on regarde partir depuis l'amphi.
-
-```
-Tu finis à 17h35 : premier train attrapable après 18h05.
-
-Aller :
-[18h12 → 19h47 · TER direct]
-[19h42 → 21h52 · TER, 1 correspondance à Lunéville]
-```
-
-Le retour se cherche dans l'autre sens. On ne veut pas le premier train qui ramène, on veut **le dernier qui ramène à temps** — chaque heure gagnée est une heure de plus sur place. Avec un cours à 16h30 et trente minutes pour rentrer de la gare, il faut être arrivé à 16h00 : le train proposé en premier est celui de 14h42, et les trois suivants sont de plus en plus tôt.
-
-```
-Retour — rentré avant 16h00. Du dernier train aux plus tôt :
-[14h42 → 16h00 · TER direct]
-[12h10 → 13h45 · TER direct]
-[10h05 → 11h40 · TER, 1 correspondance à Lunéville]
-[Retour à fixer plus tard]
-```
-
-Concrètement, la SNCF est interrogée **par heure d'arrivée** et non par heure de départ : demander les premiers trains après une heure donnée ne ferait jamais remonter ceux du soir. Le retour est aussi borné par le bas — pas moins de douze heures sur place, rester une heure à Saint-Dié n'est pas un séjour.
-
-Le bouton **Retour à fixer plus tard** existe : partir sans savoir quand on rentre est un cas ordinaire, et refuser de l'enregistrer obligerait à choisir un horaire au hasard. L'absence court alors jusqu'à la prochaine obligation connue.
-
-Une fois l'aller-retour retenu, l'absence est déclarée et le ménage se replace tout seul.
-
-**Deux limites, assumées.** Le système n'achète pas le billet — une proposition retenue est une intention, pas une réservation. Et sans `SNCF_TOKEN`, les fenêtres se calculent quand même : seule la proposition d'horaires devient impossible, et le bot le dit au lieu de planter.
-
-## Le billet acheté ailleurs
-
-Acheter un billet est déjà une déclaration d'absence. La refaire à la main est du travail en double, et le travail en double finit par ne plus être fait. L'API lit les confirmations SNCF, et l'absence se déclare seule.
-
-**Rien à changer à ton compte SNCF ni à ton adresse.** Sur Gmail, un libellé est un dossier IMAP : un filtre pose le libellé, et l'API ne lit que celui-là.
-
-Dans Gmail → Paramètres → Filtres → *Créer un filtre* :
-
-| Champ | Valeur |
+| | |
 |---|---|
-| De | `sncf-connect.com OR info.sncf.com OR connect.sncf` |
-| Action | Appliquer le libellé `SNCF` |
+| **Collecte** | Flux iCalendar de l'université et du travail, calendriers personnels publiés depuis l'app Calendrier. Réconciliation par clé externe, arbitrage des conflits horaires |
+| **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
+| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, répartie en minutes |
+| **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
+| **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
+| **Sport** | Trois séances par semaine, dans les heures d'ouverture du lieu, trajet compris |
+| **Uniforme** | Compte les services travaillés et déclenche la lessive avant la rupture de stock |
+| **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
 
-Coche *Appliquer aussi ce filtre aux conversations correspondantes* pour rattraper l'existant. Puis un mot de passe d'application : Google → Sécurité → validation en deux étapes → Mots de passe d'application. Le mot de passe habituel est refusé par IMAP.
-
-```
-IMAP_HOTE=imap.gmail.com
-IMAP_UTILISATEUR=ton.adresse@gmail.com
-IMAP_MOT_DE_PASSE=le_mot_de_passe_d_application
-IMAP_DOSSIER=SNCF
-```
-
-Sans filtre, `IMAP_DOSSIER=INBOX` fonctionne aussi : `IMAP_FILTRE_EXPEDITEUR=sncf` demande au serveur de ne rendre que ces courriels-là, plutôt que de rapatrier des milliers de messages pour en analyser trois.
-
-**La boîte est ouverte en lecture seule**, et les messages lus avec `BODY.PEEK` : rien n'est marqué comme lu, rien n'est déplacé, rien n'est supprimé. Un système qui fait disparaître le gras des messages non lus dans le dos de son propriétaire ne se fait pardonner qu'une fois.
-
-Ce qu'il faut savoir quand même : **un mot de passe d'application donne accès à tout le courrier**, pas seulement au libellé. Le nôtre ne lit que `SNCF`, mais le mot de passe lui-même n'est pas limité. Il vit dans ton `.env`, sur ta machine, dans un fichier non versionné — acceptable pour un usage personnel, et révocable en un clic depuis ton compte Google si tu changes d'avis.
-
-La relève tourne toutes les deux heures, et `/billets` la déclenche à la main. Elle procède en deux passes : les Message-ID d'abord, puis les corps des seuls courriels neufs. Un libellé qui contient cent soixante-dix confirmations les téléchargeait sinon toutes, toutes les deux heures, pour n'en retenir aucune.
-
-En cas de doute, `python3 outils/tester_boite.py` teste l'accès et liste les dossiers ; `--corps 2` montre le texte des derniers courriels tel que le lecteur le voit. L'outil n'utilise que la bibliothèque standard et ne dépend pas du projet : il doit tourner quand l'API ne tourne pas, sur une machine où rien n'est installé.
-
-Après chaque correction du lecteur, `DELETE /trajets/courriels/a-revoir` oublie les courriels non exploités pour qu'ils soient relus. Les réussis ne sont pas touchés : les relire recréerait des absences déjà déclarées.
-
-**Trois précautions, dans l'ordre où elles comptent.**
-
-Seuls les domaines officiels de SNCF Connect sont analysés — `mail.sncf-connect.com`, `mail.sncfconnect.com`, `info.sncf.com`, `connect.sncf`. Les faux courriels au nom de la SNCF sont assez répandus pour que ce soit une vraie protection : sans elle, n'importe qui pourrait geler deux jours de ménage en t'envoyant un mail. La comparaison porte sur le domaine entier, pas sur un suffixe — `sncf-connect.com.attaquant.net` est refusé.
-
-Une absence déclarée sans que tu l'aies demandée **s'annonce**, avec un bouton pour l'annuler. C'est la contrepartie de l'automatisme : le lecteur peut se tromper, et se tromper en silence est le pire défaut possible ici.
-
-Un courriel légitime que le lecteur **n'a pas su lire est conservé** avec son motif, et `/billets` te le montre. Le format de ces mails ne nous appartient pas : il changera. Sans cette trace, le jour où plus aucune absence ne se déclarerait, rien n'indiquerait pourquoi.
-
-**Ce que ces courriels contiennent vraiment.** Le corps ne porte que l'horodatage du paiement — le récapitulatif part en pièce jointe. Tout est dans le sujet :
-
-```
-Votre voyage St Die Des Vosges - Nancy, aller le dimanche 6 février 2022
-```
-
-Deux gares, un sens, une date. Jamais d'heure. Le lecteur essaie donc le corps d'abord, et bascule sur le sujet quand celui-ci ne donne rien.
-
-Sans horaire, on ne gèle que **les journées dont on est certain** : l'absence commence au lendemain du départ et s'arrête au matin du retour. Partir le 2 et rentrer le 6 gèle les 3, 4 et 5 — les deux jours de trajet restent utilisables, puisqu'on ignore à quelle heure le train passe. Se tromper dans ce sens fait faire une lessive de trop, jamais un retard.
-
-Aucun appariement entre courriels n'est nécessaire, et c'est ce qui rend la chose sûre : **un billet vers Saint-Dié ouvre l'absence, un billet qui en revient la ferme.** Les courriels d'une relève sont traités dans l'ordre du voyage et non dans celui de la boîte, sinon un aller se heurterait à l'absence encore ouverte du voyage précédent.
-
-Le sens se juge sur la destination, pas sur une gare de domicile : on part tantôt de Nancy, tantôt de Lunéville, et seule la gare famille est un point fixe.
-
-Un **retour acheté seul** — le cas de qui part sans savoir quand il rentre — ferme l'absence en cours à son heure d'arrivée. C'est le geste de `/retour`, déclenché par le billet au lieu de la main.
+---
 
 ## Démarrage
 
 ```bash
-cp .env.example .env
-# Renseigner POSTGRES_PASSWORD, puis les deux clés d'API :
-LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 48; echo
-
+cp .env.example .env          # renseigner le mot de passe et les clés d'API
 docker compose up -d
-./sql/appliquer.sh
+./sql/appliquer.sh            # applique les migrations manquantes
 ```
 
-Créer les deux comptes, puis rejouer les assignations :
+Créer les comptes, puis rejouer les assignations par défaut :
 
 ```bash
 docker exec -i planif-db psql -U planif -d planif <<SQL
 INSERT INTO utilisateur (pseudo, nom, role, cle_api) VALUES
-  ('thomas',  'Thomas',  'admin',    'CLÉ_DE_THOMAS'),
-  ('lorette', 'Lorette', 'standard', 'CLÉ_DE_LORETTE');
+  ('thomas',  'Thomas',  'admin',    'CLÉ_A'),
+  ('lorette', 'Lorette', 'standard', 'CLÉ_B');
 SQL
 ./sql/appliquer.sh
 ```
 
-| Point d'entrée | URL |
+| | |
 |---|---|
-| Documentation interactive | http://localhost:8000/documentation |
-| Santé | http://localhost:8000/sante |
-| URL d'abonnement | http://localhost:8000/moi/calendrier |
+| Documentation interactive | `http://localhost:8000/documentation` |
+| Sonde de santé | `http://localhost:8000/sante` |
+| URL d'abonnement au calendrier | `http://localhost:8000/moi/calendrier` |
 
-## S'abonner depuis le téléphone
-
-L'adresse du flux contient le nom de la machine. Y mettre une adresse IP condamne l'abonnement : elle change d'un réseau à l'autre, et le téléphone continue d'interroger une adresse qui ne répond plus. Le nom Bonjour du Mac, lui, ne change pas.
-
-```bash
-scutil --get LocalHostName        # → macbook-de-thomas
-```
-
-Dans `.env` :
-
-```
-HOTE_PUBLIC=macbook-de-thomas.local:8000
-API_BIND=0.0.0.0
-```
-
-`API_BIND` compte autant que le reste : par défaut l'API n'écoute que sur la machine elle-même, et le téléphone ne la voit pas. `0.0.0.0` l'ouvre au réseau local — à ne faire que sur un réseau de confiance.
-
-Puis, dans Telegram :
-
-```
-/calendrier
-```
-
-Le bot renvoie un lien `webcal://` qui ouvre directement la boîte d'abonnement. C'est tout l'intérêt de passer par lui : le jeton fait trente-deux caractères et personne ne le recopie sans se tromper. À défaut, l'adresse en clair est dans la même réponse, et sur iPhone l'abonnement manuel se fait par Réglages → Calendrier → Comptes → Ajouter → Autre → Ajouter un abonnement.
-
-**Le lien n'est pas la clé d'API.** Il ne donne que la lecture du planning, parce qu'il vit en clair dans le téléphone, dans ses sauvegardes, et repart à chaque rafraîchissement. S'il fuite, `/calendrier renouveler` le révoque : il faut alors se réabonner, mais rien d'autre ne bouge.
-
-Une réserve, qui décidera de l'utilité du système au quotidien : **rien de tout cela ne fonctionne quand le Mac est éteint ou endormi.** Le calendrier ne se rafraîchit plus, et surtout l'ordonnanceur ne tourne plus — pas de collecte, pas de bilan à 7h, pas de relance à 21h. Une machine allumée en permanence lève les deux problèmes à la fois.
+---
 
 ## Structure
 
 ```
-sql/
-  001_schema.sql        tables, CHECK, contraintes d'exclusion
-  002_vues.sql          planning, retards, santé des sources, stock
-  003_fonctions.sql     disponibilités, génération, projection, placement
-  004_triggers.sql      récurrence, enchaînements, machine unique, stock
-  005_donnees.sql       sources, tâches, enchaînements, articles
-  006_assignations.sql  qui fait quoi par défaut
-  007_jeton_calendrier.sql  abonnement iCalendar séparé de la clé d'API
-  008_trajets.sql       fenêtres de départ, propositions d'horaires
-  009_courriels.sql     trace de ce qui a été lu dans la boîte
-  010_depart_retour.sql départ et retour déclarés à la main
-  011_calendriers_perso.sql  un calendrier publié par personne
-  012_propositions.sql  week-ends repérés
-  013_sport.sql         lieux, ouvertures, trajets, et le planning consolidé
-  014_uniforme.sql      les journées travaillées usent l'uniforme
-  scenario_test.sql     déroulé d'une semaine type, avec assertions
-  appliquer.sh
-api/
-  main.py                  montage, erreurs normalisées, /sante, /planning.ics
-  base.py                  pool psycopg, sans ORM
-  securite.py              clé d'API, et jeton de calendrier pour le flux
-  erreurs.py               SQLSTATE → statut HTTP
-  calendrier.py            export iCalendar
-  amorcage.py              URL des flux depuis l'environnement
-  ordonnanceur.py          collectes, bilan, relance, report
-  collecteurs/ics.py       lecture des flux, profils ade et easyatwork
-  collecteurs/service.py   collecte et réconciliation, sans HTTP
-  collecteurs/sncf.py      horaires de train, API Navitia
-  collecteurs/courriel.py  confirmations d'achat, liste blanche et analyse
-  trajets.py               fenêtres, propositions, absence qui en découle
-  billets.py               du courriel lu à l'absence déclarée
-  propositions.py          repérer un week-end libre, l'annoncer, relancer
-  routeurs/                planning, tâches, occurrences, contraintes,
-                           stock, notifications
-tests/                     parcours complet contre un vrai PostgreSQL
-  exemple_ade.ics          extraits réels des flux, pièges compris
-  exemple_mcdo.ics
+sql/          14 migrations : schéma, vues, fonctions, triggers, données
+api/          FastAPI — routeurs, collecteurs, bot, ordonnanceur
+outils/       diagnostic hors Docker (accès IMAP)
 ```
 
-## Les collecteurs
+Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent ; sinon le script le signale et demande une migration nouvelle.
 
-Les deux sources sont des flux iCalendar, donc un seul collecteur avec deux profils. Pas de scraping, pas de navigateur headless, pas de mot de passe à stocker.
+---
 
-```bash
-# On donne l'URL une fois — depuis le bot, en collant simplement le lien
-curl -X PATCH -H "X-Cle-Api: $CLE" -H 'Content-Type: application/json' \
-     -d '{"url":"https://..."}' localhost:8000/sources/MCDO
+## Ce que le projet ne fait pas
 
-curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/sources/MCDO/collecter
-```
+- **Il n'achète pas les billets de train.** Il propose des horaires et gèle le ménage en conséquence ; l'achat reste manuel.
+- **Il ne scrape pas les horaires de la piscine.** Le site publie ses créneaux dans une boutique PrestaShop remaniée chaque année : les horaires sont déclarés en base, où un `UPDATE` d'une ligne suffit à les corriger.
+- **Il suppose une machine allumée.** L'ordonnanceur ne tourne pas quand le portable dort ; les fonctions de rattrapage limitent les dégâts, mais le système est fait pour un petit serveur.
+- **Il est prévu pour deux utilisateurs.** L'authentification par clé d'API en en-tête suffit à cette échelle et ne conviendrait pas au-delà.
 
-Les URL ne sont **jamais** dans le dépôt : celle du planning McDonald's contient un jeton d'accès personnel. L'API ne la renvoie pas non plus, seulement `url_renseignee: true`.
+---
 
-| Profil | Source | Produit |
-|---|---|---|
-| `ade` | Planning universitaire | des occupations `cours` |
-| `easyatwork` | Planning McDonald's | des occupations `travail` |
+## Suite
 
-Le flux de l'Université de Lorraine a trois pièges, tous couverts par des tests :
-
-- **Chaque cours apparaît deux fois avec le même UID** : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par UID ferait gagner la dernière lue, donc parfois la version vide — la salle disparaîtrait. Le collecteur fusionne par UID en gardant la plus informative.
-- **`SALLE A DEFINIR`** n'est pas une salle, et la capacité entre parenthèses n'intéresse personne. `105,Salle 104 (49 Places)` devient `Salle 104`.
-- **Le groupe s'écrit `gpe1` ou `gpe 2`**, au choix.
-
-Les filtres sont des données, pas du code — ils vivent dans `source.configuration` :
-
-```json
-{
-  "profil": "ade",
-  "type_occupation": "cours",
-  "groupe": 1,
-  "alternance": false,
-  "langues_suivies": ["anglais", "espagnol"],
-  "langues_possibles": ["anglais", "espagnol", "chinois", "allemand"],
-  "horizon_jours": 60,
-  "historique_jours": 7
-}
-```
-
-Changer de groupe au second semestre, c'est un `PATCH`, pas un redéploiement. Passer `alternance` à vrai retire l'espagnol. La collecte renvoie toujours le détail de ce qu'elle a écarté : une collecte muette est indébogable.
-
-```json
-{"lues": 10, "crees": 6, "mis_a_jour": 0, "annules": 0, "conflits": [],
- "rejets": {"langue non suivie (chinois)": 1, "groupe 2": 2, ...}}
-```
-
-## Les conflits horaires
-
-Une source publie parfois deux occupations au même moment. La contrainte d'exclusion en refuse une — et c'est tant mieux, mais il faut décider laquelle garder.
-
-- **Conflit à plus de deux semaines** : rien. L'emploi du temps sera vraisemblablement corrigé avant que ça compte, et faire arbitrer du bruit use la patience.
-- **Conflit à moins de deux semaines** : la version rejetée est conservée, une notification part, et la question est posée.
-
-```bash
-curl -H "X-Cle-Api: $CLE" localhost:8000/conflits
-curl -X POST -H "X-Cle-Api: $CLE" -H 'Content-Type: application/json' \
-     -d '{"garder":"nouvelle"}' localhost:8000/conflits/3/resoudre
-```
-
-Le choix est mémorisé : garder l'existante écarte durablement l'autre version, et la collecte suivante ne repose pas la même question.
-
-## Les migrations
-
-`./sql/appliquer.sh` applique ce qui manque, et rien d'autre. Chaque fichier est enregistré dans `schema_migration` avec l'empreinte de son contenu.
-
-Un fichier **modifié** est rejoué s'il porte un commentaire `rejouable` en tête — c'est le cas de `002`, `003`, `004`, `007` et `008`, qui ne contiennent que des `CREATE OR REPLACE` et des `IF NOT EXISTS`. Sans ce mécanisme, corriger une fonction dans le dépôt ne changeait rien en base : la migration était marquée appliquée, et la correction ne partait jamais.
-
-Les autres — `001` qui crée les tables, `005` et `006` qui insèrent — ne se rejouent pas. S'ils changent, le script le signale et n'applique rien : il faut écrire une migration nouvelle. C'est le seul moyen sûr de modifier une table déjà remplie.
-
-`--recreer` efface tout et repart de zéro. À n'utiliser que sur une base sans données à perdre.
-
-## Vérifier
-
-```bash
-# Le socle SQL
-./sql/appliquer.sh --recreer
-docker exec -i planif-db psql -U planif -d planif < sql/scenario_test.sql
-
-# L'API, contre la même base
-pip install -e ".[dev]"
-DB_PORT=5432 pytest -q
-```
-
-Les tests d'API reconstruisent le schéma, créent deux comptes et déroulent un parcours complet : authentification, saisie d'occupations, placement, validation, refus, stock, export iCalendar. Ils ne tournent pas sur des simulacres — c'est la base qui refuse un chevauchement ou une revalidation, et le test le constate.
-
-Le scénario monte une semaine type — cinq journées de cours, quatre shifts, du sommeil — puis vérifie :
-
-- qu'un chevauchement de shifts est **refusé par la base** ;
-- que les 11 tâches trouvent une place, les rappels sur des journées entières et les machines à 21h45 ;
-- qu'aucune tâche à heure imposée n'en chevauche une autre, et qu'aucun jour ne porte deux machines ;
-- que valider la poussière crée la suivante **à partir de la date réelle** et repositionne l'aspirateur existant au lieu d'en créer un second ;
-- que revalider une tâche close et valider dans le futur sont refusés ;
-- que le stock d'uniforme déclenche une lessive, et alerte quand il est trop tard pour que le linge sèche ;
-- que le grand nettoyage tombe sur un moment où Thomas **et** Lorette sont libres, et qu'une alerte part s'il n'en existe aucun ;
-- qu'une tâche non faite revient le lendemain avec son compteur de relances.
-
-Il tourne dans une transaction annulée à la fin : la base reste intacte.
-
-## Concepts
-
-**Occupation** — une plage subie et non déplaçable. Stockée en `TSTZRANGE`, pas en deux colonnes.
-
-**Tâche** — le modèle récurrent, sans date. Soit un *rappel* (à faire ce jour-là, sans heure), soit *à heure imposée* (les machines, en heures creuses).
-
-**Occurrence** — une exécution concrète. Porte une **fenêtre d'échéance**, pas une date : c'est ce qui laisse au système la marge pour choisir.
-
-**Disponibilités** — l'horizon moins les occupations, moins les créneaux déjà placés. Calculées avec les multirange de PostgreSQL : `range_agg` puis une soustraction, sans boucle.
-
-## Conventions
-
-- Stockage en UTC. Europe/Paris définit ce qu'est « une journée », via `debut_jour()` et `jour_de()`.
-- Les énumérations sont des `VARCHAR` contraints par `CHECK`, pas des types `ENUM` : lisibles en SQL et modifiables par migration.
-- Une migration appliquée n'est jamais modifiée, une fois qu'il y aura des données à préserver.
-- Aucun secret dans le dépôt. Les clés d'API et les identifiants de portail passent par l'environnement.
-
-## L'API en pratique
-
-Elle est mince, et c'est voulu. Valider une tâche, c'est une ligne :
-
-```python
-executer("SELECT valider_occurrence(%(id)s, %(acteur)s, %(date)s)", {...})
-```
-
-Le reste — créer l'occurrence suivante à partir de la date réelle, déclencher l'aspirateur après la poussière sans doublon, envoyer les t-shirts au séchage — est fait par les triggers. Le jour où une seconde application, un script ou une saisie directe en SQL passe à côté de l'API, les règles tiennent quand même.
-
-Les erreurs ont une seule forme, `{code, message}`, que l'échec vienne de la base ou de l'API :
-
-```json
-{"code": "chevauchement", "message": "conflicting key value violates exclusion constraint"}
-{"code": "non_reportable", "message": "Cette tâche ne peut pas être repoussée..."}
-```
-
-## La boucle quotidienne
-
-C'est elle qui décide si le système sert à quelque chose : sans elle, le planning existe mais personne ne le regarde.
-
-| Quand | Quoi |
-|---|---|
-| Toutes les heures | Collecte des sources dont la fréquence est écoulée, puis replacement si quelque chose a bougé |
-| 07h00 | Placement, puis bilan du jour et des retards. Les créneaux annoncés sont figés |
-| 21h00 | Un rappel par tâche du jour non validée — c'est lui qui portera les boutons |
-| 00h05 | Report d'office de ce qui n'a pas été fait, compteur de relances incrémenté |
-
-Deux règles comptent plus que les autres :
-
-**Quand il n'y a rien à dire, le système se tait.** Un bilan vide tous les matins ferait couper les notifications en une semaine.
-
-**Une notification est enregistrée avant d'être envoyée.** Le bot vient vider la file et dit ce qu'il a réussi à transmettre ; un échec laisse le message en attente plutôt que de le perdre.
-
-```bash
-curl -H "X-Cle-Api: $CLE" localhost:8000/notifications
-curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/notifications/12/envoyee
-```
-
-L'ordonnanceur et les endpoints appellent les **mêmes fonctions**. Il n'y a donc jamais deux chemins de code pour la même opération, et le chemin de nuit — celui qu'on ne regarde jamais — reste couvert par les tests.
-
-## Le bot Telegram
-
-Il tourne dans le même processus que l'API — pour deux utilisateurs, un conteneur de plus ne se justifie pas. Sans `TELEGRAM_TOKEN`, il ne démarre pas et l'API fonctionne normalement, les notifications restant en file.
-
-**S'appairer** : envoyer `/demarrer TA_CLE_API` au bot. La clé sert de mot de passe — sans elle, quiconque trouve le nom du bot recevrait le planning.
-
-**Le plus simple est `/menu`.** Il annonce la prochaine échéance, puis ouvre tout en boutons — retenir une douzaine de commandes est le meilleur moyen de n'en utiliser aucune.
-
-```
-Prochain : Cours IDMC, lun 25/08 à 08h00 — Salle 104
-En retard : 1 tâche
-
-[Valider une tâche]  [Aujourd'hui]
-[En retard]          [Demain]
-[Uniforme]           [Sport]
-[Je pars]            [Je rentre]
-[Trains]             [Billets]
-```
-
-Chaque bouton rejoue la commande correspondante — le menu est une façade, sans logique propre. Deux chemins pour la même action finiraient par se contredire, et c'est toujours celui qu'on ne teste pas qui reste en arrière.
-
-| Commande | Effet |
-|---|---|
-| `/menu` | Tout, en boutons |
-| `/valider` | Cocher ce qui est fait, sans attendre la relance du soir |
-| `/sport` | Les prochaines séances, avec leur lieu |
-| `/planning` `/demain` | Ce qui est prévu, horaires puis rappels |
-| `/retards` | Ce qui traîne, avec les boutons |
-| `/stock` | Uniforme et date limite de la prochaine lessive |
-| `/conflits` | Cours en double à départager |
-| `/parti lieu` | Je pars maintenant, retour inconnu — gèle jusqu'à la prochaine obligation |
-| `/retour` | Je suis rentré, y compris en voiture et plus tôt que prévu |
-| `/absent JJ/MM JJ/MM lieu` | Absence connue à l'avance — le planning se refait aussitôt |
-| `/train` | Aller à Saint-Dié : fenêtres, horaires proposés, absence déclarée |
-| `/billets` | Relever la boîte, lister les voyages détectés et ceux qu'on n'a pas su lire |
-| `/calendrier` | Le lien d'abonnement, envoyé là où on en a besoin. `renouveler` en donne un nouveau et coupe l'ancien |
-| `/collecter` | Forcer une collecte |
-| `/lien CODE URL` | Donner l'URL d'un flux — le message est effacé aussitôt, il contient un jeton |
-| `/oublie` | Délier ce compte |
-
-**Valider ne dépend plus du soir.** `/valider` liste ce qui est cochable maintenant — le jour même et ce qui traîne — chacun avec ses boutons. On fait la vaisselle quand on la fait, pas à 21h.
-
-Les rappels du soir portent trois boutons : **Fait**, **Plus tard**, **Non**. Aucune notification n'est envoyée entre 23h30 et 7h30 : faire vibrer un téléphone à 3h du matin pour une poussière est le meilleur moyen de faire couper les notifications.
-
-Toute la logique vit dans `conversation.py`, qui se teste sans parler à Telegram. `bot.py` ne fait que brancher des commandes et des boutons dessus — sinon, vérifier qu'un bouton « Fait » valide la bonne occurrence demanderait un service extérieur.
+Une interface web (Angular) pour remplacer le bot sur les usages qui demandent un écran, et un déploiement sur un serveur dédié.
