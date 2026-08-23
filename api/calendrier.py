@@ -34,6 +34,7 @@ PREFIXES = {
     "vaisselle": "Vaisselle",
     "animal": "Chat",
     "admin": "Admin",
+    "sport": "Sport",
     "trajet": "Proposition",
 }
 
@@ -44,7 +45,15 @@ def _identifiant(ligne: dict) -> str:
 
 def _titre(ligne: dict) -> str:
     prefixe = PREFIXES.get(ligne["categorie"], ligne["categorie"])
-    titre = f"{prefixe} : {ligne['libelle']}"
+    libelle = ligne["libelle"]
+
+    # « Sport : Piscine du SUAPS » plutôt que « Sport : Séance de sport ».
+    # C'est le lieu qui porte l'information une fois la séance placée : il dit
+    # d'un coup d'œil s'il faut prendre son maillot ou ses baskets.
+    if ligne["categorie"] == "sport" and ligne.get("lieu"):
+        libelle = ligne["lieu"]
+
+    titre = f"{prefixe} : {libelle}"
 
     # Le retard se voit dans le titre : c'est la seule information que le
     # calendrier ne peut pas afficher autrement.

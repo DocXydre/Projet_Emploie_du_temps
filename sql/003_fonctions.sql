@@ -564,10 +564,15 @@ BEGIN
 
         CONTINUE WHEN NOT v_disponible;
 
+        -- R98 : seules les tâches domestiques entrent dans la balance. Le
+        -- sport est personnel : le compter reviendrait à faire payer ses
+        -- séances de piscine en heures de ménage, et à donner l'appartement
+        -- entier à l'autre.
         SELECT COALESCE(sum(t2.duree_minutes), 0) INTO v_charge
           FROM occurrence o
           JOIN tache t2 ON t2.id_tache = o.id_tache
          WHERE o.id_utilisateur = u.id_utilisateur
+           AND t2.categorie <> 'sport'
            AND o.statut IN ('a_placer', 'planifiee', 'notifiee');
 
         IF v_charge_min IS NULL OR v_charge < v_charge_min THEN
@@ -597,8 +602,10 @@ DECLARE
     v_places  INTEGER := 0;
     v_gele    TIMESTAMPTZ;
     v_assigne INTEGER;
+    v_lieu    INTEGER;
 BEGIN
     PERFORM generer_occurrences(p_horizon_jours);
+    PERFORM generer_seances_sport(p_horizon_jours);
 
     FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif ORDER BY id_utilisateur LOOP
         PERFORM declencher_lessive(u.id_utilisateur);
@@ -627,7 +634,7 @@ BEGIN
         SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,
                oc.rappel_journee, oc.utilise_machine,
                t.duree_minutes, t.heure_min, t.heure_max,
-               t.requiert_les_deux, t.libelle
+               t.requiert_les_deux, t.libelle, t.categorie
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
          WHERE oc.statut = 'a_placer'
@@ -654,8 +661,17 @@ BEGIN
         END IF;
 
         v_duree := make_interval(mins => o.duree_minutes);
+        v_lieu := NULL;
 
-        IF o.rappel_journee THEN
+        IF o.categorie = 'sport' THEN
+            -- Le sport a ses propres contraintes : heures d'ouverture d'un
+            -- lieu, trajet aller-retour, repos avant la prochaine obligation.
+            -- La fonction vit dans `013_sport.sql`, avec les tables qu'elle
+            -- interroge ; plpgsql ne les résout qu'à l'exécution, et rien
+            -- n'appelle ce placement entre les deux migrations.
+            SELECT s.creneau, s.lieu_retenu INTO v_creneau, v_lieu
+              FROM chercher_creneau_sport(v_assigne, o.id_tache, o.fenetre, v_duree) s;
+        ELSIF o.rappel_journee THEN
             v_creneau := chercher_jour(v_assigne, o.fenetre, v_duree);
         ELSE
             v_creneau := chercher_creneau(v_assigne, o.fenetre, v_duree,
@@ -697,7 +713,13 @@ BEGIN
             UPDATE occurrence
                SET creneau = v_creneau,
                    statut  = 'planifiee',
+                   id_lieu = v_lieu,
                    motif   = CASE
+                                 WHEN v_lieu IS NOT NULL THEN
+                                     format('%s le %s, trajet compris',
+                                            (SELECT libelle FROM lieu_sport
+                                              WHERE id_lieu = v_lieu),
+                                            to_char(lower(v_creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM à HH24hMI'))
                                  WHEN o.rappel_journee THEN
                                      format('À faire le %s',
                                             to_char(lower(v_creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM'))

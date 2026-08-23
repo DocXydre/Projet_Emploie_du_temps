@@ -232,6 +232,78 @@ def planning_du_jour(id_utilisateur: int, dans_jours: int = 0) -> str:
     return "\n".join(morceaux)
 
 
+def a_valider(id_utilisateur: int, dans_jours: int = 0) -> list[dict]:
+    """Ce qu'on peut cocher maintenant : le jour même, et ce qui traîne.
+
+    Attendre la relance du soir pour pouvoir valider une tâche est un défaut :
+    on fait la vaisselle quand on la fait, pas à 21h. Cette liste rend la main
+    à tout moment.
+    """
+    return lister(
+        """
+        SELECT o.id_occurrence, o.tache_libelle, o.tache_code, o.statut,
+               o.debut, o.jours_de_retard, o.actions_possibles, o.en_retard
+          FROM v_occurrence o
+         WHERE o.id_utilisateur = %(u)s
+           AND o.statut IN ('planifiee', 'notifiee')
+           AND o.debut IS NOT NULL
+           AND (o.en_retard OR jour_de(o.debut) <= jour_de(now()) + %(d)s)
+         ORDER BY o.en_retard DESC, o.debut
+        """,
+        {"u": id_utilisateur, "d": dans_jours},
+    )
+
+
+def seances_sport(id_utilisateur: int, limite: int = 5) -> list[dict]:
+    """Prochaines séances placées, trajet compris."""
+    return lister(
+        """
+        SELECT o.id_occurrence, lower(o.creneau) AS debut, upper(o.creneau) AS fin,
+               l.libelle AS lieu
+          FROM occurrence o
+          JOIN tache t ON t.id_tache = o.id_tache
+          LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
+         WHERE o.id_utilisateur = %(u)s
+           AND t.categorie = 'sport'
+           AND o.creneau IS NOT NULL
+           AND upper(o.creneau) > now()
+           AND o.statut IN ('planifiee', 'notifiee')
+         ORDER BY lower(o.creneau)
+         LIMIT %(n)s
+        """,
+        {"u": id_utilisateur, "n": limite},
+    )
+
+
+def prochaine_chose(id_utilisateur: int) -> str:
+    """Une ligne : ce qui vient ensuite, obligation ou tâche.
+
+    C'est l'en-tête du menu. Un menu qui n'ouvrirait que des boutons obligerait
+    à cliquer pour savoir s'il y a quelque chose à savoir.
+    """
+    ligne = un_seul(
+        """
+        SELECT nature, categorie, libelle, debut, journee_entiere, lieu
+          FROM v_planning
+         WHERE id_utilisateur = %(u)s
+           AND nature <> 'proposition'
+           AND fin > now()
+         ORDER BY debut
+         LIMIT 1
+        """,
+        {"u": id_utilisateur},
+    )
+    if ligne is None:
+        return "Rien de prévu."
+
+    quand = _jour(ligne["debut"])
+    if not ligne["journee_entiere"]:
+        quand += f" à {_heure(ligne['debut'])}"
+
+    ou = f" — {ligne['lieu']}" if ligne["lieu"] else ""
+    return f"{ligne['libelle']}, {quand}{ou}"
+
+
 def taches_en_retard(id_utilisateur: int) -> list[dict]:
     return lister(
         """

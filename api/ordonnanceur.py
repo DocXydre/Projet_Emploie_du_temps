@@ -123,6 +123,22 @@ def report_de_minuit() -> int:
     return reportees
 
 
+def consommer_l_uniforme() -> int:
+    """Compte les journées de travail passées, et salit ce qui doit l'être.
+
+    Rattrape les jours manqués plutôt que de ne traiter qu'hier : sur une
+    machine qui s'éteint, ne regarder que la veille reviendrait à perdre une
+    semaine de services au premier week-end.
+    """
+    resultat = executer("SELECT rattraper_uniforme() AS sales")
+    sales = (resultat or {}).get("sales", 0)
+    if sales:
+        LOG.info("Uniforme : %s article(s) au sale", sales)
+        # Le stock a changé : la date limite de lessive aussi.
+        placer()
+    return sales
+
+
 def demarrer() -> BackgroundScheduler:
     global _ordonnanceur
     if _ordonnanceur is not None:
@@ -153,6 +169,12 @@ def demarrer() -> BackgroundScheduler:
 
     ordonnanceur.add_job(relance_du_soir, CronTrigger(hour=21, minute=0),
                          id="relance", name="Relance du soir", coalesce=True)
+
+    # Avant le report : un t-shirt sali cette nuit peut avancer l'échéance de
+    # la lessive, et donc changer ce qu'il y a à replacer.
+    ordonnanceur.add_job(consommer_l_uniforme, CronTrigger(hour=0, minute=2),
+                         id="uniforme", name="Consommation de l'uniforme",
+                         coalesce=True)
 
     ordonnanceur.add_job(report_de_minuit, CronTrigger(hour=0, minute=5),
                          id="report", name="Report d'office", coalesce=True)

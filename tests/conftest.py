@@ -88,9 +88,16 @@ def table_rase(base):
         conn.execute("DELETE FROM occurrence")
         conn.execute("DELETE FROM occupation")
         conn.execute("UPDATE article_travail SET quantite_propre = quantite_totale, "
-                     "disponible_le = NULL")
+                     "disponible_le = NULL, journees_portees = 0, "
+                     "dernier_jour_compte = NULL")
         conn.execute("DELETE FROM conflit")
         conn.execute("DELETE FROM proposition")
+        # Les fermetures créées par un test ne doivent pas survivre au suivant :
+        # une piscine fermée par erreur ferait échouer des tests sans rapport,
+        # et le motif ne dirait pas d'où elle vient. Seule la pause estivale,
+        # qui fait partie des données de référence, est conservée.
+        conn.execute("DELETE FROM fermeture "
+                     " WHERE motif IS NULL OR motif NOT LIKE 'Pause estivale%'")
         conn.execute("DELETE FROM courriel")
         conn.execute("DELETE FROM trajet")
         conn.execute("DELETE FROM absence")

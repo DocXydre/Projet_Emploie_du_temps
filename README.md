@@ -20,6 +20,7 @@ Concrètement :
 | La récurrence repart de la date réelle | Trigger après validation |
 | La poussière déclenche l'aspirateur en 24 h | Trigger, avec règle anti-doublon |
 | Le linge lavé n'est pas portable tout de suite | Trigger + vue `v_stock` |
+| Un service porté use l'uniforme | `consommer_uniforme`, compteur de journées |
 | Le grand nettoyage exige que vous soyez libres tous les deux | `disponibilites_communes`, intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
 
@@ -27,7 +28,7 @@ La base refuse ce qui est incohérent, même si un script ou une saisie manuelle
 
 ## État
 
-Complet et vérifié : 15 tables, 9 vues, 33 fonctions, 6 triggers, 278 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
+Complet et vérifié : 19 tables, 9 vues, 41 fonctions, 7 triggers, 313 tests. Le système collecte, place, répartit, notifie et se pilote au bot.
 
 ## Le placement
 
@@ -86,6 +87,66 @@ Aucun filtre de groupe ni de langue ne s'applique — sinon un cours d'espagnol 
 Les événements peuvent **se chevaucher**. Un calendrier personnel contient souvent un rendez-vous posé sur une plage plus large, et refuser la collecte pour ça serait absurde. Les cours et les shifts, eux, restent soumis à la contrainte d'exclusion.
 
 Une limite : les événements « journée entière » sont ignorés. Sans heure de début ni de fin, ils bloqueraient une journée entière de ménage sur ce qui n'est souvent qu'une note.
+
+## L'uniforme
+
+Chaque journée travaillée use l'uniforme : un t-shirt à chaque service, un pantalon toutes les deux journées. Quand le stock propre s'approche du seuil, une lessive est déclenchée assez tôt pour que le linge sèche.
+
+**Des journées travaillées, pas des jours de calendrier.** La première version salissait le pantalon quand le numéro du jour était pair. Travailler lundi puis jeudi le laissait propre, ou le salissait deux fois, selon la date. C'est un compteur maintenant : il n'avance que les jours où l'on a servi.
+
+**Rattrapage plutôt que veille.** L'ordonnanceur ne tourne que quand la machine est allumée. Ne traiter qu'hier reviendrait à perdre une semaine de services au premier week-end : la consommation remonte donc jusqu'au dernier jour compté, quel qu'il soit. Une journée déjà comptée ne se recompte jamais.
+
+Aujourd'hui est volontairement exclu. Un service de 17h n'est pas fini le matin, et le compter d'avance annoncerait une lessive qu'on n'a pas encore méritée.
+
+```bash
+curl -X POST -H "X-Cle-Api: $CLE" localhost:8000/stock/consommer
+```
+
+Ce défaut méritait d'être noté : la fonction existait depuis le début et **personne ne l'appelait**. La projection de lessive tournait donc sur un stock éternellement plein, et n'a jamais rien déclenché.
+
+## Le sport
+
+Trois séances par semaine, placées comme les tâches — mais avec trois contraintes que le ménage n'a pas.
+
+**Le lieu a des heures.** La piscine du SUAPS n'ouvre au public qu'entre midi et 14h, et à 16h, en semaine. Proposer 15h reviendrait à proposer une porte close. La salle, elle, n'a aucun horaire déclaré : c'est ainsi qu'on dit « ouverte en permanence » sans écrire sept lignes identiques. La nuance porte tout — *aucune plage ce jour-là* n'est pas *ouvert en permanence*, et la première version proposait un bain le dimanche à 6h40.
+
+**Le trajet compte.** Cinq minutes à pied depuis la fac, vingt depuis l'appartement. Le système regarde s'il y a cours ce jour-là pour trancher, et réserve le créneau **trajet compris** :
+
+```
+Sport : Piscine du SUAPS
+lundi 11h55 → 13h05          5 min + 1h de nage + 5 min
+```
+
+L'oublier ferait tenir une heure de piscine dans un creux d'une heure, et manquer le cours de 13h.
+
+**La nuit se protège.** La salle est ouverte 24h/24, ce qui n'est une bonne nouvelle que si l'on peut dormir ensuite. Une séance qui finit après 21h exige dix heures avant le prochain cours ou service. La règle ne vise que la nuit : une séance à 15h avant un cours à 18h n'est pas concernée.
+
+Deux préférences complètent le tableau. La piscine se cherche **au plus tôt** — sa première ouverture est midi, celle que tu préfères. La salle se cherche **au plus tard**, parce qu'y prendre le plus tôt proposerait 9h du matin.
+
+Le quota est hebdomadaire et non périodique : « trois fois par semaine » ne se traduit pas en « tous les 2,33 jours ». Une seule séance par jour, sinon trois séances entassées le même après-midi n'en font pas trois.
+
+**Ce que le sport ne fait pas.** Il n'entre pas dans la répartition équitable du ménage. Le compter reviendrait à payer ses séances de piscine en heures d'aspirateur — et à donner l'appartement entier à l'autre.
+
+**Un lieu ferme.** Les heures d'ouverture disent une semaine type ; elles ne disent rien de l'été, des vacances ni de l'entre-deux-semestres. Un SUAPS ferme plus de trois mois par an, et sans cette notion le moteur proposerait tout l'été des créneaux devant un bâtiment vide.
+
+La pause estivale 2026 est déclarée d'après l'annonce du site — *« Fin des enseignements pour cette année universitaire 2025/26. Reprise des activités le 07 septembre 2026 »*. D'ici là, toutes les séances vont à la salle.
+
+```sql
+INSERT INTO fermeture (id_lieu, periode, motif)
+SELECT id_lieu, DATERANGE('2026-10-24', '2026-11-02'), 'Vacances de la Toussaint'
+  FROM lieu_sport WHERE code = 'PISCINE_SUAPS';
+```
+
+La borne haute est exclue : le 2 novembre est le premier jour rouvert.
+
+**Les horaires sont déclarés, pas scrapés**, et c'est un choix. Le site du SUAPS est une boutique PrestaShop où chaque activité est une fiche produit, et les horaires sont *« ajustés en permanence en fonction des demandes, des besoins et du calendrier universitaire »*. Un analyseur HTML se casserait à la première refonte, alors qu'un `UPDATE` d'une ligne ne se casse jamais :
+
+```sql
+UPDATE ouverture SET heure_debut = '12:15'
+ WHERE id_lieu = (SELECT id_lieu FROM lieu_sport WHERE code = 'PISCINE_SUAPS');
+```
+
+S'y ajoute une raison de fait : le programme 2026/27 n'est pas encore en ligne. On ne peut pas écrire un analyseur pour une page qui n'existe pas.
 
 ## Le week-end proposé
 
@@ -289,7 +350,9 @@ sql/
   009_courriels.sql     trace de ce qui a été lu dans la boîte
   010_depart_retour.sql départ et retour déclarés à la main
   011_calendriers_perso.sql  un calendrier publié par personne
-  012_propositions.sql  week-ends repérés, et le planning consolidé
+  012_propositions.sql  week-ends repérés
+  013_sport.sql         lieux, ouvertures, trajets, et le planning consolidé
+  014_uniforme.sql      les journées travaillées usent l'uniforme
   scenario_test.sql     déroulé d'une semaine type, avec assertions
   appliquer.sh
 api/
@@ -477,8 +540,26 @@ Il tourne dans le même processus que l'API — pour deux utilisateurs, un conte
 
 **S'appairer** : envoyer `/demarrer TA_CLE_API` au bot. La clé sert de mot de passe — sans elle, quiconque trouve le nom du bot recevrait le planning.
 
+**Le plus simple est `/menu`.** Il annonce la prochaine échéance, puis ouvre tout en boutons — retenir une douzaine de commandes est le meilleur moyen de n'en utiliser aucune.
+
+```
+Prochain : Cours IDMC, lun 25/08 à 08h00 — Salle 104
+En retard : 1 tâche
+
+[Valider une tâche]  [Aujourd'hui]
+[En retard]          [Demain]
+[Uniforme]           [Sport]
+[Je pars]            [Je rentre]
+[Trains]             [Billets]
+```
+
+Chaque bouton rejoue la commande correspondante — le menu est une façade, sans logique propre. Deux chemins pour la même action finiraient par se contredire, et c'est toujours celui qu'on ne teste pas qui reste en arrière.
+
 | Commande | Effet |
 |---|---|
+| `/menu` | Tout, en boutons |
+| `/valider` | Cocher ce qui est fait, sans attendre la relance du soir |
+| `/sport` | Les prochaines séances, avec leur lieu |
 | `/planning` `/demain` | Ce qui est prévu, horaires puis rappels |
 | `/retards` | Ce qui traîne, avec les boutons |
 | `/stock` | Uniforme et date limite de la prochaine lessive |
@@ -492,6 +573,8 @@ Il tourne dans le même processus que l'API — pour deux utilisateurs, un conte
 | `/collecter` | Forcer une collecte |
 | `/lien CODE URL` | Donner l'URL d'un flux — le message est effacé aussitôt, il contient un jeton |
 | `/oublie` | Délier ce compte |
+
+**Valider ne dépend plus du soir.** `/valider` liste ce qui est cochable maintenant — le jour même et ce qui traîne — chacun avec ses boutons. On fait la vaisselle quand on la fait, pas à 21h.
 
 Les rappels du soir portent trois boutons : **Fait**, **Plus tard**, **Non**. Aucune notification n'est envoyée entre 23h30 et 7h30 : faire vibrer un téléphone à 3h du matin pour une poussière est le meilleur moyen de faire couper les notifications.
 

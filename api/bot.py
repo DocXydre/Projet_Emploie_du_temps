@@ -33,8 +33,12 @@ LOG = logging.getLogger(__name__)
 _application: Application | None = None
 _identite: dict | None = None
 
-AIDE = """Commandes :
+AIDE = """/menu — tout, en boutons
 
+Ou les commandes, si tu préfères taper :
+
+/valider — cocher ce qui est fait
+/sport — les prochaines séances
 /planning — ce qui est prévu aujourd'hui
 /demain — ce qui est prévu demain
 /retards — ce qui traîne
@@ -98,6 +102,67 @@ async def oublie(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def aide(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     await update.effective_message.reply_text(AIDE)
+
+
+MENU = [
+    [("Valider une tâche", "valider"), ("Aujourd'hui", "jour")],
+    [("En retard", "retards"), ("Demain", "demain")],
+    [("Uniforme", "stock"), ("Sport", "sport")],
+    [("Je pars", "parti"), ("Je rentre", "retour")],
+    [("Trains", "train"), ("Billets", "billets")],
+]
+
+
+def _clavier_menu() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(libelle, callback_data=f"menu:{action}:0")
+         for libelle, action in ligne]
+        for ligne in MENU
+    ])
+
+
+async def menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Un point d'entrée unique, avec ce qui vient en tête.
+
+    Retenir une douzaine de commandes est le meilleur moyen de n'en utiliser
+    aucune. Le menu annonce d'abord la prochaine échéance — sans quoi il
+    faudrait cliquer pour savoir s'il y a quelque chose à savoir.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    suite = await asyncio.to_thread(conv.prochaine_chose, compte["id_utilisateur"])
+    en_retard = await asyncio.to_thread(conv.taches_en_retard, compte["id_utilisateur"])
+
+    texte = f"Prochain : {suite}"
+    if en_retard:
+        texte += f"\nEn retard : {len(en_retard)} tâche(s)"
+
+    await update.effective_message.reply_text(texte, reply_markup=_clavier_menu())
+
+
+async def valider(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ce qu'on peut cocher maintenant, sans attendre la relance du soir.
+
+    On fait la vaisselle quand on la fait, pas à 21h.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    a_faire = await asyncio.to_thread(conv.a_valider, compte["id_utilisateur"])
+    if not a_faire:
+        await update.effective_message.reply_text(
+            "Rien à cocher aujourd'hui. « /menu » pour le reste.")
+        return
+
+    for tache in a_faire:
+        retard = (f" — en retard de {tache['jours_de_retard']} j"
+                  if tache["en_retard"] else "")
+        await update.effective_message.reply_text(
+            f"{tache['tache_libelle']}{retard}",
+            reply_markup=_boutons(tache["id_occurrence"]))
 
 
 async def planning(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -573,6 +638,12 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_train(update, contexte, compte, choix, identifiant)
         return
 
+    if genre == "menu":
+        # Le menu reste affiché : on y revient après chaque action, et le
+        # retirer obligerait à retaper /menu entre deux gestes.
+        await _bouton_menu(update, contexte, compte, choix)
+        return
+
     if genre == "prop":
         await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
         return
@@ -629,6 +700,56 @@ async def _bouton_train(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         reponse = _message_lisible(erreur)
 
     await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
+
+
+async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                       compte: dict, choix: str) -> None:
+    """Chaque bouton du menu rejoue la commande correspondante.
+
+    Aucune logique propre : le menu est une façade. Deux chemins pour la même
+    action finiraient par se contredire, et c'est toujours celui qu'on ne teste
+    pas qui reste en arrière.
+    """
+    commandes = {
+        "valider": valider,
+        "jour": planning,
+        "demain": demain,
+        "retards": retards,
+        "stock": stock,
+        "sport": seances_a_venir,
+        "parti": parti,
+        "retour": retour,
+        "train": train,
+        "billets": commande_billets,
+    }
+
+    action = commandes.get(choix)
+    if action is None:
+        return
+
+    contexte.args = []
+    await action(update, contexte)
+
+
+async def seances_a_venir(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Les prochaines séances de sport, avec leur lieu."""
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    prochaines = await asyncio.to_thread(conv.seances_sport, compte["id_utilisateur"])
+    if not prochaines:
+        await update.effective_message.reply_text(
+            "Aucune séance placée. Les creux sont peut-être trop courts.")
+        return
+
+    lignes = [
+        f"• {conv._jour(s['debut'])} {conv._heure(s['debut'])}"
+        f"–{conv._heure(s['fin'])} — {s['lieu'] or 'lieu à confirmer'}"
+        for s in prochaines
+    ]
+    await update.effective_message.reply_text(
+        "Séances à venir (trajet compris) :\n" + "\n".join(lignes))
 
 
 async def _bouton_proposition(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
@@ -725,6 +846,9 @@ def construire() -> Application:
     application.add_handler(CommandHandler("demarrer", demarrer))
     application.add_handler(CommandHandler("aide", aide))
     application.add_handler(CommandHandler("help", aide))
+    application.add_handler(CommandHandler("menu", menu))
+    application.add_handler(CommandHandler("valider", valider))
+    application.add_handler(CommandHandler("sport", seances_a_venir))
     application.add_handler(CommandHandler("planning", planning))
     application.add_handler(CommandHandler("demain", demain))
     application.add_handler(CommandHandler("retards", retards))

@@ -19,6 +19,22 @@ def etat(qui: Authentifie) -> list[dict]:
     return lister("SELECT * FROM v_stock ORDER BY code")
 
 
+@routeur.post("/consommer", summary="Compter les journées de travail passées")
+def consommer(qui: Authentifie, jour: str | None = None) -> dict:
+    """Salit ce qui doit l'être, en rattrapant les journées manquées.
+
+    Un jour précis peut être forcé, ce qui sert surtout à remettre le compteur
+    d'aplomb après coup. Sans argument, la fonction remonte jusqu'à hier.
+    """
+    if jour is not None:
+        resultat = executer("SELECT consommer_uniforme(%(j)s::DATE) AS sales",
+                            {"j": jour})
+    else:
+        resultat = executer("SELECT rattraper_uniforme() AS sales")
+
+    return {"articles_sales": (resultat or {}).get("sales", 0)}
+
+
 @routeur.get("/projection", summary="Quand tombe la rupture, et quand lancer la lessive")
 def projection(qui: Authentifie) -> dict:
     lignes = lister(

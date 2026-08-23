@@ -55,85 +55,13 @@ ALTER TABLE notification
 
 
 -- -----------------------------------------------------------------------------
--- Planning consolidé                                                (R29, R86)
+-- v_planning est définie dans `013_sport.sql`, et non ici.
 --
--- Définie ici et non dans `002_vues.sql` : elle interroge `proposition`, qui
--- n'existe qu'à partir de ce fichier, et une vue ne peut pas précéder ce
--- qu'elle lit. Une seule définition, quitte à ce qu'elle ne soit pas rangée
--- avec ses semblables — une vue en double finit toujours par diverger.
---
--- DROP puis CREATE, et non CREATE OR REPLACE : la colonne `id` passe d'INTEGER
--- à BIGINT du fait des propositions, et PostgreSQL refuse de changer le type
--- d'une colonne de vue en place. Sans CASCADE, volontairement : si une autre
--- vue venait un jour à en dépendre, mieux vaut que la migration échoue bruyamment
--- que de la voir disparaître en silence.
+-- Elle réunit occupations, tâches placées et propositions, et nomme désormais
+-- le lieu d'une séance de sport — table qui n'existe qu'à partir de 013. Une
+-- vue ne peut pas précéder ce qu'elle interroge : elle suit donc la dernière
+-- migration qui l'élargit, et reste définie une seule fois.
 -- -----------------------------------------------------------------------------
-DROP VIEW IF EXISTS v_planning;
-
-CREATE VIEW v_planning AS
-SELECT
-    'occupation'                       AS nature,
-    o.id_occupation::BIGINT            AS id,
-    o.id_utilisateur,
-    o.type                             AS categorie,
-    o.libelle,
-    o.periode,
-    lower(o.periode)                   AS debut,
-    upper(o.periode)                   AS fin,
-    FALSE                              AS journee_entiere,
-    NULL::VARCHAR                      AS statut,
-    o.lieu,
-    o.details                          AS motif,
-    0                                  AS nb_relances
-FROM occupation o
-
-UNION ALL
-
-SELECT
-    'tache'                            AS nature,
-    o.id_occurrence::BIGINT            AS id,
-    o.id_utilisateur,
-    t.categorie,
-    t.libelle,
-    o.creneau                          AS periode,
-    lower(o.creneau)                   AS debut,
-    upper(o.creneau)                   AS fin,
-    o.rappel_journee                   AS journee_entiere,
-    o.statut,
-    NULL::VARCHAR                      AS lieu,
-    o.motif,
-    o.nb_relances
-FROM occurrence o
-JOIN tache t ON t.id_tache = o.id_tache
-WHERE o.creneau IS NOT NULL
-  AND o.statut IN ('planifiee', 'notifiee')
-
-UNION ALL
-
--- R86 : une proposition n'occupe rien et ne gèle rien. Elle s'affiche pour
--- qu'on y pense, et quitte le calendrier dès qu'on a répondu.
-SELECT
-    'proposition'                      AS nature,
-    p.id_proposition                   AS id,
-    p.id_utilisateur,
-    'trajet'                           AS categorie,
-    'Week-end libre'
-        || COALESCE(' à ' || p.lieu, '') || ' ?'  AS libelle,
-    p.periode,
-    lower(p.periode)                   AS debut,
-    upper(p.periode)                   AS fin,
-    TRUE                               AS journee_entiere,
-    p.statut,
-    p.lieu,
-    'Repéré par le système : aucune obligation sur cette période' AS motif,
-    0                                  AS nb_relances
-FROM proposition p
-WHERE p.statut = 'proposee';
-
-COMMENT ON VIEW v_planning IS
-    'Occupations, tâches placées et propositions dans une seule vue. Le drapeau
-     journee_entiere décide si l''export produit un VEVENT horaire ou un
-     VEVENT journée entière (R29).';
 
 
 -- -----------------------------------------------------------------------------

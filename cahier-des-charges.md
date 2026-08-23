@@ -181,6 +181,19 @@ Les règles sont classées en trois catégories : les règles sur les données, 
 | R88 | Traitement | Une proposition couverte par une absence est soldée, quelle que soit l'origine de cette absence. Une proposition dont le week-end est passé est périmée |
 | R89 | Traitement | Un week-end décliné ne revient jamais. Revenir à la charge sur un refus est le meilleur moyen de faire couper les notifications |
 | R90 | Traitement | Une proposition s'annonce une fois quinze jours avant, et se relance une seule fois trois jours avant. Jamais deux fois le même jour |
+| R91 | Données | Une séance de sport se fait dans un lieu, et un lieu a des heures. Proposer un créneau hors ouverture reviendrait à proposer une porte close |
+| R92 | Données | Un lieu sans aucun horaire déclaré est ouvert en permanence, dans ses bornes de bon sens. Mais « aucune plage ce jour-là » n'est pas « ouvert en permanence » : la piscine est fermée le dimanche |
+| R93 | Traitement | Le créneau réservé comprend le trajet aller et retour. Sa durée dépend du jour : cinq minutes depuis la fac, vingt depuis l'appartement |
+| R94 | Données | Le quota de sport est hebdomadaire, non périodique. « Trois fois par semaine » ne se traduit pas en « tous les 2,33 jours » |
+| R95 | Traitement | Une séance qui finit après l'heure tardive d'un lieu exige un repos minimum avant la prochaine obligation. La règle ne vise que la nuit : une séance d'après-midi y échappe |
+| R96 | Traitement | Une seule séance par jour. Trois séances entassées le même après-midi ne font pas trois séances |
+| R97 | Données | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux. La piscine n'ouvre que deux heures à midi ; la salle, ouverte tout le jour, proposerait sinon 9h du matin |
+| R98 | Traitement | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
+| R99 | Données | Un lieu peut être fermé sur une période entière, indépendamment de ses heures hebdomadaires. Un SUAPS ferme l'été, aux vacances et entre deux semestres — plus de trois mois par an |
+| R100 | Traitement | Un article d'uniforme part au sale après un nombre de **journées travaillées**, non de jours de calendrier. Travailler lundi puis jeudi salit le pantalon au second service, pas selon la date |
+| R101 | Traitement | Une journée déjà comptée ne se recompte pas. La machine s'éteint, l'ordonnanceur saute des jours et rattrape : sans cette garde, rattraper salirait deux t-shirts pour un seul service |
+| R102 | Traitement | La consommation remonte jusqu'à hier inclus, et jamais aujourd'hui. Un service du soir n'est pas fini le matin, et le compter d'avance annoncerait une lessive qu'on n'a pas méritée |
+| R103 | Traitement | Un retour de linge propre remet à zéro le compteur de journées portées. C'est le sens même de « propre » |
 
 Une règle garde son numéro une fois attribué, même quand une règle plus récente relève d'une catégorie antérieure : les numéros servent de référence dans les contraintes, les opérations et les commentaires du code SQL.
 
@@ -628,6 +641,14 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | R86 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
 | R87 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | R90 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
+| R91 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
+| R94 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
+| R95 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
+| R97 | `preference` appartient à {tot, tard} | Statique forte |
+| R99 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
+| R99 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
+| R100 | `journees_portees` est positif ou nul, et remis à zéro à chaque mise au sale | Dynamique forte |
+| R101 | `dernier_jour_compte` ne recule jamais : une journée antérieure est ignorée | Dynamique forte |
 
 ---
 
