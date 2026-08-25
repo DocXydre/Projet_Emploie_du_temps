@@ -113,8 +113,7 @@ def annuler(id_absence: int, qui: Authentifie) -> dict:
 class DemandeReleve(BaseModel):
     """Courriels bruts encodés en base64, pour rejouer une boîte sans IMAP.
 
-    Le même chemin de code sert à la relève réelle et aux tests : sans cela, ce
-    qui tourne la nuit finirait par diverger de ce qu'on vérifie.
+    Le même code sert à la relève réelle et aux tests.
     """
 
     messages: list[str]
@@ -150,8 +149,7 @@ def a_revoir(qui: Authentifie, limite: int = 10) -> list[dict]:
 def reessayer(qui: Administrateur) -> dict:
     """Oublie les courriels non exploités, pour que la relève les relise.
 
-    À lancer après chaque correction du lecteur : sans cela, les courriels sur
-    lesquels il avait échoué resteraient marqués comme vus, et la correction
-    n'aurait aucun effet visible.
+    À lancer après une correction du lecteur : les courriels sur lesquels il
+    avait échoué sont marqués comme vus et ne seraient pas relus.
     """
     return {"oublies": billets.oublier_les_rates()}

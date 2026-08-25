@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS proposition (
     relancee_le    TIMESTAMPTZ,
     date_creation  TIMESTAMPTZ  NOT NULL DEFAULT now(),
 
-    -- WKD-2 : deux propositions vivantes ne se chevauchent pas. Un cours ajouté
-    -- déplace les bornes d'une fenêtre de quelques heures ; sans cette
-    -- contrainte, le même week-end serait proposé une fois par collecte.
+    -- WKD-2 : deux propositions en cours ne peuvent pas se chevaucher. Évite
+    -- de reproposer le même week-end à chaque collecte, les bornes de la
+    -- fenêtre bougeant de quelques heures d'une fois sur l'autre.
     CONSTRAINT proposition_sans_doublon
         EXCLUDE USING gist (id_utilisateur WITH =, periode WITH &&)
         WHERE (statut = 'proposee')
@@ -94,10 +94,8 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- Repérer les week-ends libres                                       (WKD-1, WKD-4)
 --
--- On regarde plus loin que le délai voulu avant de filtrer : une fenêtre qui
--- commence dans treize jours et finit dans seize serait tronquée par
--- l'horizon, et passerait sous les quarante-huit heures pour une raison qui
--- n'a rien à voir avec l'emploi du temps.
+-- On cherche les fenêtres au-delà du délai demandé, puis on filtre. Sinon une
+-- fenêtre à cheval sur l'horizon est tronquée et perd sa durée minimale.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION proposer_weekends(
     p_utilisateur  INTEGER,
@@ -138,9 +136,8 @@ COMMENT ON FUNCTION proposer_weekends IS
 -- -----------------------------------------------------------------------------
 -- Relancer, une fois                                                      (WKD-5)
 --
--- Une seule relance, et seulement si la première est restée sans réponse.
--- Répéter tous les jours transformerait un service en harcèlement, et la
--- réponse serait de couper les notifications.
+-- Une seule relance, et seulement si la première annonce est restée sans
+-- réponse. Pas de troisième.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION propositions_a_relancer(
     p_jours INTEGER DEFAULT 3
@@ -150,9 +147,8 @@ CREATE OR REPLACE FUNCTION propositions_a_relancer(
      WHERE statut = 'proposee'
        AND annoncee_le IS NOT NULL
        AND relancee_le IS NULL
-       -- Jamais le jour de l'annonce. Un week-end repéré trois jours avant
-       -- serait sinon annoncé puis relancé dans la même minute, ce qui n'est
-       -- pas un rappel mais un bégaiement.
+       -- Jamais le jour de l'annonce : un week-end repéré trois jours avant
+       -- serait annoncé et relancé dans la foulée.
        AND jour_de(annoncee_le) < jour_de(now())
        AND lower(periode) <= now() + make_interval(days => p_jours)
        AND lower(periode) > now()

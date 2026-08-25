@@ -3,9 +3,9 @@
 -- =============================================================================
 -- 013 : séances de sport                                      (SPT-1 à SPT-8)
 --
--- Une séance ressemble à une tâche, à trois différences près : le lieu a des
--- heures d'ouverture, le trajet aller-retour occupe l'agenda, et le quota est
--- hebdomadaire plutôt que périodique.
+-- Une séance ressemble à une tâche, avec trois différences : le lieu a des
+-- heures d'ouverture, le trajet aller-retour occupe l'agenda, et le quota se
+-- compte par semaine et non par période.
 -- =============================================================================
 
 
@@ -42,9 +42,9 @@ CREATE TABLE IF NOT EXISTS lieu_sport (
     heure_tardive    TIME,
     repos_heures     SMALLINT     NOT NULL DEFAULT 0 CHECK (repos_heures >= 0),
 
-    -- SPT-8 : au plus tôt ou au plus tard dans le creux. La piscine n'ouvre que
-    -- deux heures à midi, et l'on veut la première ; la salle est ouverte tout
-    -- le jour, et prendre le plus tôt y proposerait 7h du matin.
+    -- SPT-8 : placer la séance au plus tôt ou au plus tard dans le creux. La
+    -- piscine n'ouvre que deux heures à midi, on prend au plus tôt ; la salle
+    -- est ouverte 24h/24, on prend au plus tard.
     preference       VARCHAR(4)   NOT NULL DEFAULT 'tot'
                                   CHECK (preference IN ('tot', 'tard')),
 
@@ -77,12 +77,11 @@ CREATE TABLE IF NOT EXISTS ouverture (
 -- -----------------------------------------------------------------------------
 -- Fermetures                                                             (SPT-3)
 --
--- Les heures d'ouverture disent une semaine type. Elles ne disent rien de
--- l'été, des vacances de Noël ni de l'entre-deux-semestres — et un SUAPS ferme
--- plus de trois mois par an. Sans cette table, le moteur proposerait tout
--- l'été des créneaux de piscine devant un bâtiment vide.
+-- Les heures d'ouverture décrivent une semaine type. Cette table ajoute les
+-- périodes de fermeture : été, vacances de Noël, entre-deux-semestres. Le
+-- SUAPS ferme plus de trois mois par an.
 --
--- En jours pleins, et non en instants : une fermeture ne commence pas à 14h37.
+-- Les fermetures se comptent en jours pleins, pas en instants.
 -- -----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS fermeture (
     id_fermeture SERIAL       PRIMARY KEY,
@@ -129,10 +128,9 @@ $$;
 -- -----------------------------------------------------------------------------
 -- Trajet à prévoir un jour donné                                          (SPT-4)
 --
--- On ne sait pas où l'on sera à l'heure près, mais on sait si l'on a cours ce
--- jour-là. C'est une approximation, et elle penche du bon côté : compter vingt
--- minutes quand cinq auraient suffi fait perdre un créneau, l'inverse ferait
--- manquer un cours.
+-- On ne sait pas où l'on sera à l'heure près, seulement si l'on a cours ce
+-- jour-là. L'approximation retenue est la plus prudente : on compte le trajet
+-- le plus long des deux.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trajet_minutes(
     p_utilisateur INTEGER,
@@ -490,9 +488,9 @@ ON CONFLICT (id_tache, id_lieu) DO NOTHING;
 -- Définie ici, et non avec les autres vues : elle lit `proposition` et
 -- `lieu_sport`, créées en 012 et 013. Une vue ne peut pas précéder ses tables.
 --
--- DROP puis CREATE plutôt que CREATE OR REPLACE : la colonne `id` passe
--- d'INTEGER à BIGINT, ce qu'un remplacement en place ne permet pas. Sans
--- CASCADE, pour qu'une dépendance oubliée fasse échouer la migration.
+-- DROP puis CREATE, car la colonne `id` passe d'INTEGER à BIGINT :
+-- CREATE OR REPLACE VIEW refuse un changement de type. Pas de CASCADE, pour
+-- que la migration échoue si une vue dépendait de celle-ci.
 -- -----------------------------------------------------------------------------
 DROP VIEW IF EXISTS v_planning;
 

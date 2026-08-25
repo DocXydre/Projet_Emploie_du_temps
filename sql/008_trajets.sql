@@ -126,9 +126,9 @@ COMMENT ON TABLE trajet IS
     'correspondante ; le billet, lui, s''achète ailleurs (TRJ-8).';
 
 
--- Rien ici n'interdit de retenir deux fois le même week-end : c'est la
--- contrainte d'exclusion sur `absence` qui s'en charge, puisque retenir crée
--- une absence. Dupliquer la règle ici la ferait diverger un jour.
+-- Pas de contrainte d'unicité ici : retenir un trajet crée une absence, et
+-- c'est la contrainte d'exclusion sur `absence` qui interdit de retenir deux
+-- fois le même week-end.
 
 
 -- -----------------------------------------------------------------------------
@@ -225,9 +225,8 @@ BEGIN
        SET statut = 'retenue', id_absence = v_absence
      WHERE id_trajet IN (p_aller, p_retour);
 
-    -- TRJ-6 : les autres horaires du même choix n'ont plus lieu d'être. On les
-    -- écarte plutôt que de les supprimer : relire ce qui avait été proposé
-    -- aide à comprendre un choix, six mois plus tard.
+    -- TRJ-6 : les autres horaires proposés passent en « écartée ». On les
+    -- garde en base pour pouvoir relire ce qui avait été proposé.
     UPDATE trajet
        SET statut = 'ecartee'
      WHERE statut = 'proposee'

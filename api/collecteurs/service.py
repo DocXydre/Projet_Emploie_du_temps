@@ -38,9 +38,8 @@ def _enregistrer_conflit(cur, id_source: int, id_utilisateur: int,
     collecte doit pouvoir rendre compte de chaque séance lue, sinon des cours
     disparaissent sans que personne ne s'en aperçoive.
     """
-    # COL-11 : un conflit lointain a toutes les chances d'être corrigé à la source
-    # avant qu'il ne compte. Poser la question maintenant reviendrait à faire
-    # arbitrer du bruit — mais il faut quand même le compter.
+    # COL-11 : un conflit à plus de deux semaines sera souvent corrigé à la
+    # source. On ne demande pas d'arbitrage, mais on le compte.
     if seance.debut > datetime.now(seance.debut.tzinfo) + DELAI_ARBITRAGE:
         return "lointain", None
 
@@ -110,8 +109,8 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
     autres = {"lointain": 0, "connu": 0, "deja_arbitre": 0}
 
     with connexion() as conn, conn.cursor() as cur:
-        # Un conflit déjà tranché en faveur de l'existant ne se repose pas :
-        # sans cela, chaque collecte redemanderait la même chose.
+        # Un conflit déjà tranché en faveur de l'existant n'est pas reposé à
+        # la collecte suivante.
         cur.execute(
             """
             SELECT cle_externe FROM conflit
@@ -249,9 +248,9 @@ def collecter_source(code: str, id_utilisateur: int | None = None,
         **bilan,
     }
 
-    # Toute séance lue doit se retrouver quelque part. Sans ce contrôle, des
-    # cours disparaissent en silence entre le flux et le planning — c'est
-    # précisément ce qui est arrivé aux six premiers chevauchements détectés.
+    # Contrôle de cohérence : toute séance lue doit se retrouver dans l'une
+    # des catégories du bilan. Sinon des cours disparaissent en silence entre
+    # le flux et le planning.
     manquantes = compte_rendu["lues"] - (
         compte_rendu["crees"]
         + compte_rendu["mis_a_jour"]

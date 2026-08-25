@@ -80,10 +80,8 @@ INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
     ('LAVE_VAISSELLE',  'Lancer le lave-vaisselle',  'vaisselle', 2,  10,  3,  4, FALSE, '21:45', '23:30', FALSE, FALSE, TRUE);
 
 
--- Les suites du linge n'ont de sens qu'après une machine : elles ne reviennent
--- pas d'elles-mêmes, seul l'enchaînement les fait apparaître. Sans cela,
--- « étendre le linge » tomberait tous les jours, y compris les semaines où
--- aucune lessive ne tourne.
+-- Les suites du linge ne sont pas récurrentes : elles n'apparaissent qu'à la
+-- suite d'une lessive, par enchaînement.
 INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
                    periodicite_min_jours, periodicite_max_jours,
                    rappel_journee, recurrente) VALUES
@@ -129,8 +127,7 @@ SELECT src.id_tache, cible.id_tache, 12
   JOIN tache cible ON cible.code = 'ETENDRE_LINGE'
  WHERE src.code IN ('LESSIVE_TRAVAIL', 'LESSIVE_BLANC');
 
--- Le linge étendu le soir se plie le lendemain, pas dans la foulée : d'où un
--- délai minimum de 12 heures.
+-- Le linge étendu le soir se plie le lendemain : délai minimum de 12 heures.
 INSERT INTO enchainement (id_tache_source, id_tache_suivante, delai_min_heures, delai_max_heures)
 SELECT src.id_tache, cible.id_tache, 12, 48
   FROM tache src

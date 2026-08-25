@@ -58,9 +58,8 @@ COMMENT ON FUNCTION terminer_absence IS
 -- -----------------------------------------------------------------------------
 -- Déclarer son départ, sans savoir quand on rentre                        (ABS-7)
 --
--- Même raisonnement que pour un aller sans retour : l'absence court jusqu'à ce
--- qui nous rappelle. Choisir une durée au hasard serait pire, puisqu'il
--- faudrait la corriger ensuite.
+-- Comme pour un aller sans retour, l'absence court jusqu'à la première
+-- obligation connue. Elle se termine ensuite avec /retour.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION partir_maintenant(
     p_utilisateur INTEGER,
@@ -85,9 +84,8 @@ BEGIN
      ORDER BY f.debut
      LIMIT 1;
 
-    -- Rien de connu dans le mois : deux jours, le temps qu'un retour se
-    -- déclare. Mieux vaut trop court que trop long — une absence qui traîne
-    -- gèle le ménage sans que personne ne s'en aperçoive.
+    -- Aucune obligation connue dans le mois : on prend deux jours par
+    -- défaut, le temps qu'un retour soit déclaré.
     v_fin := COALESCE(v_fin, p_instant + INTERVAL '2 days');
 
     INSERT INTO absence (id_utilisateur, periode, lieu, origine, commentaire)

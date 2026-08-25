@@ -1,10 +1,10 @@
-"""Proposer un week-end plutôt que d'attendre qu'on le demande.
+"""Repère les week-ends libres et les propose sans qu'on les demande.
 
-Deux échéances : quinze jours avant, quand un billet coûte encore peu, et trois
-jours avant, parce qu'entre les deux on a oublié. Pas de troisième relance.
+Deux annonces : quinze jours avant, quand le billet est encore bon marché, et
+trois jours avant. Pas de troisième.
 
-Une proposition ne gèle rien. Elle s'affiche au calendrier et disparaît dès
-qu'on y a répondu — un refus, un billet acheté, ou un départ déclaré.
+Une proposition ne bloque rien dans le planning. Elle s'affiche au calendrier
+et disparaît dès qu'on y répond : refus, billet acheté ou départ déclaré.
 """
 
 from __future__ import annotations
@@ -20,9 +20,7 @@ LOG = logging.getLogger(__name__)
 def _destinataire(id_utilisateur: int | None) -> int:
     """À qui les propositions s'adressent.
 
-    Le voyage est, dans ce modèle, l'affaire de l'administrateur : c'est lui
-    qui a une famille à l'autre bout de la ligne. Un drapeau par utilisateur
-    serait plus juste et n'a personne à servir aujourd'hui.
+    Les propositions vont à l'administrateur, seul concerné par ces trajets.
     """
     if id_utilisateur is not None:
         return id_utilisateur
@@ -104,9 +102,9 @@ def ecarter(id_proposition: int) -> dict | None:
 def _annoncer(proposition: dict, texte: str, colonne: str) -> None:
     """Dépose la notification et marque l'étape, dans cet ordre.
 
-    Marquer avant d'écrire perdrait l'annonce en cas d'échec ; écrire sans
-    marquer la répéterait à chaque passage. L'ordre choisi risque au pire une
-    annonce en double, ce qui se voit et se corrige, plutôt qu'un silence.
+    La notification est écrite avant que la proposition ne soit marquée. En
+    cas d'échec entre les deux, l'annonce peut partir en double, ce qui se voit
+    et se corrige.
     """
     executer(
         "INSERT INTO notification (id_utilisateur, type, contenu, id_proposition) "

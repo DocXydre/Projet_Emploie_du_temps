@@ -4,8 +4,7 @@ Appairage, mise en forme des messages, exécution des actions, heures de
 silence. `bot.py` ne fait que brancher ces fonctions sur des commandes et des
 boutons.
 
-Sans cette séparation, vérifier qu'un bouton « fait » valide la bonne
-occurrence demanderait de parler à Telegram.
+Cette séparation permet de tester les actions du bot sans appeler Telegram.
 """
 
 from __future__ import annotations
@@ -31,9 +30,8 @@ ACTIONS = ("valider", "reporter", "refuser")
 def appairer(cle_api: str, id_telegram: int) -> dict | None:
     """Associe une conversation Telegram à un compte, via sa clé d'API.
 
-    La clé sert de mot de passe : sans elle, n'importe qui trouvant le nom du
-    bot recevrait le planning. Un même compte peut changer de téléphone, d'où
-    l'écrasement plutôt que le refus.
+    La clé fait office de mot de passe. Un appairage existant est écrasé, ce
+    qui permet de changer de téléphone.
     """
     return executer(
         """
@@ -49,10 +47,9 @@ def appairer(cle_api: str, id_telegram: int) -> dict | None:
 def url_collectable(url: str) -> str:
     """Ramène une URL d'abonnement à quelque chose qu'un client HTTP sait lire.
 
-    Apple, Google et Outlook proposent tous un lien `webcal://`. Ce n'est pas
-    un protocole : c'est du HTTPS avec un préfixe qui dit au système
-    d'exploitation d'ouvrir l'application Calendrier. Le laisser tel quel ferait
-    échouer la collecte sur une erreur incompréhensible.
+    Apple, Google et Outlook donnent des liens en `webcal://`. Ce préfixe sert
+    seulement à ouvrir l'application Calendrier : derrière, c'est du HTTPS. On
+    le remplace donc avant de collecter.
     """
     url = url.strip()
     if url.lower().startswith("webcal://"):
@@ -275,8 +272,7 @@ def seances_sport(id_utilisateur: int, limite: int = 5) -> list[dict]:
 def prochaine_chose(id_utilisateur: int) -> str:
     """Une ligne : ce qui vient ensuite, obligation ou tâche.
 
-    C'est l'en-tête du menu. Un menu qui n'ouvrirait que des boutons obligerait
-    à cliquer pour savoir s'il y a quelque chose à savoir.
+    Sert d'en-tête au menu, pour avoir l'information sans cliquer.
     """
     ligne = un_seul(
         """

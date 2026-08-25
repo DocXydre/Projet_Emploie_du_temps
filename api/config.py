@@ -47,13 +47,13 @@ class Configuration(BaseSettings):
     idmc_url_ics: str = ""
     mcdo_url_ics: str = ""
 
-    # Jeton du bot. Sans lui, l'API tourne mais les notifications restent en file.
+    # Jeton du bot. S'il est absent, l'API tourne et les notifications
+    # s'accumulent en file.
     telegram_token: str = ""
 
     # --- Trajets en train ---------------------------------------------------
-    # Jeton de l'API SNCF (Navitia). Sans lui, les fenêtres de départ se
-    # calculent quand même : c'est seulement la proposition d'horaires qui
-    # devient impossible, et elle le dit.
+    # Jeton de l'API SNCF (Navitia). S'il est absent, les fenêtres de départ
+    # se calculent toujours ; seule la proposition d'horaires est indisponible.
     sncf_token: str = ""
     gare_domicile: str = "NANCY"
     gare_famille: str = "SAINT_DIE"

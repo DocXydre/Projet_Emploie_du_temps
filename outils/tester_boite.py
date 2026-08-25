@@ -157,11 +157,9 @@ def aplatir(texte: str) -> str:
 def montrer_corps(boite: imaplib.IMAP4_SSL, combien: int, depuis_jours: int) -> None:
     """Affiche le texte des derniers courriels, tel que le lecteur le voit.
 
-    On regarde la même fenêtre que l'API, et non les derniers de la boîte :
-    l'ordre des numéros IMAP suit l'ordre d'arrivée dans le libellé, qui n'a
-    rien à voir avec la date des courriels quand un filtre est appliqué
-    rétroactivement. Sans ce filtre, on tombe sur des billets de 2022 pendant
-    que l'API bute sur ceux de cette année.
+    On applique la même fenêtre de dates que l'API. Les numéros IMAP suivent
+    l'ordre d'arrivée dans le libellé, qui ne correspond pas à la date des
+    courriels quand un filtre a été appliqué rétroactivement.
 
     Seules les lignes portant une gare, une heure ou une date sont montrées :
     un courriel de confirmation fait plusieurs centaines de lignes de pied de

@@ -34,9 +34,8 @@ VALUES
 ON CONFLICT (code) DO NOTHING;
 
 COMMENT ON COLUMN source.active IS
-    'Les calendriers personnels naissent inactifs : sans URL, une collecte
-     échouerait toutes les heures et ferait passer la source pour en panne.
-     Donner l''URL les active (COL-14).';
+    'Les calendriers personnels sont créés inactifs, faute d''URL. Renseigner
+     l''URL les active (COL-14).';
 
 
 -- -----------------------------------------------------------------------------

@@ -42,9 +42,8 @@ ENSEIGNANT = re.compile(r"^[A-ZÀ-ÝŒ][A-ZÀ-ÝŒ'’\- ]{2,}\s+[A-ZÀ-ÝŒ][a-
 # Codes de maquette : « 7JEMEN11PO|7JMEN1102 ».
 CODE_MAQUETTE = re.compile(r"^[A-Z0-9|]+$")
 
-# « grp » avant « gr » : l'alternance s'arrête au premier motif qui colle, et
-# « gr » seul laissait passer « Grp 2 » — la séance entrait au planning et
-# ressortait en conflit, alors qu'elle aurait dû être écartée comme les autres.
+# « grp » est placé avant « gr » : l'alternance retient le premier motif qui
+# correspond, et « gr » seul ne reconnaissait pas « Grp 2 ».
 GROUPE = re.compile(r"\b(?:gpe|groupe|grp|gr)\s*([0-9])\b", re.IGNORECASE)
 
 # --- Profil Easy at Work ----------------------------------------------------
@@ -173,9 +172,8 @@ def _seance_perso(uid: str, resume: str, debut: datetime, fin: datetime,
                   location: str | None, description: str | None) -> Seance:
     """Un événement saisi à la main dans une application de calendrier.
 
-    Rien à normaliser : ce que la personne a écrit est ce qu'elle voulait dire.
-    Les profils ADE et Easy at Work nettoient parce qu'ils lisent des flux
-    engendrés par des machines ; ici, corriger serait présumer.
+    Aucun nettoyage : on reprend le libellé tel quel. Les profils ADE et
+    Easy at Work normalisent parce qu'ils lisent des flux générés.
     """
     return Seance(
         cle_externe=uid,
@@ -256,8 +254,8 @@ def analyser(texte_ics: str, profil: str = "ade") -> list[Seance]:
 def langues_suivies(configuration: dict) -> list[str]:
     """Langues réellement suivies, une fois l'alternance prise en compte.
 
-    En alternance, l'espagnol saute : c'est une règle de la maquette, pas une
-    préférence, d'où sa place dans la configuration plutôt que dans le code.
+    En alternance, l'espagnol n'est pas suivi. La règle vient de la maquette
+    et se règle dans la configuration de la source.
     """
     suivies = [langue.lower() for langue in configuration.get("langues_suivies", [])]
     if configuration.get("alternance"):
@@ -296,9 +294,9 @@ def a_garder(seance: Seance, configuration: dict) -> tuple[bool, str]:
 def url_fenetre_glissante(url: str, horizon_jours: int, aujourd_hui: date | None = None) -> str:
     """Recale les bornes de dates du flux sur une fenêtre glissante.
 
-    L'URL de l'ADE contient des dates fixes : sans ce recalage, le flux se
-    viderait au fil du semestre. Les flux qui n'ont pas ces paramètres, comme
-    celui d'Easy at Work, ne sont pas modifiés.
+    L'URL de l'ADE contient des dates de début et de fin fixes. On les décale
+    à chaque collecte pour que le flux suive le semestre. Les URL sans ces
+    paramètres, comme celle d'Easy at Work, sont renvoyées telles quelles.
     """
     morceaux = urlparse(url)
     params = dict(parse_qsl(morceaux.query))

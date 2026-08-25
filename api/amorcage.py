@@ -54,8 +54,8 @@ def amorcer_sources() -> dict[str, bool]:
 def amorcer_assignations() -> int:
     """Rejoue les assignations par défaut.
 
-    Les comptes sont souvent créés après les migrations : sans ce rattrapage,
-    les tâches resteraient sans assigné.
+    Les comptes sont souvent créés après les migrations, ce qui laisse les
+    tâches sans assigné. Cette fonction rattrape le retard.
 
     L'ordre compte : `appliquer_assignations` donne à l'administrateur toute
     source orpheline, donc les calendriers personnels passent d'abord (COL-16).

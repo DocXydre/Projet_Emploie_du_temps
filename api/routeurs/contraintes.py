@@ -219,8 +219,8 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
 
     with connexion() as conn, conn.cursor() as cur:
         if demande.garder == "nouvelle":
-            # On libère la place avant d'insérer : la contrainte d'exclusion
-            # refuserait les deux versions en même temps.
+            # Suppression avant insertion : la contrainte d'exclusion
+            # interdit que les deux versions coexistent.
             cur.execute("DELETE FROM occupation WHERE id_occupation = %(o)s",
                         {"o": conflit["id_occupation"]})
             cur.execute(

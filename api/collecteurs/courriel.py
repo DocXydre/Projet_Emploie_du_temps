@@ -1,16 +1,13 @@
 """Lecture des confirmations d'achat SNCF.
 
-Deux précautions structurent le module.
+Le module lit la boîte aux lettres, repère les courriels de billets et en
+extrait les trajets (gares, date, horaires).
 
-Sécurité : les faux courriels au nom de la SNCF sont répandus, et un courriel
-non vérifié pourrait déclarer une absence. La liste des expéditeurs acceptés
-est fermée (BIL-2).
+Seuls les expéditeurs de la liste blanche sont analysés (BIL-2). Un courriel
+qu'on ne sait pas lire est conservé avec son motif (BIL-8).
 
-Robustesse : le format de ces courriels change sans préavis. L'analyse est donc
-tolérante, et ce qu'elle ne sait pas lire est conservé avec son motif plutôt
-que jeté (BIL-8).
-
-IMAP et analyse sont séparés : les tests rejouent des courriels enregistrés.
+La partie IMAP et la partie analyse sont séparées, ce qui permet aux tests de
+rejouer des courriels enregistrés sans réseau.
 """
 
 from __future__ import annotations
@@ -31,8 +28,8 @@ from api.config import configuration
 
 LOG = logging.getLogger(__name__)
 
-# BIL-2 : les domaines réellement utilisés par SNCF Connect. Tout le reste est
-# ignoré sans être analysé — c'est une liste blanche, pas un filtre anti-spam.
+# BIL-2 : liste blanche des domaines de SNCF Connect. Un courriel venant d'un
+# autre domaine est ignoré sans être analysé.
 EXPEDITEURS = (
     "mail.sncf-connect.com",
     "mail.sncfconnect.com",
@@ -41,18 +38,15 @@ EXPEDITEURS = (
     "sncf-connect.com",
 )
 
-# Gares reconnues, avec leurs orthographes courantes. L'annuaire complet n'a
-# aucun intérêt ici : deux gares suffisent, et une gare inconnue doit rendre le
-# courriel illisible plutôt que d'être devinée.
+# Gares reconnues et leurs orthographes courantes. Une gare absente de cette
+# table rend le courriel illisible.
 VARIANTES = {
     "NANCY": ("nancy ville", "nancy-ville", "nancy"),
     "SAINT_DIE": (
         "saint die des vosges", "saint-die-des-vosges", "st die des vosges",
         "st-die-des-vosges", "saint die", "st die",
     ),
-    # Lunéville est sur la ligne, et sert de point de départ certaines fois.
-    # Ce qui compte n'est pas de savoir d'où l'on part, mais où l'on va : tout
-    # ce qui n'est pas la gare famille est du côté de la maison.
+    # Lunéville est sur la ligne et sert parfois de gare de départ.
     "LUNEVILLE": ("luneville", "lunéville"),
 }
 
@@ -79,19 +73,16 @@ HEURE = re.compile(r"\b(\d{1,2})\s*[h:]\s*(\d{2})\b")
 DATE_LONGUE = re.compile(
     r"\b(\d{1,2})\s+(" + "|".join(MOIS) + r")\s+(\d{4})\b")
 DATE_COURTE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
-# Le mot-clé se lit sans égard à la casse ni aux accents, mais la référence
-# elle-même est en capitales : la chercher en minuscules attraperait n'importe
-# quel mot de six lettres.
+# Le mot-clé est cherché sans tenir compte de la casse ni des accents. La
+# référence, elle, est en capitales : six lettres majuscules.
 REFERENCE = re.compile(
     r"(?i:dossier|r[ée]f[ée]rence|r[ée]servation)\D{0,30}?\b([A-Z]{6})\b")
 
-# Un sujet de confirmation contient « voyage ». Les prospectus n'en contiennent
-# pas, et c'est le seul mot sur lequel on peut compter : le reste de la phrase
-# change de forme d'une année sur l'autre.
+# Le sujet d'une confirmation contient toujours le mot « voyage ». C'est le
+# seul repère stable : le reste de la phrase change d'une année sur l'autre.
 MOT_VOYAGE = re.compile(r"\bvoyage\b")
 
-# « durée 1h35 » n'est pas un horaire. Sans cette exclusion, la durée du trajet
-# se glisserait dans la suite des heures et décalerait tout.
+# Exclut les durées (« durée 1h35 »), qui ne sont pas des horaires.
 AVANT_DUREE = re.compile(r"(dur[ée]e?|trajet\s+de|environ)\W{0,12}$")
 
 
@@ -101,16 +92,16 @@ class Segment:
     arrivee_gare: str
     depart: datetime
     arrivee: datetime
-    # Vrai quand le trajet vient du sujet : on connaît le jour, pas l'heure.
+    # Vrai quand le trajet vient du sujet : on a le jour, pas l'heure.
     sans_horaire: bool = False
 
     @property
     def sens(self) -> str:
-        """Ce qui compte n'est pas d'où l'on part, mais où l'on va.
+        """Aller ou retour, selon la gare d'arrivée.
 
-        Comparer au domicile supposerait qu'il soit toujours le même — or on
-        part tantôt de Nancy, tantôt de Lunéville. La gare famille, elle, ne
-        change pas : aller vers elle est un aller, en revenir est un retour.
+        On regarde la gare d'arrivée et non celle de départ, car le départ se
+        fait tantôt de Nancy, tantôt de Lunéville. Arriver à la gare famille
+        est un aller, en repartir est un retour.
         """
         famille = configuration().gare_famille
         return "aller" if self.arrivee_gare == famille else "retour"
@@ -136,11 +127,10 @@ def _sans_accent(texte: str) -> str:
 
 
 def normaliser(texte: str) -> str:
-    """Minuscules, sans accent, espaces resserrés. Les tirets deviennent des espaces.
+    """Minuscules, sans accent, espaces resserrés, tirets remplacés par des espaces.
 
-    Les courriels mélangent « Saint-Dié-des-Vosges », « ST DIE DES VOSGES » et
-    « Saint Dié ». Comparer sans normaliser reviendrait à écrire une variante
-    par service marketing.
+    Les courriels écrivent « Saint-Dié-des-Vosges », « ST DIE DES VOSGES » ou
+    « Saint Dié ». Après normalisation, les trois se comparent.
     """
     texte = _sans_accent(texte).lower()
     texte = texte.replace(" ", " ").replace("’", "'")
@@ -164,8 +154,8 @@ def texte_de(message: EmailMessage) -> str:
     contenu = corps.get_content()
     if corps.get_content_subtype() == "html":
         contenu = re.sub(r"(?is)<(script|style).*?</\1>", " ", contenu)
-        # Les sauts de ligne portent du sens : une gare et son heure sont sur
-        # la même ligne, l'arrivée sur la suivante.
+        # Les balises de fin de bloc deviennent des sauts de ligne : une gare
+        # et son heure sont sur la même ligne, l'arrivée sur la suivante.
         contenu = re.sub(r"(?i)<(br|/p|/div|/tr|/td)[^>]*>", "\n", contenu)
         contenu = re.sub(r"<[^>]+>", " ", contenu)
         contenu = html.unescape(contenu)
@@ -174,11 +164,10 @@ def texte_de(message: EmailMessage) -> str:
 
 
 def _jetons(texte: str) -> list[tuple[int, str, object]]:
-    """Suite ordonnée des dates, gares et heures rencontrées.
+    """Suite ordonnée des dates, gares et heures rencontrées dans le texte.
 
-    Travailler sur un flux de jetons plutôt que ligne par ligne : la même
-    information s'écrit sur une ligne dans un courriel en texte et sur quatre
-    dans sa version HTML, et on ne veut pas deux analyses.
+    On travaille sur ces jetons et non ligne par ligne, car la même information
+    tient sur une ligne en texte brut et sur quatre en HTML.
     """
     jetons: list[tuple[int, str, object]] = []
 
@@ -204,8 +193,8 @@ def _jetons(texte: str) -> list[tuple[int, str, object]]:
 
     jetons.sort(key=lambda j: j[0])
 
-    # Une gare citée deux fois de suite — « Nancy Ville » suivi de « Nancy » —
-    # ne fait qu'une gare. Sans ce repli, l'appariement se décalerait.
+    # « Nancy Ville » suivi de « Nancy » ne compte que pour une gare : on
+    # supprime les répétitions consécutives.
     resserres: list[tuple[int, str, object]] = []
     for jeton in jetons:
         if resserres and jeton[1] == "gare" == resserres[-1][1] \
@@ -218,9 +207,8 @@ def _jetons(texte: str) -> list[tuple[int, str, object]]:
 def segments_de(texte: str) -> list[Segment]:
     """Apparie les jetons en trajets : une gare, une heure, une gare, une heure.
 
-    Le motif est celui de tous les récapitulatifs de voyage, quelle que soit la
-    mise en page. Ce qui ne le suit pas n'est pas deviné : mieux vaut un
-    courriel signalé illisible qu'une absence inventée.
+    C'est le motif des récapitulatifs de voyage. Ce qui ne le suit pas est
+    ignoré, et le courriel ressort illisible.
     """
     texte = normaliser(texte)
     jetons = _jetons(texte)
@@ -244,8 +232,7 @@ def segments_de(texte: str) -> list[Segment]:
 
         attendu = ("gare", "heure", "gare", "heure")[len(tampon)]
         if genre != attendu:
-            # Un jeton hors motif casse la série en cours plutôt que de
-            # décaler l'appariement sur tout le reste du courriel.
+            # Un jeton hors motif remet la série à zéro.
             vider()
             if genre == "gare":
                 tampon.append((genre, valeur))
@@ -283,8 +270,8 @@ def segment_du_sujet(sujet: str) -> Segment | None:
     donne les deux gares, le sens et la date ; le corps ne contient que
     l'horodatage du paiement.
 
-    Faute d'horaire, on borne la journée entière. On repère les gares plutôt
-    qu'une forme de phrase : la tournure change d'une année sur l'autre.
+    Comme on n'a pas les horaires, le segment couvre la journée entière. On
+    repère les gares et non une tournure de phrase, qui change chaque année.
     """
     texte = normaliser(sujet)
     if not MOT_VOYAGE.search(texte):
@@ -319,11 +306,10 @@ def segment_du_sujet(sujet: str) -> Segment | None:
 
 
 def _pourquoi_rien(normalise: str) -> str:
-    """Dit ce qui a été vu, plutôt que ce qui a manqué.
+    """Message d'échec qui compte ce qui a été trouvé : gares, heures, dates.
 
-    « Aucun trajet reconnu » ne permet pas de corriger quoi que ce soit : on ne
-    sait pas si la gare est inconnue, si les heures sont écrites autrement, ou
-    si la date manque. Compter ce qu'on a trouvé répond aux trois d'un coup.
+    Plus utile qu'un simple « aucun trajet reconnu » pour comprendre d'où vient
+    le problème.
     """
     gares = sorted({g for m in GARE.finditer(normalise)
                     if (g := _gare_de(m.group(0))) is not None})
@@ -341,11 +327,10 @@ def expediteur_reconnu(adresse: str) -> bool:
 
 
 def analyser(brut: bytes) -> Lecture:
-    """Lit un courriel entier, et dit ce qu'il en a compris.
+    """Lit un courriel entier et renvoie ce qui en a été compris.
 
-    Ne lève jamais : un courriel mal formé est un résultat, pas un incident.
-    Le relevé tourne sans surveillance, et une exception y ferait perdre les
-    courriels suivants.
+    Ne lève jamais d'exception : un courriel mal formé ressort avec le statut
+    « illisible » et son motif, et la relève continue avec les suivants.
     """
     message = email.message_from_bytes(brut, policy=email.policy.default)
 
@@ -390,11 +375,9 @@ def analyser(brut: bytes) -> Lecture:
             lecture.segments = [depuis_sujet]
 
     if not lecture.segments:
-        # Ce qui fait d'un courriel un billet, ce n'est pas le mot « commande »
-        # mais la présence d'une gare. Un abonnement, une carte de réduction,
-        # un reçu : tout cela est une commande sans trajet, et le signaler
-        # éternellement serait du bruit. En revanche, une gare reconnue sans
-        # trajet exploitable est une vraie anomalie, à corriger (BIL-8).
+        # C'est la présence d'une gare qui distingue un billet d'un abonnement
+        # ou d'un reçu. Sans gare, le courriel est simplement ignoré ; avec une
+        # gare mais sans trajet lisible, il est signalé à revoir (BIL-8).
         gares = GARE.search(normalise) or GARE.search(normaliser(sujet))
         lecture.statut = "illisible" if gares else "ignore"
         lecture.motif = (
@@ -419,11 +402,10 @@ class BoiteIndisponible(Exception):
 
 
 def nom_de_dossier(dossier: str) -> str:
-    """Nom de dossier tel qu'IMAP l'attend, guillemets compris.
+    """Entoure le nom de dossier de guillemets, comme IMAP l'attend.
 
-    Un libellé Gmail est un dossier IMAP, et un libellé s'appelle volontiers
-    « Billets SNCF ». Sans guillemets, l'espace coupe la commande en deux et le
-    serveur répond qu'il ne connaît pas « Billets ».
+    Un libellé Gmail est un dossier IMAP et peut contenir un espace
+    (« Billets SNCF ») : sans guillemets, la commande est coupée en deux.
     """
     dossier = dossier.strip()
     if dossier.startswith('"') and dossier.endswith('"'):
@@ -432,13 +414,10 @@ def nom_de_dossier(dossier: str) -> str:
 
 
 def criteres_recherche(depuis: datetime, filtre_expediteur: str = "") -> tuple[str, ...]:
-    """Critères passés au serveur, plutôt que de trier après coup.
+    """Critères de recherche envoyés au serveur IMAP : date et expéditeur.
 
-    Le filtre sur l'expéditeur compte surtout quand on lit directement la boîte
-    de réception : rapatrier plusieurs milliers de courriels pour en analyser
-    trois serait long et sans objet. Il ne remplace pas la liste blanche, qui
-    reste seule juge de ce qu'on accepte (BIL-2) — un serveur qui filtrerait mal
-    ne doit pas pouvoir faire entrer un courriel non vérifié.
+    Filtrer côté serveur évite de télécharger toute la boîte de réception. La
+    liste blanche est vérifiée ensuite de toute façon (BIL-2).
     """
     criteres: list[str] = ["SINCE", depuis.strftime("%d-%b-%Y")]
     if filtre_expediteur:
@@ -447,11 +426,10 @@ def criteres_recherche(depuis: datetime, filtre_expediteur: str = "") -> tuple[s
 
 
 def _selectionner(boite: imaplib.IMAP4_SSL, dossier: str) -> None:
-    """Ouvre le dossier en lecture seule, et dit lesquels existent en cas d'échec.
+    """Ouvre le dossier en lecture seule.
 
-    Lecture seule : lire la boîte ne doit pas marquer les courriels comme lus.
-    Un système qui fait disparaître le gras des messages non lus dans le dos de
-    son propriétaire ne se fait pardonner qu'une fois.
+    Le mode lecture seule évite de marquer les courriels comme lus. Si le
+    dossier n'existe pas, l'erreur liste ceux qui existent.
     """
     statut, _ = boite.select(nom_de_dossier(dossier), readonly=True)
     if statut == "OK":
@@ -480,11 +458,11 @@ def identifiant_de(entete: bytes) -> str:
 
 def relever_imap(depuis_jours: int | None = None,
                  connus: set[str] | None = None) -> list[bytes]:
-    """Récupère les courriels récents. Seule fonction du module qui parle au réseau.
+    """Récupère les courriels récents. Seule fonction du module qui utilise le réseau.
 
-    Deux passes : les Message-ID d'abord, puis les corps des seuls courriels
-    neufs. Un libellé de cent soixante-dix confirmations les téléchargeait
-    sinon toutes, toutes les deux heures (BIL-1).
+    Se fait en deux passes : les Message-ID d'abord, puis les corps des seuls
+    courriels encore inconnus. Évite de retélécharger toute la boîte toutes les
+    deux heures (BIL-1).
     """
     conf = configuration()
     if not (conf.imap_hote and conf.imap_utilisateur and conf.imap_mot_de_passe):
@@ -517,9 +495,8 @@ def relever_imap(depuis_jours: int | None = None,
                 statut, donnees = boite.fetch(
                     numero, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
                 if statut != "OK" or not donnees or not isinstance(donnees[0], tuple):
-                    # En-tête illisible : on rapatrie quand même, l'analyse
-                    # tranchera. Mieux vaut un courriel de trop qu'un billet
-                    # perdu faute d'identifiant.
+                    # En-tête illisible : on télécharge quand même le corps,
+                    # l'analyse décidera.
                     a_lire.append(numero)
                     continue
                 if identifiant_de(donnees[0][1]) not in connus:

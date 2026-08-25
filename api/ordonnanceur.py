@@ -84,9 +84,8 @@ def relever_la_boite() -> dict:
 def proposer_les_weekends() -> dict:
     """Repère les week-ends libres, les annonce, et relance une fois.
 
-    Une fois par jour suffit : un creux de deux jours n'apparaît pas dans
-    l'heure, et annoncer deux fois le même week-end le même jour serait le
-    plus sûr moyen de faire couper les notifications.
+    Appelé une fois par jour : un creux de deux jours n'apparaît pas d'une
+    heure sur l'autre.
     """
     from api import propositions
 
@@ -131,9 +130,8 @@ def report_de_minuit() -> int:
 def consommer_l_uniforme() -> int:
     """Compte les journées de travail passées, et salit ce qui doit l'être.
 
-    Rattrape les jours manqués plutôt que de ne traiter qu'hier : sur une
-    machine qui s'éteint, ne regarder que la veille reviendrait à perdre une
-    semaine de services au premier week-end.
+    Traite tous les jours non encore comptés, et pas seulement la veille : la
+    machine peut avoir été éteinte plusieurs jours.
     """
     resultat = executer("SELECT rattraper_uniforme() AS sales")
     sales = (resultat or {}).get("sales", 0)
@@ -155,11 +153,10 @@ def demarrer() -> BackgroundScheduler:
     def a(heure: int, minute: int) -> CronTrigger:
         """Un rendez-vous quotidien, à l'heure de Paris.
 
-        Le fuseau doit être redonné ici. Un CronTrigger construit à la main fige
-        le sien à la construction, en lisant celui du système — UTC dans le
-        conteneur — et le scheduler ne revient pas le corriger : le sien ne vaut
-        que pour les déclencheurs qu'il crée lui-même. Sans ce paramètre, le
-        « report de minuit » tombait à 2 h du matin, une fois la date changée.
+        Le fuseau est redonné ici. Un CronTrigger construit à la main fige le
+        sien à la construction, en lisant celui du système — UTC dans le
+        conteneur — et le fuseau du scheduler ne s'applique pas aux
+        déclencheurs qu'on lui passe tout faits.
         """
         return CronTrigger(hour=heure, minute=minute, timezone=conf.fuseau)
 
@@ -167,9 +164,8 @@ def demarrer() -> BackgroundScheduler:
                          id="collectes", name="Collecte des sources dues",
                          max_instances=1, coalesce=True)
 
-    # Toutes les deux heures : un billet s'achète rarement dans la minute où
-    # l'on veut que le ménage se replace, et relever plus souvent ne ferait
-    # qu'ouvrir plus de connexions IMAP pour rien.
+    # Toutes les deux heures : suffisant pour un achat de billet, et ça évite
+    # d'ouvrir des connexions IMAP en continu.
     ordonnanceur.add_job(relever_la_boite, IntervalTrigger(hours=2),
                          id="boite", name="Relève des confirmations SNCF",
                          max_instances=1, coalesce=True)

@@ -47,10 +47,9 @@ def fenetres(id_utilisateur: int, jours: int | None = None,
 def rang_contenant(id_utilisateur: int, instant: datetime) -> int | None:
     """Rang de la fenêtre qui contient cet instant, ou None si elle a disparu.
 
-    Sert à faire le lien entre une proposition annoncée il y a quinze jours et
-    la fenêtre d'aujourd'hui : entre les deux, un cours a pu tomber au milieu
-    et faire disparaître le creux. Mieux vaut le dire que proposer des trains
-    pour un week-end qui n'est plus libre.
+    Fait le lien entre une proposition annoncée il y a quinze jours et les
+    fenêtres d'aujourd'hui. Renvoie None si un cours est tombé au milieu et a
+    fait disparaître le creux.
     """
     for rang, creneau in enumerate(fenetres(id_utilisateur), start=1):
         if creneau["debut"] <= instant < creneau["fin"]:
@@ -61,10 +60,8 @@ def rang_contenant(id_utilisateur: int, instant: datetime) -> int | None:
 def fenetre(id_utilisateur: int, rang: int = 1) -> dict | None:
     """La n-ième fenêtre à venir, comptée à partir de 1.
 
-    Le rang plutôt qu'un identifiant : une fenêtre n'est pas une donnée, c'est
-    le résultat d'un calcul. Lui donner une clé obligerait à la stocker, donc à
-    la tenir à jour à chaque collecte — pour un objet dont la durée de vie utile
-    se compte en secondes.
+    Les fenêtres sont recalculées à chaque appel et ne sont pas stockées en
+    base : on les désigne donc par leur rang et non par un identifiant.
     """
     toutes = fenetres(id_utilisateur)
     if rang < 1 or rang > len(toutes):
@@ -119,8 +116,7 @@ def proposer_aller(id_utilisateur: int, rang: int = 1,
     trouves = sncf.chercher(
         conf.gare_domicile, conf.gare_famille,
         pas_avant=creneau["depart_au_plus_tot"],
-        # On ne veut pas d'un train qui arrive après la fin de la fenêtre :
-        # il ferait rater le retour avant même d'être parti.
+        # Le train doit arriver avant la fin de la fenêtre.
         arrive_avant=creneau["fin"],
         charge=charge,
     )
@@ -155,9 +151,9 @@ def proposer_retour(id_trajet_aller: int, charge: dict | None = None) -> dict:
 
     conf = configuration()
 
-    # La fenêtre qui contient l'aller : c'est elle qui dit jusqu'à quand on
-    # peut rester. On la retrouve par sa date plutôt que par un identifiant,
-    # puisqu'elle n'en a pas.
+    # On cherche la fenêtre qui contient l'aller : c'est elle qui donne la
+    # date limite du retour. Recherche par date, les fenêtres n'ayant pas
+    # d'identifiant.
     contenante = next(
         (f for f in fenetres(aller["id_utilisateur"], duree_heures=1)
          if f["debut"] <= aller["depart"] < f["fin"]),
@@ -167,9 +163,7 @@ def proposer_retour(id_trajet_aller: int, charge: dict | None = None) -> dict:
 
     trouves = sncf.chercher(
         conf.gare_famille, conf.gare_domicile,
-        # Un séjour d'une nuit au minimum : sans ce plancher, la SNCF
-        # proposerait le train suivant, qui repart avant qu'on soit sorti
-        # de la gare.
+        # Douze heures sur place au minimum, soit une nuit.
         pas_avant=aller["arrivee"] + timedelta(hours=12),
         arrive_avant=limite,
         charge=charge,
@@ -196,9 +190,8 @@ def proposer_retour(id_trajet_aller: int, charge: dict | None = None) -> dict:
 def retenir(id_aller: int, id_retour: int | None = None) -> dict:
     """Transforme des horaires en absence, et refait le planning.
 
-    Le replacement est immédiat et non différé : sans lui, les tâches
-    resteraient posées sur des jours où l'on ne sera pas là, et le bot
-    enverrait le soir même un rappel pour un appartement vide.
+    Le replacement se fait tout de suite, pour déplacer les tâches posées sur
+    les jours d'absence avant que le bot n'envoie ses rappels du soir.
     """
     ligne = un_seul(
         "SELECT retenir_trajet(%(a)s, %(r)s) AS id_absence",

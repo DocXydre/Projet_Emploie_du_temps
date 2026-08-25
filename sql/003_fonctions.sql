@@ -144,9 +144,9 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- Présence dans l'appartement                                     (ABS-1, ABS-2)
 --
--- On ne compte absent qu'un jour entièrement couvert par une absence. Partir
--- vendredi soir laisse la journée de vendredi utilisable : la tâche peut être
--- faite avant le départ, et la geler reviendrait à créer un retard fictif.
+-- Un jour n'est absent que s'il est entièrement couvert par une absence.
+-- Partir vendredi soir laisse donc la journée de vendredi utilisable : la
+-- tâche peut encore être faite avant le départ.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION est_absent(p_utilisateur INTEGER, p_jour DATE)
 RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
@@ -293,9 +293,8 @@ BEGIN
         v_libre := temps_libre_jour(p_utilisateur, v_jour) - make_interval(mins => v_deja);
 
         -- Deux critères, dans cet ordre : d'abord le moins de tâches déjà
-        -- posées, ensuite le plus de temps libre. Le second compte autant que
-        -- le premier — sans lui, une journée occupée de 1h à 23h paraîtrait
-        -- idéale du seul fait qu'aucune tâche n'y est encore prévue.
+        -- posées, ensuite le plus de temps libre. Le second départage les
+        -- journées vides de tâches mais déjà très occupées.
         IF v_libre >= p_duree
            AND (v_charge_min IS NULL
                 OR v_deja < v_charge_min
@@ -325,8 +324,8 @@ END $$;
 CREATE OR REPLACE FUNCTION generer_occurrences(p_horizon_jours INTEGER DEFAULT 35)
 RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
-    -- Garde-fou : une tâche quotidienne sur un horizon d'un an ferait boucler
-    -- longtemps. Aucune configuration raisonnable n'atteint cette limite.
+    -- Garde-fou contre une boucle trop longue. Les horizons utilisés en
+    -- pratique restent bien en dessous.
     ITERATIONS_MAX CONSTANT INTEGER := 60;
 
     t         RECORD;
@@ -338,9 +337,8 @@ DECLARE
 BEGIN
     v_limite := now() + make_interval(days => p_horizon_jours);
 
-    -- TAC-8 : les tâches non récurrentes n'apparaissent que par enchaînement.
-    -- Sans ce filtre, « étendre le linge » reviendrait tous les jours, même
-    -- les semaines où aucune machine ne tourne.
+    -- TAC-8 : on ne génère que les tâches récurrentes. Les autres, comme
+    -- « étendre le linge », sont créées par enchaînement après une lessive.
     FOR t IN SELECT * FROM tache WHERE active AND recurrente ORDER BY priorite LOOP
 
         -- Où en est cette tâche ? Trois cas, du plus précis au plus flou.
@@ -397,7 +395,7 @@ END $$;
 -- Projection du stock de vêtements de travail                    (opération 3)
 --
 -- On déroule les journées de travail à venir en décrémentant le stock, et on
--- s'arrête à la première qui passerait sous le seuil de sécurité.
+-- s'arrête à la première qui passe sous le seuil de sécurité.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION projeter_stock(p_utilisateur INTEGER)
 RETURNS TABLE (
@@ -465,12 +463,11 @@ BEGIN
         RETURN 0;   -- le stock tient sur tous les shifts connus
     END IF;
 
-    -- UNI-11 : trop tard pour que le linge sèche. On alerte au lieu de planifier
-    -- une tâche qui ne résoudrait rien.
+    -- UNI-11 : l'échéance est dépassée, le linge n'aura pas le temps de
+    -- sécher. On envoie une alerte au lieu de planifier une lessive.
     --
-    -- Ce contrôle vient avant celui de l'occurrence existante : sinon une
-    -- lessive déjà prévue mais devenue intenable ferait taire l'alerte, ce qui
-    -- est exactement le cas où l'on a le plus besoin d'être prévenu.
+    -- Ce contrôle passe avant celui de l'occurrence existante, pour que
+    -- l'alerte parte même si une lessive était déjà prévue.
     IF v_echeance <= now() THEN
         INSERT INTO notification (id_utilisateur, type, contenu)
         SELECT p_utilisateur, 'alerte',
@@ -561,10 +558,8 @@ BEGIN
 
         CONTINUE WHEN NOT v_disponible;
 
-        -- PLA-10 : seules les tâches domestiques entrent dans la balance. Le
-        -- sport est personnel : le compter reviendrait à faire payer ses
-        -- séances de piscine en heures de ménage, et à donner l'appartement
-        -- entier à l'autre.
+        -- PLA-10 : seules les tâches domestiques entrent dans la balance de
+        -- répartition. Le sport est personnel et n'est pas compté.
         SELECT COALESCE(sum(t2.duree_minutes), 0) INTO v_charge
           FROM occurrence o
           JOIN tache t2 ON t2.id_tache = o.id_tache
@@ -613,11 +608,9 @@ BEGIN
     -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
     v_gele := now() + make_interval(days => p_stabilite_jours);
 
-    -- ABS-5 : sauf si la personne n'est plus là ce jour-là. Le gel protège un
-    -- plan encore tenable ; il n'a pas à protéger un plan devenu impossible.
-    -- Sans cette exception, déclarer un départ pour le week-end prochain — le
-    -- cas courant, puisqu'on s'y prend rarement un mois à l'avance — ne
-    -- déplacerait rien du tout.
+    -- ABS-5 : exception au gel, quand la personne est absente ce jour-là.
+    -- Sans elle, un départ déclaré pour le week-end prochain ne déplacerait
+    -- aucune tâche, puisqu'il tombe dans la période gelée.
     UPDATE occurrence
        SET creneau = NULL, statut = 'a_placer', motif = NULL
      WHERE statut = 'planifiee'
@@ -691,9 +684,8 @@ BEGIN
                            END
              WHERE id_occurrence = o.id_occurrence;
 
-            -- PLA-9 : quand il n'existe aucune intersection, on le dit. Placer la
-            -- tâche au hasard reviendrait à proposer un moment où l'un des deux
-            -- n'est pas là, ce qui décrédibilise tout le reste du planning.
+            -- PLA-9 : aucun créneau commun aux deux personnes. On envoie une
+            -- alerte au lieu de placer la tâche à un moment impossible.
             IF o.requiert_les_deux THEN
                 INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
                 SELECT o.id_utilisateur, o.id_occurrence, 'alerte',
@@ -795,8 +787,7 @@ DECLARE
     v_envoyees INTEGER := 0;
     v_jour     DATE := jour_de(now());
 BEGIN
-    -- L'ordre est explicite : sans lui, la sortie dépendrait de l'ordre
-    -- physique des lignes, qui change à la première mise à jour venue.
+    -- ORDER BY explicite, pour que la sortie soit toujours la même.
     FOR u IN SELECT id_utilisateur, pseudo, role FROM utilisateur WHERE actif
               ORDER BY id_utilisateur LOOP
         v_lignes   := ARRAY[]::TEXT[];
@@ -873,8 +864,7 @@ BEGIN
                          || 'Collecte en panne :' || E'\n' || array_to_string(v_pannes, E'\n');
         END IF;
 
-        -- Un bilan vide tous les matins ferait couper les notifications en une
-        -- semaine. Quand il n'y a rien à dire, on se tait.
+        -- Pas de bilan quand il n'y a rien à dire.
         IF v_contenu <> '' THEN
             INSERT INTO notification (id_utilisateur, type, contenu)
             VALUES (u.id_utilisateur, 'bilan', v_contenu);
@@ -931,9 +921,9 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- Report d'office du soir                                        (opération 8)
 --
--- L'occurrence n'est pas recréée : elle glisse au lendemain et son compteur de
--- relances augmente. C'est ce qui permet de dire « en retard depuis 3 jours »
--- plutôt que de laisser une chaîne d'occurrences abandonnées (EXE-6).
+-- L'occurrence n'est pas recréée : elle glisse au lendemain et son compteur
+-- de relances augmente. C'est ce compteur qui permet d'afficher « en retard
+-- depuis 3 jours » (EXE-6).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION reporter_taches_du_jour() RETURNS INTEGER
 LANGUAGE plpgsql AS $$

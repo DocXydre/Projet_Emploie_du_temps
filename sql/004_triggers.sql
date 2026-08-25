@@ -28,11 +28,9 @@ BEGIN
     NEW.rappel_journee  := t.rappel_journee;
     NEW.utilise_machine := t.utilise_machine;
 
-    -- L'assignation par défaut ne s'applique qu'aux occurrences engendrées par
-    -- le système. Une création manuelle dit exactement ce qu'elle veut, y
-    -- compris « personne » : c'est ce qui permet à un refus de laisser la tâche
-    -- libre pour que l'autre la reprenne, plutôt que de la rendre aussitôt à
-    -- celui qui vient de la refuser.
+    -- L'assignation par défaut ne s'applique qu'aux occurrences créées par le
+    -- système. Une création manuelle peut laisser l'assigné à NULL : c'est ce
+    -- qui permet à un refus de libérer la tâche pour l'autre personne.
     IF NEW.id_utilisateur IS NULL AND NEW.origine <> 'manuelle' THEN
         NEW.id_utilisateur := t.id_utilisateur_defaut;
     END IF;
@@ -75,10 +73,10 @@ CREATE OR REPLACE TRIGGER occurrence_transition
 -- -----------------------------------------------------------------------------
 -- Une occurrence close ne se touche plus                                 (EXE-5)
 --
--- Comparer les valeurs avant et après ne suffit pas : revalider une occurrence
--- dans la même transaction réécrit date_faite avec le même now(), puisque
--- now() est figé pour toute la transaction. Le changement serait donc invisible
--- alors que l'intention, elle, est bien une seconde validation.
+-- Comparer les valeurs avant et après ne suffit pas : now() est figé pour
+-- toute la transaction, donc revalider une occurrence dans la même
+-- transaction réécrit date_faite avec la même valeur, et le changement passe
+-- inaperçu.
 --
 -- On passe donc par un trigger de colonnes : PostgreSQL le déclenche dès que
 -- l'une d'elles figure dans le SET, que la valeur change ou non.
@@ -143,11 +141,10 @@ BEGIN
 
     -- ---- Les prévisions deviennent fausses ----------------------------------
     --
-    -- Les occurrences pré-générées supposaient que la tâche serait faite en fin
-    -- de fenêtre. La validation dit quand elle l'a vraiment été : tout ce qui
-    -- suivait est à refaire. On efface plutôt que d'annuler, parce qu'une
-    -- prévision jamais annoncée n'est pas un engagement dont il faut garder
-    -- trace — seuls les créneaux communiqués en méritent une.
+    -- Les occurrences pré-générées étaient calculées en supposant la tâche
+    -- faite en fin de fenêtre. La validation donne la vraie date : on efface
+    -- les suivantes et on les régénère. Une prévision jamais annoncée n'a pas
+    -- à laisser de trace.
     DELETE FROM occurrence
      WHERE id_tache = NEW.id_tache
        AND id_occurrence <> NEW.id_occurrence

@@ -1,8 +1,8 @@
 """File d'attente des notifications.
 
-Une notification est d'abord enregistrée, puis envoyée. Le bot vient vider la
-file et signale ce qu'il a réussi à transmettre : un échec d'envoi laisse la
-ligne en attente plutôt que de la perdre (NOT-2).
+Une notification est d'abord enregistrée, puis envoyée. Le bot vide la file et
+signale ce qu'il a transmis. En cas d'échec, la ligne reste en attente et sera
+renvoyée au passage suivant (NOT-2).
 """
 
 from fastapi import APIRouter, HTTPException, status

@@ -1,6 +1,6 @@
 # Planificateur personnel
 
-API qui croise des emplois du temps hétérogènes — cours, shifts McDonald's, calendriers personnels — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport.
+API qui croise des emplois du temps — cours, shifts McDonald's, calendriers personnels — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport.
 
 Projet personnel, M1 MIAGE (Université de Lorraine).
 Spécification complète : [`cahier-des-charges.md`](cahier-des-charges.md).
@@ -97,6 +97,8 @@ Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
 
 **Une migration corrigée n'atteignait jamais la base.** Le script sautait tout fichier déjà appliqué, même modifié depuis. Il compare désormais une empreinte SHA-256 et rejoue les fichiers qui se déclarent idempotents.
 
+**Les tâches de nuit tournaient deux heures trop tard.** Le conteneur vit en UTC, et l'ordonnanceur était bien configuré en `Europe/Paris` — mais un `CronTrigger` construit à la main fige son fuseau à la construction, et celui du scheduler ne s'applique qu'aux déclencheurs qu'il crée lui-même. Le « report de minuit » se déclenchait donc à 2 h, une fois la date déjà changée. Le fuseau est maintenant passé explicitement à chaque déclencheur.
+
 ---
 
 ## Fonctionnalités
@@ -141,12 +143,25 @@ SQL
 
 ---
 
+## Déploiement
+
+Le système tourne sur un petit serveur dédié — un portable de récupération sous Debian 13, allumé en permanence. C'est ce qui permet aux tâches de nuit de se déclencher pour de bon.
+
+L'accès distant passe par Tailscale : le serveur n'a aucun port ouvert sur Internet, et `tailscale serve` fournit le HTTPS et le certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre.
+
+Un minuteur systemd interroge GitHub toutes les deux minutes et déploie ce qui a été poussé sur `main` : migrations, puis reconstruction de l'API. Le serveur va chercher les mises à jour au lieu d'attendre un webhook, ce qui évite d'exposer un port et rattrape les push faits pendant qu'il était éteint.
+
+La procédure complète est dans [`docs/serveur.md`](docs/serveur.md).
+
+---
+
 ## Structure
 
 ```
 sql/          14 migrations : schéma, vues, fonctions, triggers, données
 api/          FastAPI — routeurs, collecteurs, bot, ordonnanceur
-outils/       diagnostic hors Docker (accès IMAP)
+outils/       script de déploiement, diagnostic IMAP hors Docker
+docs/         mémo d'installation du serveur
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent ; sinon le script le signale et demande une migration nouvelle.
@@ -157,11 +172,11 @@ Les migrations sont numérotées et suivies dans une table `schema_migration` av
 
 - **Il n'achète pas les billets de train.** Il propose des horaires et gèle le ménage en conséquence ; l'achat reste manuel.
 - **Il ne scrape pas les horaires de la piscine.** Le site publie ses créneaux dans une boutique PrestaShop remaniée chaque année : les horaires sont déclarés en base, où un `UPDATE` d'une ligne suffit à les corriger.
-- **Il suppose une machine allumée.** L'ordonnanceur ne tourne pas quand le portable dort ; les fonctions de rattrapage limitent les dégâts, mais le système est fait pour un petit serveur.
 - **Il est prévu pour deux utilisateurs.** L'authentification par clé d'API en en-tête suffit à cette échelle et ne conviendrait pas au-delà.
+- **Il n'est pas accessible depuis le web public.** Tout passe par Tailscale : c'est voulu pour des données personnelles, mais il faut le client installé sur chaque appareil.
 
 ---
 
 ## Suite
 
-Une interface web (Angular) pour remplacer le bot sur les usages qui demandent un écran, et un déploiement sur un serveur dédié.
+Une interface web (Angular) pour remplacer le bot sur les usages qui demandent un écran.

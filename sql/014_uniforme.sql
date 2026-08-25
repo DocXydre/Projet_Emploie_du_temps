@@ -5,16 +5,16 @@
 -- La fonction de consommation existait mais n'était appelée nulle part : le
 -- stock restait plein et la projection de lessive ne déclenchait jamais rien.
 --
--- Elle salissait de plus le pantalon un jour de calendrier sur deux, alors que
--- la règle porte sur les journées travaillées. D'où un compteur.
+-- Elle salissait de plus le pantalon un jour de calendrier sur deux, alors
+-- que la règle porte sur les journées travaillées. Un compteur les compte.
 -- =============================================================================
 
 ALTER TABLE article_travail
     ADD COLUMN IF NOT EXISTS journees_portees SMALLINT NOT NULL DEFAULT 0
         CHECK (journees_portees >= 0);
 
--- UNI-6 : sans cette date, relancer la consommation deux fois dans la journée
--- salirait deux t-shirts pour un seul service.
+-- UNI-6 : mémorise la dernière journée comptée, pour ne pas compter deux fois
+-- le même service.
 ALTER TABLE article_travail
     ADD COLUMN IF NOT EXISTS dernier_jour_compte DATE;
 
@@ -75,9 +75,8 @@ END $$;
 -- -----------------------------------------------------------------------------
 -- Rattraper les journées manquées                                        (UNI-7)
 --
--- L'ordonnanceur ne tourne que machine allumée : ne traiter qu'hier ferait
--- perdre une semaine de services au premier week-end. On repart donc du
--- dernier jour compté.
+-- L'ordonnanceur ne tourne que machine allumée. On repart du dernier jour
+-- compté et non de la veille, pour rattraper les jours manqués.
 --
 -- Aujourd'hui est exclu : un service du soir n'est pas fini le matin.
 -- -----------------------------------------------------------------------------
@@ -107,7 +106,7 @@ COMMENT ON FUNCTION rattraper_uniforme IS
      hier inclus. Idempotente (UNI-7).';
 
 
--- Un lavage remet le compteur à zéro : c'est le sens même de « propre ».
+-- Un retour de lavage remet le compteur de journées portées à zéro.
 CREATE OR REPLACE FUNCTION trg_mouvement_compteur() RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
 BEGIN

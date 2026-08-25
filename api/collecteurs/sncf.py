@@ -200,8 +200,8 @@ def chercher(
                 "sans_borne",
                 "Chercher le dernier train suppose de savoir avant quand rentrer",
             )
-        # Interroger par heure d'arrivée : demander les premiers trains après
-        # une heure donnée ne ferait jamais remonter ceux du soir.
+        # Recherche par heure d'arrivée, pour obtenir les derniers trains qui
+        # arrivent avant la limite.
         brut = interroger(gare_depart, gare_arrivee, arrive_avant, "arrival")
     else:
         brut = interroger(gare_depart, gare_arrivee, pas_avant, "departure")

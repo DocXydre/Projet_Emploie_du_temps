@@ -32,8 +32,9 @@ Voici les choix effectués pour compléter le sujet.
 - **Une tâche du jour non validée le soir est reportée d'office au lendemain**, et re-notifiée, autant de fois qu'il le faut. Le nombre de relances est conservé : c'est ce qui permet de dire « en retard depuis trois jours » plutôt que de laisser la tâche disparaître.
 - **Le cycle des vêtements de travail fait partie du socle**, et non des extensions. Il est indissociable des lessives : c'est le stock qui décide quand une machine doit tourner, et la machine à laver est une ressource unique qu'on ne peut pas mobiliser deux fois le même soir. Séparer les deux n'aurait pas de sens.
 - **Une tâche non plaçable n'est jamais supprimée silencieusement.** Elle reste visible avec son motif d'échec. Un planning faux sans le dire est pire qu'un planning incomplet.
-- **L'authentification est une clé d'API par utilisateur**, transmise dans un en-tête. Pour deux personnes sur un réseau local, les jetons à durée de vie et les mécanismes de rafraîchissement sont du décor.
-- **Le sport et les déplacements en train sont hors périmètre de la première version.** Ils sont décrits en section 11 : ils réutilisent le même socle et s'ajoutent sans le remettre en cause.
+- **L'authentification est une clé d'API par utilisateur**, transmise dans un en-tête. Pour deux personnes sur un réseau privé, les jetons à durée de vie et les mécanismes de rafraîchissement sont du décor.
+- **Le sport et les déplacements en train étaient hors périmètre de la première version.** Ils ont été ajoutés ensuite, sur le même socle et sans le remettre en cause. La section 10 dit ce que chacun a apporté.
+- **Le système tourne sur un serveur allumé en permanence.** Un ordonnanceur qui déclenche à 7 h et à minuit n'a aucun intérêt sur une machine qui dort. Le déploiement fait donc partie du sujet, et non de la mise en production.
 
 ---
 
@@ -47,13 +48,18 @@ Voici les choix effectués pour compléter le sujet.
 | Python 3.12 | Langage unique du projet | Un seul langage pour l'API, la collecte et le bot |
 | FastAPI | Couche HTTP | Documentation OpenAPI générée automatiquement, validation des entrées par Pydantic |
 | psycopg 3 | Accès à la base | SQL écrit à la main, sans ORM : c'est le SQL qui porte les règles |
-| httpx + icalendar | Collecte de l'ICS de l'ADE | Bibliothèques légères, pas de navigateur nécessaire |
-| Playwright | Scraping du portail McDonald's | Nécessaire seulement pour ce site, qui exige une session authentifiée |
+| httpx + icalendar | Collecte des flux ICS | Bibliothèques légères, pas de navigateur nécessaire |
 | icalendar | Export du planning | Génère le flux `.ics` consommé par les applications de calendrier |
+| imaplib (standard) | Lecture des confirmations SNCF | Fait partie de Python, et la boîte est ouverte en lecture seule |
+| API SNCF (Navitia) | Horaires de train | Source officielle, interrogeable par heure de départ ou d'arrivée |
 | python-telegram-bot | Notifications et validation | Boutons intégrés dans le message : valider une tâche sans ouvrir d'application |
 | APScheduler | Déclenchement périodique | Collectes et traitement quotidien, dans le même processus que l'API |
 | Docker Compose | Exécution | Deux conteneurs : `db` et `api` |
+| Tailscale | Accès distant et HTTPS | Aucun port ouvert sur Internet, certificat fourni par `tailscale serve` |
+| systemd | Déploiement automatique | Un minuteur interroge GitHub et déploie ce qui a été poussé |
 | pytest | Tests | Surtout sur les fonctions SQL et le placement |
+
+**Un scraper était initialement prévu** pour le planning McDonald's, avec Playwright. Il s'est avéré inutile : Easy at Work publie un flux iCalendar personnel, qui se collecte comme celui de l'université. La valeur `'scraping'` reste acceptée par la colonne `mode_collecte` mais n'est utilisée par aucune source.
 
 Sont volontairement écartés : les ORM, les files de messages, les frameworks de migration, les reverse proxies et les systèmes d'authentification à jetons. À l'échelle de deux utilisateurs et de quelques dizaines d'événements par jour, ils ajoutent de la configuration sans rien résoudre.
 
@@ -63,12 +69,12 @@ Sont volontairement écartés : les ORM, les files de messages, les frameworks d
    SOURCES EXTERNES                LE SYSTÈME                     SORTIES
    ────────────────                ──────────                     ───────
 
-   ICS de l'ADE  ─────┐        ┌──────────────────┐
-   Portail McDo  ─────┼───────►│   API FastAPI    │──────────►  Flux .ics
-   Saisie manuelle ───┘        │  collecte        │             (calendrier
-                               │  endpoints HTTP  │              du téléphone)
-                               │  ordonnanceur    │
-                               └────────┬─────────┘──────────►  Bot Telegram
+   ICS de l'ADE   ────┐        ┌──────────────────┐
+   ICS Easy at Work ──┤        │   API FastAPI    │──────────►  Flux .ics
+   Calendriers perso ─┼───────►│  collecte        │             (calendrier
+   API SNCF       ────┤        │  endpoints HTTP  │              du téléphone)
+   Boîte IMAP     ────┤        │  ordonnanceur    │
+   Saisie manuelle ───┘        └────────┬─────────┘──────────►  Bot Telegram
                                         │                       (rappels et
                                         │ SQL                    validation)
                                ┌────────▼─────────┐
@@ -82,6 +88,18 @@ Sont volontairement écartés : les ORM, les files de messages, les frameworks d
 ```
 
 L'API est mince : elle reçoit une requête, appelle une fonction SQL ou lit une vue, et renvoie le résultat. Le calcul des disponibilités, le placement des tâches, la génération des occurrences et le contrôle des transitions se font dans la base.
+
+### 2.3 Exécution et déploiement
+
+Le système tourne sur un serveur dédié — un portable de récupération sous Debian 13, allumé en permanence. Le point est important pour le fonctionnement : l'ordonnanceur déclenche le bilan à 7 h, la relance à 21 h et le report à minuit, ce qu'une machine qui dort ne permet pas. Les fonctions de rattrapage existent mais ne sont plus qu'un filet de sécurité.
+
+Deux conteneurs Docker, `planif-db` et `planif-api`, avec `restart: unless-stopped` : ils repartent seuls après une coupure, sans service systemd à écrire.
+
+**Accès distant.** Tout passe par Tailscale, y compris depuis le téléphone. Aucun port n'est ouvert sur la box, et `tailscale serve` fournit le HTTPS et son certificat. L'abonnement au calendrier utilise le nom du tailnet, qui reste le même d'un réseau Wi-Fi à l'autre — une adresse IP locale, elle, cesse de fonctionner dès qu'on change de réseau.
+
+**Fuseau horaire.** Les conteneurs vivent en UTC et tous les horodatages sont stockés en UTC. La conversion vers `Europe/Paris` se fait à l'affichage et au déclenchement des tâches planifiées, ce qui évite d'avoir à traiter le changement d'heure dans les comparaisons de dates.
+
+**Déploiement.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `HEAD` à `origin/main`, et s'il y a du nouveau, applique les migrations puis reconstruit l'API. Le serveur interroge GitHub au lieu de recevoir un webhook, ce qui évite d'ouvrir un port et rattrape les push faits pendant qu'il était éteint. La procédure d'installation complète est dans `docs/serveur.md`.
 
 ---
 
@@ -940,20 +958,22 @@ Si cet ensemble suffit à vivre une semaine sans écran, l'API est complète.
 
 ---
 
-## 10. Extensions prévues
+## 10. Modules ajoutés après la première version
 
-Ces deux modules sont hors de la première version. Ils sont décrits ici parce qu'ils orientent le modèle : chacun s'ajoute sans rien casser de ce qui précède.
+Ces deux modules étaient annoncés comme extensions. Ils sont désormais en place, et chacun s'est ajouté sans modifier ce qui précédait — ce qui était l'objet de les avoir décrits d'avance.
 
-**Sport.** Un quota de trois séances par semaine, une durée de créneau qui dépend du lieu de départ, une rotation entre trois types de séances. Ajoute une catégorie de tâche et une contrainte de quota hebdomadaire.
+**Sport** (règles `SPT`, migration `013`). Quota de trois séances par semaine, heures d'ouverture par lieu, périodes de fermeture, temps de trajet variable selon qu'on part de la fac ou de chez soi. A ajouté trois tables (`lieu_sport`, `ouverture`, `fermeture`) et une catégorie de tâche. Le sport est exclu de la balance de répartition domestique, une séance de piscine n'étant pas une corvée à partager.
 
-**Déplacements.** Détection d'une fenêtre libre de 48 heures, proposition d'un train, et statut d'absence qui gèle les tâches locales pendant la période. Ajoute une table de trajets et une table de statuts.
+**Déplacements** (règles `TRJ`, `BIL`, `WKD`, migrations `008` à `012`). Détection des fenêtres libres, interrogation de l'API SNCF, proposition d'horaires, lecture des confirmations d'achat par courriel, et propositions spontanées de week-end. L'absence qui en découle libère les tâches locales et les redistribue.
 
 ---
 
 ## 11. Ce qui est volontairement exclu
 
 - Toute interface graphique. Elle viendra dans un projet séparé et consommera cette API.
+- L'achat des billets de train. Le système propose des horaires et en tire les conséquences sur le planning ; la transaction reste manuelle.
 - L'ouverture à d'autres utilisateurs que Thomas et Lorette.
+- L'exposition sur le web public : l'accès passe par Tailscale, ce qui suppose le client installé sur chaque appareil.
 - La gestion budgétaire et les courses.
 - Tout apprentissage automatique ou prédiction de préférences.
 - Le suivi des heures travaillées et l'estimation de salaire.

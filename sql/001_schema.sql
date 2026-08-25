@@ -64,13 +64,12 @@ CREATE TABLE source (
 );
 
 COMMENT ON COLUMN source.id_utilisateur IS
-    'À qui appartient cet emploi du temps. Sans cette colonne, l''ordonnanceur
-     ne saurait pas à qui rattacher les occupations qu''il collecte la nuit.';
+    'À qui appartient cet emploi du temps. Sert à rattacher les occupations
+     collectées à la bonne personne.';
 
 COMMENT ON COLUMN source.configuration IS
-    'Réglages du collecteur : groupe de TD, langues suivies, horizon. En base
-     plutôt que dans le code, pour qu''un changement de groupe au second
-     semestre ne demande pas de redéploiement.';
+    'Réglages du collecteur : groupe de TD, langues suivies, horizon. Stockés
+     en base pour pouvoir changer de groupe sans redéployer.';
 
 COMMENT ON COLUMN source.derniere_collecte IS
     'Dernière collecte réussie. Au-delà de deux fois la fréquence, la source est
@@ -161,8 +160,7 @@ COMMENT ON COLUMN absence.origine IS
 -- Conflit horaire                                                  (COL-10, COL-11)
 --
 -- Une source publie parfois deux occupations au même moment. La contrainte
--- d'exclusion en refuse une : plutôt que de la perdre, on la garde ici en
--- attente d'arbitrage.
+-- d'exclusion en refuse une, et on la conserve ici en attente d'arbitrage.
 --
 -- La règle des deux semaines évite de déranger pour rien : un conflit dans un
 -- mois se résoudra probablement tout seul quand l'emploi du temps sera corrigé.
@@ -253,8 +251,8 @@ COMMENT ON COLUMN tache.rappel_journee IS
      dans le flux iCalendar. Faux : créneau horaire précis (TAC-2, NOT-3).';
 
 COMMENT ON COLUMN tache.reportable IS
-    'Faux pour la lessive de travail : la repousser reviendrait à se retrouver
-     sans uniforme propre (opération 6).';
+    'Faux pour la lessive de travail, qui ne peut pas être repoussée sous peine
+     de manquer d''uniforme propre (opération 6).';
 
 COMMENT ON COLUMN tache.recurrente IS
     'Faux pour ce qui n''a de sens qu''à la suite d''autre chose : étendre le
@@ -263,9 +261,8 @@ COMMENT ON COLUMN tache.recurrente IS
 
 COMMENT ON COLUMN tache.requiert_les_deux IS
     'Vrai pour le grand nettoyage : il faut un moment où Thomas et Lorette sont
-     libres en même temps. Le placement cherche alors une intersection de
-     disponibilités, et notifie s''il n''en existe aucune plutôt que de placer
-     la tâche au hasard (TAC-9, PLA-9).';
+     libres en même temps. Le placement cherche une intersection de
+     disponibilités et notifie s''il n''en trouve aucune (TAC-9, PLA-9).';
 
 
 -- -----------------------------------------------------------------------------
@@ -334,9 +331,9 @@ CREATE TABLE occurrence (
     nb_relances           INTEGER      NOT NULL DEFAULT 0 CHECK (nb_relances >= 0),
     motif                 TEXT,
     date_faite            TIMESTAMPTZ,
-    -- ON DELETE SET NULL : les occurrences prévisionnelles sont effacées dès
-    -- qu'une validation réelle les rend fausses. Elles forment une chaîne, et
-    -- sans cela la suppression du premier maillon échouerait.
+    -- ON DELETE SET NULL : les occurrences prévisionnelles forment une
+    -- chaîne. Supprimer le premier maillon délie les suivants au lieu
+    -- d'échouer.
     id_occurrence_source  INTEGER      REFERENCES occurrence (id_occurrence)
                                        ON DELETE SET NULL,
     date_creation         TIMESTAMPTZ  NOT NULL DEFAULT now(),
@@ -357,9 +354,9 @@ CREATE TABLE occurrence (
     CONSTRAINT occurrence_faite_datee
         CHECK (statut <> 'faite' OR date_faite IS NOT NULL),
 
-    -- TAC-6 : deux tâches à heure imposée ne se chevauchent pas. Les rappels
-    -- d'une même journée, eux, cohabitent : sinon on ne pourrait pas faire
-    -- l'aspirateur et la litière le même mardi.
+    -- TAC-6 : deux tâches à heure imposée ne peuvent pas se chevaucher. La
+    -- contrainte ne porte pas sur les rappels de journée, qui doivent pouvoir
+    -- tomber le même jour (l'aspirateur et la litière le mardi).
     CONSTRAINT occurrence_sans_chevauchement
         EXCLUDE USING gist (id_utilisateur WITH =, creneau WITH &&)
         WHERE (creneau IS NOT NULL

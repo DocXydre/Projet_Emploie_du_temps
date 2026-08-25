@@ -41,9 +41,8 @@ def _titre(ligne: dict) -> str:
     prefixe = PREFIXES.get(ligne["categorie"], ligne["categorie"])
     libelle = ligne["libelle"]
 
-    # « Sport : Piscine du SUAPS » plutôt que « Sport : Séance de sport ».
-    # C'est le lieu qui porte l'information une fois la séance placée : il dit
-    # d'un coup d'œil s'il faut prendre son maillot ou ses baskets.
+    # Pour le sport, le lieu remplace le libellé : « Sport : Piscine du
+    # SUAPS » est plus utile que « Sport : Séance de sport ».
     if ligne["categorie"] == "sport" and ligne.get("lieu"):
         libelle = ligne["lieu"]
 

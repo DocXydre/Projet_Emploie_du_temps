@@ -269,8 +269,8 @@ async def absent(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(_message_lisible(erreur))
         return
 
-    # Le planning se refait aussitôt : sans cela, les tâches resteraient posées
-    # sur des jours où l'on ne sera pas là.
+    # On refait le planning tout de suite, pour déplacer les tâches posées
+    # sur des jours d'absence.
     from api.ordonnanceur import placer
     await asyncio.to_thread(placer)
 
@@ -411,8 +411,7 @@ async def _proposer_retour(contexte: ContextTypes.DEFAULT_TYPE, chat_id: int,
                               callback_data=f"train:retour:{t['id_trajet']}")]
         for t in resultat["trajets"]
     ]
-    # Partir sans savoir quand on rentre est un cas ordinaire. Refuser de
-    # l'enregistrer obligerait à choisir un horaire au hasard.
+    # On peut enregistrer un aller sans retour : le retour se fixe plus tard.
     boutons.append([InlineKeyboardButton("Retour à fixer plus tard",
                                          callback_data=f"train:seul:{id_aller}")])
 
@@ -510,9 +509,9 @@ async def parti(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 async def retour(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     """« Je suis rentré. » Y compris en voiture, y compris en avance.
 
-    C'est la commande qui rattrape toutes les autres : un billet lu de travers,
-    un trajet annulé, un retour improvisé. Sans elle, le ménage resterait gelé
-    jusqu'à une date que plus rien ne justifie.
+    Sert à corriger les cas que le reste ne voit pas : billet mal lu, trajet
+    annulé, retour improvisé en voiture. Termine l'absence à l'instant présent
+    et relance le placement.
     """
     compte = await _appelant(update)
     if compte is None:
@@ -638,8 +637,8 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     if genre == "menu":
-        # Le menu reste affiché : on y revient après chaque action, et le
-        # retirer obligerait à retaper /menu entre deux gestes.
+        # Le menu reste affiché après l'action, pour enchaîner sans retaper
+        # /menu.
         await _bouton_menu(update, contexte, compte, choix)
         return
 
@@ -665,8 +664,8 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
             reponse = await asyncio.to_thread(
                 conv.trancher_conflit, int(identifiant), choix, compte["id_utilisateur"])
     except Exception as erreur:
-        # Les refus de la base sont déjà rédigés en français : on les montre
-        # tels quels plutôt que d'inventer un message générique.
+        # Les messages d'erreur de la base sont déjà en français : on les
+        # affiche tels quels.
         reponse = _message_lisible(erreur)
 
     await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
@@ -810,13 +809,12 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     for notification in await asyncio.to_thread(conv.notifications_a_envoyer):
         boutons = None
-        # Seuls les rappels portent des boutons : un bilan du matin en aurait
-        # autant qu'il y a de tâches, ce qui ne veut rien dire.
+        # Seuls les rappels, qui portent sur une occurrence précise, ont des
+        # boutons de validation.
         if notification["type"] == "rappel" and notification["id_occurrence"]:
             boutons = _boutons(notification["id_occurrence"])
         elif notification.get("id_proposition"):
-            # Une proposition sans réponse possible ne serait qu'une alerte de
-            # plus : ce sont les boutons qui en font une conversation.
+            # Boutons « oui / non merci » sous une proposition de week-end.
             boutons = _boutons_proposition(notification["id_proposition"])
 
         try:
@@ -873,10 +871,9 @@ def construire() -> Application:
 async def demarrer_bot() -> None:
     """Démarre le bot, ou explique pourquoi il ne démarre pas.
 
-    Un jeton absent est un cas normal ; un jeton invalide est une erreur qu'il
-    faut voir tout de suite, pas découvrir en attendant un message qui ne vient
-    jamais. D'où l'appel à get_me au démarrage : il valide le jeton et donne le
-    nom sous lequel chercher le bot dans Telegram.
+    Un jeton absent est un cas normal : le bot ne démarre pas et l'API tourne
+    quand même. L'appel à get_me vérifie que le jeton est valide et récupère le
+    nom du bot, à afficher pour le retrouver dans Telegram.
     """
     global _application, _identite
 

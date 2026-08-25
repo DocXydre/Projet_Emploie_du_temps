@@ -131,9 +131,8 @@ def _appliquer_sans_horaire(segment: Segment, id_utilisateur: int) -> dict:
 def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
     """Crée les trajets du billet, puis l'absence qui en découle.
 
-    Un billet peut contenir un aller seul, ou un aller et un retour. On ne
-    traite pas le cas de deux allers : ce serait deux voyages, et les
-    enregistrer comme un seul gèlerait le ménage entre les deux.
+    Un billet contient un aller seul, ou un aller et un retour. Deux allers
+    correspondent à deux voyages distincts et ne sont pas traités ici.
     """
     if len(lecture.segments) == 1 and lecture.segments[0].sans_horaire:
         return _appliquer_sans_horaire(lecture.segments[0], id_utilisateur)
@@ -209,9 +208,8 @@ def relever(id_utilisateur: int | None = None,
     bilan = {"lus": len(messages), "traites": 0, "ignores": 0,
              "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": []}
 
-    # Dans l'ordre du voyage, pas dans celui de la boîte. Un aller traité avant
-    # le retour du voyage précédent se heurterait à une absence encore
-    # ouverte, et serait refusé pour une raison qui n'existe pas.
+    # On trie par date de voyage et non par ordre d'arrivée dans la boîte,
+    # pour que le retour d'un voyage soit traité avant l'aller du suivant.
     for lecture in sorted(map(lecteur.analyser, messages), key=_quand):
 
         if _deja_vu(lecture.identifiant):
@@ -238,8 +236,7 @@ def relever(id_utilisateur: int | None = None,
                   else "refuses"] += 1
 
     if bilan["absences"]:
-        # Le planning se refait une seule fois, à la fin : replacer entre
-        # chaque courriel ferait le même travail plusieurs fois pour rien.
+        # Un seul replacement, à la fin, pour toutes les absences créées.
         from api.ordonnanceur import placer
         bilan["occurrences_replacees"] = placer()
 

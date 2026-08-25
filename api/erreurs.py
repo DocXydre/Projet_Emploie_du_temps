@@ -1,8 +1,8 @@
 """Traduction des erreurs SQL en réponses HTTP.
 
-La base porte les règles métier : quand elle refuse une opération, c'est une
-erreur métier, pas un bug. On traduit donc ses codes d'erreur PostgreSQL en
-statuts HTTP plutôt que de laisser sortir un 500.
+Les règles métier sont dans la base : quand elle refuse une opération, c'est
+une erreur métier et non un bug. Ses codes d'erreur PostgreSQL sont traduits en
+statuts HTTP, pour éviter de renvoyer un 500.
 """
 
 import logging
@@ -53,10 +53,8 @@ async def gerer_erreur_sql(requete: Request, erreur: Exception) -> JSONResponse:
 async def gerer_erreur_http(requete: Request, erreur: Exception) -> JSONResponse:
     """Aplatit les erreurs applicatives dans la même forme que les erreurs SQL.
 
-    Sans cela, l'API renverrait deux formats selon l'origine de l'erreur :
-    `{"code", "message"}` pour la base, `{"detail": {...}}` pour FastAPI. Un
-    client devrait alors gérer les deux, ce qui est exactement ce qu'une API
-    normalisée doit lui épargner.
+    L'API renvoie ainsi un seul format, `{"code", "message"}`, quelle que soit
+    l'origine de l'erreur. FastAPI produit sinon un `{"detail": {...}}`.
     """
     assert isinstance(erreur, HTTPException)
     detail = erreur.detail
