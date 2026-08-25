@@ -20,3 +20,6 @@ tests/
 
 # Spécification de la version Java, abandonnée après le changement de pile.
 cahier-des-charges-planification.md
+
+# Mémo d'installation du serveur : conservé en local, hors du dépôt public.
+docs/

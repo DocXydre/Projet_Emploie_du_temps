@@ -145,13 +145,19 @@ SQL
 
 ## Déploiement
 
-Le système tourne sur un petit serveur dédié — un portable de récupération sous Debian 13, allumé en permanence. C'est ce qui permet aux tâches de nuit de se déclencher pour de bon.
+Le système tourne sur un petit serveur dédié — un portable de récupération sous **Debian 13**, allumé en permanence. C'est ce qui permet aux tâches de nuit de se déclencher pour de bon : un ordonnanceur qui vise 7 h et minuit n'a aucun intérêt sur une machine qui dort.
 
-L'accès distant passe par Tailscale : le serveur n'a aucun port ouvert sur Internet, et `tailscale serve` fournit le HTTPS et le certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre.
+L'accès distant passe par **Tailscale** : aucun port n'est ouvert sur Internet, et `tailscale serve` fournit le HTTPS et son certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre — contrairement à une adresse IP locale.
 
-Un minuteur systemd interroge GitHub toutes les deux minutes et déploie ce qui a été poussé sur `main` : migrations, puis reconstruction de l'API. Le serveur va chercher les mises à jour au lieu d'attendre un webhook, ce qui évite d'exposer un port et rattrape les push faits pendant qu'il était éteint.
+**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `HEAD` à `origin/main`, et s'il y a du nouveau, applique les migrations puis relance `docker compose up -d --build`.
 
-La procédure complète est dans [`docs/serveur.md`](docs/serveur.md).
+```
+git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
+                                                  │
+                                    migrations ───┴─── compose up --build
+```
+
+Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
 ---
 
@@ -161,7 +167,6 @@ La procédure complète est dans [`docs/serveur.md`](docs/serveur.md).
 sql/          14 migrations : schéma, vues, fonctions, triggers, données
 api/          FastAPI — routeurs, collecteurs, bot, ordonnanceur
 outils/       script de déploiement, diagnostic IMAP hors Docker
-docs/         mémo d'installation du serveur
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent ; sinon le script le signale et demande une migration nouvelle.
