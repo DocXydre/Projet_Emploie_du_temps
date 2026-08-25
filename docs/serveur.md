@@ -314,6 +314,8 @@ logicielles, pas d'un disque mort. La recopier ailleurs de temps en temps.
 
 ## 13. Mise à jour du projet
 
+À la main, quand je veux voir ce qui se passe :
+
 ```bash
 ssh thomas@planif
 cd Projet_Emploie_du_temps
@@ -324,6 +326,66 @@ docker compose up -d --build api
 
 Dans cet ordre : les migrations avant le redémarrage, sinon l'API démarre en
 appelant des fonctions qui n'existent pas encore.
+
+### Déploiement automatique
+
+Un minuteur systemd lance `outils/deployer.sh` toutes les deux minutes. Le
+script ne fait rien tant que `origin/main` n'a pas bougé ; sinon il rejoue les
+migrations et reconstruit l'API.
+
+**Pourquoi interroger plutôt qu'un webhook** : le serveur n'a aucun port ouvert
+sur Internet, et un webhook obligerait à en ouvrir un. Ici, c'est lui qui va
+voir. Autre bénéfice : un `git push` fait pendant qu'il était éteint est
+rattrapé au démarrage suivant, ce qu'un webhook aurait manqué.
+
+```bash
+sudo tee /etc/systemd/system/deployer-planif.service > /dev/null <<'EOF'
+[Unit]
+Description=Déploie la dernière version poussée sur GitHub
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=thomas
+WorkingDirectory=/home/thomas/Projet_Emploie_du_temps
+ExecStart=/home/thomas/Projet_Emploie_du_temps/outils/deployer.sh
+EOF
+
+sudo tee /etc/systemd/system/deployer-planif.timer > /dev/null <<'EOF'
+[Unit]
+Description=Vérifie GitHub toutes les deux minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now deployer-planif.timer
+```
+
+Vérifier :
+
+```bash
+systemctl list-timers deployer-planif.timer
+sudo systemctl start deployer-planif.service   # forcer un passage
+journalctl -u deployer-planif.service -n 30
+```
+
+Le journal ne dit rien quand il n'y a rien à déployer. C'est voulu : sinon il
+serait rempli de « rien à faire » toutes les deux minutes, et le jour où un
+déploiement échoue, la ligne se perdrait dedans.
+
+**Le serveur ne doit jamais avoir de commit à lui** : le script fait un
+`merge --ff-only` et s'arrête si un fichier a été bricolé sur place. Le `.env`,
+lui, n'est pas versionné et ne gêne donc rien.
+
+Mises à jour système :
 
 Mises à jour système :
 

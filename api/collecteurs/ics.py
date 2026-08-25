@@ -42,7 +42,10 @@ ENSEIGNANT = re.compile(r"^[A-ZÀ-ÝŒ][A-ZÀ-ÝŒ'’\- ]{2,}\s+[A-ZÀ-ÝŒ][a-
 # Codes de maquette : « 7JEMEN11PO|7JMEN1102 ».
 CODE_MAQUETTE = re.compile(r"^[A-Z0-9|]+$")
 
-GROUPE = re.compile(r"\b(?:gpe|groupe|gr)\s*([0-9])\b", re.IGNORECASE)
+# « grp » avant « gr » : l'alternance s'arrête au premier motif qui colle, et
+# « gr » seul laissait passer « Grp 2 » — la séance entrait au planning et
+# ressortait en conflit, alors qu'elle aurait dû être écartée comme les autres.
+GROUPE = re.compile(r"\b(?:gpe|groupe|grp|gr)\s*([0-9])\b", re.IGNORECASE)
 
 # --- Profil Easy at Work ----------------------------------------------------
 
