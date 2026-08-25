@@ -9,6 +9,10 @@
     00h02               consommation de l'uniforme
     00h05               report d'office de ce qui n'a pas été fait
 
+Les heures ci-dessus sont des heures de Paris. Le conteneur, lui, vit en UTC :
+tous les horodatages en base sont ainsi comparables, quelle que soit la saison.
+C'est seulement à l'affichage et au déclenchement qu'on repasse à l'heure d'ici.
+
 Chaque tâche appelle la même fonction que l'endpoint correspondant : le chemin
 de nuit reste ainsi couvert par les tests de l'API.
 """
@@ -148,6 +152,17 @@ def demarrer() -> BackgroundScheduler:
     conf = configuration()
     ordonnanceur = BackgroundScheduler(timezone=conf.fuseau)
 
+    def a(heure: int, minute: int) -> CronTrigger:
+        """Un rendez-vous quotidien, à l'heure de Paris.
+
+        Le fuseau doit être redonné ici. Un CronTrigger construit à la main fige
+        le sien à la construction, en lisant celui du système — UTC dans le
+        conteneur — et le scheduler ne revient pas le corriger : le sien ne vaut
+        que pour les déclencheurs qu'il crée lui-même. Sans ce paramètre, le
+        « report de minuit » tombait à 2 h du matin, une fois la date changée.
+        """
+        return CronTrigger(hour=heure, minute=minute, timezone=conf.fuseau)
+
     ordonnanceur.add_job(collecter_les_sources_dues, IntervalTrigger(hours=1),
                          id="collectes", name="Collecte des sources dues",
                          max_instances=1, coalesce=True)
@@ -159,25 +174,25 @@ def demarrer() -> BackgroundScheduler:
                          id="boite", name="Relève des confirmations SNCF",
                          max_instances=1, coalesce=True)
 
-    ordonnanceur.add_job(bilan_du_matin, CronTrigger(hour=7, minute=0),
+    ordonnanceur.add_job(bilan_du_matin, a(7, 0),
                          id="bilan", name="Bilan du matin", coalesce=True)
 
     # Après le bilan du matin : on lit ses messages une fois, et la
     # proposition arrive dans la même fournée que le reste.
-    ordonnanceur.add_job(proposer_les_weekends, CronTrigger(hour=7, minute=10),
+    ordonnanceur.add_job(proposer_les_weekends, a(7, 10),
                          id="weekends", name="Propositions de week-end",
                          coalesce=True)
 
-    ordonnanceur.add_job(relance_du_soir, CronTrigger(hour=21, minute=0),
+    ordonnanceur.add_job(relance_du_soir, a(21, 0),
                          id="relance", name="Relance du soir", coalesce=True)
 
     # Avant le report : un t-shirt sali cette nuit peut avancer l'échéance de
     # la lessive, et donc changer ce qu'il y a à replacer.
-    ordonnanceur.add_job(consommer_l_uniforme, CronTrigger(hour=0, minute=2),
+    ordonnanceur.add_job(consommer_l_uniforme, a(0, 2),
                          id="uniforme", name="Consommation de l'uniforme",
                          coalesce=True)
 
-    ordonnanceur.add_job(report_de_minuit, CronTrigger(hour=0, minute=5),
+    ordonnanceur.add_job(report_de_minuit, a(0, 5),
                          id="report", name="Report d'office", coalesce=True)
 
     ordonnanceur.start()
