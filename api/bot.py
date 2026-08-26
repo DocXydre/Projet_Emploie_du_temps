@@ -31,6 +31,9 @@ LOG = logging.getLogger(__name__)
 
 _application: Application | None = None
 _identite: dict | None = None
+# Tâche de fond qui réessaie de joindre Telegram tant que le bot n'est pas en
+# ligne. Gardée pour pouvoir l'annuler à l'arrêt de l'API.
+_reconnexion: asyncio.Task | None = None
 
 AIDE = """/menu — tout, en boutons
 
@@ -868,19 +871,9 @@ def construire() -> Application:
     return application
 
 
-async def demarrer_bot() -> None:
-    """Démarre le bot, ou explique pourquoi il ne démarre pas.
-
-    Un jeton absent est un cas normal : le bot ne démarre pas et l'API tourne
-    quand même. L'appel à get_me vérifie que le jeton est valide et récupère le
-    nom du bot, à afficher pour le retrouver dans Telegram.
-    """
+async def _tenter_demarrage() -> bool:
+    """Une tentative de connexion à Telegram. Vrai si le bot est en ligne."""
     global _application, _identite
-
-    if not configuration().telegram_token:
-        LOG.warning("Pas de jeton Telegram : le bot ne démarre pas, "
-                    "les notifications restent en file.")
-        return
 
     _application = construire()
     try:
@@ -889,14 +882,50 @@ async def demarrer_bot() -> None:
         await _application.start()
         await _application.updater.start_polling(drop_pending_updates=True)
     except Exception as erreur:
-        LOG.error("Bot Telegram non démarré : %s", erreur)
+        LOG.warning("Bot Telegram non démarré : %s", erreur)
+        try:
+            await _application.shutdown()
+        except Exception:
+            pass
         _application = None
         _identite = None
-        return
+        return False
 
     _identite = {"nom": moi.first_name, "identifiant": f"@{moi.username}",
                  "lien": f"https://t.me/{moi.username}"}
     LOG.info("Bot Telegram démarré : %s — %s", _identite["identifiant"], _identite["lien"])
+    return True
+
+
+async def demarrer_bot() -> None:
+    """Démarre le bot, en réessayant tant qu'il n'y arrive pas.
+
+    Un jeton absent est un cas normal : le bot ne démarre pas et l'API tourne
+    quand même. L'appel à get_me vérifie que le jeton est valide et récupère le
+    nom du bot, à afficher pour le retrouver dans Telegram.
+
+    Les tentatives sont espacées de plus en plus, jusqu'à cinq minutes. Au
+    démarrage du serveur, Docker lance le conteneur avant que le DNS soit prêt
+    et la première tentative échoue sur « Temporary failure in name
+    resolution » ; sans réessai, le bot restait éteint jusqu'au prochain
+    redémarrage manuel alors que l'API, elle, répondait normalement.
+
+    La boucle tourne en tâche de fond : le démarrage de l'API ne l'attend pas.
+    """
+    global _reconnexion
+
+    if not configuration().telegram_token:
+        LOG.warning("Pas de jeton Telegram : le bot ne démarre pas, "
+                    "les notifications restent en file.")
+        return
+
+    async def insister() -> None:
+        attente = 5
+        while not await _tenter_demarrage():
+            await asyncio.sleep(attente)
+            attente = min(attente * 2, 300)
+
+    _reconnexion = asyncio.create_task(insister())
 
 
 def identite() -> dict | None:
@@ -905,7 +934,14 @@ def identite() -> dict | None:
 
 
 async def arreter_bot() -> None:
-    global _application, _identite
+    global _application, _identite, _reconnexion
+
+    # La boucle de reconnexion peut encore tourner si Telegram n'a jamais
+    # répondu : l'annuler avant de rendre la main.
+    if _reconnexion is not None:
+        _reconnexion.cancel()
+        _reconnexion = None
+
     if _application is None:
         return
     if _application.updater is not None:
