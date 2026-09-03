@@ -336,6 +336,43 @@ def etat_du_stock(id_utilisateur: int) -> str:
     return "\n".join(morceaux)
 
 
+def groupe_actuel(code_source: str = "IDMC_ICS") -> str | None:
+    ligne = un_seul(
+        "SELECT configuration ->> 'groupe' AS groupe FROM source WHERE code = %(c)s",
+        {"c": code_source},
+    )
+    return (ligne or {}).get("groupe")
+
+
+def changer_groupe(groupe: int, code_source: str = "IDMC_ICS") -> dict | None:
+    """Change le groupe de TD suivi, et recollecte dans la foulée.
+
+    La configuration est fusionnée et non remplacée : le profil de collecte,
+    les langues et l'horizon restent en place.
+
+    La collecte qui suit fait le ménage toute seule. Les cours à venir dont la
+    clé externe n'apparaît plus dans le flux retenu sont supprimés, donc ceux de
+    l'ancien groupe disparaissent et ceux du nouveau sont créés.
+    """
+    modifiee = executer(
+        "UPDATE source "
+        "   SET configuration = COALESCE(configuration, '{}'::JSONB) "
+        "                       || jsonb_build_object('groupe', %(g)s::INT) "
+        " WHERE code = %(c)s "
+        "RETURNING code, configuration",
+        {"g": groupe, "c": code_source},
+    )
+    if modifiee is None:
+        return None
+
+    from api.collecteurs.service import collecter_source
+    bilan = collecter_source(code_source)
+
+    from api.ordonnanceur import placer
+    bilan["occurrences_replacees"] = placer()
+    return bilan
+
+
 def articles_stock() -> list[dict]:
     """Les articles suivis, pour construire les boutons de recalage."""
     return lister("SELECT code, libelle, quantite_propre, quantite_totale "

@@ -56,6 +56,7 @@ Ou les commandes, si tu préfères taper :
 /billets — relever les confirmations SNCF de la boîte
 /calendrier — le lien à abonner sur le téléphone
 /collecter — forcer une collecte
+/groupe 2 — changer de groupe de TD
 /lien CODE URL — donner l'URL d'un flux
 /oublie — délier ce compte Telegram"""
 
@@ -678,6 +679,44 @@ async def collecter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
         )
 
 
+async def groupe(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Changer de groupe de TD : « /groupe 2 ».
+
+    Le groupe est une donnée de configuration, en base et non dans le code. Le
+    changer relance une collecte, qui retire les cours de l'ancien groupe encore
+    à venir et pose ceux du nouveau.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    if not contexte.args or not contexte.args[0].isdigit():
+        actuel = await asyncio.to_thread(conv.groupe_actuel)
+        await update.effective_message.reply_text(
+            f"Groupe suivi : {actuel or 'aucun filtre'}\n\nPour en changer : /groupe 2")
+        return
+
+    voulu = int(contexte.args[0])
+    await update.effective_message.reply_text(
+        f"Passage au groupe {voulu}, je recollecte l'emploi du temps…")
+
+    try:
+        bilan = await asyncio.to_thread(conv.changer_groupe, voulu)
+    except Exception as erreur:
+        await update.effective_message.reply_text(_message_lisible(erreur))
+        return
+
+    if bilan is None:
+        await update.effective_message.reply_text("Source IDMC_ICS inconnue.")
+        return
+
+    await update.effective_message.reply_text(
+        f"Groupe {voulu}.\n"
+        f"{bilan['crees']} cours ajouté(s), {bilan['annules']} retiré(s), "
+        f"{bilan['mis_a_jour']} mis à jour.\n"
+        f"{bilan['occurrences_replacees']} tâche(s) replacée(s).")
+
+
 async def lien(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     """Donne l'URL d'un flux sans jamais l'écrire dans le dépôt."""
     compte = await _appelant(update)
@@ -993,6 +1032,7 @@ def construire() -> Application:
     application.add_handler(CommandHandler("billets", commande_billets))
     application.add_handler(CommandHandler("calendrier", calendrier))
     application.add_handler(CommandHandler("collecter", collecter))
+    application.add_handler(CommandHandler("groupe", groupe))
     application.add_handler(CommandHandler("lien", lien))
     application.add_handler(CommandHandler("oublie", oublie))
     application.add_handler(CallbackQueryHandler(bouton))

@@ -129,7 +129,10 @@ def collecter(code: str, qui: Authentifie, texte_ics: str | None = None) -> dict
 
 class ReglageSource(BaseModel):
     url: str | None = None
-    configuration: dict | None = None
+    configuration: dict | None = Field(
+        default=None,
+        description="Fusionné dans la configuration existante, clé par clé",
+    )
     active: bool | None = None
 
 
@@ -158,10 +161,18 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
         # laissée éteinte n'a pas de raison d'être.
         champs.setdefault("active", True)
 
+    # La configuration se complète, elle ne se remplace pas : changer de groupe
+    # de TD ne doit pas effacer le profil de collecte ni les langues suivies.
+    # L'opérateur || de JSONB écrase les clés fournies et laisse les autres.
+    fusion = "configuration"
     if "configuration" in champs:
         champs["configuration"] = Json(champs["configuration"])
+        fusion = "COALESCE(configuration, '{}'::JSONB) || %(configuration)s"
 
-    affectations = ", ".join(f"{nom} = %({nom})s" for nom in champs)
+    affectations = ", ".join(
+        f"{nom} = {fusion if nom == 'configuration' else f'%({nom})s'}"
+        for nom in champs
+    )
     modifiee = executer(
         f"UPDATE source SET {affectations} WHERE code = %(code)s "
         f"RETURNING id_source, code, mode_collecte, configuration, active, "
