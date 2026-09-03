@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -263,6 +264,11 @@ def langues_suivies(configuration: dict) -> list[str]:
     return suivies
 
 
+def sans_accent(texte: str) -> str:
+    decompose = unicodedata.normalize("NFD", texte)
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn")
+
+
 def a_garder(seance: Seance, configuration: dict) -> tuple[bool, str]:
     """Décide si une séance concerne bien l'utilisateur.
 
@@ -279,6 +285,14 @@ def a_garder(seance: Seance, configuration: dict) -> tuple[bool, str]:
             motif = "alternance" if configuration.get("alternance") and langue == "espagnol" \
                 else "langue non suivie"
             return False, f"{motif} ({langue})"
+
+    # COL-17 : les UE au choix. L'ADE publie toutes les options dans le même
+    # flux, celle qu'on suit comme celle qu'on a laissée. Le libellé est comparé
+    # sans accent, l'ADE ne les écrivant pas toujours.
+    normalise = sans_accent(minuscule)
+    for ecarte in configuration.get("cours_ecartes", []):
+        if sans_accent(ecarte.lower()) in normalise:
+            return False, f"cours non suivi ({ecarte})"
 
     groupe_voulu = configuration.get("groupe")
     if groupe_voulu and seance.groupe and seance.groupe != groupe_voulu:

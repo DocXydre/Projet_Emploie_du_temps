@@ -57,6 +57,7 @@ Ou les commandes, si tu préfères taper :
 /calendrier — le lien à abonner sur le téléphone
 /collecter — forcer une collecte
 /groupe 2 — changer de groupe de TD
+/ecarter Nom du cours — UE au choix que je ne suis pas
 /lien CODE URL — donner l'URL d'un flux
 /oublie — délier ce compte Telegram"""
 
@@ -717,6 +718,59 @@ async def groupe(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         f"{bilan['occurrences_replacees']} tâche(s) replacée(s).")
 
 
+async def ecarter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Les UE au choix qu'on ne suit pas : « /ecarter Traitement automatique des images ».
+
+    L'ADE publie toutes les options dans le même flux. Sans argument, la
+    commande liste ce qui est écarté, avec un bouton pour reprendre un cours.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    if not contexte.args:
+        liste = await asyncio.to_thread(conv.cours_ecartes)
+        if not liste:
+            await update.effective_message.reply_text(
+                "Aucun cours écarté.\n\n"
+                "Pour en écarter un :\n"
+                "/ecarter Traitement automatique des images\n\n"
+                "Un extrait du libellé suffit, les accents n'ont pas d'importance.")
+            return
+
+        # Le bouton porte le rang et non le libellé : Telegram limite les
+        # données de rappel à 64 octets, et un nom de cours contenant « : »
+        # casserait le découpage.
+        boutons = [[InlineKeyboardButton(f"Reprendre {c}", callback_data=f"ecart:{rang}:0")]
+                   for rang, c in enumerate(liste)]
+        await update.effective_message.reply_text(
+            "Cours écartés :\n" + "\n".join(f"• {c}" for c in liste),
+            reply_markup=InlineKeyboardMarkup(boutons))
+        return
+
+    libelle = " ".join(contexte.args)
+    await update.effective_message.reply_text(f"J'écarte « {libelle} » et je recollecte…")
+    await _appliquer_ecart(update.effective_message, conv.ecarter_cours, libelle)
+
+
+async def _appliquer_ecart(message, action, libelle: str) -> None:
+    try:
+        bilan = await asyncio.to_thread(action, libelle)
+    except Exception as erreur:
+        await message.reply_text(_message_lisible(erreur))
+        return
+
+    if bilan is None:
+        await message.reply_text("Source IDMC_ICS inconnue.")
+        return
+
+    restants = bilan["cours_ecartes"]
+    await message.reply_text(
+        f"{bilan['crees']} cours ajouté(s), {bilan['annules']} retiré(s).\n"
+        f"{bilan['occurrences_replacees']} tâche(s) replacée(s).\n\n"
+        + ("Écartés : " + ", ".join(restants) if restants else "Plus aucun cours écarté."))
+
+
 async def lien(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     """Donne l'URL d'un flux sans jamais l'écrire dans le dépôt."""
     compte = await _appelant(update)
@@ -802,6 +856,15 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     if genre == "prop":
         await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
+        return
+
+    if genre == "ecart":
+        liste = await asyncio.to_thread(conv.cours_ecartes)
+        rang = int(choix)
+        if rang >= len(liste):
+            await requete.edit_message_text("Cette liste a changé depuis. Refais /ecarter.")
+            return
+        await _appliquer_ecart(requete.message, conv.reprendre_cours, liste[rang])
         return
 
     if genre == "recal":
@@ -1033,6 +1096,7 @@ def construire() -> Application:
     application.add_handler(CommandHandler("calendrier", calendrier))
     application.add_handler(CommandHandler("collecter", collecter))
     application.add_handler(CommandHandler("groupe", groupe))
+    application.add_handler(CommandHandler("ecarter", ecarter))
     application.add_handler(CommandHandler("lien", lien))
     application.add_handler(CommandHandler("oublie", oublie))
     application.add_handler(CallbackQueryHandler(bouton))

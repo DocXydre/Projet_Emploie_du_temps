@@ -13,6 +13,8 @@ import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+from psycopg.types.json import Json
+
 from api.base import executer, lister, un_seul
 from api.config import configuration
 
@@ -336,6 +338,66 @@ def etat_du_stock(id_utilisateur: int) -> str:
     return "\n".join(morceaux)
 
 
+def _recollecter(code_source: str) -> dict:
+    """Recollecte une source et replace les tâches. Utilisé après un filtre modifié.
+
+    La collecte fait le ménage seule : les cours à venir dont la clé n'apparaît
+    plus dans le flux retenu sont supprimés. Écarter un cours suffit donc à le
+    faire disparaître du calendrier.
+    """
+    from api.collecteurs.service import collecter_source
+    bilan = collecter_source(code_source)
+
+    from api.ordonnanceur import placer
+    bilan["occurrences_replacees"] = placer()
+    return bilan
+
+
+def cours_ecartes(code_source: str = "IDMC_ICS") -> list[str]:
+    ligne = un_seul(
+        "SELECT configuration -> 'cours_ecartes' AS liste FROM source WHERE code = %(c)s",
+        {"c": code_source},
+    )
+    return list((ligne or {}).get("liste") or [])
+
+
+def ecarter_cours(libelle: str, code_source: str = "IDMC_ICS") -> dict | None:
+    """Ajoute un cours à la liste de ceux qu'on ne suit pas, puis recollecte.
+
+    Les UE au choix arrivent toutes dans le même flux : l'ADE publie le
+    traitement d'images comme la recherche opérationnelle, à charge pour
+    l'étudiant de savoir laquelle il suit.
+    """
+    libelle = libelle.strip()
+    liste = cours_ecartes(code_source)
+    if libelle.lower() not in [c.lower() for c in liste]:
+        liste.append(libelle)
+
+    return _enregistrer_ecartes(liste, code_source)
+
+
+def reprendre_cours(libelle: str, code_source: str = "IDMC_ICS") -> dict | None:
+    """Retire un cours de la liste : on le suit de nouveau."""
+    liste = [c for c in cours_ecartes(code_source) if c.lower() != libelle.strip().lower()]
+    return _enregistrer_ecartes(liste, code_source)
+
+
+def _enregistrer_ecartes(liste: list[str], code_source: str) -> dict | None:
+    modifiee = executer(
+        "UPDATE source "
+        "   SET configuration = COALESCE(configuration, '{}'::JSONB) "
+        "                       || jsonb_build_object('cours_ecartes', %(l)s::JSONB) "
+        " WHERE code = %(c)s RETURNING code",
+        {"l": Json(liste), "c": code_source},
+    )
+    if modifiee is None:
+        return None
+
+    bilan = _recollecter(code_source)
+    bilan["cours_ecartes"] = liste
+    return bilan
+
+
 def groupe_actuel(code_source: str = "IDMC_ICS") -> str | None:
     ligne = un_seul(
         "SELECT configuration ->> 'groupe' AS groupe FROM source WHERE code = %(c)s",
@@ -364,13 +426,7 @@ def changer_groupe(groupe: int, code_source: str = "IDMC_ICS") -> dict | None:
     )
     if modifiee is None:
         return None
-
-    from api.collecteurs.service import collecter_source
-    bilan = collecter_source(code_source)
-
-    from api.ordonnanceur import placer
-    bilan["occurrences_replacees"] = placer()
-    return bilan
+    return _recollecter(code_source)
 
 
 def articles_stock() -> list[dict]:
