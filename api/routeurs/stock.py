@@ -14,6 +14,10 @@ class DemandeMouvement(BaseModel):
     quantite: int = Field(description="Positif ; signé pour un recalage")
 
 
+class DemandeRecalage(BaseModel):
+    quantite_propre: int = Field(ge=0, description="Ce qu'on a vraiment de propre")
+
+
 @routeur.get("", summary="État du stock")
 def etat(qui: Authentifie) -> list[dict]:
     return lister("SELECT * FROM v_stock ORDER BY code")
@@ -45,6 +49,30 @@ def projection(qui: Authentifie) -> dict:
         "ruptures": lignes,
         "alerte": any(ligne["alerte"] for ligne in lignes),
     }
+
+
+@routeur.post("/{code}/recaler", summary="Déclarer le stock propre réel")
+def recaler(code: str, demande: DemandeRecalage, qui: Authentifie) -> dict:
+    """« J'ai deux t-shirts propres. »
+
+    Le comptage automatique suit les services travaillés et les lessives
+    validées. Une lessive faite sans la valider, un pantalon changé plus tôt
+    que prévu, et l'écart s'installe. Cette route remet le compte d'aplomb.
+    """
+    resultat = un_seul(
+        "SELECT * FROM recaler_uniforme(%(c)s, %(q)s)",
+        {"c": code, "q": demande.quantite_propre},
+    )
+    if resultat is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "introuvable", "message": f"Article {code} inconnu"},
+        )
+
+    # Le stock a changé, donc l'échéance de la prochaine lessive aussi.
+    from api.ordonnanceur import placer
+    resultat["occurrences_replacees"] = placer()
+    return resultat
 
 
 @routeur.post("/{code}/mouvement", status_code=status.HTTP_201_CREATED,

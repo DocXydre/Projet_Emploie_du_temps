@@ -39,6 +39,13 @@ class DemandeValidation(BaseModel):
     )
 
 
+class DemandeSpontanee(BaseModel):
+    code_tache: str = Field(description="Code de la tâche, par exemple ASPIRATEUR")
+    quand: datetime | None = Field(
+        default=None, description="Quand elle a été faite. Maintenant par défaut."
+    )
+
+
 class DemandeReport(BaseModel):
     nouvelle_echeance: datetime | None = None
     motif: str | None = None
@@ -105,6 +112,22 @@ def creer(demande: DemandeCreation, qui: Authentifie) -> dict:
     )
     assert cree is not None
     return detail(cree["id_occurrence"], qui)
+
+
+@routeur.post("/faite", summary="Déclarer une tâche faite, prévue ou non")
+def faite(demande: DemandeSpontanee, qui: Authentifie) -> dict:
+    """« J'ai passé l'aspirateur », sans qu'il ait été demandé aujourd'hui.
+
+    Reprend l'occurrence ouverte s'il y en a une, en crée une sinon. Dans les
+    deux cas la récurrence repart de la date déclarée : le prochain passage se
+    compte à partir de maintenant, pas de l'échéance qui était prévue.
+    """
+    resultat = un_seul(
+        "SELECT declarer_faite(%(u)s, %(c)s, %(q)s) AS id_occurrence",
+        {"u": qui.id_utilisateur, "c": demande.code_tache.upper(), "q": demande.quand},
+    )
+    assert resultat is not None
+    return detail(resultat["id_occurrence"], qui)
 
 
 @routeur.post("/{id_occurrence}/valider", summary="Valider, éventuellement rétroactivement")

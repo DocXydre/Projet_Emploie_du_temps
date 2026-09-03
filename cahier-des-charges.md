@@ -138,7 +138,7 @@ l'utilisateur.
 | COL-10 | T | Une occupation refusée pour cause de chevauchement est conservée en conflit plutôt que perdue |
 | COL-11 | T | Un conflit qui commence dans plus de deux semaines n'est pas soumis à arbitrage : l'emploi du temps sera vraisemblablement corrigé d'ici là |
 | COL-12 | M | Pour un conflit plus proche, l'utilisateur choisit laquelle des deux occupations garder. Le choix est mémorisé |
-| COL-13 | M | Les occupations peuvent être saisies à la main, ce qui permet au système de fonctionner quand une collecte échoue |
+| COL-13 | M | Les occupations peuvent être saisies à la main, ce qui permet au système de fonctionner quand une collecte échoue. Une saisie manuelle est de type « autre » : elle occupe l'agenda pour le placement, sans se heurter à la contrainte de non-chevauchement réservée aux cours et aux shifts |
 | COL-14 | D | Chacun publie son calendrier personnel depuis son application et en donne le lien. Une source sans URL naît inactive, sans quoi elle passerait pour en panne |
 | COL-15 | D | Les occupations d'un calendrier personnel échappent à la contrainte d'exclusion : un rendez-vous posé sur une plage plus large est ordinaire |
 | COL-16 | T | Un calendrier personnel appartient à la personne que son code désigne. Ce rattachement précède l'assignation générale, qui donnerait sinon toute source orpheline à l'administrateur |
@@ -187,6 +187,7 @@ l'utilisateur.
 | EXE-8 | M | La validation peut être rétroactive : déclarer avoir fait la tâche la veille |
 | EXE-9 | M | L'administrateur peut épingler un créneau, qui n'est alors plus déplacé |
 | EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
+| EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
 
 ### 3.6 Absences et présence — `ABS`
 
@@ -268,6 +269,7 @@ l'utilisateur.
 | UNI-12 | T | Deux occurrences mobilisant la machine ne sont pas placées le même jour |
 | UNI-13 | T | Valider une lessive ne rend pas le linge portable : il redevient disponible à la date de validation plus la durée de séchage |
 | UNI-14 | M | La quantité propre peut être recalée à la main quand le compte s'écarte de la réalité |
+| UNI-15 | M | Le recalage se déclare en quantité réelle — « j'ai deux t-shirts propres » — et non en écart. L'écart est calculé et écrit au journal des mouvements, le compteur de journées portées repart de zéro |
 
 ### 3.12 Notifications et calendrier — `NOT`
 

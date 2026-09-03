@@ -40,11 +40,14 @@ AIDE = """/menu — tout, en boutons
 Ou les commandes, si tu préfères taper :
 
 /valider — cocher ce qui est fait
+/fait — c'est fait, même si ce n'était pas prévu
+/ajouter Titre JJ/MM 14h 16h — poser un créneau au planning
 /sport — les prochaines séances
 /planning — ce qui est prévu aujourd'hui
 /demain — ce qui est prévu demain
 /retards — ce qui traîne
 /stock — uniforme et prochaine lessive
+/recaler — dire combien j'ai de vêtements propres
 /conflits — cours en double à départager
 /parti lieu — je pars maintenant, retour inconnu
 /retour — je suis rentré, rendez-moi mes tâches
@@ -109,9 +112,11 @@ async def aide(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 MENU = [
     [("Valider une tâche", "valider"), ("Aujourd'hui", "jour")],
     [("En retard", "retards"), ("Demain", "demain")],
-    [("Uniforme", "stock"), ("Sport", "sport")],
+    [("C'est déjà fait", "fait"), ("Ajouter au planning", "ajouter")],
+    [("Uniforme", "stock"), ("Corriger le stock", "recaler")],
+    [("Sport", "sport"), ("Trains", "train")],
     [("Je pars", "parti"), ("Je rentre", "retour")],
-    [("Trains", "train"), ("Billets", "billets")],
+    [("Billets", "billets")],
 ]
 
 
@@ -165,6 +170,117 @@ async def valider(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(
             f"{tache['tache_libelle']}{retard}",
             reply_markup=_boutons(tache["id_occurrence"]))
+
+
+async def fait(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """« J'ai passé l'aspirateur », alors qu'il n'était pas demandé.
+
+    /valider ne montre que ce qui est prévu aujourd'hui. Une tâche faite en
+    avance n'y figure pas, et il n'y avait aucun moyen de la déclarer : elle
+    revenait le lendemain comme si de rien n'était.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    if contexte.args:
+        reponse = await asyncio.to_thread(
+            conv.declarer_faite, compte["id_utilisateur"], " ".join(contexte.args))
+        await update.effective_message.reply_text(reponse)
+        return
+
+    taches = await asyncio.to_thread(conv.taches_declarables, compte["id_utilisateur"])
+    if not taches:
+        await update.effective_message.reply_text("Aucune tâche à déclarer.")
+        return
+
+    boutons = [[InlineKeyboardButton(t["libelle"], callback_data=f"fait:{t['code']}:0")]
+               for t in taches]
+    await update.effective_message.reply_text(
+        "Qu'est-ce qui est fait ?",
+        reply_markup=InlineKeyboardMarkup(boutons))
+
+
+async def ajouter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Poser un créneau au planning : « /ajouter Médecin 12/09 14h 16h ».
+
+    Le jour peut être omis pour aujourd'hui. Le libellé est tout ce qui n'est
+    ni une date ni une heure, ce qui évite d'avoir à mettre des guillemets sur
+    un téléphone.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    lu = conv.lire_creneau(contexte.args or [])
+    if lu is None:
+        await update.effective_message.reply_text(
+            "Format : /ajouter Titre JJ/MM 14h 16h\n\n"
+            "Par exemple :\n"
+            "/ajouter Rendez-vous médecin 12/09 14h 16h\n"
+            "/ajouter Révisions 18h 20h30   (aujourd'hui)")
+        return
+
+    libelle, debut, fin = lu
+    try:
+        await asyncio.to_thread(conv.ajouter_occupation,
+                                compte["id_utilisateur"], libelle, debut, fin)
+    except Exception as erreur:
+        await update.effective_message.reply_text(_message_lisible(erreur))
+        return
+
+    await update.effective_message.reply_text(
+        f"C'est posé : {libelle}\n"
+        f"{conv._jour(debut)} de {conv._heure(debut)} à {conv._heure(fin)}\n\n"
+        f"Les tâches qui tombaient là ont été déplacées.")
+
+
+async def recaler(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """« J'ai deux t-shirts propres. »
+
+    Le comptage suit les services et les lessives validées ; la réalité, elle,
+    avance sans lui. Un article par message, avec un bouton par quantité
+    possible — c'est plus court que de taper, et on ne peut pas se tromper de
+    format.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    if len(contexte.args or []) == 2 and contexte.args[1].isdigit():
+        code, quantite = contexte.args[0].upper(), int(contexte.args[1])
+        await _appliquer_recalage(update.effective_message, code, quantite)
+        return
+
+    articles = await asyncio.to_thread(conv.articles_stock)
+    for article in articles:
+        boutons = [InlineKeyboardButton(str(n), callback_data=f"recal:{article['code']}:{n}")
+                   for n in range(article["quantite_totale"] + 1)]
+        await update.effective_message.reply_text(
+            f"{article['libelle']} — {article['quantite_propre']} propre(s) selon moi.\n"
+            f"Combien en as-tu vraiment ?",
+            reply_markup=InlineKeyboardMarkup([boutons]))
+
+
+async def _appliquer_recalage(message, code: str, quantite: int) -> None:
+    try:
+        resultat = await asyncio.to_thread(conv.recaler_stock, code, quantite)
+    except Exception as erreur:
+        await message.reply_text(_message_lisible(erreur))
+        return
+
+    if resultat is None:
+        await message.reply_text(f"Article {code} inconnu.")
+        return
+
+    ecart = resultat["ecart"]
+    if ecart == 0:
+        suite = "j'avais déjà le bon compte."
+    else:
+        suite = f"j'en comptais {ecart:+d} de moins que toi." if ecart > 0 \
+                else f"j'en comptais {-ecart} de trop."
+    await message.reply_text(
+        f"Noté : {resultat['quantite_propre']} propre(s) — {suite}")
 
 
 async def planning(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -649,6 +765,16 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
         return
 
+    if genre == "recal":
+        await _appliquer_recalage(requete.message, choix, int(identifiant))
+        return
+
+    if genre == "fait":
+        reponse = await asyncio.to_thread(
+            conv.declarer_faite, compte["id_utilisateur"], choix)
+        await requete.edit_message_text(f"{requete.message.text}\n\n→ {reponse}")
+        return
+
     if genre == "billet":
         try:
             replacees = await asyncio.to_thread(trajets.oublier, int(identifiant))
@@ -713,10 +839,13 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
     """
     commandes = {
         "valider": valider,
+        "fait": fait,
+        "ajouter": ajouter,
         "jour": planning,
         "demain": demain,
         "retards": retards,
         "stock": stock,
+        "recaler": recaler,
         "sport": seances_a_venir,
         "parti": parti,
         "retour": retour,
@@ -848,6 +977,9 @@ def construire() -> Application:
     application.add_handler(CommandHandler("help", aide))
     application.add_handler(CommandHandler("menu", menu))
     application.add_handler(CommandHandler("valider", valider))
+    application.add_handler(CommandHandler("fait", fait))
+    application.add_handler(CommandHandler("ajouter", ajouter))
+    application.add_handler(CommandHandler("recaler", recaler))
     application.add_handler(CommandHandler("sport", seances_a_venir))
     application.add_handler(CommandHandler("planning", planning))
     application.add_handler(CommandHandler("demain", demain))
@@ -885,8 +1017,8 @@ async def _tenter_demarrage() -> bool:
         LOG.warning("Bot Telegram non démarré : %s", erreur)
         try:
             await _application.shutdown()
-        except Exception:
-            pass
+        except Exception as second:  # noqa: BLE001 - on ferme au mieux
+            LOG.debug("Fermeture de l'application Telegram : %s", second)
         _application = None
         _identite = None
         return False

@@ -9,6 +9,7 @@ Cette séparation permet de tester les actions du bot sans appeler Telegram.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -333,6 +334,123 @@ def etat_du_stock(id_utilisateur: int) -> str:
                             f"(rupture le {quand})")
 
     return "\n".join(morceaux)
+
+
+def articles_stock() -> list[dict]:
+    """Les articles suivis, pour construire les boutons de recalage."""
+    return lister("SELECT code, libelle, quantite_propre, quantite_totale "
+                  "  FROM article_travail ORDER BY code")
+
+
+def recaler_stock(code: str, propre: int) -> dict | None:
+    """Déclare le stock propre réel d'un article, et replace la lessive."""
+    resultat = un_seul("SELECT * FROM recaler_uniforme(%(c)s, %(q)s)",
+                       {"c": code.upper(), "q": propre})
+    if resultat is not None:
+        from api.ordonnanceur import placer
+        placer()
+    return resultat
+
+
+def taches_declarables(id_utilisateur: int) -> list[dict]:
+    """Tâches qu'on peut déclarer faites spontanément.
+
+    Le sport en est écarté : une séance se valide par son occurrence, qui porte
+    un lieu et un horaire.
+    """
+    return lister(
+        """
+        SELECT t.code, t.libelle, t.categorie
+          FROM tache t
+         WHERE t.active AND t.categorie <> 'sport'
+           AND (t.id_utilisateur_defaut IS NULL
+                OR t.id_utilisateur_defaut = %(u)s)
+         ORDER BY t.libelle
+        """,
+        {"u": id_utilisateur},
+    )
+
+
+def declarer_faite(id_utilisateur: int, code_tache: str) -> str:
+    """« C'est fait », même si ce n'était pas prévu aujourd'hui."""
+    resultat = un_seul(
+        "SELECT declarer_faite(%(u)s, %(c)s) AS id_occurrence",
+        {"u": id_utilisateur, "c": code_tache.upper()},
+    )
+    if resultat is None:
+        return "Tâche inconnue."
+
+    ligne = un_seul(
+        "SELECT tache_libelle, echeance_max FROM v_occurrence "
+        " WHERE id_tache = (SELECT id_tache FROM tache WHERE code = %(c)s) "
+        "   AND statut IN ('a_placer', 'planifiee', 'notifiee') "
+        " ORDER BY echeance_max LIMIT 1",
+        {"c": code_tache.upper()},
+    )
+    if ligne is None:
+        return "C'est noté."
+    return (f"{ligne['tache_libelle']} : c'est noté.\n"
+            f"Prochaine échéance le {_jour(ligne['echeance_max'])}.")
+
+
+def ajouter_occupation(id_utilisateur: int, libelle: str,
+                       debut: datetime, fin: datetime,
+                       lieu: str | None = None) -> dict | None:
+    """Pose une occupation saisie à la main, et replace ce qui tombait dessus."""
+    resultat = un_seul(
+        "SELECT ajouter_occupation(%(u)s, %(l)s, %(d)s, %(f)s, 'autre', %(lieu)s) "
+        "    AS id_occupation",
+        {"u": id_utilisateur, "l": libelle, "d": debut, "f": fin, "lieu": lieu},
+    )
+    if resultat is not None:
+        from api.ordonnanceur import placer
+        placer()
+    return resultat
+
+
+def lire_creneau(mots: list[str], fuseau=None) -> tuple[str, datetime, datetime] | None:
+    """Lit « Médecin 12/09 14h 16h » et rend le libellé et les deux instants.
+
+    Le jour se donne en JJ/MM, ou se laisse de côté pour aujourd'hui. Les heures
+    s'écrivent 14h, 14h30 ou 14:30. Le libellé est tout ce qui reste, ce qui
+    permet de l'écrire sans guillemets.
+    """
+    fuseau = fuseau or ZoneInfo(configuration().fuseau)
+    maintenant = datetime.now(fuseau)
+
+    jour = None
+    heures: list[tuple[int, int]] = []
+    restant: list[str] = []
+
+    for mot in mots:
+        date = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", mot)
+        heure = re.fullmatch(r"(\d{1,2})[h:](\d{2})?", mot)
+
+        if date and jour is None:
+            annee = int(date.group(3) or maintenant.year)
+            annee += 2000 if annee < 100 else 0
+            try:
+                jour = datetime(annee, int(date.group(2)), int(date.group(1)),
+                                tzinfo=fuseau).date()
+            except ValueError:
+                return None
+        elif heure and len(heures) < 2:
+            heures.append((int(heure.group(1)), int(heure.group(2) or 0)))
+        else:
+            restant.append(mot)
+
+    if len(heures) != 2 or not restant:
+        return None
+
+    jour = jour or maintenant.date()
+    debut = datetime(jour.year, jour.month, jour.day, *heures[0], tzinfo=fuseau)
+    fin = datetime(jour.year, jour.month, jour.day, *heures[1], tzinfo=fuseau)
+
+    # « 22h 2h » : la fin appartient au lendemain.
+    if fin <= debut:
+        fin += timedelta(days=1)
+
+    return " ".join(restant), debut, fin
 
 
 def declarer_absence(id_utilisateur: int, debut: datetime, fin: datetime,

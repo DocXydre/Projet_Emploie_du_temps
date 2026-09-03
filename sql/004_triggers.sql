@@ -288,33 +288,8 @@ CREATE OR REPLACE TRIGGER mouvement_appliquer
 -- -----------------------------------------------------------------------------
 -- Une journée de travail consomme de l'uniforme                          (UNI-4)
 --
--- Le mouvement est enregistré quand la journée de travail est passée : c'est
--- le moment où le vêtement est réellement sale.
+-- La fonction consommer_uniforme est définie dans la migration 014, avec le
+-- compteur de journées travaillées. Elle a été retirée d'ici : les deux fichiers
+-- sont rejouables, et rejouer celui-ci après une correction aurait remis en
+-- place l'ancienne version, celle qui comptait un jour de calendrier sur deux.
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION consommer_uniforme(p_jour DATE) RETURNS INTEGER
-LANGUAGE plpgsql AS $$
-DECLARE
-    a         RECORD;
-    v_faits   INTEGER := 0;
-    v_jours_travailles INTEGER;
-BEGIN
-    SELECT count(*) INTO v_jours_travailles
-      FROM occupation
-     WHERE type = 'travail' AND jour_de(lower(periode)) = p_jour;
-
-    IF v_jours_travailles = 0 THEN
-        RETURN 0;
-    END IF;
-
-    FOR a IN SELECT * FROM article_travail LOOP
-        -- Une unité couvre jours_par_unite journées de travail : on ne salit
-        -- un pantalon qu'un jour sur deux.
-        IF (p_jour - DATE '2000-01-01') % a.jours_par_unite = 0 THEN
-            INSERT INTO mouvement_stock (id_article, type, quantite)
-            VALUES (a.id_article, 'salissure', 1);
-            v_faits := v_faits + 1;
-        END IF;
-    END LOOP;
-
-    RETURN v_faits;
-END $$;

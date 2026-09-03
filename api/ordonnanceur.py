@@ -18,6 +18,8 @@ de nuit reste ainsi couvert par les tests de l'API.
 """
 
 import logging
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -160,9 +162,15 @@ def demarrer() -> BackgroundScheduler:
         """
         return CronTrigger(hour=heure, minute=minute, timezone=conf.fuseau)
 
+    # Une première collecte tout de suite, sans attendre l'heure pleine. Le
+    # serveur redémarre après une coupure ou un déploiement, et les emplois du
+    # temps ont pu changer entre-temps : attendre une heure pour s'en rendre
+    # compte n'aurait pas de sens.
     ordonnanceur.add_job(collecter_les_sources_dues, IntervalTrigger(hours=1),
                          id="collectes", name="Collecte des sources dues",
-                         max_instances=1, coalesce=True)
+                         max_instances=1, coalesce=True,
+                         next_run_time=datetime.now(ZoneInfo(conf.fuseau))
+                         + timedelta(seconds=30))
 
     # Toutes les deux heures : suffisant pour un achat de billet, et ça évite
     # d'ouvrir des connexions IMAP en continu.
