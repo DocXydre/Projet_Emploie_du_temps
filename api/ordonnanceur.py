@@ -5,6 +5,7 @@
     toutes les 6 h      calendriers personnels
     07h00               bilan du matin, puis placement
     07h10               propositions de week-end
+    07h20, le lundi     proposition des séances de sport de la semaine
     21h00               relance sur les tâches du jour non faites
     00h02               consommation de l'uniforme
     00h05               report d'office de ce qui n'a pas été fait
@@ -98,6 +99,21 @@ def proposer_les_weekends() -> dict:
         return {}
 
 
+def proposer_le_sport() -> dict:
+    """La proposition du lundi matin : quels jours, quel sport.
+
+    Une fois par semaine et non chaque jour : c'est une décision d'organisation,
+    et l'emploi du temps de la semaine est connu le lundi.
+    """
+    from api import sport
+
+    try:
+        return sport.proposer()
+    except Exception:
+        LOG.exception("Échec de la proposition de sport")
+        return {}
+
+
 def placer() -> int:
     conf = configuration()
     resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
@@ -185,6 +201,14 @@ def demarrer() -> BackgroundScheduler:
     # proposition arrive dans la même fournée que le reste.
     ordonnanceur.add_job(proposer_les_weekends, a(7, 10),
                          id="weekends", name="Propositions de week-end",
+                         coalesce=True)
+
+    # Lundi seulement, juste après le bilan : la semaine vient de commencer et
+    # son emploi du temps est connu.
+    ordonnanceur.add_job(proposer_le_sport,
+                         CronTrigger(day_of_week="mon", hour=7, minute=20,
+                                     timezone=conf.fuseau),
+                         id="sport", name="Proposition de sport du lundi",
                          coalesce=True)
 
     ordonnanceur.add_job(relance_du_soir, a(21, 0),

@@ -251,6 +251,11 @@ l'utilisateur.
 | SPT-6 | T | Une seule séance par jour. Trois séances entassées le même après-midi n'en font pas trois |
 | SPT-7 | T | Une séance qui finit après l'heure tardive d'un lieu exige un repos avant la prochaine obligation. La règle ne vise que la nuit |
 | SPT-8 | D | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux : la piscine n'ouvre que deux heures à midi, la salle est ouverte tout le jour |
+| SPT-9 | D | La durée d'une séance dépend du lieu et non de la tâche : une heure de piscine, une demi-heure de course à pied |
+| SPT-10 | D | Chaque lieu déclare un battement libre exigé avant et après la séance, en plus du trajet. Trente minutes pour la piscine et la salle, quinze pour la course |
+| SPT-11 | D | Chaque lieu déclare l'heure à laquelle commencer une journée sans aucune obligation |
+| SPT-12 | T | Une séance « après » se place au premier moment tenable qui suit la dernière obligation du jour. Faute d'obligation, elle se place à l'heure par défaut du lieu, et non en fin de journée |
+| SPT-13 | M | Le lundi matin, les créneaux praticables de la semaine sont proposés, jour par jour et lieu par lieu. Une séance retenue est épinglée ; ce qui n'est pas choisi reste placé d'office |
 
 ### 3.11 Uniforme et stock — `UNI`
 

@@ -43,6 +43,7 @@ Ou les commandes, si tu préfères taper :
 /fait — c'est fait, même si ce n'était pas prévu
 /ajouter Titre JJ/MM 14h 16h — poser un créneau au planning
 /sport — les prochaines séances
+/organiser — choisir ses séances de la semaine
 /planning — ce qui est prévu aujourd'hui
 /demain — ce qui est prévu demain
 /retards — ce qui traîne
@@ -116,9 +117,9 @@ MENU = [
     [("En retard", "retards"), ("Demain", "demain")],
     [("C'est déjà fait", "fait"), ("Ajouter au planning", "ajouter")],
     [("Uniforme", "stock"), ("Corriger le stock", "recaler")],
-    [("Sport", "sport"), ("Trains", "train")],
+    [("Sport", "sport"), ("Organiser le sport", "organiser")],
+    [("Trains", "train"), ("Billets", "billets")],
     [("Je pars", "parti"), ("Je rentre", "retour")],
-    [("Billets", "billets")],
 ]
 
 
@@ -858,6 +859,10 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
         return
 
+    if genre == "seance":
+        await _bouton_seance(update, compte, choix, int(identifiant))
+        return
+
     if genre == "ecart":
         liste = await asyncio.to_thread(conv.cours_ecartes)
         rang = int(choix)
@@ -949,6 +954,7 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         "stock": stock,
         "recaler": recaler,
         "sport": seances_a_venir,
+        "organiser": organiser,
         "parti": parti,
         "retour": retour,
         "train": train,
@@ -982,6 +988,82 @@ async def seances_a_venir(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -
     ]
     await update.effective_message.reply_text(
         "Séances à venir (trajet compris) :\n" + "\n".join(lignes))
+
+
+def _boutons_sport(creneaux: list[dict]) -> InlineKeyboardMarkup | None:
+    """Un bouton par jour et par lieu possible.
+
+    Les données de rappel portent le jour en ISO et l'identifiant du lieu :
+    c'est court, et ça reste juste même si la liste a changé entre l'envoi du
+    message et le clic.
+    """
+    if not creneaux:
+        return None
+
+    JOURS = ("lun", "mar", "mer", "jeu", "ven", "sam", "dim")
+    lignes = []
+    for creneau in creneaux[:24]:
+        jour = creneau["jour"]
+        lignes.append([InlineKeyboardButton(
+            f"{JOURS[jour.weekday()]} {jour.day:02d} · {creneau['libelle']} "
+            f"{conv._heure(creneau['debut'])}",
+            callback_data=f"seance:{jour.isoformat()}:{creneau['id_lieu']}")])
+    return InlineKeyboardMarkup(lignes)
+
+
+async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Choisir ses séances de la semaine : quel jour, quel sport.
+
+    C'est la proposition du lundi, rejouable à la demande — un emploi du temps
+    change, et le choix de lundi matin n'engage pas jusqu'au dimanche.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    from api import sport
+
+    texte = await asyncio.to_thread(sport.resumer, compte["id_utilisateur"])
+    if texte is None:
+        await update.effective_message.reply_text(
+            "Les séances de la semaine sont déjà toutes posées. « /sport » pour les voir.")
+        return
+
+    creneaux = await asyncio.to_thread(sport.possibilites, compte["id_utilisateur"])
+    await update.effective_message.reply_text(
+        texte, reply_markup=_boutons_sport(creneaux))
+
+
+async def _bouton_seance(update: Update, compte: dict, jour: str, id_lieu: int) -> None:
+    from datetime import date as _date
+
+    from api import sport
+
+    requete = update.callback_query
+    try:
+        retenue = await asyncio.to_thread(
+            sport.retenir, compte["id_utilisateur"], _date.fromisoformat(jour), id_lieu)
+    except Exception as erreur:
+        await requete.message.reply_text(_message_lisible(erreur))
+        return
+
+    if retenue is None:
+        await requete.message.reply_text("Séance introuvable.")
+        return
+
+    await requete.message.reply_text(
+        f"C'est noté : {retenue['lieu']} le {conv._jour(retenue['debut'])} "
+        f"à {conv._heure(retenue['debut'])}.")
+
+    # On repropose ce qui reste, la liste ayant changé : le jour retenu n'est
+    # plus disponible, et une séance de moins est à caser.
+    texte = await asyncio.to_thread(sport.resumer, compte["id_utilisateur"])
+    if texte is None:
+        await requete.message.reply_text("Toutes les séances de la semaine sont posées.")
+        return
+
+    creneaux = await asyncio.to_thread(sport.possibilites, compte["id_utilisateur"])
+    await requete.message.reply_text(texte, reply_markup=_boutons_sport(creneaux))
 
 
 async def _bouton_proposition(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
@@ -1047,6 +1129,13 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         # boutons de validation.
         if notification["type"] == "rappel" and notification["id_occurrence"]:
             boutons = _boutons(notification["id_occurrence"])
+        elif notification["type"] == "sport":
+            # Les créneaux sont recalculés au moment de l'envoi, et non à la
+            # rédaction : entre les deux, un cours a pu tomber.
+            from api import sport
+            creneaux = await asyncio.to_thread(
+                sport.possibilites, notification["id_utilisateur"])
+            boutons = _boutons_sport(creneaux)
         elif notification.get("id_proposition"):
             # Boutons « oui / non merci » sous une proposition de week-end.
             boutons = _boutons_proposition(notification["id_proposition"])
@@ -1083,6 +1172,7 @@ def construire() -> Application:
     application.add_handler(CommandHandler("ajouter", ajouter))
     application.add_handler(CommandHandler("recaler", recaler))
     application.add_handler(CommandHandler("sport", seances_a_venir))
+    application.add_handler(CommandHandler("organiser", organiser))
     application.add_handler(CommandHandler("planning", planning))
     application.add_handler(CommandHandler("demain", demain))
     application.add_handler(CommandHandler("retards", retards))

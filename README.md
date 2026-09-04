@@ -112,7 +112,7 @@ Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
 | **Absences** | Partir gèle le ménage ; la charge revient à qui reste, répartie en minutes |
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
 | **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
-| **Sport** | Trois séances par semaine, dans les heures d'ouverture du lieu, trajet compris |
+| **Sport** | Trois séances par semaine — piscine, course ou salle — dans les heures d'ouverture du lieu, trajet et battement compris. Les créneaux possibles sont proposés le lundi matin |
 | **Uniforme** | Compte les services travaillés et déclenche la lessive avant la rupture de stock |
 | **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
 
