@@ -13,6 +13,9 @@ RUN apt-get update \
 
 COPY pyproject.toml ./
 COPY api ./api
+# Les outils de diagnostic vivent dans l'image : quand un flux se tait, c'est
+# depuis le serveur qu'il faut l'interroger, avec ses identifiants.
+COPY outils ./outils
 RUN pip install --no-cache-dir . \
  && chown -R planif:planif /app
 

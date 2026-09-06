@@ -44,6 +44,7 @@ Ou les commandes, si tu préfères taper :
 /ajouter Titre JJ/MM 14h 16h — poser un créneau au planning
 /sport — les prochaines séances
 /organiser — choisir ses séances de la semaine
+/piscine — les créneaux du SUAPS (« /piscine maj » pour relire la page)
 /planning — ce qui est prévu aujourd'hui
 /demain — ce qui est prévu demain
 /retards — ce qui traîne
@@ -432,10 +433,17 @@ async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> Non
               "Touche le lien pour t'abonner, puis choisis un rafraîchissement "
               "toutes les heures.\n\n")
 
+    # Le chemin manuel est donné d'emblée. Sur iOS, ouvrir un lien vers un .ics
+    # depuis Safari télécharge les événements une fois pour toutes au lieu de
+    # créer un abonnement : le calendrier ne se met alors plus jamais à jour, et
+    # rien ne le signale.
     await update.effective_message.reply_text(
         f"{entete}{lien['webcal']}\n\n"
-        f"Si ton téléphone refuse ce lien, colle celui-ci :\n{lien['url']}\n\n"
-        f"Il ne donne que la lecture du planning. Pour le révoquer : "
+        f"Si le téléphone ne propose pas de s'abonner, passe par :\n"
+        f"Réglages → Apps → Calendrier → Comptes → Ajouter un compte → "
+        f"Autre → Ajouter un calendrier avec abonnement, et colle :\n\n"
+        f"{lien['url']}\n\n"
+        f"Le lien ne donne que la lecture du planning. Pour le révoquer : "
         f"« /calendrier renouveler »."
     )
 
@@ -1066,6 +1074,49 @@ async def _bouton_seance(update: Update, compte: dict, jour: str, id_lieu: int) 
     await requete.message.reply_text(texte, reply_markup=_boutons_sport(creneaux))
 
 
+async def piscine(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Les créneaux connus de la piscine, et leur fraîcheur.
+
+    Avec un argument quelconque, force un relevé sur la page du SUAPS au lieu
+    d'attendre celui de 6h50.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    from api import sport
+
+    if contexte.args:
+        await update.effective_message.reply_text("Je relis la page du SUAPS…")
+        bilans = await asyncio.to_thread(sport.rafraichir_horaires)
+        for bilan in bilans:
+            detail = bilan.get("detail") or f"{bilan.get('creneaux', 0)} créneau(x)"
+            rejets = bilan.get("rejets") or {}
+            texte = f"{bilan['lieu']} — {bilan['etat']} : {detail}"
+            if rejets:
+                texte += "\n" + "\n".join(f"  écarté : {m} ×{n}" for m, n in rejets.items())
+            await update.effective_message.reply_text(texte)
+
+    creneaux = await asyncio.to_thread(sport.horaires)
+    if not creneaux:
+        await update.effective_message.reply_text("Aucun créneau connu.")
+        return
+
+    JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
+    par_jour: dict[int, list[str]] = {}
+    for creneau in creneaux:
+        par_jour.setdefault(creneau["jour_semaine"], []).append(
+            f"{creneau['heure_debut']:%H:%M}–{creneau['heure_fin']:%H:%M}")
+
+    lignes = [f"{JOURS[j - 1]} : {' · '.join(h)}" for j, h in sorted(par_jour.items())]
+    releve = creneaux[0]["horaires_releves_le"]
+    lignes.append("")
+    lignes.append(f"Relevé le {conv._jour(releve)} à {conv._heure(releve)}"
+                  if releve else "Jamais relevé automatiquement.")
+
+    await update.effective_message.reply_text("\n".join(lignes))
+
+
 async def _bouton_proposition(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
                               compte: dict, choix: str, id_proposition: int) -> None:
     """Répondre à une proposition : regarder les trains, ou décliner."""
@@ -1173,6 +1224,7 @@ def construire() -> Application:
     application.add_handler(CommandHandler("recaler", recaler))
     application.add_handler(CommandHandler("sport", seances_a_venir))
     application.add_handler(CommandHandler("organiser", organiser))
+    application.add_handler(CommandHandler("piscine", piscine))
     application.add_handler(CommandHandler("planning", planning))
     application.add_handler(CommandHandler("demain", demain))
     application.add_handler(CommandHandler("retards", retards))

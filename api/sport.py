@@ -18,6 +18,68 @@ from api.base import executer, lister, un_seul
 LOG = logging.getLogger(__name__)
 
 
+def rafraichir_horaires(code: str | None = None) -> list[dict]:
+    """Relève les créneaux publiés et remplace ceux qu'on avait.
+
+    Un lieu par ligne de bilan. Un relevé qui échoue ou qui ne ramène rien
+    laisse les horaires en place et le dit : mieux vaut des horaires d'hier
+    qu'un planning vide, et c'est exactement l'erreur qui avait effacé deux
+    semaines de services (SPT-15).
+    """
+    from psycopg.types.json import Json
+
+    from api.collecteurs import suaps
+
+    lieux = lister(
+        "SELECT code, libelle, url_horaires, configuration FROM v_lieu_a_relever "
+        " WHERE (%(c)s::VARCHAR IS NULL OR code = %(c)s) ORDER BY code",
+        {"c": code},
+    )
+
+    bilans = []
+    for lieu in lieux:
+        ligne = {"lieu": lieu["code"]}
+        try:
+            releve = suaps.relever(lieu["url_horaires"], lieu["configuration"] or {})
+        except Exception as erreur:  # noqa: BLE001 - une page injoignable est un cas
+            ligne |= {"etat": "injoignable", "detail": f"{type(erreur).__name__}: {erreur}"}
+            LOG.warning("Horaires %s : %s", lieu["code"], erreur)
+            bilans.append(ligne)
+            continue
+
+        creneaux = [{"jour": c.jour, "debut": c.debut, "fin": c.fin}
+                    for c in releve["creneaux"]]
+        try:
+            un_seul("SELECT remplacer_ouvertures(%(c)s, %(j)s) AS n",
+                    {"c": lieu["code"], "j": Json(creneaux)})
+        except Exception as erreur:  # noqa: BLE001 - refus volontaire sur relevé vide
+            ligne |= {"etat": "conservés", "detail": str(erreur).strip(),
+                      "rejets": releve["rejets"]}
+            LOG.warning("Horaires %s conservés : %s", lieu["code"], erreur)
+            bilans.append(ligne)
+            continue
+
+        ligne |= {"etat": "à jour", "creneaux": len(creneaux),
+                  "lues": releve["lues"], "rejets": releve["rejets"]}
+        LOG.info("Horaires %s : %s créneau(x)", lieu["code"], len(creneaux))
+        bilans.append(ligne)
+
+    return bilans
+
+
+def horaires(code: str = "PISCINE_SUAPS") -> list[dict]:
+    """Les créneaux connus d'un lieu, pour les montrer."""
+    return lister(
+        """
+        SELECT o.jour_semaine, o.heure_debut, o.heure_fin, l.horaires_releves_le
+          FROM ouverture o JOIN lieu_sport l USING (id_lieu)
+         WHERE l.code = %(c)s
+         ORDER BY o.jour_semaine, o.heure_debut
+        """,
+        {"c": code},
+    )
+
+
 def possibilites(id_utilisateur: int, lundi: date | None = None) -> list[dict]:
     """Tous les créneaux praticables de la semaine, par jour et par lieu."""
     return lister(

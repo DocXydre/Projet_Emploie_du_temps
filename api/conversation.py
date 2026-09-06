@@ -90,6 +90,12 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
 
     Deux formes de la même adresse, dont une en `webcal://` qui ouvre
     directement la boîte d'abonnement d'un téléphone.
+
+    Le protocole se déduit de l'hôte. Un nom avec un port explicite est un
+    serveur local en clair ; un nom sans port est servi en HTTPS par
+    `tailscale serve`. Le lien était auparavant toujours en `http://`, ce qui
+    marchait sur le Mac — le navigateur corrigeait — et échouait sur le
+    téléphone, l'application Calendrier ne corrigeant rien.
     """
     ligne = un_seul(
         "SELECT jeton_calendrier FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
@@ -103,8 +109,14 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
         return None
     hote = hote.split("://", 1)[-1]
 
+    port = hote.rpartition(":")[2] if ":" in hote else ""
+    protocole = "http" if port.isdigit() and port != "443" else "https"
+
     chemin = f"{hote}/planning.ics?cle={ligne['jeton_calendrier']}"
-    return {"url": f"http://{chemin}", "webcal": f"webcal://{chemin}", "hote": hote}
+    return {"url": f"{protocole}://{chemin}",
+            "webcal": f"webcal://{chemin}",
+            "hote": hote,
+            "protocole": protocole}
 
 
 def renouveler_calendrier(id_utilisateur: int) -> str | None:
