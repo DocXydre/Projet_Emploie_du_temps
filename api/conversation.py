@@ -91,11 +91,13 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
     Deux formes de la même adresse, dont une en `webcal://` qui ouvre
     directement la boîte d'abonnement d'un téléphone.
 
-    Le protocole se déduit de l'hôte. Un nom avec un port explicite est un
-    serveur local en clair ; un nom sans port est servi en HTTPS par
-    `tailscale serve`. Le lien était auparavant toujours en `http://`, ce qui
-    marchait sur le Mac — le navigateur corrigeait — et échouait sur le
-    téléphone, l'application Calendrier ne corrigeant rien.
+    Le protocole se déduit de l'hôte. Sans port, ou sur l'un des ports que
+    Tailscale réserve à ses tunnels chiffrés, c'est du HTTPS ; sur tout autre
+    port, c'est un serveur local en clair.
+
+    Le lien était auparavant toujours en `http://`, ce qui marchait sur le Mac
+    — le navigateur corrigeait — et échouait sur le téléphone, l'application
+    Calendrier ne corrigeant rien.
     """
     ligne = un_seul(
         "SELECT jeton_calendrier FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
@@ -109,8 +111,11 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
         return None
     hote = hote.split("://", 1)[-1]
 
+    # 443, 8443 et 10000 sont les seuls ports que Tailscale accepte pour un
+    # tunnel public : sur ceux-là, la connexion est chiffrée de bout en bout.
+    PORTS_CHIFFRES = {"443", "8443", "10000"}
     port = hote.rpartition(":")[2] if ":" in hote else ""
-    protocole = "http" if port.isdigit() and port != "443" else "https"
+    protocole = "http" if port.isdigit() and port not in PORTS_CHIFFRES else "https"
 
     chemin = f"{hote}/planning.ics?cle={ligne['jeton_calendrier']}"
     return {"url": f"{protocole}://{chemin}",
