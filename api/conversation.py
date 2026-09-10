@@ -88,8 +88,8 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
     `HOTE_PUBLIC` l'emporte sur `defaut`, qui n'est qu'un repli tiré de la
     requête : interrogée depuis le Mac, l'API renverrait sinon « localhost ».
 
-    Deux formes de la même adresse, dont une en `webcal://` qui ouvre
-    directement la boîte d'abonnement d'un téléphone.
+    Le lien `webcal://` n'accompagne l'adresse que sur un flux en clair : iOS
+    le traduit en `http://` et jamais en `https://`.
 
     Le protocole se déduit de l'hôte. Sans port, ou sur l'un des ports que
     Tailscale réserve à ses tunnels chiffrés, c'est du HTTPS ; sur tout autre
@@ -118,8 +118,15 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
     protocole = "http" if port.isdigit() and port not in PORTS_CHIFFRES else "https"
 
     chemin = f"{hote}/planning.ics?cle={ligne['jeton_calendrier']}"
+
+    # iOS traduit « webcal:// » en « http:// » et jamais en « https:// ». Sur
+    # un flux chiffré, le téléphone part donc en clair, signale l'absence de
+    # SSL, et l'abonnement échoue ; la variante « webcals:// » n'est pas
+    # reconnue. Le lien webcal n'est proposé que sur un flux en clair.
+    webcal = f"webcal://{chemin}" if protocole == "http" else None
+
     return {"url": f"{protocole}://{chemin}",
-            "webcal": f"webcal://{chemin}",
+            "webcal": webcal,
             "hote": hote,
             "protocole": protocole}
 

@@ -405,11 +405,12 @@ async def absent(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """Envoie le lien d'abonnement, là où on en a besoin : sur le téléphone.
+    """Envoie l'adresse d'abonnement, là où on en a besoin : sur le téléphone.
 
-    C'est tout l'intérêt de passer par le bot. Le lien contient un jeton de
-    trente-deux caractères que personne ne recopie à la main sans se tromper ;
-    touché depuis Telegram, il ouvre directement l'application Calendrier.
+    C'est tout l'intérêt de passer par le bot : l'adresse contient un jeton de
+    trente-deux caractères que personne ne recopie à la main sans se tromper.
+    Elle est envoyée en monospace et non en lien, parce qu'un lien touché sur
+    iOS importe les événements au lieu de créer un abonnement.
     """
     compte = await _appelant(update)
     if compte is None:
@@ -429,23 +430,34 @@ async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     entete = ("Nouveau lien. L'ancien ne fonctionne plus, il faut te réabonner.\n\n"
-              if renouveler else
-              "Touche le lien pour t'abonner, puis choisis un rafraîchissement "
-              "toutes les heures.\n\n")
+              if renouveler else "")
 
-    # Le chemin manuel est donné d'emblée. Sur iOS, ouvrir un lien vers un .ics
-    # depuis Safari télécharge les événements une fois pour toutes au lieu de
-    # créer un abonnement : le calendrier ne se met alors plus jamais à jour, et
-    # rien ne le signale.
-    await update.effective_message.reply_text(
-        f"{entete}{lien['webcal']}\n\n"
-        f"Si le téléphone ne propose pas de s'abonner, passe par :\n"
+    # Le chemin par les réglages est le chemin normal, pas le recours. Toucher
+    # un lien vers un .ics importe les événements une fois pour toutes au lieu
+    # de créer un abonnement : le calendrier ne se met alors plus jamais à jour,
+    # et rien ne le signale. L'adresse part donc en <code>, que Telegram affiche
+    # sans en faire un lien et qu'un appui long recopie.
+    corps = (
+        f"{entete}"
+        f"Copie cette adresse :\n\n"
+        f"<code>{lien['url']}</code>\n\n"
+        f"puis, sur le téléphone :\n"
         f"Réglages → Apps → Calendrier → Comptes → Ajouter un compte → "
-        f"Autre → Ajouter un calendrier avec abonnement, et colle :\n\n"
-        f"{lien['url']}\n\n"
-        f"Le lien ne donne que la lecture du planning. Pour le révoquer : "
-        f"« /calendrier renouveler »."
+        f"Autre → Ajouter un calendrier avec abonnement.\n"
+        f"Colle l'adresse telle quelle et règle l'actualisation sur "
+        f"« Toutes les heures ».\n\n"
     )
+
+    # Sur un flux en clair seulement : ailleurs, iOS traduirait webcal:// en
+    # http:// et l'abonnement échouerait.
+    if lien["webcal"]:
+        corps += (f"Sur un ordinateur, ce lien ouvre directement la boîte "
+                  f"d'abonnement :\n{lien['webcal']}\n\n")
+
+    corps += ("Le lien ne donne que la lecture du planning. Pour le révoquer : "
+              "« /calendrier renouveler ».")
+
+    await update.effective_message.reply_text(corps, parse_mode=ParseMode.HTML)
 
 
 async def train(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
