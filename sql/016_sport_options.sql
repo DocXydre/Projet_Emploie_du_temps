@@ -50,6 +50,12 @@ COMMENT ON COLUMN lieu_sport.heure_defaut IS
 -- SPT-12 : « après » remplace « tard » pour la salle. On ne veut pas la fin du
 -- creux, on veut la suite des cours.
 ALTER TABLE lieu_sport DROP CONSTRAINT IF EXISTS lieu_sport_preference_check;
+
+-- « apres » fait cinq caractères, la colonne en acceptait quatre : elle avait
+-- été dimensionnée pour « tard ». On l'élargit avant la contrainte, sinon la
+-- valeur est refusée par le type avant même d'être vérifiée.
+ALTER TABLE lieu_sport ALTER COLUMN preference TYPE VARCHAR(8);
+
 ALTER TABLE lieu_sport ADD CONSTRAINT lieu_sport_preference_check
     CHECK (preference IN ('tot', 'tard', 'apres'));
 
