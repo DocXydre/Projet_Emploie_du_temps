@@ -167,7 +167,9 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
     fusion = "configuration"
     if "configuration" in champs:
         champs["configuration"] = Json(champs["configuration"])
-        fusion = "COALESCE(configuration, '{}'::JSONB) || %(configuration)s"
+        # Le paramètre arrive en `json` et non en `jsonb` : sans le cast,
+        # PostgreSQL ne trouve pas d'opérateur `jsonb || json`.
+        fusion = "COALESCE(configuration, '{}'::JSONB) || %(configuration)s::JSONB"
 
     affectations = ", ".join(
         f"{nom} = {fusion if nom == 'configuration' else f'%({nom})s'}"
