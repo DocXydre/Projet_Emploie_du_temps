@@ -203,6 +203,20 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
     }
 
 
+def _occupations_a_venir(id_source: int) -> int:
+    """Ce qu'une collecte muette effacerait."""
+    ligne = un_seul(
+        """
+        SELECT count(*) AS nombre FROM occupation
+         WHERE id_source = %(s)s
+           AND cle_externe IS NOT NULL
+           AND lower(periode) > now()
+        """,
+        {"s": id_source},
+    )
+    return (ligne or {}).get("nombre", 0)
+
+
 def collecter_source(code: str, id_utilisateur: int | None = None,
                      texte_ics: str | None = None) -> dict:
     """Collecte une source de bout en bout.
@@ -238,6 +252,26 @@ def collecter_source(code: str, id_utilisateur: int | None = None,
 
     reglages = source["configuration"] or {}
     resultat = collecter_flux(source["url"], reglages, texte_ics)
+
+    # COL-18 : un relevé vide ne remplace jamais rien. Une page injoignable, un
+    # site refondu et une session expirée rendent tous zéro événement derrière
+    # un code 200 : rien ne distingue un agenda réellement vide d'une collecte
+    # muette. Or `reconcilier` supprime tout ce qui n'est plus publié, donc une
+    # seule collecte muette efface le planning à venir de la source.
+    #
+    # Tant qu'il y a quelque chose à perdre, on garde et on signale. La source
+    # n'est pas marquée collectée, elle finit donc par apparaître en panne dans
+    # le bilan du matin. Un agenda qui se vide pour de bon se déclare dans la
+    # configuration de la source.
+    if not resultat["seances"] and not reglages.get("releve_vide_autorise"):
+        a_perdre = _occupations_a_venir(source["id_source"])
+        if a_perdre:
+            raise CollecteImpossible(
+                "releve_vide",
+                f"Le flux de {code} n'a rendu aucun événement alors que "
+                f"{a_perdre} occupation(s) à venir sont en base. Rien n'a été "
+                f"supprimé.")
+
     bilan = reconcilier(source["id_source"], proprietaire, resultat["seances"],
                         reglages.get("type_occupation", "cours"))
 
