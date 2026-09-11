@@ -82,6 +82,15 @@ def relever_la_boite() -> dict:
 
     if bilan.get("traites") or bilan.get("illisibles"):
         LOG.info("Relève : %s", bilan)
+
+    # ABS-5 : un billet lu ouvre ou ferme une absence, et les tâches déjà
+    # posées sur ces jours-là doivent partir ailleurs. Le placement sait le
+    # faire, y compris dans la période gelée, mais encore faut-il l'appeler :
+    # sans ça le planning reste faux jusqu'au lendemain matin, et la relance du
+    # soir réclame un ménage dans un appartement vide.
+    if bilan.get("traites"):
+        placer()
+
     return bilan
 
 
