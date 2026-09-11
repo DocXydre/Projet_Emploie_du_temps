@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -35,33 +35,8 @@ _identite: dict | None = None
 # ligne. Gardée pour pouvoir l'annuler à l'arrêt de l'API.
 _reconnexion: asyncio.Task | None = None
 
-AIDE = """/menu — tout, en boutons
-
-Ou les commandes, si tu préfères taper :
-
-/valider — cocher ce qui est fait
-/fait — c'est fait, même si ce n'était pas prévu
-/ajouter Titre JJ/MM 14h 16h — poser un créneau au planning
-/sport — les prochaines séances
-/organiser — choisir ses séances de la semaine
-/piscine — les créneaux du SUAPS (« /piscine maj » pour relire la page)
-/planning — ce qui est prévu aujourd'hui
-/demain — ce qui est prévu demain
-/retards — ce qui traîne
-/stock — uniforme et prochaine lessive
-/recaler — dire combien j'ai de vêtements propres
-/conflits — cours en double à départager
-/parti lieu — je pars maintenant, retour inconnu
-/retour — je suis rentré, rendez-moi mes tâches
-/absent JJ/MM JJ/MM lieu — absence connue à l'avance
-/train — aller à Saint-Dié : quand, et à quelle heure
-/billets — relever les confirmations SNCF de la boîte
-/calendrier — le lien à abonner sur le téléphone
-/collecter — forcer une collecte
-/groupe 2 — changer de groupe de TD
-/ecarter Nom du cours — UE au choix que je ne suis pas
-/lien CODE URL — donner l'URL d'un flux
-/oublie — délier ce compte Telegram"""
+# L'aide se construit à partir du catalogue des commandes, en bas de ce
+# fichier : le texte suivait mal les ajouts quand il était écrit à la main.
 
 
 async def _appelant(update: Update) -> dict | None:
@@ -100,7 +75,8 @@ async def demarrer(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     await update.effective_message.reply_text(
         f"Bonjour {compte['pseudo']}. Je t'enverrai ton planning le matin et "
-        f"les rappels le soir.\n\n{AIDE}"
+        f"les rappels le soir.\n\n{texte_aide()}",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -110,7 +86,8 @@ async def oublie(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def aide(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.effective_message.reply_text(AIDE)
+    await update.effective_message.reply_text(texte_aide(),
+                                              parse_mode=ParseMode.HTML)
 
 
 MENU = [
@@ -1222,43 +1199,119 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
 # Cycle de vie
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Catalogue des commandes
+#
+# Une seule liste pour trois usages : l'enregistrement des handlers, le texte
+# de /aide, et le menu que Telegram propose quand on tape « / ». Écrire une
+# commande à trois endroits, c'est s'assurer qu'un jour elle n'existera qu'à
+# deux : l'aide écrite à la main avait déjà oublié /demarrer et /aide.
+# ---------------------------------------------------------------------------
+
+def catalogue() -> list[tuple[str, str, str, str, object]]:
+    """Groupe, nom, argument, description, fonction. Dans l'ordre d'affichage."""
+    return [
+        ("Au quotidien", "menu", "", "tout, en boutons", menu),
+        ("Au quotidien", "planning", "", "ce qui est prévu aujourd'hui", planning),
+        ("Au quotidien", "demain", "", "ce qui est prévu demain", demain),
+        ("Au quotidien", "valider", "", "cocher ce qui est fait", valider),
+        ("Au quotidien", "fait", "", "c'est fait, même si ce n'était pas prévu", fait),
+        ("Au quotidien", "retards", "", "ce qui traîne", retards),
+        ("Au quotidien", "ajouter", "Titre JJ/MM 14h 16h",
+         "poser un créneau au planning", ajouter),
+
+        ("Sport", "sport", "", "les prochaines séances", seances_a_venir),
+        ("Sport", "organiser", "", "choisir ses séances de la semaine", organiser),
+        ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
+
+        ("Maison", "stock", "", "uniforme et prochaine lessive", stock),
+        ("Maison", "recaler", "", "dire combien j'ai de vêtements propres", recaler),
+
+        ("Absences et trajets", "parti", "lieu",
+         "je pars maintenant, retour inconnu", parti),
+        ("Absences et trajets", "retour", "",
+         "je suis rentré, rendez-moi mes tâches", retour),
+        ("Absences et trajets", "absent", "JJ/MM JJ/MM lieu",
+         "absence connue à l'avance", absent),
+        ("Absences et trajets", "train", "",
+         "les trains pour Saint-Dié, et quand y aller", train),
+        ("Absences et trajets", "billets", "",
+         "relever les confirmations SNCF de la boîte", commande_billets),
+
+        ("Emploi du temps", "calendrier", "",
+         "le lien à abonner sur le téléphone", calendrier),
+        ("Emploi du temps", "collecter", "", "forcer une collecte", collecter),
+        ("Emploi du temps", "conflits", "", "cours en double à départager", conflits),
+        ("Emploi du temps", "groupe", "2", "changer de groupe de TD", groupe),
+        ("Emploi du temps", "ecarter", "Nom du cours",
+         "UE au choix que je ne suis pas", ecarter),
+        ("Emploi du temps", "lien", "CODE URL", "donner l'URL d'un flux", lien),
+
+        ("Ce compte", "demarrer", "TA_CLE_API", "relier ce compte Telegram", demarrer),
+        ("Ce compte", "aide", "", "cette liste", aide),
+        ("Ce compte", "oublie", "", "délier ce compte Telegram", oublie),
+    ]
+
+
+def texte_aide() -> str:
+    """L'aide, groupée et en HTML : une liste de vingt-six lignes ne se lit pas.
+
+    Les titres de groupe sont en gras, seule mise en forme que Telegram offre
+    dans un message texte.
+    """
+    lignes: list[str] = []
+    groupe_courant = ""
+
+    for groupe, nom, argument, description, _ in catalogue():
+        if groupe != groupe_courant:
+            if lignes:
+                lignes.append("")
+            lignes.append(f"<b>{groupe}</b>")
+            groupe_courant = groupe
+
+        appel = f"/{nom} {argument}".rstrip()
+        lignes.append(f"{appel} : {description}")
+
+    return "\n".join(lignes)
+
+
+def commandes_telegram() -> list[BotCommand]:
+    """Ce que Telegram propose à la saisie d'un « / »."""
+    return [
+        BotCommand(nom, f"{description} ({argument})" if argument else description)
+        for _, nom, argument, description, _ in catalogue()
+    ]
+
+
 def construire() -> Application:
     application = Application.builder().token(configuration().telegram_token).build()
 
+    for _, nom, _, _, fonction in catalogue():
+        application.add_handler(CommandHandler(nom, fonction))
+
+    # Deux alias que Telegram propose de lui-même : /start à la première
+    # ouverture, /help par habitude. Ce ne sont pas des commandes de plus, ils
+    # n'ont donc pas à figurer dans l'aide.
     application.add_handler(CommandHandler("start", demarrer))
-    application.add_handler(CommandHandler("demarrer", demarrer))
-    application.add_handler(CommandHandler("aide", aide))
     application.add_handler(CommandHandler("help", aide))
-    application.add_handler(CommandHandler("menu", menu))
-    application.add_handler(CommandHandler("valider", valider))
-    application.add_handler(CommandHandler("fait", fait))
-    application.add_handler(CommandHandler("ajouter", ajouter))
-    application.add_handler(CommandHandler("recaler", recaler))
-    application.add_handler(CommandHandler("sport", seances_a_venir))
-    application.add_handler(CommandHandler("organiser", organiser))
-    application.add_handler(CommandHandler("piscine", piscine))
-    application.add_handler(CommandHandler("planning", planning))
-    application.add_handler(CommandHandler("demain", demain))
-    application.add_handler(CommandHandler("retards", retards))
-    application.add_handler(CommandHandler("stock", stock))
-    application.add_handler(CommandHandler("conflits", conflits))
-    application.add_handler(CommandHandler("absent", absent))
-    application.add_handler(CommandHandler("parti", parti))
-    application.add_handler(CommandHandler("retour", retour))
-    application.add_handler(CommandHandler("train", train))
-    application.add_handler(CommandHandler("billets", commande_billets))
-    application.add_handler(CommandHandler("calendrier", calendrier))
-    application.add_handler(CommandHandler("collecter", collecter))
-    application.add_handler(CommandHandler("groupe", groupe))
-    application.add_handler(CommandHandler("ecarter", ecarter))
-    application.add_handler(CommandHandler("lien", lien))
-    application.add_handler(CommandHandler("oublie", oublie))
     application.add_handler(CallbackQueryHandler(bouton))
 
     if application.job_queue is not None:
         application.job_queue.run_repeating(vider_la_file, interval=60, first=15)
 
     return application
+
+
+async def _publier_les_commandes() -> None:
+    """Donne à Telegram la liste à proposer quand on tape « / ».
+
+    Un échec ici ne vaut pas un échec de démarrage : le bot répond aux mêmes
+    commandes, elles ne s'affichent simplement pas toutes seules.
+    """
+    try:
+        await _application.bot.set_my_commands(commandes_telegram())
+    except Exception as erreur:  # noqa: BLE001 - le menu n'est pas vital
+        LOG.warning("Menu des commandes non publié : %s", erreur)
 
 
 async def _tenter_demarrage() -> bool:
@@ -1271,6 +1324,7 @@ async def _tenter_demarrage() -> bool:
         moi = await _application.bot.get_me()
         await _application.start()
         await _application.updater.start_polling(drop_pending_updates=True)
+        await _publier_les_commandes()
     except Exception as erreur:
         LOG.warning("Bot Telegram non démarré : %s", erreur)
         try:
