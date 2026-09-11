@@ -80,6 +80,7 @@ def relance(qui: Administrateur) -> dict:
 
 @routeur.post("/report", summary="Reporter d'office les tâches du jour non faites")
 def report(qui: Administrateur) -> dict:
-    resultat = executer("SELECT reporter_taches_du_jour() AS reportees")
+    """EXE-12 : reporte, abandonne au-delà du délai, ou alerte. Rend les trois."""
+    resultat = executer("SELECT reporter_taches_du_jour() AS bilan")
     assert resultat is not None
-    return resultat
+    return resultat["bilan"]

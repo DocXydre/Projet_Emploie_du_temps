@@ -163,11 +163,18 @@ def relance_du_soir() -> int:
     return creees
 
 
-def report_de_minuit() -> int:
-    resultat = executer("SELECT reporter_taches_du_jour() AS reportees")
-    reportees = (resultat or {}).get("reportees", 0)
-    LOG.info("Report d'office : %s tâche(s)", reportees)
-    return reportees
+def report_de_minuit() -> dict:
+    """Reporte, abandonne ou alerte, selon le retard de chaque occurrence.
+
+    EXE-12 : au-delà du délai propre à la tâche, l'occurrence est oubliée plutôt
+    que reportée une fois de plus.
+    """
+    resultat = executer("SELECT reporter_taches_du_jour() AS bilan")
+    bilan = (resultat or {}).get("bilan") or {}
+    LOG.info("Report d'office : %s reportée(s), %s abandonnée(s), %s alerte(s)",
+             bilan.get("reportees", 0), bilan.get("abandonnees", 0),
+             bilan.get("alertes", 0))
+    return bilan
 
 
 def consommer_l_uniforme() -> int:

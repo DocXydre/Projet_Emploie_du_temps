@@ -190,6 +190,7 @@ l'utilisateur.
 | EXE-9 | M | L'administrateur peut épingler un créneau, qui n'est alors plus déplacé |
 | EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
+| EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
 
 ### 3.6 Absences et présence — `ABS`
 
