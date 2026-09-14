@@ -257,7 +257,7 @@ l'utilisateur.
 | SPT-9 | D | La durée d'une séance dépend du lieu et non de la tâche : une heure de piscine, une demi-heure de course à pied |
 | SPT-10 | D | Chaque lieu déclare un battement libre exigé avant et après la séance, en plus du trajet. Trente minutes pour la piscine et la salle, quinze pour la course |
 | SPT-11 | D | Chaque lieu déclare l'heure à laquelle commencer une journée sans aucune obligation |
-| SPT-12 | T | Une séance « après » se place au premier moment tenable qui suit la dernière obligation du jour. Faute d'obligation, elle se place à l'heure par défaut du lieu, et non en fin de journée |
+| SPT-12 | T | Une séance « après » se place au premier moment tenable qui suit le dernier **cours** du jour. Le travail n'entre pas dans l'ancre : un service du soir la rendrait inatteignable et la séance deviendrait impossible tous les jours travaillés. Le service occupe l'agenda par ailleurs, une séance ne peut pas le chevaucher. Faute de cours, la séance se place à l'heure par défaut du lieu, et non en fin de journée |
 | SPT-13 | M | Le lundi matin, les créneaux praticables de la semaine sont proposés, jour par jour et lieu par lieu. Une séance retenue est épinglée ; ce qui n'est pas choisi reste placé d'office |
 | SPT-14 | D | Un lieu peut déclarer la page publique d'où ses créneaux sont relevés, avec le site et les publics qui le concernent. Un lieu sans page garde une saisie manuelle |
 | SPT-15 | T | Le relevé remplace en bloc les créneaux du lieu : un créneau supprimé à la source doit disparaître. Mais un relevé vide ou en échec conserve les horaires précédents et le signale, plutôt que de vider le planning |
