@@ -987,6 +987,11 @@ async def seances_a_venir(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -
         "Séances à venir (trajet compris) :\n" + "\n".join(lignes))
 
 
+# Un clavier de soixante boutons ne se lit pas. Au-delà, le message le dit et
+# renvoie vers un second « /organiser ».
+_MAX_BOUTONS = 24
+
+
 def _boutons_sport(creneaux: list[dict]) -> InlineKeyboardMarkup | None:
     """Un bouton par jour et par lieu possible.
 
@@ -999,7 +1004,7 @@ def _boutons_sport(creneaux: list[dict]) -> InlineKeyboardMarkup | None:
 
     JOURS = ("lun", "mar", "mer", "jeu", "ven", "sam", "dim")
     lignes = []
-    for creneau in creneaux[:24]:
+    for creneau in creneaux[:_MAX_BOUTONS]:
         jour = creneau["jour"]
         lignes.append([InlineKeyboardButton(
             f"{JOURS[jour.weekday()]} {jour.day:02d} · {creneau['libelle']} "
@@ -1027,8 +1032,15 @@ async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
         return
 
     creneaux = await asyncio.to_thread(sport.possibilites, compte["id_utilisateur"])
+
+    # Les boutons sont plafonnés : au-delà, la liste devient illisible. Le texte,
+    # lui, montre tout, et choisir une séance raccourcit le reste.
+    if len(creneaux) > _MAX_BOUTONS:
+        texte += (f"\n\nBoutons limités aux {_MAX_BOUTONS} premiers créneaux. "
+                  f"Relance « /organiser » après avoir choisi pour voir la suite.")
+
     await update.effective_message.reply_text(
-        texte, reply_markup=_boutons_sport(creneaux))
+        texte, reply_markup=_boutons_sport(creneaux), parse_mode=ParseMode.HTML)
 
 
 async def _bouton_seance(update: Update, compte: dict, jour: str, id_lieu: int) -> None:

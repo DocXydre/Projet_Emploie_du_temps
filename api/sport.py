@@ -80,22 +80,27 @@ def horaires(code: str = "PISCINE_SUAPS") -> list[dict]:
     )
 
 
-def possibilites(id_utilisateur: int, lundi: date | None = None) -> list[dict]:
-    """Tous les créneaux praticables de la semaine, par jour et par lieu."""
+def possibilites(id_utilisateur: int, jour: date | None = None) -> list[dict]:
+    """Tous les créneaux praticables des semaines ouvertes (SPT-16).
+
+    La semaine en cours et la suivante, plus une troisième à partir du jeudi.
+    `jour` sert à se placer à une autre date, pour les tests.
+    """
     return lister(
         """
-        SELECT jour, id_lieu, code, libelle, rang,
+        SELECT lundi, jour, id_lieu, code, libelle, rang,
                lower(creneau) AS debut, upper(creneau) AS fin
-          FROM creneaux_sport_semaine(%(u)s, %(l)s)
+          FROM creneaux_sport_horizon(%(u)s, %(j)s)
          ORDER BY jour, rang
         """,
-        {"u": id_utilisateur, "l": lundi},
+        {"u": id_utilisateur, "j": jour},
     )
 
 
-def restantes(id_utilisateur: int, lundi: date | None = None) -> int:
-    ligne = un_seul("SELECT seances_sport_restantes(%(u)s, %(l)s) AS n",
-                    {"u": id_utilisateur, "l": lundi})
+def restantes(id_utilisateur: int, jour: date | None = None) -> int:
+    """Séances à caser sur tout l'horizon ouvert, pas sur la seule semaine."""
+    ligne = un_seul("SELECT seances_sport_a_caser(%(u)s, %(j)s) AS n",
+                    {"u": id_utilisateur, "j": jour})
     return (ligne or {}).get("n", 0)
 
 
@@ -120,37 +125,58 @@ def retenir(id_utilisateur: int, jour: date, id_lieu: int) -> dict | None:
     )
 
 
-def resumer(id_utilisateur: int, lundi: date | None = None) -> str | None:
-    """Le message du lundi, ou None s'il n'y a rien à proposer.
+def _entete_semaine(lundi: date, reference: date) -> str:
+    """« Cette semaine », « Semaine prochaine », ou la date du lundi."""
+    ecart = (lundi - reference).days // 7
+    if ecart <= 0:
+        return "Cette semaine"
+    if ecart == 1:
+        return "Semaine prochaine"
+    return f"Semaine du {lundi.day:02d}/{lundi.month:02d}"
 
-    Un jour par ligne, avec les lieux possibles. Les jours sans aucune
-    possibilité sont tus : les afficher ferait une liste de refus.
+
+def resumer(id_utilisateur: int, jour: date | None = None) -> str | None:
+    """Le message d'organisation, ou None s'il n'y a rien à proposer.
+
+    Un jour par ligne, avec les lieux possibles, groupés par semaine. Les jours
+    sans aucune possibilité sont tus : les afficher ferait une liste de refus.
     """
+    from datetime import date as _date
+    from datetime import timedelta
+
     from api.conversation import _heure
 
-    a_caser = restantes(id_utilisateur, lundi)
+    a_caser = restantes(id_utilisateur, jour)
     if a_caser <= 0:
         return None
 
-    creneaux = possibilites(id_utilisateur, lundi)
+    creneaux = possibilites(id_utilisateur, jour)
     if not creneaux:
-        return ("Semaine de sport : aucun créneau ne tient cette semaine.\n"
+        return ("Sport : aucun créneau ne tient sur les semaines ouvertes.\n"
                 "Ni la piscine, ni la course, ni la salle n'entrent dans "
                 "l'emploi du temps.")
 
     JOURS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche")
-    par_jour: dict[date, list[dict]] = {}
+    aujourd_hui = jour or _date.today()
+    semaine_courante = aujourd_hui - timedelta(days=aujourd_hui.weekday())
+
+    par_semaine: dict[date, dict[date, list[dict]]] = {}
     for creneau in creneaux:
-        par_jour.setdefault(creneau["jour"], []).append(creneau)
+        par_semaine.setdefault(creneau["lundi"], {}) \
+                   .setdefault(creneau["jour"], []).append(creneau)
 
-    lignes = [f"Sport : {a_caser} séance(s) à caser cette semaine.", ""]
-    for jour, options in par_jour.items():
-        titre = f"{JOURS[jour.weekday()]} {jour.day:02d}/{jour.month:02d}"
-        detail = " · ".join(
-            f"{o['libelle']} {_heure(o['debut'])}" for o in options)
-        lignes.append(f"{titre} — {detail}")
+    lignes = [f"Sport : {a_caser} séance(s) à caser.", ""]
+    for lundi_semaine in sorted(par_semaine):
+        lignes.append(f"<b>{_entete_semaine(lundi_semaine, semaine_courante)}</b>")
+        for jour_creneau in sorted(par_semaine[lundi_semaine]):
+            titre = (f"{JOURS[jour_creneau.weekday()]} "
+                     f"{jour_creneau.day:02d}/{jour_creneau.month:02d}")
+            detail = " · ".join(
+                f"{o['libelle']} {_heure(o['debut'])}"
+                for o in par_semaine[lundi_semaine][jour_creneau])
+            lignes.append(f"{titre} : {detail}")
+        lignes.append("")
 
-    lignes.append("")
     lignes.append("Choisis, ou laisse faire : ce qui reste sera placé d'office.")
     return "\n".join(lignes)
 
