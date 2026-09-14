@@ -35,6 +35,12 @@ class Configuration(BaseSettings):
     # aucune tâche ne sera placée ce jour-là.
     horizon_calendrier_jours: int = 180
 
+    # Profondeur du passé exposée par le flux iCalendar. Les occupations
+    # collectées ne sont jamais supprimées une fois passées : sans cette
+    # fenêtre, le téléphone les oubliait quand même, l'export commençant la
+    # veille. Savoir ce qu'on faisait il y a six mois demande de l'exporter.
+    historique_calendrier_jours: int = 180
+
     # Hôte par lequel le téléphone joint l'API, sous la forme « nom:port ».
     # Une adresse IP change de réseau en réseau et casse l'abonnement du
     # calendrier ; le nom Bonjour du Mac (« mon-mac.local »), lui, ne change

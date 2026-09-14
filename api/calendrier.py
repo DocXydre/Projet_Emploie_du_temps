@@ -58,11 +58,15 @@ def _titre(ligne: dict) -> str:
 def flux_ics(id_utilisateur: int, jours: int | None = None) -> bytes:
     conf = configuration()
     fuseau = ZoneInfo(conf.fuseau)
-    debut = datetime.now(fuseau) - timedelta(days=1)
+    # Le passé est exporté lui aussi. Il n'est jamais supprimé en base, mais un
+    # abonnement remplace tout son contenu à chaque rafraîchissement : ce que le
+    # flux n'expose pas disparaît du téléphone.
+    debut = datetime.now(fuseau) - timedelta(days=conf.historique_calendrier_jours)
 
     # L'horizon d'affichage n'est pas celui de la planification : on veut voir
     # ses cours de novembre, même si aucune tâche ménagère n'y sera placée.
-    fin = debut + timedelta(days=(jours or conf.horizon_calendrier_jours) + 1)
+    fin = (datetime.now(fuseau)
+           + timedelta(days=(jours or conf.horizon_calendrier_jours) + 1))
 
     lignes = lister(
         """
