@@ -570,6 +570,49 @@ def lire_creneau(mots: list[str], fuseau=None) -> tuple[str, datetime, datetime]
     return " ".join(restant), debut, fin
 
 
+def lire_moment(mots: list[str], fuseau=None) -> tuple[datetime, str] | None:
+    """Lit « 16/09 18h salle » et rend l'instant et ce qui reste.
+
+    Une seule heure, contrairement à `lire_creneau` : la durée d'une séance est
+    connue du lieu, on ne la redemande pas. Le jour se laisse de côté pour
+    aujourd'hui, et le reste des mots désigne le lieu.
+    """
+    fuseau = fuseau or ZoneInfo(configuration().fuseau)
+    maintenant = datetime.now(fuseau)
+
+    jour = None
+    heure: tuple[int, int] | None = None
+    restant: list[str] = []
+
+    for mot in mots:
+        date_lue = re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?", mot)
+        heure_lue = re.fullmatch(r"(\d{1,2})[h:](\d{2})?", mot)
+
+        if date_lue and jour is None:
+            annee = int(date_lue.group(3) or maintenant.year)
+            annee += 2000 if annee < 100 else 0
+            try:
+                jour = datetime(annee, int(date_lue.group(2)), int(date_lue.group(1)),
+                                tzinfo=fuseau).date()
+            except ValueError:
+                return None
+        elif heure_lue and heure is None:
+            heure = (int(heure_lue.group(1)), int(heure_lue.group(2) or 0))
+        else:
+            restant.append(mot)
+
+    if heure is None:
+        return None
+
+    jour = jour or maintenant.date()
+    try:
+        instant = datetime(jour.year, jour.month, jour.day, *heure, tzinfo=fuseau)
+    except ValueError:
+        return None
+
+    return instant, " ".join(restant)
+
+
 def declarer_absence(id_utilisateur: int, debut: datetime, fin: datetime,
                      lieu: str | None = None) -> dict | None:
     return executer(

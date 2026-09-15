@@ -11,7 +11,7 @@ et ce qui n'est pas choisi finit placé d'office par l'ordonnanceur.
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from api.base import executer, lister, un_seul
 
@@ -133,6 +133,57 @@ def _entete_semaine(lundi: date, reference: date) -> str:
     if ecart == 1:
         return "Semaine prochaine"
     return f"Semaine du {lundi.day:02d}/{lundi.month:02d}"
+
+
+def lieu_par_nom(nom: str) -> dict | None:
+    """Retrouve un lieu sur un fragment de son code ou de son libellé.
+
+    « salle », « piscine », « course » suffisent. La casse est ignorée ; les
+    accents ne le sont pas, mais aucun des trois fragments utiles n'en porte.
+    """
+    nom = (nom or "").strip()
+    if not nom:
+        return None
+
+    return un_seul(
+        """
+        SELECT id_lieu, code, libelle FROM lieu_sport
+         WHERE code ILIKE '%%' || %(n)s || '%%'
+            OR libelle ILIKE '%%' || %(n)s || '%%'
+         ORDER BY length(libelle)
+         LIMIT 1
+        """,
+        {"n": nom},
+    )
+
+
+def caler(id_utilisateur: int, debut: datetime, nom_lieu: str = "") -> dict | None:
+    """Pose une séance à l'heure exacte demandée, et l'épingle.
+
+    L'heure est celle de la séance. Le trajet et les marges s'ajoutent autour,
+    et c'est le bloc complet qu'on rend, pour qu'on voie ce qui est réservé.
+    """
+    lieu = lieu_par_nom(nom_lieu) if nom_lieu else None
+    if nom_lieu and lieu is None:
+        raise ValueError(f"Lieu inconnu : « {nom_lieu} »")
+
+    ligne = un_seul(
+        "SELECT caler_seance_sport(%(u)s, %(d)s, %(l)s) AS id_occurrence",
+        {"u": id_utilisateur, "d": debut, "l": lieu["id_lieu"] if lieu else None},
+    )
+    if ligne is None:
+        return None
+
+    return un_seul(
+        """
+        SELECT o.id_occurrence, l.libelle AS lieu,
+               lower(o.creneau) AS debut, upper(o.creneau) AS fin
+          FROM occurrence o
+          LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
+         WHERE o.id_occurrence = %(id)s
+        """,
+        {"id": ligne["id_occurrence"]},
+    )
 
 
 def resumer(id_utilisateur: int, jour: date | None = None) -> str | None:

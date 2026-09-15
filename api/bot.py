@@ -1014,16 +1014,23 @@ def _boutons_sport(creneaux: list[dict]) -> InlineKeyboardMarkup | None:
 
 
 async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """Choisir ses séances de la semaine : quel jour, quel sport.
+    """Choisir ses séances : quel jour, quel sport, et à quelle heure.
 
-    C'est la proposition du lundi, rejouable à la demande — un emploi du temps
-    change, et le choix de lundi matin n'engage pas jusqu'au dimanche.
+    Sans argument, la liste des possibilités, rejouable à la demande : un emploi
+    du temps change, et le choix du lundi n'engage pas jusqu'au dimanche.
+
+    Avec « 16/09 18h salle », la séance se pose à l'heure dite. Le moteur ne
+    propose que ce qui entre dans ses règles ; il arrive qu'on sache mieux que
+    lui, parce qu'on y va avec quelqu'un ou qu'on accepte d'être juste.
     """
     compte = await _appelant(update)
     if compte is None:
         return await _refuser(update)
 
     from api import sport
+
+    if contexte.args:
+        return await _caler_une_seance(update, compte, contexte.args)
 
     texte = await asyncio.to_thread(sport.resumer, compte["id_utilisateur"])
     if texte is None:
@@ -1041,6 +1048,41 @@ async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
 
     await update.effective_message.reply_text(
         texte, reply_markup=_boutons_sport(creneaux), parse_mode=ParseMode.HTML)
+
+
+async def _caler_une_seance(update: Update, compte: dict, mots: list[str]) -> None:
+    """« /organiser 16/09 18h salle » : l'heure est celle de la séance."""
+    from api import sport
+
+    lu = conv.lire_moment(mots)
+    if lu is None:
+        await update.effective_message.reply_text(
+            "Je n'ai pas compris l'heure.\n\n"
+            "Écris par exemple « /organiser 16/09 18h salle », ou « /organiser "
+            "18h30 » pour aujourd'hui. Le lieu se devine sur un morceau de son "
+            "nom : salle, piscine, course.")
+        return
+
+    debut, nom_lieu = lu
+    try:
+        posee = await asyncio.to_thread(
+            sport.caler, compte["id_utilisateur"], debut, nom_lieu)
+    except ValueError as erreur:
+        await update.effective_message.reply_text(str(erreur))
+        return
+    except Exception as erreur:  # noqa: BLE001 - un refus de la base se lit
+        await update.effective_message.reply_text(_message_lisible(erreur))
+        return
+
+    if posee is None:
+        await update.effective_message.reply_text("Séance introuvable.")
+        return
+
+    await update.effective_message.reply_text(
+        f"{posee['lieu']} le {conv._jour(debut)} à {conv._heure(debut)}.\n"
+        f"Bloc réservé de {conv._heure(posee['debut'])} à "
+        f"{conv._heure(posee['fin'])}, trajet et marges compris.\n"
+        f"Elle est épinglée : le replacement de la nuit n'y touchera pas.")
 
 
 async def _bouton_seance(update: Update, compte: dict, jour: str, id_lieu: int) -> None:
@@ -1233,7 +1275,8 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          "poser un créneau au planning", ajouter),
 
         ("Sport", "sport", "", "les prochaines séances", seances_a_venir),
-        ("Sport", "organiser", "", "choisir ses séances de la semaine", organiser),
+        ("Sport", "organiser", "16/09 18h salle",
+         "choisir ses séances, ou en poser une à l'heure dite", organiser),
         ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
 
         ("Maison", "stock", "", "uniforme et prochaine lessive", stock),

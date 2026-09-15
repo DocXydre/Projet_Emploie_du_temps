@@ -262,6 +262,7 @@ l'utilisateur.
 | SPT-14 | D | Un lieu peut déclarer la page publique d'où ses créneaux sont relevés, avec le site et les publics qui le concernent. Un lieu sans page garde une saisie manuelle |
 | SPT-15 | T | Le relevé remplace en bloc les créneaux du lieu : un créneau supprimé à la source doit disparaître. Mais un relevé vide ou en échec conserve les horaires précédents et le signale, plutôt que de vider le planning |
 | SPT-16 | T | L'organisation du sport porte sur la semaine en cours et la suivante, et sur une troisième à partir du jeudi : avant, l'emploi du temps de cette semaine-là n'est pas assez sûr pour qu'on s'engage dessus. Le décompte des séances à caser suit le même horizon |
+| SPT-17 | M | Une séance peut être posée à la main, à l'heure exacte voulue : le moteur ne propose que ce qui entre dans ses règles, et l'on sait parfois mieux que lui. L'heure donnée est celle de la séance, le trajet et les marges s'ajoutent autour, et la séance est épinglée. Le refus est motivé si le bloc tombe sur un cours ou un service |
 
 ### 3.11 Uniforme et stock — `UNI`
 
