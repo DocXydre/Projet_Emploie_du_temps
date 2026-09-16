@@ -192,6 +192,7 @@ l'utilisateur.
 | EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
 | EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
+| EXE-13 | D | Effacer une occurrence ne bute pas sur ce qui la référence : la notification déjà envoyée et le mouvement de stock déjà compté gardent leur trace et perdent seulement le lien. Une prévision effacée à la validation ne doit pas faire échouer cette validation |
 
 ### 3.6 Absences et présence — `ABS`
 
@@ -291,6 +292,7 @@ l'utilisateur.
 | NOT-1 | T | Chaque matin, le système notifie les tâches du jour et celles en retard |
 | NOT-2 | T | Une notification est enregistrée en base avant d'être envoyée. Un échec d'envoi la laisse en attente et ne la perd pas |
 | NOT-3 | T | Le flux iCalendar expose les occupations et les occurrences placées. Une tâche sans heure devient un événement journée entière, une tâche à heure imposée un événement horaire |
+| NOT-4 | T | Le bilan du matin annonce la journée entière : cours, services, tâches et propositions, avec horaires et lieu. Il ne lisait que les tâches, et une journée de cours n'y apparaissait pas alors qu'elle figurait dans le planning et sur le téléphone |
 
 ---
 
