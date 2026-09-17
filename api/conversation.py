@@ -726,18 +726,35 @@ def conflits_a_arbitrer() -> list[dict]:
 def decrire_conflit(conflit: dict) -> str:
     quand = f"{_jour(conflit['debut_nouvelle'])} à {_heure(conflit['debut_nouvelle'])}"
     lieu = f" ({conflit['lieu_nouvelle']})" if conflit["lieu_nouvelle"] else ""
+
+    # Trancher ici ne vaut que pour cette séance-là. Quand le conflit vient
+    # d'un groupe de TD ou d'une UE au choix, il reviendra chaque semaine tant
+    # que le filtre de la source n'aura pas été réglé — autant le dire.
+    if conflit["libelle_existante"] == conflit["libelle_nouvelle"]:
+        piste = "Même intitulé : c'est sans doute l'autre groupe de TD. /groupe 1"
+    else:
+        piste = ("Si l'un des deux est une UE que tu ne suis pas : "
+                 "/ecarter " + conflit["libelle_nouvelle"])
+
     return (f"Deux cours le {quand} :\n"
             f"1. {conflit['libelle_existante']}\n"
             f"2. {conflit['libelle_nouvelle']}{lieu}\n"
-            f"Lequel gardes-tu ?")
+            f"Lequel gardes-tu ?\n\n"
+            f"{piste}")
 
 
 def trancher_conflit(id_conflit: int, garder: str, id_utilisateur: int) -> str:
-    conflit = un_seul(
-        "SELECT * FROM conflit WHERE id_conflit = %(id)s AND statut = 'en_attente'",
-        {"id": id_conflit},
-    )
+    conflit = un_seul("SELECT * FROM conflit WHERE id_conflit = %(id)s",
+                      {"id": id_conflit})
     if conflit is None:
+        return "Ce conflit a déjà été tranché."
+    if conflit["statut"] == "caduc":
+        # Le bouton vient d'un message plus ancien que la dernière collecte :
+        # dire « déjà tranché » laisserait croire à un choix qu'on n'a pas fait.
+        return ("Ce conflit n'existe plus : "
+                + ("le cours a eu lieu." if conflit["motif_caducite"] == "passe"
+                   else "l'emploi du temps ne propose plus les deux versions."))
+    if conflit["statut"] != "en_attente":
         return "Ce conflit a déjà été tranché."
 
     if garder == "nouvelle":

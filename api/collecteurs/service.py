@@ -104,6 +104,10 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
     cles = [s.cle_externe for s in seances]
     cree = modifie = 0
     conflits: list[str] = []
+    # COL-20 : les séances qui se heurtent réellement à une occupation, cette
+    # fois-ci. Toute autre question en attente pour cette source n'a plus
+    # d'objet — la séance a été filtrée, retirée du flux, ou déplacée.
+    en_conflit: list[str] = []
     # Chaque séance lue doit se retrouver dans exactement un compteur : une
     # collecte dont les chiffres ne tombent pas juste cache des cours perdus.
     autres = {"lointain": 0, "connu": 0, "deja_arbitre": 0}
@@ -171,8 +175,15 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
                     conflits.append(description)
                 else:
                     autres[sort] += 1
+                if sort in ("arbitrable", "connu"):
+                    en_conflit.append(seance.cle_externe)
                 LOG.warning("Séance en conflit horaire (%s) : %s le %s",
                             sort, seance.libelle, seance.debut.isoformat())
+
+        # Après la boucle : ce qui n'a pas reconflicté ne conflicte plus.
+        cur.execute("SELECT perimer_les_conflits_absents(%(s)s, %(cles)s::TEXT[]) AS nombre",
+                    {"s": id_source, "cles": en_conflit})
+        perimes = (cur.fetchone() or {}).get("nombre", 0)
 
         cur.execute(
             """
@@ -199,6 +210,7 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
         "conflits": conflits,
         "conflits_lointains": autres["lointain"],
         "conflits_deja_signales": autres["connu"],
+        "conflits_perimes": perimes,
         "ecartees_par_arbitrage": autres["deja_arbitre"],
     }
 

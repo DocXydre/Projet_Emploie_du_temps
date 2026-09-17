@@ -174,6 +174,15 @@ def report_de_minuit() -> dict:
     LOG.info("Report d'office : %s reportée(s), %s abandonnée(s), %s alerte(s)",
              bilan.get("reportees", 0), bilan.get("abandonnees", 0),
              bilan.get("alertes", 0))
+
+    # COL-19 : un conflit dont le jour est passé ne s'arbitre plus. La vue
+    # cesse déjà de le proposer ; on le referme pour que la table ne garde pas
+    # indéfiniment des questions sans réponse possible.
+    perimes = (executer("SELECT perimer_les_conflits() AS nombre") or {}).get("nombre", 0)
+    if perimes:
+        LOG.info("Conflits périmés : %s", perimes)
+    bilan["conflits_perimes"] = perimes
+
     return bilan
 
 
