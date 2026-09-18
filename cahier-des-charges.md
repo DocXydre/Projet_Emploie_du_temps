@@ -160,7 +160,7 @@ l'utilisateur.
 | TAC-7 | D | Une tâche peut en déclencher une autre dans un délai maximal : la poussière déclenche l'aspirateur sous 24 h |
 | TAC-8 | D | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
 | TAC-9 | D | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
-| TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider la litière vaut ramassage |
+| TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider la litière vaut ramassage ; laver la fontaine vaut changer l'eau |
 
 ### 3.4 Placement — `PLA`
 
@@ -480,7 +480,7 @@ L'URL n'est jamais écrite dans le code ni dans le dépôt : celle du planning d
 | id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
 | active | BOOLEAN | non | | | TRUE | | |
 
-La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière du chat, et la lessive de travail quand le stock est menacé.
+La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière et l'eau du chat, et la lessive de travail quand le stock est menacé.
 
 `rappel_journee` distingue les deux natures de tâches de la règle R7. Une tâche cochée à vrai n'a pas d'heure : elle sortira en événement journée entière dans le calendrier. Une tâche cochée à faux doit déclarer sa fenêtre horaire.
 
@@ -501,7 +501,7 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | id_tache_faite | INTEGER | non | | oui avec id_tache_couverte | | | Tache |
 | id_tache_couverte | INTEGER | non | ≠ id_tache_faite | | | | Tache |
 
-« Faire ceci vaut avoir fait cela ». La relation n'est pas symétrique : vider la litière dispense du ramassage, l'inverse est faux.
+« Faire ceci vaut avoir fait cela ». La relation n'est pas symétrique : vider la litière dispense du ramassage, laver la fontaine dispense de changer l'eau, l'inverse est faux.
 
 ### Table : Occurrence
 
