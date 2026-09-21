@@ -253,7 +253,7 @@ l'utilisateur.
 | SPT-2 | D | Un lieu sans aucun horaire déclaré est ouvert en permanence, dans ses bornes de bon sens. Mais « aucune plage ce jour-là » n'est pas « ouvert en permanence » |
 | SPT-3 | D | Un lieu peut être fermé sur une période entière : un SUAPS ferme l'été, aux vacances et entre deux semestres |
 | SPT-4 | T | Le créneau réservé comprend le trajet aller et retour, dont la durée dépend du jour : cinq minutes depuis la fac, vingt depuis le logement |
-| SPT-5 | D | Le quota est hebdomadaire, non périodique : « trois fois par semaine » ne se traduit pas en « tous les 2,33 jours » |
+| SPT-5 | D | Le quota est hebdomadaire, non périodique : « trois fois par semaine » ne se traduit pas en « tous les 2,33 jours ». C'est un minimum : on peut en choisir davantage |
 | SPT-6 | T | Une seule séance par jour. Trois séances entassées le même après-midi n'en font pas trois |
 | SPT-7 | T | Une séance qui finit après l'heure tardive d'un lieu exige un repos avant la prochaine obligation. La règle ne vise que la nuit |
 | SPT-8 | D | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux : la piscine n'ouvre que deux heures à midi, la salle est ouverte tout le jour |
@@ -261,11 +261,21 @@ l'utilisateur.
 | SPT-10 | D | Chaque lieu déclare un battement libre exigé avant et après la séance, en plus du trajet. Trente minutes pour la piscine et la salle, quinze pour la course |
 | SPT-11 | D | Chaque lieu déclare l'heure à laquelle commencer une journée sans aucune obligation |
 | SPT-12 | T | Une séance « après » se place au premier moment tenable qui suit le dernier **cours** du jour. Le travail n'entre pas dans l'ancre : un service du soir la rendrait inatteignable et la séance deviendrait impossible tous les jours travaillés. Le service occupe l'agenda par ailleurs, une séance ne peut pas le chevaucher. Faute de cours, la séance se place à l'heure par défaut du lieu, et non en fin de journée |
-| SPT-13 | M | Le lundi matin, les créneaux praticables de la semaine sont proposés, jour par jour et lieu par lieu. Une séance retenue est épinglée ; ce qui n'est pas choisi reste placé d'office |
+| SPT-13 | M | *Remplacée par SPT-18 à SPT-27 (migration 033).* Le lundi, les créneaux praticables étaient proposés jour par jour, et ce qui n'était pas choisi restait placé d'office |
 | SPT-14 | D | Un lieu peut déclarer la page publique d'où ses créneaux sont relevés, avec le site et les publics qui le concernent. Un lieu sans page garde une saisie manuelle |
 | SPT-15 | T | Le relevé remplace en bloc les créneaux du lieu : un créneau supprimé à la source doit disparaître. Mais un relevé vide ou en échec conserve les horaires précédents et le signale, plutôt que de vider le planning |
-| SPT-16 | T | L'organisation du sport porte sur la semaine en cours et la suivante, et sur une troisième à partir du jeudi : avant, l'emploi du temps de cette semaine-là n'est pas assez sûr pour qu'on s'engage dessus. Le décompte des séances à caser suit le même horizon |
+| SPT-16 | T | *Remplacée par SPT-18.* L'organisation portait sur deux semaines, trois à partir du jeudi |
 | SPT-17 | M | Une séance peut être posée à la main, à l'heure exacte voulue : le moteur ne propose que ce qui entre dans ses règles, et l'on sait parfois mieux que lui. L'heure donnée est celle de la séance, le trajet et les marges s'ajoutent autour, et la séance est épinglée. Le refus est motivé si le bloc tombe sur un cours ou un service |
+| SPT-18 | M | L'organisation du sport porte sur trois semaines, du lundi au dimanche : la semaine en cours et les deux suivantes, quel que soit le jour. Chacune compte au moins le minimum de séances : ce qui n'est pas choisi est réservé « à déterminer » sur les meilleurs créneaux, tout de suite, pour que le ménage ne s'y mette pas |
+| SPT-19 | M | Une séance choisie l'est entièrement : un sport, un jour, une heure. Elle est épinglée et ne bouge plus. Choisir sur le jour d'une réservation la remplace ; choisir ailleurs retire une réservation devenue inutile |
+| SPT-20 | T | Une semaine propose au plus cinq séances, une par jour, et seulement sur des jours sans séance choisie. Les réservations viennent en tête, puis les habitudes, puis le moteur. Les séances du moteur s'étalent sur la semaine plutôt que de s'enchaîner |
+| SPT-21 | M | Avant d'être validée, une proposition peut changer d'heure, de sport ou de jour. On peut aussi créer sa séance de toutes pièces : le sport, puis le jour, puis l'heure. Seuls un cours ou un service l'interdisent ; un lieu fermé ou un bloc qui déborde est signalé sans être interdit (SPT-17) |
+| SPT-22 | T | Chaque choix est retenu : sport, jour de la semaine, heure. Une habitude est une même combinaison ; son pourcentage est la part des huit dernières semaines où elle a été choisie. Elle n'est proposée que si elle tient entièrement dans l'emploi du temps de la semaine. Modifier une proposition crée une autre combinaison sans réécrire la première, et un choix refait les réservations des autres semaines |
+| SPT-23 | T | Une réservation reste en place tant que le compte est bon. Elle disparaît quand son jour devient impossible : absence, cours apparu, séance choisie ce jour-là. Le ménage mobile qui tombait sous une séance ou une réservation se replace autour |
+| SPT-24 | M | Pour changer l'heure d'une séance, les heures qui tiennent sont proposées en boutons, au quart d'heure, douze au plus. Écrire une heure reste possible : « /organiser 24/09 18h salle » |
+| SPT-25 | T | Une séance choisie se valide faite ou pas faite, jamais « plus tard ». Pas faite, elle est close et la semaine se recomplète sur un autre jour. Une réservation passée sans être choisie ne demande pas si elle a été faite : un message constate qu'il n'y a pas eu de sport et dit ce qui reste réservé cette semaine |
+| SPT-26 | M | Les séances choisies se consultent, se modifient (sport, jour, heure) ou se suppriment. Supprimer une séance efface aussi son choix, qui ne compte plus pour les habitudes |
+| SPT-27 | T | Le lundi matin, un message prévient si la semaine n'a pas son minimum de séances choisies, et donne ce qui est réservé en attendant. Il se tait quand la semaine est choisie |
 
 ### 3.11 Machine à laver — `UNI`
 
@@ -314,6 +324,7 @@ erDiagram
     TACHE       ||--o{ ENCHAINEMENT : "déclenche"
     TACHE       ||--o{ ENCHAINEMENT : "est déclenchée par"
     OCCURRENCE  ||--o{ NOTIFICATION : "motive"
+    OCCURRENCE  ||--o| CHOIX_SPORT  : "est retenue par"
     OCCURRENCE  ||--o{ OCCURRENCE   : "engendre la suivante"
 
     UTILISATEUR {
@@ -482,7 +493,7 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | fenetre | TSTZRANGE | non | non vide, bornée | | | | |
 | creneau | TSTZRANGE | oui | inclus dans fenetre | | | | |
 | statut | VARCHAR(20) | non | 'a_placer', 'planifiee', 'notifiee', 'faite', 'reportee', 'abandonnee' | | 'a_placer' | | |
-| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
+| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'quota', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
 | epinglee | BOOLEAN | non | | | FALSE | | |
 | rappel_journee | BOOLEAN | non | recopié de la tâche | | TRUE | | |
 | utilise_machine | BOOLEAN | non | recopié de la tâche | | FALSE | | |
@@ -491,12 +502,32 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | date_faite | TIMESTAMPTZ | oui | obligatoire si statut = 'faite', jamais dans le futur | | | | |
 | id_occurrence_source | INTEGER | oui | | | | | Occurrence |
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
+| id_lieu | INTEGER | oui | | | | | LieuSport |
+| debut_seance | TIMESTAMPTZ | oui | sport : début de la séance, sans trajet ni marges | | | | |
 
 Le champ `motif` conserve la raison du placement ou de l'échec : « placée à 18h, dernier créneau de 40 min avant l'échéance » ou « aucun créneau libre avant le 12 ». C'est ce qui rend le système compréhensible plutôt qu'arbitraire.
 
 Le champ `nb_relances` compte les reports d'office. Il ne sert pas à limiter les relances — une tâche revient jusqu'à ce qu'elle soit faite — mais à afficher « en retard depuis 3 jours » et à repérer les tâches que tu ne fais jamais, qui méritent d'être revues plutôt que répétées.
 
+Une occurrence d'origine `quota` est une séance de sport « à déterminer » : réservée pour tenir le minimum de la semaine, jamais épinglée, et remplacée dès qu'une séance est choisie ce jour-là (SPT-18). Une séance choisie est épinglée et d'origine `manuelle`.
+
 Les deux drapeaux `rappel_journee` et `utilise_machine` sont recopiés de la tâche à la création de l'occurrence, par trigger. C'est une dénormalisation assumée : une contrainte d'exclusion ne sait pas lire une table liée, et ce sont ces drapeaux qui conditionnent les contraintes de chevauchement et de machine unique.
+
+### Table : ChoixSport
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_choix | SERIAL | non | | oui | | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| id_occurrence | INTEGER | non | | oui | | | Occurrence (suppression en cascade) |
+| id_lieu | INTEGER | non | | | | | LieuSport |
+| jour_semaine | SMALLINT | non | entre 1 (lundi) et 7 | | | | |
+| heure | TIME | non | | | | | |
+| semaine | DATE | non | un lundi | | | | |
+| origine | VARCHAR(12) | non | 'proposition', 'habitude', 'modifiee', 'manuelle', 'reprise' | | 'proposition' | | |
+| date_choix | TIMESTAMPTZ | non | | | now() | | |
+
+Une ligne par séance choisie. Les habitudes n'ont pas de table : elles se calculent à la volée sur ces lignes, sur les huit dernières semaines, ce qui évite un compteur à tenir à jour et un pourcentage qui vieillirait mal (SPT-22).
 
 ### Table : Notification
 
@@ -675,9 +706,15 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-1 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
 | SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
 | SPT-7 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
-| SPT-8 | `preference` appartient à {tot, tard} | Statique forte |
+| SPT-8 | `preference` appartient à {tot, tard, apres} | Statique forte |
 | SPT-3 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | SPT-3 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
+| SPT-18 | `organiser_sport()` complète les trois semaines ouvertes au minimum de la tâche SPORT, par réservations d'origine « quota » | Dynamique forte |
+| SPT-18 | Une réservation n'est jamais épinglée : contrainte `occurrence_quota_non_epinglee` | Statique forte |
+| SPT-20 | `propositions_sport()` rend au plus `p_max` lignes, une par jour, hors jours déjà choisis | Dynamique forte |
+| SPT-21 | `obstacle_seance()` : stricte pour les propositions, souple pour un choix, qui ne refuse que cours, service, jour déjà pris et ce qui est annoncé ou épinglé | Dynamique forte |
+| SPT-22 | `choix_sport` suit sa séance : modifiée, elle est mise à jour ; supprimée, la ligne part avec elle (ON DELETE CASCADE) | Dynamique forte |
+| SPT-25 | `relance_du_soir()` ignore les réservations ; `seances_a_determiner_passees()` les clôt et notifie ; le report de minuit ne reporte pas une séance | Dynamique forte |
 
 ---
 

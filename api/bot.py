@@ -149,7 +149,7 @@ async def valider(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
                   if tache["en_retard"] else "")
         await update.effective_message.reply_text(
             f"{tache['tache_libelle']}{retard}",
-            reply_markup=_boutons(tache["id_occurrence"]))
+            reply_markup=_boutons(tache["id_occurrence"], tache["tache_code"] == "SPORT"))
 
 
 async def fait(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -244,7 +244,7 @@ async def retards(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     for tache in taches:
         await update.effective_message.reply_text(
             f"{tache['tache_libelle']} — en retard de {tache['jours_de_retard']} j",
-            reply_markup=_boutons(tache["id_occurrence"]),
+            reply_markup=_boutons(tache["id_occurrence"], tache["tache_code"] == "SPORT"),
         )
 
 
@@ -783,7 +783,14 @@ async def arreter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 # Boutons
 # ---------------------------------------------------------------------------
 
-def _boutons(id_occurrence: int) -> InlineKeyboardMarkup:
+def _boutons(id_occurrence: int, sport: bool = False) -> InlineKeyboardMarkup:
+    if sport:
+        # SPT-25 : une séance est faite ou pas faite. La repousser au lendemain
+        # n'a pas de sens, et « pas faite » recomplète la semaine ailleurs.
+        return InlineKeyboardMarkup([[
+            InlineKeyboardButton("Faite", callback_data=f"tache:valider:{id_occurrence}"),
+            InlineKeyboardButton("Pas faite", callback_data=f"sp:pf:{id_occurrence}"),
+        ]])
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("Fait", callback_data=f"tache:valider:{id_occurrence}"),
         InlineKeyboardButton("Plus tard", callback_data=f"tache:reporter:{id_occurrence}"),
@@ -828,8 +835,14 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_proposition(update, contexte, compte, choix, int(identifiant))
         return
 
+    if genre == "sp":
+        await _bouton_sport(update, compte, choix, identifiant)
+        return
+
     if genre == "seance":
-        await _bouton_seance(update, compte, choix, int(identifiant))
+        # Boutons de l'ancienne organisation, restés dans la conversation.
+        await requete.edit_message_text(
+            "Ce message date de l'ancienne organisation du sport. Refais /organiser.")
         return
 
     if genre == "ecart":
@@ -916,7 +929,7 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         "jour": planning,
         "demain": demain,
         "retards": retards,
-        "sport": seances_a_venir,
+        "sport": mes_seances,
         "organiser": organiser,
         "parti": parti,
         "retour": retour,
@@ -932,62 +945,22 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
     await action(update, contexte)
 
 
-async def seances_a_venir(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """Les prochaines séances de sport, avec leur lieu."""
+async def mes_seances(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """/sport : les séances choisies à venir, chacune modifiable ou supprimable."""
     compte = await _appelant(update)
     if compte is None:
         return await _refuser(update)
 
-    prochaines = await asyncio.to_thread(conv.seances_sport, compte["id_utilisateur"])
-    if not prochaines:
-        await update.effective_message.reply_text(
-            "Aucune séance placée. Les creux sont peut-être trop courts.")
-        return
+    from api import sport
 
-    lignes = [
-        f"• {conv._jour(s['debut'])} {conv._heure(s['debut'])}"
-        f"–{conv._heure(s['fin'])} — {s['lieu'] or 'lieu à confirmer'}"
-        for s in prochaines
-    ]
-    await update.effective_message.reply_text(
-        "Séances à venir (trajet compris) :\n" + "\n".join(lignes))
-
-
-# Un clavier de soixante boutons ne se lit pas. Au-delà, le message le dit et
-# renvoie vers un second « /organiser ».
-_MAX_BOUTONS = 24
-
-
-def _boutons_sport(creneaux: list[dict]) -> InlineKeyboardMarkup | None:
-    """Un bouton par jour et par lieu possible.
-
-    Les données de rappel portent le jour en ISO et l'identifiant du lieu :
-    c'est court, et ça reste juste même si la liste a changé entre l'envoi du
-    message et le clic.
-    """
-    if not creneaux:
-        return None
-
-    JOURS = ("lun", "mar", "mer", "jeu", "ven", "sam", "dim")
-    lignes = []
-    for creneau in creneaux[:_MAX_BOUTONS]:
-        jour = creneau["jour"]
-        lignes.append([InlineKeyboardButton(
-            f"{JOURS[jour.weekday()]} {jour.day:02d} · {creneau['libelle']} "
-            f"{conv._heure(creneau['debut'])}",
-            callback_data=f"seance:{jour.isoformat()}:{creneau['id_lieu']}")])
-    return InlineKeyboardMarkup(lignes)
+    ecran = await asyncio.to_thread(sport.ecran_mes_seances, compte["id_utilisateur"])
+    await _afficher(update, ecran)
 
 
 async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """Choisir ses séances : quel jour, quel sport, et à quelle heure.
+    """/organiser : trois semaines, et dans chacune ses séances et des propositions.
 
-    Sans argument, la liste des possibilités, rejouable à la demande : un emploi
-    du temps change, et le choix du lundi n'engage pas jusqu'au dimanche.
-
-    Avec « 16/09 18h salle », la séance se pose à l'heure dite. Le moteur ne
-    propose que ce qui entre dans ses règles ; il arrive qu'on sache mieux que
-    lui, parce qu'on y va avec quelqu'un ou qu'on accepte d'être juste.
+    Avec « 24/09 18h salle », la séance demandée, prête à valider (SPT-17).
     """
     compte = await _appelant(update)
     if compte is None:
@@ -996,91 +969,55 @@ async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
     from api import sport
 
     if contexte.args:
-        return await _caler_une_seance(update, compte, contexte.args)
-
-    texte = await asyncio.to_thread(sport.resumer, compte["id_utilisateur"])
-    if texte is None:
-        await update.effective_message.reply_text(
-            "Les séances de la semaine sont déjà toutes posées. « /sport » pour les voir.")
-        return
-
-    creneaux = await asyncio.to_thread(sport.possibilites, compte["id_utilisateur"])
-
-    # Les boutons sont plafonnés : au-delà, la liste devient illisible. Le texte,
-    # lui, montre tout, et choisir une séance raccourcit le reste.
-    if len(creneaux) > _MAX_BOUTONS:
-        texte += (f"\n\nBoutons limités aux {_MAX_BOUTONS} premiers créneaux. "
-                  f"Relance « /organiser » après avoir choisi pour voir la suite.")
-
-    await update.effective_message.reply_text(
-        texte, reply_markup=_boutons_sport(creneaux), parse_mode=ParseMode.HTML)
+        ecran = await asyncio.to_thread(sport.depuis_texte, compte["id_utilisateur"],
+                                        list(contexte.args))
+    else:
+        ecran = await asyncio.to_thread(sport.ecran_semaines, compte["id_utilisateur"])
+    await _afficher(update, ecran)
 
 
-async def _caler_une_seance(update: Update, compte: dict, mots: list[str]) -> None:
-    """« /organiser 16/09 18h salle » : l'heure est celle de la séance."""
-    from api import sport
-
-    lu = conv.lire_moment(mots)
-    if lu is None:
-        await update.effective_message.reply_text(
-            "Je n'ai pas compris l'heure.\n\n"
-            "Écris par exemple « /organiser 16/09 18h salle », ou « /organiser "
-            "18h30 » pour aujourd'hui. Le lieu se devine sur un morceau de son "
-            "nom : salle, piscine, course.")
-        return
-
-    debut, nom_lieu = lu
-    try:
-        posee = await asyncio.to_thread(
-            sport.caler, compte["id_utilisateur"], debut, nom_lieu)
-    except ValueError as erreur:
-        await update.effective_message.reply_text(str(erreur))
-        return
-    except Exception as erreur:  # noqa: BLE001 - un refus de la base se lit
-        await update.effective_message.reply_text(_message_lisible(erreur))
-        return
-
-    if posee is None:
-        await update.effective_message.reply_text("Séance introuvable.")
-        return
-
-    await update.effective_message.reply_text(
-        f"{posee['lieu']} le {conv._jour(debut)} à {conv._heure(debut)}.\n"
-        f"Bloc réservé de {conv._heure(posee['debut'])} à "
-        f"{conv._heure(posee['fin'])}, trajet et marges compris.\n"
-        f"Elle est épinglée : le replacement de la nuit n'y touchera pas.")
+def _clavier(ecran) -> InlineKeyboardMarkup | None:
+    if not ecran.boutons:
+        return None
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(libelle, callback_data=rappel) for libelle, rappel in rangee]
+        for rangee in ecran.boutons
+    ])
 
 
-async def _bouton_seance(update: Update, compte: dict, jour: str, id_lieu: int) -> None:
-    from datetime import date as _date
+async def _afficher(update: Update, ecran) -> None:
+    """Un nouveau message pour une commande, le même message pour un bouton.
 
-    from api import sport
-
+    Naviguer entre semaines, heures et sports remplace l'écran au lieu d'en
+    empiler dix dans la conversation.
+    """
     requete = update.callback_query
+    if requete is None:
+        await update.effective_message.reply_text(
+            ecran.texte, reply_markup=_clavier(ecran), parse_mode=ParseMode.HTML)
+        return
+
     try:
-        retenue = await asyncio.to_thread(
-            sport.retenir, compte["id_utilisateur"], _date.fromisoformat(jour), id_lieu)
-    except Exception as erreur:
-        await requete.message.reply_text(_message_lisible(erreur))
+        await requete.edit_message_text(
+            ecran.texte, reply_markup=_clavier(ecran), parse_mode=ParseMode.HTML)
+    except Exception:  # noqa: BLE001 - message trop ancien, ou identique
+        await requete.message.reply_text(
+            ecran.texte, reply_markup=_clavier(ecran), parse_mode=ParseMode.HTML)
+
+
+async def _bouton_sport(update: Update, compte: dict, action: str, arguments: str) -> None:
+    from api import sport
+
+    try:
+        ecran = await asyncio.to_thread(
+            sport.repondre, compte["id_utilisateur"], action, arguments)
+    except Exception as erreur:  # noqa: BLE001 - un bouton ne doit jamais rester muet
+        ecran = sport.Ecran(_message_lisible(erreur))
+
+    if ecran is None:
+        await update.callback_query.edit_message_reply_markup(reply_markup=None)
         return
-
-    if retenue is None:
-        await requete.message.reply_text("Séance introuvable.")
-        return
-
-    await requete.message.reply_text(
-        f"C'est noté : {retenue['lieu']} le {conv._jour(retenue['debut'])} "
-        f"à {conv._heure(retenue['debut'])}.")
-
-    # On repropose ce qui reste, la liste ayant changé : le jour retenu n'est
-    # plus disponible, et une séance de moins est à caser.
-    texte = await asyncio.to_thread(sport.resumer, compte["id_utilisateur"])
-    if texte is None:
-        await requete.message.reply_text("Toutes les séances de la semaine sont posées.")
-        return
-
-    creneaux = await asyncio.to_thread(sport.possibilites, compte["id_utilisateur"])
-    await requete.message.reply_text(texte, reply_markup=_boutons_sport(creneaux))
+    await _afficher(update, ecran)
 
 
 async def piscine(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1188,14 +1125,15 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         # Seuls les rappels, qui portent sur une occurrence précise, ont des
         # boutons de validation.
         if notification["type"] == "rappel" and notification["id_occurrence"]:
-            boutons = _boutons(notification["id_occurrence"])
+            boutons = _boutons(notification["id_occurrence"],
+                               notification.get("tache_code") == "SPORT")
         elif notification["type"] == "sport":
-            # Les créneaux sont recalculés au moment de l'envoi, et non à la
-            # rédaction : entre les deux, un cours a pu tomber.
+            # Alerte du lundi, séance à déterminer manquée : un bouton qui ouvre
+            # la semaine en cours.
             from api import sport
-            creneaux = await asyncio.to_thread(
-                sport.possibilites, notification["id_utilisateur"])
-            boutons = _boutons_sport(creneaux)
+            lundi = sport.lundi_de(sport.aujourd_hui())
+            boutons = InlineKeyboardMarkup([[InlineKeyboardButton(
+                "📅 Organiser la semaine", callback_data=f"sp:sem:{lundi:%Y%m%d}")]])
         elif notification.get("id_proposition"):
             # Boutons « oui / non merci » sous une proposition de week-end.
             boutons = _boutons_proposition(notification["id_proposition"])
@@ -1240,9 +1178,9 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
         ("Au quotidien", "ajouter", "Titre JJ/MM 14h 16h",
          "poser un créneau au planning", ajouter),
 
-        ("Sport", "sport", "", "les prochaines séances", seances_a_venir),
-        ("Sport", "organiser", "16/09 18h salle",
-         "choisir ses séances, ou en poser une à l'heure dite", organiser),
+        ("Sport", "sport", "", "mes séances : modifier ou supprimer", mes_seances),
+        ("Sport", "organiser", "",
+         "choisir ses séances sur trois semaines", organiser),
         ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
 
 

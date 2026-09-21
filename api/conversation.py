@@ -191,6 +191,17 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
             return "Celle-là ne peut pas être repoussée : la repousser ne résoudrait rien."
         return "Reportée à demain."
 
+    # SPT-25 : une séance de sport refusée n'est pas à réassigner à quelqu'un
+    # d'autre. Elle n'est pas faite, et la semaine se complète ailleurs.
+    seance = un_seul(
+        "SELECT t.code FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache "
+        " WHERE o.id_occurrence = %(o)s",
+        {"o": id_occurrence},
+    )
+    if seance and seance["code"] == "SPORT":
+        from api import sport
+        return sport.pas_faite(id_utilisateur, id_occurrence).texte
+
     remplacante = executer(
         """
         WITH refusee AS (
@@ -268,31 +279,12 @@ def a_valider(id_utilisateur: int, dans_jours: int = 0) -> list[dict]:
          WHERE o.id_utilisateur = %(u)s
            AND o.statut IN ('planifiee', 'notifiee')
            AND o.debut IS NOT NULL
+           -- SPT-25 : une séance à déterminer ne se coche pas, elle se choisit.
+           AND o.origine <> 'quota'
            AND (o.en_retard OR jour_de(o.debut) <= jour_de(now()) + %(d)s)
          ORDER BY o.en_retard DESC, o.debut
         """,
         {"u": id_utilisateur, "d": dans_jours},
-    )
-
-
-def seances_sport(id_utilisateur: int, limite: int = 5) -> list[dict]:
-    """Prochaines séances placées, trajet compris."""
-    return lister(
-        """
-        SELECT o.id_occurrence, lower(o.creneau) AS debut, upper(o.creneau) AS fin,
-               l.libelle AS lieu
-          FROM occurrence o
-          JOIN tache t ON t.id_tache = o.id_tache
-          LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
-         WHERE o.id_utilisateur = %(u)s
-           AND t.categorie = 'sport'
-           AND o.creneau IS NOT NULL
-           AND upper(o.creneau) > now()
-           AND o.statut IN ('planifiee', 'notifiee')
-         ORDER BY lower(o.creneau)
-         LIMIT %(n)s
-        """,
-        {"u": id_utilisateur, "n": limite},
     )
 
 
@@ -327,9 +319,10 @@ def prochaine_chose(id_utilisateur: int) -> str:
 def taches_en_retard(id_utilisateur: int) -> list[dict]:
     return lister(
         """
-        SELECT id_occurrence, tache_libelle, jours_de_retard, nb_relances
+        SELECT id_occurrence, tache_libelle, tache_code, jours_de_retard, nb_relances
           FROM v_taches_en_retard
          WHERE id_utilisateur = %(u)s
+           AND origine <> 'quota'
          ORDER BY jours_de_retard DESC
         """,
         {"u": id_utilisateur},
@@ -787,7 +780,7 @@ def notifications_a_envoyer(limite: int = 20) -> list[dict]:
         """
         SELECT n.id_notification, n.id_utilisateur, u.id_telegram,
                n.id_occurrence, n.id_proposition, n.type, n.contenu,
-               o.tache_libelle, o.actions_possibles
+               o.tache_libelle, o.tache_code, o.actions_possibles
           FROM notification n
           JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur
           LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence

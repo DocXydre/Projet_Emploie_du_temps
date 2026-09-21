@@ -177,6 +177,18 @@ def reporter(id_occurrence: int, qui: Authentifie, demande: DemandeReport | None
 
 @routeur.post("/{id_occurrence}/refuser", summary="Refuser une occurrence")
 def refuser(id_occurrence: int, qui: Authentifie, demande: DemandeReport | None = None) -> dict:
+    # SPT-25 : une séance de sport ne se réassigne pas. Refusée, elle n'est pas
+    # faite, et la semaine se complète sur un autre jour.
+    seance = un_seul(
+        "SELECT t.code FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache "
+        " WHERE o.id_occurrence = %(o)s",
+        {"o": id_occurrence},
+    )
+    if seance and seance["code"] == "SPORT":
+        un_seul("SELECT seance_sport_pas_faite(%(u)s, %(o)s) AS jour",
+                {"u": qui.id_utilisateur, "o": id_occurrence})
+        return detail(id_occurrence, qui)
+
     # L'occurrence est soldée, une remplaçante non assignée prend le relais :
     # rien ne disparaît, et l'autre personne peut la reprendre.
     nouvelle = executer(

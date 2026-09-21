@@ -6,7 +6,8 @@
     06h50               relevé des horaires publiés par le SUAPS
     07h00               bilan du matin, puis placement
     07h10               propositions de week-end
-    07h20, le lundi     proposition des séances de sport de la semaine
+    07h20, le lundi     prévenir si le sport de la semaine n'est pas choisi
+    toutes les 30 min   constater les séances à déterminer passées
     21h00               relance sur les tâches du jour non faites
     00h05               report d'office de ce qui n'a pas été fait
 
@@ -123,19 +124,37 @@ def relever_les_horaires() -> list[dict]:
         return []
 
 
-def proposer_le_sport() -> dict:
-    """La proposition du lundi matin : quels jours, quel sport.
+def alerter_pour_le_sport() -> int:
+    """SPT-27 : le lundi, prévenir si la semaine n'a pas ses séances choisies.
 
-    Une fois par semaine et non chaque jour : c'est une décision d'organisation,
-    et l'emploi du temps de la semaine est connu le lundi.
+    Rien quand tout est choisi. Sinon ce qui manque, et ce qui est réservé en
+    attendant, avec un bouton pour organiser.
     """
     from api import sport
 
     try:
-        return sport.proposer()
+        return sport.alerter_le_lundi()
     except Exception:
-        LOG.exception("Échec de la proposition de sport")
-        return {}
+        LOG.exception("Échec de l'alerte de sport du lundi")
+        return 0
+
+
+def constater_le_sport() -> int:
+    """SPT-25 : une séance à déterminer passée sans être choisie.
+
+    Pas de « c'est fait ? » : un message le constate, et la semaine se complète
+    sur un autre jour quand il en reste.
+    """
+    from api import sport
+
+    try:
+        manquees = sport.constater_les_manquees()
+    except Exception:
+        LOG.exception("Échec du constat des séances à déterminer")
+        return 0
+    if manquees:
+        LOG.info("Sport : %s séance(s) à déterminer passée(s)", manquees)
+    return manquees
 
 
 def placer() -> int:
@@ -235,12 +254,18 @@ def demarrer() -> BackgroundScheduler:
                          coalesce=True)
 
     # Lundi seulement, juste après le bilan : la semaine vient de commencer et
-    # son emploi du temps est connu.
-    ordonnanceur.add_job(proposer_le_sport,
+    # c'est le moment où on l'organise.
+    ordonnanceur.add_job(alerter_pour_le_sport,
                          CronTrigger(day_of_week="mon", hour=7, minute=20,
                                      timezone=conf.fuseau),
-                         id="sport", name="Proposition de sport du lundi",
+                         id="sport", name="Alerte de sport du lundi",
                          coalesce=True)
+
+    # Une réservation passée se constate vite, pour que le message arrive quand
+    # on peut encore caser la séance ailleurs dans la journée.
+    ordonnanceur.add_job(constater_le_sport, IntervalTrigger(minutes=30),
+                         id="sport_manque", name="Séances à déterminer passées",
+                         max_instances=1, coalesce=True)
 
     ordonnanceur.add_job(relance_du_soir, a(21, 0),
                          id="relance", name="Relance du soir", coalesce=True)
