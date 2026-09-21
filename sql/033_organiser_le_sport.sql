@@ -519,10 +519,15 @@ COMMENT ON FUNCTION propositions_sport IS
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION sportifs() RETURNS SETOF INTEGER
 LANGUAGE sql STABLE AS $$
-    SELECT COALESCE(t.id_utilisateur_defaut,
-                    (SELECT min(u.id_utilisateur) FROM utilisateur u WHERE u.actif))
-      FROM tache t
-     WHERE t.code = 'SPORT' AND t.active;
+    -- Sans aucun compte, personne : sinon on organiserait le sport de NULL.
+    SELECT x.id_utilisateur FROM (
+        SELECT COALESCE(t.id_utilisateur_defaut,
+                        (SELECT min(u.id_utilisateur) FROM utilisateur u WHERE u.actif))
+               AS id_utilisateur
+          FROM tache t
+         WHERE t.code = 'SPORT' AND t.active
+    ) x
+     WHERE x.id_utilisateur IS NOT NULL;
 $$;
 
 
@@ -1453,33 +1458,33 @@ DELETE FROM occurrence o
    AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
    AND (o.creneau IS NULL OR lower(o.creneau) > now());
 
-UPDATE occurrence o
-   SET origine      = 'manuelle',
-       debut_seance = lower(o.creneau)
-                      + make_interval(mins => trajet_minutes(o.id_utilisateur,
-                                                             jour_de(lower(o.creneau)),
-                                                             o.id_lieu)
-                                              + l.marge_minutes)
-  FROM tache t, lieu_sport l
- WHERE t.id_tache = o.id_tache
-   AND t.categorie = 'sport'
-   AND l.id_lieu = o.id_lieu
-   AND o.epinglee
-   AND o.creneau IS NOT NULL
-   AND o.debut_seance IS NULL;
-
+-- Converties et amorcées d'un même geste : un rejeu ne trouve plus rien à
+-- convertir, et n'amorce donc rien. Sans cela, rejouer ce fichier après une
+-- remise à zéro (034) ressusciterait les anciennes habitudes.
+WITH converties AS (
+    UPDATE occurrence o
+       SET origine      = 'manuelle',
+           debut_seance = lower(o.creneau)
+                          + make_interval(mins => trajet_minutes(o.id_utilisateur,
+                                                                 jour_de(lower(o.creneau)),
+                                                                 o.id_lieu)
+                                                  + l.marge_minutes)
+      FROM tache t, lieu_sport l
+     WHERE t.id_tache = o.id_tache
+       AND t.categorie = 'sport'
+       AND l.id_lieu = o.id_lieu
+       AND o.epinglee
+       AND o.creneau IS NOT NULL
+       AND o.debut_seance IS NULL
+    RETURNING o.id_occurrence, o.id_utilisateur, o.id_lieu, o.debut_seance, o.statut
+)
 INSERT INTO choix_sport (id_utilisateur, id_occurrence, id_lieu, jour_semaine, heure,
                          semaine, origine, date_choix)
-SELECT o.id_utilisateur, o.id_occurrence, o.id_lieu,
-       EXTRACT(ISODOW FROM jour_de(o.debut_seance))::SMALLINT,
-       (o.debut_seance AT TIME ZONE 'Europe/Paris')::TIME,
-       lundi_de(jour_de(o.debut_seance)), 'reprise', o.debut_seance
-  FROM occurrence o
-  JOIN tache t ON t.id_tache = o.id_tache
- WHERE t.categorie = 'sport'
-   AND o.epinglee
-   AND o.id_lieu IS NOT NULL
-   AND o.debut_seance IS NOT NULL
-   AND o.id_utilisateur IS NOT NULL
-   AND o.statut IN ('planifiee', 'notifiee', 'faite')
+SELECT c.id_utilisateur, c.id_occurrence, c.id_lieu,
+       EXTRACT(ISODOW FROM jour_de(c.debut_seance))::SMALLINT,
+       (c.debut_seance AT TIME ZONE 'Europe/Paris')::TIME,
+       lundi_de(jour_de(c.debut_seance)), 'reprise', c.debut_seance
+  FROM converties c
+ WHERE c.id_utilisateur IS NOT NULL
+   AND c.statut IN ('planifiee', 'notifiee', 'faite')
 ON CONFLICT (id_occurrence) DO NOTHING;

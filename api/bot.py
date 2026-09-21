@@ -94,8 +94,8 @@ MENU = [
     [("Valider une tâche", "valider"), ("Aujourd'hui", "jour")],
     [("En retard", "retards"), ("Demain", "demain")],
     [("C'est déjà fait", "fait"), ("Ajouter au planning", "ajouter")],
-    [("Sport", "sport"), ("Organiser le sport", "organiser")],
-    [("Trains", "train"), ("Billets", "billets")],
+    [("Sport", "sport"), ("Trains", "train")],
+    [("Billets", "billets")],
     [("Je pars", "parti"), ("Je rentre", "retour")],
 ]
 
@@ -929,7 +929,7 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         "jour": planning,
         "demain": demain,
         "retards": retards,
-        "sport": mes_seances,
+        "sport": organiser,
         "organiser": organiser,
         "parti": parti,
         "retour": retour,
@@ -945,20 +945,8 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
     await action(update, contexte)
 
 
-async def mes_seances(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """/sport : les séances choisies à venir, chacune modifiable ou supprimable."""
-    compte = await _appelant(update)
-    if compte is None:
-        return await _refuser(update)
-
-    from api import sport
-
-    ecran = await asyncio.to_thread(sport.ecran_mes_seances, compte["id_utilisateur"])
-    await _afficher(update, ecran)
-
-
 async def organiser(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """/organiser : trois semaines, et dans chacune ses séances et des propositions.
+    """/sport et /organiser : les trois semaines, et dans chacune ses séances.
 
     Avec « 24/09 18h salle », la séance demandée, prête à valider (SPT-17).
     """
@@ -992,7 +980,8 @@ async def _afficher(update: Update, ecran) -> None:
     empiler dix dans la conversation.
     """
     requete = update.callback_query
-    if requete is None:
+    # Depuis /menu, le menu reste en place : l'écran arrive en dessous.
+    if requete is None or (requete.data or "").startswith("menu:"):
         await update.effective_message.reply_text(
             ecran.texte, reply_markup=_clavier(ecran), parse_mode=ParseMode.HTML)
         return
@@ -1178,9 +1167,10 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
         ("Au quotidien", "ajouter", "Titre JJ/MM 14h 16h",
          "poser un créneau au planning", ajouter),
 
-        ("Sport", "sport", "", "mes séances : modifier ou supprimer", mes_seances),
-        ("Sport", "organiser", "",
-         "choisir ses séances sur trois semaines", organiser),
+        ("Sport", "sport", "",
+         "tes trois semaines : choisir, modifier, supprimer", organiser),
+        ("Sport", "organiser", "24/09 18h salle",
+         "pareil, ou poser une séance à l'heure dite", organiser),
         ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
 
 

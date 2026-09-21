@@ -373,16 +373,29 @@ def semaines_ouvertes() -> list[date]:
 
 
 def ecran_semaines(id_utilisateur: int) -> Ecran:
-    """SPT-18 : la semaine en cours et les deux suivantes, toujours."""
+    """SPT-18 : la semaine en cours et les deux suivantes, toujours.
+
+    C'est l'entrée de /sport comme de /organiser : on voit d'un coup d'œil ce
+    qui est choisi dans chaque semaine, puis on en ouvre une pour choisir,
+    modifier ou supprimer.
+    """
     mini = minimum()
+    lignes = [f"<b>Tes trois semaines de sport</b> (au moins {mini} séances par semaine)"]
     boutons = []
     for lundi in semaines_ouvertes():
         n = nombre_choisies(id_utilisateur, lundi)
+        a_determiner = len(reservations(id_utilisateur, lundi))
+        lignes += ["", f"{_titre_semaine(lundi)} : {n}/{mini}"
+                   + (f", {a_determiner} à déterminer" if a_determiner else "")]
+        for s in seances_choisies(id_utilisateur, lundi):
+            lignes.append(f"• {_date(_local(s['debut']).date())} · {s['lieu']} {_h(s['debut'])}")
+
         marque = "✅ " if n >= mini else ""
         boutons.append([(f"{marque}{_titre_semaine(lundi)} · {n}/{mini}",
                          f"sp:sem:{_code_jour(lundi)}")])
-    return Ecran("Quelle semaine veux-tu organiser ?\n"
-                 f"Il faut au moins {mini} séances par semaine.", boutons)
+
+    lignes += ["", "Ouvre une semaine pour choisir, modifier ou supprimer tes séances."]
+    return Ecran("\n".join(lignes), boutons)
 
 
 def ecran_semaine(id_utilisateur: int, lundi: date, entete: str = "") -> Ecran:
@@ -581,30 +594,10 @@ def ecran_creation(lundi: date) -> Ecran:
     return Ecran("Quel sport ?", boutons)
 
 
-def ecran_mes_seances(id_utilisateur: int) -> Ecran:
-    """/sport : les séances qu'on a choisies soi-même, à venir."""
-    choisies = seances_choisies(id_utilisateur)
-    if not choisies:
-        return Ecran("Aucune séance choisie pour l'instant.",
-                     [[("📅 Organiser", "sp:w:0")]])
-
-    lignes = ["Tes séances à venir. Touche une séance pour la modifier ou la supprimer."]
-    boutons = [[(f"{_date(_local(s['debut']).date())} · {s['lieu']} {_h(s['debut'])}",
-                 f"sp:g:{s['id_occurrence']}")] for s in choisies]
-
-    a_determiner = sum(len(reservations(id_utilisateur, lundi))
-                       for lundi in semaines_ouvertes())
-    if a_determiner:
-        lignes.append(f"\nEt {a_determiner} séance(s) encore à déterminer sur les "
-                      f"trois semaines : /organiser.")
-    boutons.append([("📅 Organiser", "sp:w:0")])
-    return Ecran("\n".join(lignes), boutons)
-
-
 def ecran_seance(id_utilisateur: int, occ: int) -> Ecran:
     seance = _seance(id_utilisateur, occ)
     if seance is None or seance["statut"] not in ("planifiee", "notifiee"):
-        return Ecran("Cette séance n'existe plus.", [[("📅 Organiser", "sp:w:0")]])
+        return Ecran("Cette séance n'existe plus.", [[("📅 Mes semaines", "sp:w:0")]])
 
     jour = _local(seance["debut"]).date()
     return Ecran(
@@ -616,7 +609,7 @@ def ecran_seance(id_utilisateur: int, occ: int) -> Ecran:
 def ecran_modifier(id_utilisateur: int, occ: int) -> Ecran:
     seance = _seance(id_utilisateur, occ)
     if seance is None or seance["statut"] not in ("planifiee", "notifiee"):
-        return Ecran("Cette séance n'existe plus.", [[("📅 Organiser", "sp:w:0")]])
+        return Ecran("Cette séance n'existe plus.", [[("📅 Mes semaines", "sp:w:0")]])
 
     jour = _local(seance["debut"]).date()
     lieu = seance["id_lieu"]
@@ -670,7 +663,7 @@ def supprimer(id_utilisateur: int, occ: int) -> Ecran:
         ligne = un_seul("SELECT supprimer_seance_sport(%(u)s, %(o)s) AS jour",
                         {"u": id_utilisateur, "o": occ})
     except psycopg.Error as erreur:
-        return Ecran(_raison(erreur) + ".", [[("📅 Organiser", "sp:w:0")]])
+        return Ecran(_raison(erreur) + ".", [[("📅 Mes semaines", "sp:w:0")]])
     _replacer()
     return ecran_semaine(id_utilisateur, lundi_de(ligne["jour"]),
                          entete=f"Séance du {_date_longue(ligne['jour'])} supprimée.")
