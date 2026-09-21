@@ -1,8 +1,8 @@
 """Point d'entrée de l'API.
 
 L'API est volontairement mince : elle lit des vues et appelle des fonctions.
-Toute la logique — disponibilités, placement, récurrence, enchaînements,
-stock — vit dans PostgreSQL.
+Toute la logique — disponibilités, placement, récurrence, enchaînements —
+vit dans PostgreSQL.
 """
 
 from contextlib import asynccontextmanager
@@ -25,7 +25,6 @@ from api.routeurs import (
     notifications,
     occurrences,
     planning,
-    stock,
     taches,
     trajets,
 )
@@ -71,7 +70,6 @@ app.include_router(planning.routeur)
 app.include_router(taches.routeur)
 app.include_router(occurrences.routeur)
 app.include_router(contraintes.routeur)
-app.include_router(stock.routeur)
 app.include_router(notifications.routeur)
 app.include_router(absences.routeur)
 app.include_router(trajets.routeur)

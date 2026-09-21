@@ -1,8 +1,7 @@
 """Occurrences : consulter, créer, valider, reporter, refuser.
 
 Aucune règle métier ici. Valider une tâche, c'est appeler `valider_occurrence`
-et laisser les triggers créer la suivante, déclencher les enchaînements et
-mettre à jour le stock.
+et laisser les triggers créer la suivante et déclencher les enchaînements.
 """
 
 from datetime import datetime

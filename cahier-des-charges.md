@@ -30,7 +30,6 @@ Voici les choix effectués pour compléter le sujet.
 - **La récurrence repart de la date réelle d'exécution**, jamais de la date théorique. Une tâche faite avec deux jours de retard ne doit pas décaler tout le reste du planning.
 - **Deux natures de tâches.** La plupart des tâches ménagères n'ont pas d'heure : ce sont des rappels dans la journée. Elles sont exposées en événement journée entière dans le flux iCalendar. Seules les tâches réellement contraintes par une heure — les machines, qui doivent tourner en heures creuses — reçoivent un créneau horaire.
 - **Une tâche du jour non validée le soir est reportée d'office au lendemain**, et re-notifiée, autant de fois qu'il le faut. Le nombre de relances est conservé : c'est ce qui permet de dire « en retard depuis trois jours » plutôt que de laisser la tâche disparaître.
-- **Le cycle des vêtements de travail fait partie du socle**, et non des extensions. Il est indissociable des lessives : c'est le stock qui décide quand une machine doit tourner, et la machine à laver est une ressource unique qu'on ne peut pas mobiliser deux fois le même soir. Séparer les deux n'aurait pas de sens.
 - **Une tâche non plaçable n'est jamais supprimée silencieusement.** Elle reste visible avec son motif d'échec. Un planning faux sans le dire est pire qu'un planning incomplet.
 - **L'authentification est une clé d'API par utilisateur**, transmise dans un en-tête. Pour deux personnes sur un réseau privé, les jetons à durée de vie et les mécanismes de rafraîchissement sont du décor.
 - **Le sport et les déplacements en train étaient hors périmètre de la première version.** Ils ont été ajoutés ensuite, sur le même socle et sans le remettre en cause. La section 10 dit ce que chacun a apporté.
@@ -146,6 +145,7 @@ l'utilisateur.
 | COL-18 | T | Un relevé qui ne rend aucun événement ne supprime rien tant que la source a des occupations à venir : une page injoignable, un site refondu et une session expirée produisent tous zéro événement derrière un code 200. La collecte est refusée et la source finit par apparaître en panne. Un agenda qui se vide légitimement le déclare dans sa configuration |
 | COL-19 | T | Un conflit dont la période a commencé n'est plus soumis à arbitrage : la journée a eu lieu, quel que soit le choix. Il est clos comme caduc, et non supprimé : l'historique des collectes doit rester lisible |
 | COL-20 | T | Un conflit qu'une collecte ne reproduit plus est clos comme caduc. Choisir un groupe de TD ou écarter une UE au choix fait disparaître la séance rejetée du flux filtré : la question ne se pose plus, et la reposer ferait arbitrer un chevauchement qui n'existe pas |
+| COL-21 | M | Un emploi du temps peut cesser d'être suivi : il n'est plus collecté, ses occupations à venir sont retirées du planning, et les passées restent. Une démission n'efface pas les mois travaillés, le calendrier doit toujours dire ce qu'on faisait tel jour |
 
 ### 3.3 Tâches et occurrences — `TAC`
 
@@ -194,6 +194,7 @@ l'utilisateur.
 | EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
 | EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
+| EXE-13 | D | Effacer une occurrence ne bute pas sur ce qui la référence : la notification déjà envoyée garde sa trace et perd seulement le lien. Une prévision effacée à la validation ne doit pas faire échouer cette validation |
 
 ### 3.6 Absences et présence — `ABS`
 
@@ -266,25 +267,13 @@ l'utilisateur.
 | SPT-16 | T | L'organisation du sport porte sur la semaine en cours et la suivante, et sur une troisième à partir du jeudi : avant, l'emploi du temps de cette semaine-là n'est pas assez sûr pour qu'on s'engage dessus. Le décompte des séances à caser suit le même horizon |
 | SPT-17 | M | Une séance peut être posée à la main, à l'heure exacte voulue : le moteur ne propose que ce qui entre dans ses règles, et l'on sait parfois mieux que lui. L'heure donnée est celle de la séance, le trajet et les marges s'ajoutent autour, et la séance est épinglée. Le refus est motivé si le bloc tombe sur un cours ou un service |
 
-### 3.11 Uniforme et stock — `UNI`
+### 3.11 Machine à laver — `UNI`
+
+Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald's qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) sont conservées dans `anciennes_fonctionnalites/stock_uniforme/`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
 
 | Code | Type | Règle |
 |---|---|---|
-| UNI-1 | D | Un article de travail déclare sa quantité totale, un seuil de sécurité, le nombre de journées qu'une unité couvre et une durée de séchage |
-| UNI-2 | D | La quantité propre ne dépasse jamais la quantité totale et ne descend jamais sous zéro |
-| UNI-3 | D | Chaque changement de stock est historisé avec son type, sa quantité et sa date |
-| UNI-4 | T | Chaque journée travaillée use l'uniforme : un t-shirt par service, un pantalon toutes les deux journées |
-| UNI-5 | T | Le décompte porte sur des **journées travaillées**, non sur des jours de calendrier. Travailler lundi puis jeudi salit le pantalon au second service |
-| UNI-6 | T | Une journée déjà comptée ne se recompte pas : la machine s'éteint, l'ordonnanceur rattrape, et rattraper ne doit rien salir en double |
-| UNI-7 | T | La consommation remonte jusqu'à hier inclus, jamais aujourd'hui : un service du soir n'est pas fini le matin |
-| UNI-8 | T | Un retour de linge propre remet à zéro le compteur de journées portées |
-| UNI-9 | T | La quantité propre projetée est la quantité actuelle moins la consommation prévue par les services à venir |
-| UNI-10 | T | Dès que la projection passe sous le seuil, une lessive est créée dont l'échéance est le service menacé, moins le séchage, moins le cycle |
-| UNI-11 | T | Si cette échéance est déjà dépassée, la lessive est signalée en alerte plutôt que planifiée |
 | UNI-12 | T | Deux occurrences mobilisant la machine ne sont pas placées le même jour |
-| UNI-13 | T | Valider une lessive ne rend pas le linge portable : il redevient disponible à la date de validation plus la durée de séchage |
-| UNI-14 | M | La quantité propre peut être recalée à la main quand le compte s'écarte de la réalité |
-| UNI-15 | M | Le recalage se déclare en quantité réelle — « j'ai deux t-shirts propres » — et non en écart. L'écart est calculé et écrit au journal des mouvements, le compteur de journées portées repart de zéro |
 
 ### 3.12 Notifications et calendrier — `NOT`
 
@@ -293,6 +282,7 @@ l'utilisateur.
 | NOT-1 | T | Chaque matin, le système notifie les tâches du jour et celles en retard |
 | NOT-2 | T | Une notification est enregistrée en base avant d'être envoyée. Un échec d'envoi la laisse en attente et ne la perd pas |
 | NOT-3 | T | Le flux iCalendar expose les occupations et les occurrences placées. Une tâche sans heure devient un événement journée entière, une tâche à heure imposée un événement horaire |
+| NOT-4 | T | Le bilan du matin annonce la journée entière : cours, services, tâches et propositions, avec horaires et lieu. Il ne lisait que les tâches, et une journée de cours n'y apparaissait pas alors qu'elle figurait dans le planning et sur le téléphone |
 
 ---
 
@@ -306,7 +296,7 @@ l'utilisateur.
 | Collecteur | Secondaire | Récupère les données des sources externes et les normalise en occupations |
 | Ordonnanceur | Principal | Déclenche les collectes selon leur fréquence, le replacement et le traitement quotidien |
 | ADE de l'Université de Lorraine | Secondaire | Fournit l'emploi du temps universitaire sous forme de fichier iCalendar |
-| Portail McDonald's | Secondaire | Fournit les shifts prévisionnels |
+| Portail McDonald's | Secondaire | Fournissait les shifts prévisionnels. Plus suivi depuis septembre 2026 (COL-21) ; l'historique reste |
 | Telegram | Secondaire | Transporte les notifications et renvoie les actions de l'utilisateur |
 
 ---
@@ -325,8 +315,6 @@ erDiagram
     TACHE       ||--o{ ENCHAINEMENT : "est déclenchée par"
     OCCURRENCE  ||--o{ NOTIFICATION : "motive"
     OCCURRENCE  ||--o{ OCCURRENCE   : "engendre la suivante"
-    ARTICLE_TRAVAIL ||--o{ MOUVEMENT_STOCK : "historise"
-    OCCURRENCE      ||--o{ MOUVEMENT_STOCK : "justifie"
 
     UTILISATEUR {
         serial  id_utilisateur PK
@@ -385,24 +373,6 @@ erDiagram
         varchar     type
         varchar     statut
         timestamptz date_envoi
-    }
-    ARTICLE_TRAVAIL {
-        serial      id_article PK
-        varchar     code UK
-        integer     quantite_totale
-        integer     quantite_propre
-        integer     seuil_securite
-        integer     jours_par_unite
-        integer     heures_sechage
-        timestamptz disponible_le
-    }
-    MOUVEMENT_STOCK {
-        serial      id_mouvement PK
-        integer     id_article FK
-        integer     id_occurrence FK
-        varchar     type
-        integer     quantite
-        timestamptz date_mouvement
     }
 ```
 
@@ -474,13 +444,12 @@ L'URL n'est jamais écrite dans le code ni dans le dépôt : celle du planning d
 | heure_min | TIME | oui | | | | | |
 | heure_max | TIME | oui | > heure_min si définie | | | | |
 | utilise_machine | BOOLEAN | non | | | FALSE | | |
-| lave_uniforme | BOOLEAN | non | implique utilise_machine | | FALSE | | |
 | requiert_les_deux | BOOLEAN | non | implique NOT rappel_journee | | FALSE | | |
 | reportable | BOOLEAN | non | | | TRUE | | |
 | id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
 | active | BOOLEAN | non | | | TRUE | | |
 
-La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière et l'eau du chat, et la lessive de travail quand le stock est menacé.
+La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière et l'eau du chat.
 
 `rappel_journee` distingue les deux natures de tâches de la règle R7. Une tâche cochée à vrai n'a pas d'heure : elle sortira en événement journée entière dans le calendrier. Une tâche cochée à faux doit déclarer sa fenêtre horaire.
 
@@ -513,7 +482,7 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | fenetre | TSTZRANGE | non | non vide, bornée | | | | |
 | creneau | TSTZRANGE | oui | inclus dans fenetre | | | | |
 | statut | VARCHAR(20) | non | 'a_placer', 'planifiee', 'notifiee', 'faite', 'reportee', 'abandonnee' | | 'a_placer' | | |
-| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'stock' | | 'recurrence' | | |
+| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
 | epinglee | BOOLEAN | non | | | FALSE | | |
 | rappel_journee | BOOLEAN | non | recopié de la tâche | | TRUE | | |
 | utilise_machine | BOOLEAN | non | recopié de la tâche | | FALSE | | |
@@ -620,40 +589,6 @@ La distinction entre *ignore* et *illisible* porte tout l'intérêt de la table.
 
 Le champ `choix` est mémorisé pour que la collecte suivante ne repose pas la même question. Sans lui, garder l'existante ne servirait à rien : la version rejetée reviendrait toutes les douze heures.
 
-### Table : ArticleTravail
-
-| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
-|---|---|---|---|---|---|---|---|
-| id_article | SERIAL | non | | oui | | oui | |
-| code | VARCHAR(30) | non | | oui | | | |
-| libelle | VARCHAR(100) | non | | | | | |
-| quantite_totale | INTEGER | non | > 0 | | | | |
-| quantite_propre | INTEGER | non | entre 0 et quantite_totale | | | | |
-| seuil_securite | INTEGER | non | entre 0 et quantite_totale | | 1 | | |
-| jours_par_unite | INTEGER | non | > 0 | | 1 | | |
-| heures_sechage | INTEGER | non | > 0 | | 24 | | |
-| disponible_le | TIMESTAMPTZ | oui | | | | | |
-| date_maj | TIMESTAMPTZ | non | | | now() | | |
-
-Valeurs de départ : trois t-shirts, une unité couvre un jour de travail, séchage 24 heures ; deux pantalons, une unité couvre deux jours, séchage 36 heures. Seuil de sécurité à 1 dans les deux cas.
-
-`disponible_le` porte la règle qui manquait à toute version naïve du problème : un vêtement lavé n'est pas un vêtement portable. Tant que cette date n'est pas atteinte, les unités en séchage ne comptent pas dans le stock utilisable.
-
-`quantite_propre` est maintenue par trigger à chaque mouvement, jamais écrite directement par l'API.
-
-### Table : MouvementStock
-
-| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
-|---|---|---|---|---|---|---|---|
-| id_mouvement | SERIAL | non | | oui | | oui | |
-| id_article | INTEGER | non | | | | | ArticleTravail |
-| type | VARCHAR(20) | non | 'salissure', 'lavage', 'retour_propre', 'recalage' | | | | |
-| quantite | INTEGER | non | ≠ 0 | | | | |
-| date_mouvement | TIMESTAMPTZ | non | | | now() | | |
-| id_occurrence | INTEGER | oui | | | | | Occurrence |
-
-Chaque changement de stock laisse une ligne, comme un journal comptable. On peut donc toujours reconstituer pourquoi il ne restait qu'un t-shirt propre un mardi soir.
-
 ---
 
 ## 7. Contraintes d'intégrité
@@ -676,9 +611,6 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | TAC-5 | La durée du créneau est au moins égale à `duree_minutes` de la tâche | Statique forte |
 | TAC-6 | Deux occurrences à heure imposée ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle sur `NOT rappel_journee` et les statuts planifiée et notifiée | Statique forte |
 | TAC-7 | Un enchaînement n'est pas réflexif, et le couple (source, suivante) est unique | Statique forte |
-| UNI-1 | `quantite_totale > 0`, `jours_par_unite > 0`, `heures_sechage > 0`, `seuil_securite` entre 0 et `quantite_totale` | Statique forte |
-| UNI-2 | `quantite_propre` reste entre 0 et `quantite_totale` | Statique forte |
-| UNI-3 | `quantite` d'un mouvement est non nulle ; `quantite_propre` est recalculée à chaque mouvement : trigger | Dynamique forte |
 | PLA-2 | Le placement respecte la fenêtre horaire de la tâche | Dynamique forte |
 | PLA-5 | Une occurrence notifiée ou épinglée n'est pas déplacée par le placement | Dynamique forte |
 | PLA-8 | Une occurrence non plaçable garde le statut à placer et reçoit un motif | Dynamique faible |
@@ -690,10 +622,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | EXE-6 | `nb_relances >= 0`, et il n'augmente que d'une unité par report d'office : trigger | Dynamique forte |
 | NOT-2 | `date_envoi` est renseignée dès que le statut passe à envoyée | Statique forte |
 | COL-9 | Une source est en panne quand `now() - derniere_collecte > 2 × frequence_heures` : vue | Dynamique faible |
-| UNI-10 | La lessive créée par le stock a la priorité 1 et n'est pas reportable | Dynamique forte |
 | UNI-12 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
-| UNI-13 | La validation d'une lessive fixe `disponible_le` à la date de validation plus `heures_sechage` : trigger | Dynamique forte |
-| UNI-13 | Les unités en séchage ne comptent pas dans le stock utilisable tant que `disponible_le` n'est pas atteint : vue | Dynamique forte |
 | TAC-9 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
 | PLA-9 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
 | PLA-9 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
@@ -703,6 +632,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | COL-12 | Un conflit tranché en faveur de l'existant écarte durablement la version rejetée | Dynamique forte |
 | COL-19 | `a_arbitrer` exige une période à venir ; `perimer_les_conflits()` clôt le reste chaque nuit | Dynamique forte |
 | COL-20 | `perimer_les_conflits_absents()` clôt, en fin de collecte, les conflits que le flux filtré ne reproduit pas | Dynamique forte |
+| COL-21 | `arreter_source()` désactive la source et supprime ses occupations dont le début est à venir, jamais les autres | Dynamique forte |
+| EXE-12 | Une occurrence abandonnée sans assigné prévient l'assigné par défaut de la tâche, sinon l'administrateur : le report de minuit ne doit jamais échouer faute de destinataire | Dynamique forte |
 | COL-19, COL-20 | Un conflit caduc porte son motif et sa date, jamais un choix : contrainte `conflit_resolution_coherente` | Statique forte |
 | COL-5 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
 | TAC-10 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
@@ -747,8 +678,6 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-8 | `preference` appartient à {tot, tard} | Statique forte |
 | SPT-3 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | SPT-3 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
-| UNI-5 | `journees_portees` est positif ou nul, et remis à zéro à chaque mise au sale | Dynamique forte |
-| UNI-6 | `dernier_jour_compte` ne recule jamais : une journée antérieure est ignorée | Dynamique forte |
 
 ---
 
@@ -780,15 +709,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 ### Opération 3 : Projection du stock de vêtements de travail
 
-| | |
-|---|---|
-| **Objectif** | Déclencher une lessive assez tôt pour ne jamais se retrouver sans uniforme propre |
-| **Acteurs** | Système (principal) |
-| **Événement déclencheur** | Une collecte a modifié les shifts, une lessive a été validée, ou le traitement du matin s'exécute |
-| **Pré-conditions** | Les articles de travail sont renseignés avec leur quantité et leur seuil |
-| **Actions** | 1. Lister les journées d'occupation de type travail à venir, dans l'ordre chronologique<br>2. Partir de la quantité propre actuelle de chaque article, en excluant les unités dont la date de disponibilité n'est pas atteinte<br>3. Parcourir les journées de travail une par une et décrémenter le stock projeté selon le nombre de jours qu'une unité couvre<br>4. Repérer la première journée où le stock projeté d'un article passe sous son seuil de sécurité<br>5. Calculer l'échéance de lessive : début de ce shift, moins la durée de séchage de l'article, moins la durée du cycle<br>6. S'il n'existe pas déjà une occurrence de lessive en cours, en créer une en priorité 1, avec une fenêtre qui se termine à cette échéance |
-| **Actions alternatives** | Si l'échéance calculée est déjà passée, ne pas planifier : créer une notification d'alerte immédiate. Il est trop tard pour que le linge sèche, la personne doit le savoir tout de suite plutôt que découvrir le problème au moment de partir.<br>Si aucun shift n'est connu, ne rien faire : c'est le cas quand la collecte du portail est en panne et qu'aucune saisie manuelle n'a été faite |
-| **Post-conditions** | Une lessive est programmée avant la rupture, ou l'utilisateur est averti qu'elle ne peut plus l'être |
+Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérations suivantes est conservée : le code s'y réfère. Le texte d'origine est dans `anciennes_fonctionnalites/stock_uniforme/`.
 
 ### Opération 4 : Placement des tâches
 
@@ -798,7 +719,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Acteurs** | Système (principal), ordonnanceur ou administrateur (déclencheur) |
 | **Événement déclencheur** | Collecte ayant modifié une occupation, validation d'une tâche, traitement quotidien, ou demande explicite |
 | **Pré-conditions** | Aucune |
-| **Actions** | 1. Exécuter les opérations 2 et 3 pour compléter les occurrences manquantes<br>2. Libérer le créneau des occurrences ni notifiées ni épinglées : elles retournent au statut à placer<br>3. Calculer les disponibilités de chaque utilisateur sur l'horizon : l'horizon moins les occupations, moins les créneaux conservés<br>4. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>5. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche, et à venir. Si la tâche mobilise la machine, écarter les jours où une autre tâche à machine est déjà placée<br>6. **Tâche à deux** : chercher de la même façon, mais dans l'intersection des disponibilités de tous les utilisateurs actifs<br>7. **Tâche de type rappel** : chercher le premier jour de la fenêtre d'échéance dont le temps libre total dépasse la durée de la tâche, et affecter la journée entière<br>8. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>9. Retirer le temps consommé des disponibilités et passer à l'occurrence suivante |
+| **Actions** | 1. Exécuter l'opération 2 pour compléter les occurrences manquantes<br>2. Libérer le créneau des occurrences ni notifiées ni épinglées : elles retournent au statut à placer<br>3. Calculer les disponibilités de chaque utilisateur sur l'horizon : l'horizon moins les occupations, moins les créneaux conservés<br>4. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>5. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche, et à venir. Si la tâche mobilise la machine, écarter les jours où une autre tâche à machine est déjà placée<br>6. **Tâche à deux** : chercher de la même façon, mais dans l'intersection des disponibilités de tous les utilisateurs actifs<br>7. **Tâche de type rappel** : chercher le premier jour de la fenêtre d'échéance dont le temps libre total dépasse la durée de la tâche, et affecter la journée entière<br>8. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>9. Retirer le temps consommé des disponibilités et passer à l'occurrence suivante |
 | **Actions alternatives** | Si aucune disponibilité ne convient, l'occurrence reste au statut à placer et reçoit un motif explicite. Elle sera retentée au placement suivant et signalée dans le bilan du matin.<br>Pour une tâche à deux, l'absence d'intersection déclenche en plus une notification : c'est un cas qu'aucun replacement ne résoudra tout seul |
 | **Post-conditions** | Chaque occurrence plaçable est affectée à un créneau ou à une journée. Aucune tâche à heure imposée n'en chevauche une autre, aucun jour ne porte deux machines. Les occurrences non plaçables restent visibles avec leur motif |
 
@@ -810,9 +731,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Acteurs** | Utilisateur (principal), système (secondaire) |
 | **Événement déclencheur** | L'utilisateur appuie sur le bouton de validation du bot, ou appelle l'API |
 | **Pré-conditions** | L'occurrence existe, n'est pas dans un statut terminal, et l'utilisateur en est l'assigné ou est administrateur |
-| **Actions** | 1. Vérifier que la date d'exécution fournie n'est pas dans le futur ; en l'absence de date, prendre l'heure courante<br>2. Passer le statut à faite et enregistrer la date réelle<br>3. Créer l'occurrence suivante de la même tâche, dont la fenêtre est calculée **à partir de la date réelle** et non de l'échéance théorique<br>4. Pour chaque enchaînement partant de cette tâche, chercher une occurrence en cours de la tâche suivante dont la fenêtre croise l'intervalle allant de la date réelle à la date réelle plus le délai maximal<br>5. Si une telle occurrence existe, la repositionner pour qu'elle commence à la date réelle ; sinon en créer une avec cette fenêtre et l'origine enchaînement<br>6. Si la tâche validée est une lessive de travail, enregistrer un mouvement de stock de type lavage et fixer la date de disponibilité des articles concernés à la date réelle plus leur durée de séchage<br>7. Déclencher l'opération 4 |
+| **Actions** | 1. Vérifier que la date d'exécution fournie n'est pas dans le futur ; en l'absence de date, prendre l'heure courante<br>2. Passer le statut à faite et enregistrer la date réelle<br>3. Créer l'occurrence suivante de la même tâche, dont la fenêtre est calculée **à partir de la date réelle** et non de l'échéance théorique<br>4. Pour chaque enchaînement partant de cette tâche, chercher une occurrence en cours de la tâche suivante dont la fenêtre croise l'intervalle allant de la date réelle à la date réelle plus le délai maximal<br>5. Si une telle occurrence existe, la repositionner pour qu'elle commence à la date réelle ; sinon en créer une avec cette fenêtre et l'origine enchaînement<br>6. Déclencher l'opération 4 |
 | **Actions alternatives** | Si l'occurrence est déjà dans un statut terminal, rejeter l'opération : une deuxième validation écraserait la date réelle et fausserait toute la récurrence. Si l'utilisateur n'est ni l'assigné ni administrateur, rejeter |
-| **Post-conditions** | La tâche est soldée, la suivante est en attente de placement, les tâches enchaînées sont programmées sans doublon, et le stock reflète la réalité |
+| **Post-conditions** | La tâche est soldée, la suivante est en attente de placement, les tâches enchaînées sont programmées sans doublon |
 
 ### Opération 6 : Report ou refus d'une occurrence
 
@@ -823,7 +744,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Événement déclencheur** | L'utilisateur appuie sur le bouton reporter ou refuser |
 | **Pré-conditions** | L'occurrence existe, n'est pas dans un statut terminal, et l'utilisateur en est l'assigné ou est administrateur |
 | **Actions** | **Report** : 1. Passer l'occurrence au statut reportée<br>2. Créer une occurrence de remplacement dont la fenêtre va de maintenant à la nouvelle échéance demandée<br>**Refus** : 1. Passer l'occurrence au statut abandonnée<br>2. Créer une occurrence de remplacement avec la même fenêtre, mais sans assigné, pour qu'elle soit reprise par l'autre utilisateur ou réassignée à la main<br>3. Dans les deux cas, déclencher l'opération 4 |
-| **Actions alternatives** | Si la nouvelle échéance demandée est dans le passé, rejeter l'opération. Si la tâche est une lessive créée par la projection de stock, refuser le report : la repousser reviendrait à se retrouver sans uniforme propre, et le système ne doit pas permettre de le faire sans le dire |
+| **Actions alternatives** | Si la nouvelle échéance demandée est dans le passé, rejeter l'opération. Si la tâche n'est pas reportable, comme la litière, refuser le report : le système ne doit pas permettre de repousser sans le dire ce qui ne se repousse pas |
 | **Post-conditions** | La tâche reste due sous une nouvelle forme. Rien ne disparaît sans trace |
 
 ### Opération 7 : Bilan du matin
@@ -847,7 +768,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | **Événement déclencheur** | Il est 21h00 |
 | **Pré-conditions** | Aucune |
 | **Actions** | 1. Lister les occurrences notifiées affectées à la journée qui s'achève et qui ne sont pas validées<br>2. Créer une notification de rappel pour chacune, avec ses boutons d'action<br>3. À minuit, pour celles qui restent non validées : reporter l'affectation au lendemain, étendre la fenêtre d'échéance jusqu'à cette nouvelle date, incrémenter le nombre de relances et repasser l'occurrence au statut planifiée<br>4. L'occurrence sera reprise dans le bilan du matin suivant, marquée comme en retard |
-| **Actions alternatives** | Une tâche à heure imposée dont l'heure est passée n'est pas relancée le soir même : elle est directement reportée, puisqu'on ne peut plus lancer une machine à 23h50 pour qu'elle finisse en heures creuses.<br>Une lessive de travail dont l'échéance de stock est dépassée ne se contente pas d'un report : elle déclenche une alerte, parce que le report ne résout rien |
+| **Actions alternatives** | Une tâche à heure imposée dont l'heure est passée n'est pas relancée le soir même : elle est directement reportée, puisqu'on ne peut plus lancer une machine à 23h50 pour qu'elle finisse en heures creuses. |
 | **Post-conditions** | Aucune tâche non faite ne disparaît. Chaque tâche revient le lendemain, avec son compteur de relances qui rend le retard visible |
 
 ### Opération 9 : Consultation du planning
@@ -932,11 +853,6 @@ Occupations
   POST   /occupations                     saisie manuelle
   DELETE /occupations/{id}
 
-Stock
-  GET    /stock                           état et date de disponibilité
-  GET    /stock/projection                consommation prévue et prochaine lessive
-  POST   /stock/{code}/recaler            corriger la quantité propre à la main
-
 Sources
   GET    /sources                         avec leur état de santé
   POST   /sources/{code}/collecter        forcer une collecte
@@ -971,8 +887,8 @@ Le bot n'est pas une interface graphique, c'est un client de l'API. Il doit suff
 
 - Notifications avec trois boutons : fait, reporter, refuser.
 - Rappel du soir pour les tâches du jour non validées, puis report d'office à minuit.
-- Commandes de consultation : planning du jour, tâches en retard, état du stock d'uniforme.
-- Commandes de saisie rapide : ajouter un shift, forcer une collecte, recaler le stock.
+- Commandes de consultation : planning du jour, tâches en retard.
+- Commandes de saisie rapide : ajouter un créneau, forcer une collecte, arrêter de suivre un flux.
 
 Si cet ensemble suffit à vivre une semaine sans écran, l'API est complète.
 

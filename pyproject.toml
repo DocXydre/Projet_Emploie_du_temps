@@ -30,6 +30,8 @@ include = ["api*"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Code retiré, gardé tel quel pour pouvoir le remettre : on ne le corrige plus.
+extend-exclude = ["anciennes_fonctionnalites"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

@@ -336,32 +336,6 @@ def taches_en_retard(id_utilisateur: int) -> list[dict]:
     )
 
 
-def etat_du_stock(id_utilisateur: int) -> str:
-    articles = lister("SELECT * FROM v_stock ORDER BY code")
-    if not articles:
-        return "Aucun article suivi."
-
-    morceaux = []
-    for article in articles:
-        etat = f"{article['libelle']} : {article['quantite_propre']} propre(s)"
-        if article["en_sechage"]:
-            dispo = article["disponible_le"]
-            etat += f", dispo le {_jour(dispo)} à {_heure(dispo)}"
-        morceaux.append(etat)
-
-    ruptures = lister("SELECT * FROM projeter_stock(%(u)s)", {"u": id_utilisateur})
-    for rupture in ruptures:
-        quand = rupture["jour_rupture"].strftime("%d/%m")
-        if rupture["alerte"]:
-            morceaux.append(f"⚠ {rupture['article']} : trop tard pour laver avant le {quand}")
-        else:
-            morceaux.append(f"Lessive avant le {_jour(rupture['echeance_lessive'])} "
-                            f"à {_heure(rupture['echeance_lessive'])} "
-                            f"(rupture le {quand})")
-
-    return "\n".join(morceaux)
-
-
 def _recollecter(code_source: str) -> dict:
     """Recollecte une source et replace les tâches. Utilisé après un filtre modifié.
 
@@ -453,20 +427,38 @@ def changer_groupe(groupe: int, code_source: str = "IDMC_ICS") -> dict | None:
     return _recollecter(code_source)
 
 
-def articles_stock() -> list[dict]:
-    """Les articles suivis, pour construire les boutons de recalage."""
-    return lister("SELECT code, libelle, quantite_propre, quantite_totale "
-                  "  FROM article_travail ORDER BY code")
+def sources_suivies() -> list[str]:
+    """Les flux collectés en ce moment, ceux qu'on peut arrêter."""
+    return [ligne["code"] for ligne in lister(
+        "SELECT code FROM source WHERE active AND mode_collecte = 'ics' ORDER BY code")]
 
 
-def recaler_stock(code: str, propre: int) -> dict | None:
-    """Déclare le stock propre réel d'un article, et replace la lessive."""
-    resultat = un_seul("SELECT * FROM recaler_uniforme(%(c)s, %(q)s)",
-                       {"c": code.upper(), "q": propre})
-    if resultat is not None:
-        from api.ordonnanceur import placer
-        placer()
-    return resultat
+def arreter_source(code: str) -> dict | None:
+    """Cesse de suivre un flux, et replace ce que ses créneaux bloquaient.
+
+    COL-21 : l'avenir de la source disparaît du planning, son passé reste.
+    """
+    ligne = executer("SELECT arreter_source(%(c)s) AS bilan", {"c": code})
+    bilan = (ligne or {}).get("bilan")
+    if bilan is None:
+        return None
+
+    # Les créneaux libérés sont aussitôt disponibles pour le reste.
+    from api.ordonnanceur import placer
+    bilan["occurrences_replacees"] = placer()
+    return bilan
+
+
+def decrire_arret(bilan: dict) -> str:
+    retirees = bilan["occupations_retirees"]
+    lignes = [
+        f"{bilan['source']} n'est plus suivi.",
+        (f"{retirees} créneau(x) à venir retiré(s) du planning."
+         if retirees else "Rien n'était prévu à venir."),
+        "Le passé reste dans le calendrier.",
+        f"\nPour le reprendre : /lien {bilan['source']} https://...",
+    ]
+    return "\n".join(lignes)
 
 
 def taches_declarables(id_utilisateur: int) -> list[dict]:

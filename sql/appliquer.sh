@@ -32,8 +32,9 @@ psql_exec() {
 }
 
 if [ "${1:-}" = "--recreer" ]; then
-    echo "Suppression du schéma public"
-    psql_exec -c 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
+    echo "Suppression des schémas public et archive"
+    psql_exec -c 'DROP SCHEMA IF EXISTS archive CASCADE;
+                  DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
 fi
 
 psql_exec -c "
@@ -124,8 +125,7 @@ fi
 echo
 echo "Contenu :"
 psql_exec --tuples-only --command "
-    SELECT '  ' || count(*) || ' tâches, '
+    SELECT '  ' || count(*) FILTER (WHERE active) || ' tâches actives, '
            || (SELECT count(*) FROM enchainement) || ' enchaînements, '
-           || (SELECT count(*) FROM source)       || ' sources, '
-           || (SELECT count(*) FROM article_travail) || ' articles'
+           || (SELECT count(*) FROM source WHERE active) || ' sources suivies'
       FROM tache;"

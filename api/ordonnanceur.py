@@ -8,7 +8,6 @@
     07h10               propositions de week-end
     07h20, le lundi     proposition des séances de sport de la semaine
     21h00               relance sur les tâches du jour non faites
-    00h02               consommation de l'uniforme
     00h05               report d'office de ce qui n'a pas été fait
 
 Les heures ci-dessus sont des heures de Paris. Le conteneur, lui, vit en UTC :
@@ -186,21 +185,6 @@ def report_de_minuit() -> dict:
     return bilan
 
 
-def consommer_l_uniforme() -> int:
-    """Compte les journées de travail passées, et salit ce qui doit l'être.
-
-    Traite tous les jours non encore comptés, et pas seulement la veille : la
-    machine peut avoir été éteinte plusieurs jours.
-    """
-    resultat = executer("SELECT rattraper_uniforme() AS sales")
-    sales = (resultat or {}).get("sales", 0)
-    if sales:
-        LOG.info("Uniforme : %s article(s) au sale", sales)
-        # Le stock a changé : la date limite de lessive aussi.
-        placer()
-    return sales
-
-
 def demarrer() -> BackgroundScheduler:
     global _ordonnanceur
     if _ordonnanceur is not None:
@@ -260,12 +244,6 @@ def demarrer() -> BackgroundScheduler:
 
     ordonnanceur.add_job(relance_du_soir, a(21, 0),
                          id="relance", name="Relance du soir", coalesce=True)
-
-    # Avant le report : un t-shirt sali cette nuit peut avancer l'échéance de
-    # la lessive, et donc changer ce qu'il y a à replacer.
-    ordonnanceur.add_job(consommer_l_uniforme, a(0, 2),
-                         id="uniforme", name="Consommation de l'uniforme",
-                         coalesce=True)
 
     ordonnanceur.add_job(report_de_minuit, a(0, 5),
                          id="report", name="Report d'office", coalesce=True)

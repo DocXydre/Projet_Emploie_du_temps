@@ -94,7 +94,6 @@ MENU = [
     [("Valider une tâche", "valider"), ("Aujourd'hui", "jour")],
     [("En retard", "retards"), ("Demain", "demain")],
     [("C'est déjà fait", "fait"), ("Ajouter au planning", "ajouter")],
-    [("Uniforme", "stock"), ("Corriger le stock", "recaler")],
     [("Sport", "sport"), ("Organiser le sport", "organiser")],
     [("Trains", "train"), ("Billets", "billets")],
     [("Je pars", "parti"), ("Je rentre", "retour")],
@@ -216,54 +215,6 @@ async def ajouter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         f"Les tâches qui tombaient là ont été déplacées.")
 
 
-async def recaler(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """« J'ai deux t-shirts propres. »
-
-    Le comptage suit les services et les lessives validées ; la réalité, elle,
-    avance sans lui. Un article par message, avec un bouton par quantité
-    possible — c'est plus court que de taper, et on ne peut pas se tromper de
-    format.
-    """
-    compte = await _appelant(update)
-    if compte is None:
-        return await _refuser(update)
-
-    if len(contexte.args or []) == 2 and contexte.args[1].isdigit():
-        code, quantite = contexte.args[0].upper(), int(contexte.args[1])
-        await _appliquer_recalage(update.effective_message, code, quantite)
-        return
-
-    articles = await asyncio.to_thread(conv.articles_stock)
-    for article in articles:
-        boutons = [InlineKeyboardButton(str(n), callback_data=f"recal:{article['code']}:{n}")
-                   for n in range(article["quantite_totale"] + 1)]
-        await update.effective_message.reply_text(
-            f"{article['libelle']} — {article['quantite_propre']} propre(s) selon moi.\n"
-            f"Combien en as-tu vraiment ?",
-            reply_markup=InlineKeyboardMarkup([boutons]))
-
-
-async def _appliquer_recalage(message, code: str, quantite: int) -> None:
-    try:
-        resultat = await asyncio.to_thread(conv.recaler_stock, code, quantite)
-    except Exception as erreur:
-        await message.reply_text(_message_lisible(erreur))
-        return
-
-    if resultat is None:
-        await message.reply_text(f"Article {code} inconnu.")
-        return
-
-    ecart = resultat["ecart"]
-    if ecart == 0:
-        suite = "j'avais déjà le bon compte."
-    else:
-        suite = f"j'en comptais {ecart:+d} de moins que toi." if ecart > 0 \
-                else f"j'en comptais {-ecart} de trop."
-    await message.reply_text(
-        f"Noté : {resultat['quantite_propre']} propre(s) — {suite}")
-
-
 async def planning(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     compte = await _appelant(update)
     if compte is None:
@@ -295,15 +246,6 @@ async def retards(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
             f"{tache['tache_libelle']} — en retard de {tache['jours_de_retard']} j",
             reply_markup=_boutons(tache["id_occurrence"]),
         )
-
-
-async def stock(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    compte = await _appelant(update)
-    if compte is None:
-        return await _refuser(update)
-
-    texte = await asyncio.to_thread(conv.etat_du_stock, compte["id_utilisateur"])
-    await update.effective_message.reply_text(texte)
 
 
 async def conflits(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -807,6 +749,36 @@ async def lien(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def arreter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ne plus suivre un flux : « /arreter MCDO ». Le pendant de /lien.
+
+    Ce qui était prévu disparaît du planning, ce qui a eu lieu reste
+    (COL-21). Sans argument, la commande dit ce qui est suivi.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    if not contexte.args:
+        suivies = await asyncio.to_thread(conv.sources_suivies)
+        await update.effective_message.reply_text(
+            "Flux suivis : " + (", ".join(suivies) or "aucun")
+            + "\n\nPour en arrêter un : /arreter MCDO")
+        return
+
+    code = contexte.args[0].upper()
+    try:
+        bilan = await asyncio.to_thread(conv.arreter_source, code)
+    except Exception as erreur:
+        await update.effective_message.reply_text(_message_lisible(erreur))
+        return
+
+    if bilan is None:
+        await update.effective_message.reply_text(f"Source {code} inconnue.")
+        return
+    await update.effective_message.reply_text(conv.decrire_arret(bilan))
+
+
 # ---------------------------------------------------------------------------
 # Boutons
 # ---------------------------------------------------------------------------
@@ -867,10 +839,6 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
             await requete.edit_message_text("Cette liste a changé depuis. Refais /ecarter.")
             return
         await _appliquer_ecart(requete.message, conv.reprendre_cours, liste[rang])
-        return
-
-    if genre == "recal":
-        await _appliquer_recalage(requete.message, choix, int(identifiant))
         return
 
     if genre == "fait":
@@ -948,8 +916,6 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         "jour": planning,
         "demain": demain,
         "retards": retards,
-        "stock": stock,
-        "recaler": recaler,
         "sport": seances_a_venir,
         "organiser": organiser,
         "parti": parti,
@@ -1279,8 +1245,6 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          "choisir ses séances, ou en poser une à l'heure dite", organiser),
         ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
 
-        ("Maison", "stock", "", "uniforme et prochaine lessive", stock),
-        ("Maison", "recaler", "", "dire combien j'ai de vêtements propres", recaler),
 
         ("Absences et trajets", "parti", "lieu",
          "je pars maintenant, retour inconnu", parti),
@@ -1301,6 +1265,8 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
         ("Emploi du temps", "ecarter", "Nom du cours",
          "UE au choix que je ne suis pas", ecarter),
         ("Emploi du temps", "lien", "CODE URL", "donner l'URL d'un flux", lien),
+        ("Emploi du temps", "arreter", "CODE",
+         "ne plus suivre un flux, le passé reste", arreter),
 
         ("Ce compte", "demarrer", "TA_CLE_API", "relier ce compte Telegram", demarrer),
         ("Ce compte", "aide", "", "cette liste", aide),

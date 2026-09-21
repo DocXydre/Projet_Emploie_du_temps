@@ -1,7 +1,7 @@
 -- rejouable : ce fichier ne contient que des ALTER idempotents et un
 --             CREATE OR REPLACE.
 -- =============================================================================
--- 027 : deux pannes vues sur le téléphone                       (EXE-13, NOT-6)
+-- 027 : deux pannes vues sur le téléphone                       (EXE-13, NOT-4)
 --
 -- La première : valider une séance de sport rendait
 --
@@ -38,14 +38,15 @@ COMMENT ON COLUMN notification.id_occurrence IS
 -- Même forme, même piège : un mouvement de stock rattaché à une occurrence
 -- effacée bloquerait la suppression. Le vêtement a été porté, le mouvement
 -- reste.
-ALTER TABLE mouvement_stock DROP CONSTRAINT IF EXISTS mouvement_stock_id_occurrence_fkey;
-ALTER TABLE mouvement_stock ADD CONSTRAINT mouvement_stock_id_occurrence_fkey
+-- IF EXISTS : la table est partie en archive avec le stock d'uniforme (031).
+ALTER TABLE IF EXISTS mouvement_stock DROP CONSTRAINT IF EXISTS mouvement_stock_id_occurrence_fkey;
+ALTER TABLE IF EXISTS mouvement_stock ADD CONSTRAINT mouvement_stock_id_occurrence_fkey
     FOREIGN KEY (id_occurrence) REFERENCES occurrence (id_occurrence)
     ON DELETE SET NULL;
 
 
 -- -----------------------------------------------------------------------------
--- Le bilan du matin montre la journée entière                         (NOT-6)
+-- Le bilan du matin montre la journée entière                         (NOT-4)
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION bilan_du_matin() RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -69,7 +70,7 @@ BEGIN
         v_pannes   := ARRAY[]::TEXT[];
 
         -- Ce qui est prévu aujourd'hui, tout compris : cours, services,
-        -- tâches, propositions. NOT-6 : le bilan ne lisait que les tâches, et
+        -- tâches, propositions. NOT-4 : le bilan ne lisait que les tâches, et
         -- une journée de cours n'y apparaissait pas alors qu'elle figurait dans
         -- « /planning » et sur le téléphone. `v_planning` est la vue qui fait
         -- déjà cette fusion, autant s'en servir plutôt que de la refaire.
