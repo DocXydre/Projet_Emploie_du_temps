@@ -9,6 +9,7 @@ Cette séparation permet de tester les actions du bot sans appeler Telegram.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -17,6 +18,8 @@ from psycopg.types.json import Json
 
 from api.base import executer, lister, un_seul
 from api.config import configuration
+
+LOG = logging.getLogger(__name__)
 
 # Aucune notification entre ces deux heures : faire vibrer un téléphone à 3h du
 # matin pour une poussière est le meilleur moyen de les faire couper.
@@ -214,6 +217,10 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
             "SELECT valider_occurrence(%(o)s, %(u)s, NULL)",
             {"o": id_occurrence, "u": id_utilisateur},
         )
+        # EXE-15 : la suivante naît de la validation, et une tâche faite en
+        # avance avance tout le reste. Replacer tout de suite évite d'attendre
+        # la nuit pour voir un planning juste.
+        _replacer()
         return "C'est noté, merci."
 
     if action == "reporter":
@@ -500,33 +507,42 @@ def decrire_arret(bilan: dict) -> str:
     return "\n".join(lignes)
 
 
-def taches_declarables(id_utilisateur: int) -> list[dict]:
+def taches_declarables(id_utilisateur: int | None = None) -> list[dict]:
     """Tâches qu'on peut déclarer faites spontanément.
 
-    Le sport en est écarté : une séance se valide par son occurrence, qui porte
-    un lieu et un horaire.
+    Toutes, y compris celles qui reviennent à l'autre : on déclare ce qu'on a
+    fait, pas ce qu'on devait faire (EXE-15). Le sport est écarté : une séance
+    se valide par son occurrence, qui porte un lieu et un horaire.
     """
     return lister(
         """
         SELECT t.code, t.libelle, t.categorie
           FROM tache t
          WHERE t.active AND t.categorie <> 'sport'
-           AND (t.id_utilisateur_defaut IS NULL
-                OR t.id_utilisateur_defaut = %(u)s)
          ORDER BY t.libelle
-        """,
-        {"u": id_utilisateur},
+        """
     )
 
 
+def _replacer() -> None:
+    """Relance le placement, sans jamais faire échouer ce qui l'a déclenché."""
+    try:
+        from api.ordonnanceur import placer
+        placer()
+    except Exception:  # noqa: BLE001 - un planning en retard vaut mieux qu'un refus
+        LOG.warning("Replacement après validation impossible", exc_info=True)
+
+
 def declarer_faite(id_utilisateur: int, code_tache: str) -> str:
-    """« C'est fait », même si ce n'était pas prévu aujourd'hui."""
+    """« C'est fait », même si ce n'était pas prévu aujourd'hui, ni pour moi."""
     resultat = un_seul(
         "SELECT declarer_faite(%(u)s, %(c)s) AS id_occurrence",
         {"u": id_utilisateur, "c": code_tache.upper()},
     )
     if resultat is None:
         return "Tâche inconnue."
+
+    _replacer()
 
     ligne = un_seul(
         "SELECT tache_libelle, echeance_max FROM v_occurrence "

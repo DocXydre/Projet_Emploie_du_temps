@@ -176,6 +176,7 @@ l'utilisateur.
 | PLA-8 | T | Une occurrence sans créneau reste à placer, avec un motif lisible, et n'est jamais supprimée |
 | PLA-9 | T | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
+| PLA-12 | M | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
 
 ### 3.5 Exécution et suivi — `EXE`
@@ -194,6 +195,8 @@ l'utilisateur.
 | EXE-10 | M | L'administrateur peut déclencher une collecte ou un replacement à tout moment |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
 | EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
+| EXE-14 | M | N'importe lequel des deux coche n'importe quelle tâche : celui qui la valide est celui qui l'a faite, et elle lui est recréditée. Refuser la validation d'une tâche assignée à l'autre obligeait à laisser au planning une tâche déjà faite |
+| EXE-15 | M | Déclarer une tâche faite reprend l'occurrence ouverte la plus proche, quel que soit son assigné, et le planning se refait aussitôt : une tâche faite en avance décale la suite sans attendre le placement de la nuit |
 | EXE-13 | D | Effacer une occurrence ne bute pas sur ce qui la référence : la notification déjà envoyée garde sa trace et perd seulement le lien. Une prévision effacée à la validation ne doit pas faire échouer cette validation |
 
 ### 3.6 Absences et présence — `ABS`
@@ -297,6 +300,7 @@ Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald
 | NOT-6 | M | Six familles de contenu, cochables une par une : cours, travail, perso, tâches, sport, week-ends. Un flux qui mêle les cours, les gardes d'enfants, la litière et le sport ne se lit plus |
 | NOT-7 | M | Supprimer un calendrier composé coupe son adresse et rien d'autre : les autres abonnements continuent, et le jeton personnel n'est pas renouvelé. On ne supprime que les siens |
 | NOT-8 | D | Deux sortes de jetons ouvrent le flux : celui d'un compte, qui donne tout son planning et se restreint dans l'URL par `qui` et `quoi`, et celui d'un calendrier composé, qui donne exactement ce qu'il déclare. Un jeton composé ne s'élargit jamais par l'URL, sans quoi donner les cours de quelqu'un reviendrait à donner tout son planning |
+| NOT-10 | M | Un événement personnel garde le titre qu'on lui a donné. Le préfixe de catégorie ne s'applique qu'aux familles qui en ont un : « autre : baby-sitting » n'apprend rien à personne |
 | NOT-9 | M | Chacun peut composer le calendrier de l'autre : on vit à deux, et un planning que l'autre ne peut pas consulter oblige à le redemander tous les jours. Dans un calendrier à plusieurs, chaque événement porte le nom de la personne |
 
 ---
@@ -698,6 +702,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | COL-20 | `perimer_les_conflits_absents()` clôt, en fin de collecte, les conflits que le flux filtré ne reproduit pas | Dynamique forte |
 | COL-21 | `arreter_source()` désactive la source et supprime ses occupations dont le début est à venir, jamais les autres | Dynamique forte |
 | EXE-12 | Une occurrence abandonnée sans assigné prévient l'assigné par défaut de la tâche, sinon l'administrateur : le report de minuit ne doit jamais échouer faute de destinataire | Dynamique forte |
+| EXE-14 | `valider_occurrence()` réassigne l'occurrence à celui qui la valide | Dynamique forte |
+| EXE-15 | `declarer_faite()` reprend l'occurrence ouverte la plus proche sans regarder son assigné, et n'en crée une que s'il n'y en a aucune | Dynamique forte |
+| EXE-15 | Une validation, par le bot comme par l'API, relance le placement | Dynamique faible |
 | COL-19, COL-20 | Un conflit caduc porte son motif et sa date, jamais un choix : contrainte `conflit_resolution_coherente` | Statique forte |
 | COL-5 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
 | TAC-10 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
@@ -706,6 +713,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | PLA-6 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
 | TAC-8 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
 | PLA-7 | La validation efface les occurrences prévisionnelles de la même tâche | Dynamique forte |
+| PLA-12 | `dernier_a_faire()` rend la personne de la dernière occurrence de la tâche, faite ou prévue | Dynamique forte |
+| PLA-12 | `choisir_assigne()` rend l'autre que le dernier tant que l'écart de charge reste sous une heure | Dynamique forte |
+| PLA-12 | `charge_domestique()` ignore le sport et les tâches à deux | Dynamique forte |
 | ABS-1 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | ABS-1 | `periode` est non vide et bornée | Statique forte |
 | ABS-2 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |

@@ -38,7 +38,10 @@ def _identifiant(ligne: dict) -> str:
 
 
 def _titre(ligne: dict) -> str:
-    prefixe = PREFIXES.get(ligne["categorie"], ligne["categorie"])
+    # NOT-10 : un événement personnel garde le titre qu'on lui a donné. Le
+    # préfixe sert à reconnaître d'un coup d'œil ce que le système a produit,
+    # et « autre : baby-sitting » n'apprend rien à personne.
+    prefixe = PREFIXES.get(ligne["categorie"], "")
     libelle = ligne["libelle"]
 
     # Pour le sport, le lieu remplace le libellé : « Sport : Piscine du
@@ -46,7 +49,7 @@ def _titre(ligne: dict) -> str:
     if ligne["categorie"] == "sport" and ligne.get("lieu"):
         libelle = ligne["lieu"]
 
-    titre = f"{prefixe} : {libelle}"
+    titre = f"{prefixe} : {libelle}" if prefixe else libelle
 
     # Le retard se voit dans le titre : c'est la seule information que le
     # calendrier ne peut pas afficher autrement.
