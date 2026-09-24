@@ -8,7 +8,7 @@ vit dans PostgreSQL.
 from contextlib import asynccontextmanager
 
 import psycopg
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -28,7 +28,7 @@ from api.routeurs import (
     taches,
     trajets,
 )
-from api.securite import Appelant, Authentifie, appelant_par_url
+from api.securite import CONTENUS, Abonne, Appelant, Authentifie
 
 conf = configuration()
 
@@ -134,6 +134,66 @@ def renouveler_abonnement(qui: Authentifie, requete: Request) -> dict:
     return lien
 
 
+@app.get("/moi/calendriers", tags=["Planning"], summary="Mes calendriers composés")
+def mes_calendriers(qui: Authentifie, requete: Request) -> list[dict]:
+    """Un calendrier composé par ligne, avec son adresse d'abonnement."""
+    return [
+        {**ligne,
+         "url": (conversation.url_abonnement(ligne["jeton"], requete.url.netloc) or {})
+                .get("url")}
+        for ligne in conversation.calendriers_de(qui.id_utilisateur)
+    ]
+
+
+@app.post("/moi/calendriers", tags=["Planning"], summary="Composer un calendrier",
+          status_code=201)
+def composer_calendrier(qui: Authentifie, requete: Request,
+                        libelle: str, personnes: str, contenus: str) -> dict:
+    """Personnes par pseudo, contenus par famille, les deux séparés par des virgules.
+
+    Exemple : `libelle=Cours de Lorette&personnes=lorette&contenus=cours`. Les
+    familles reconnues sont celles de NOT-6.
+    """
+    from api.securite import _comptes, _liste
+
+    familles = _liste(contenus)
+    comptes = _comptes(_liste(personnes), qui.id_utilisateur)
+    if not familles or not comptes:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "calendrier_vide",
+                    "message": "Un calendrier demande au moins une personne "
+                               "et un contenu"},
+        )
+
+    inconnus = [c for c in familles if c not in CONTENUS]
+    if inconnus:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "contenu_inconnu",
+                    "message": f"Contenu inconnu : {', '.join(inconnus)}. "
+                               f"Au choix : {', '.join(CONTENUS)}"},
+        )
+
+    cree = conversation.creer_calendrier(qui.id_utilisateur, libelle, comptes, familles)
+    assert cree is not None
+    lien = conversation.url_abonnement(cree["jeton"], requete.url.netloc) or {}
+    return {**cree, "url": lien.get("url")}
+
+
+@app.delete("/moi/calendriers/{id_calendrier}", tags=["Planning"],
+            summary="Supprimer un calendrier composé")
+def retirer_calendrier(qui: Authentifie, id_calendrier: int) -> dict:
+    """Son adresse cesse aussitôt de répondre. Les autres continuent (NOT-7)."""
+    if not conversation.supprimer_calendrier(qui.id_utilisateur, id_calendrier):
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "calendrier_inconnu",
+                    "message": "Ce calendrier n'existe pas, ou n'est pas le tien"},
+        )
+    return {"supprime": id_calendrier}
+
+
 @app.get(
     "/planning.ics",
     tags=["Planning"],
@@ -141,14 +201,18 @@ def renouveler_abonnement(qui: Authentifie, requete: Request) -> dict:
     response_class=Response,
     responses={200: {"content": {"text/calendar": {}}}},
 )
-def calendrier(qui: Appelant = Depends(appelant_par_url), jours: int | None = None) -> Response:
+def calendrier(abonnement: Abonne, jours: int | None = None) -> Response:
     """Flux à abonner dans une application de calendrier.
 
     La clé passe dans l'URL et non dans un en-tête : les applications de
     calendrier ne savent pas en envoyer un.
+
+    Le jeton d'un compte donne tout son planning, et se restreint au besoin
+    avec `qui` et `quoi` : « ?qui=lorette&quoi=cours,sport ». Le jeton d'un
+    calendrier composé donne ce qu'il déclare, sans discussion (NOT-6, NOT-8).
     """
     return Response(
-        content=flux_ics(qui.id_utilisateur, jours),
+        content=flux_ics(abonnement, jours),
         media_type="text/calendar; charset=utf-8",
         headers={"Content-Disposition": 'inline; filename="planning.ics"'},
     )

@@ -106,6 +106,12 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
     if ligne is None:
         return None
 
+    return url_abonnement(ligne["jeton_calendrier"], defaut)
+
+
+def url_abonnement(jeton: str, defaut: str | None = None) -> dict | None:
+    """Même adresse pour un compte et pour un calendrier composé : seul le
+    jeton change (NOT-8)."""
     hote = (configuration().hote_public or defaut or "").strip().rstrip("/")
     if not hote:
         return None
@@ -117,7 +123,7 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
     port = hote.rpartition(":")[2] if ":" in hote else ""
     protocole = "http" if port.isdigit() and port not in PORTS_CHIFFRES else "https"
 
-    chemin = f"{hote}/planning.ics?cle={ligne['jeton_calendrier']}"
+    chemin = f"{hote}/planning.ics?cle={jeton}"
 
     # iOS traduit « webcal:// » en « http:// » et jamais en « https:// ». Sur
     # un flux chiffré, le téléphone part donc en clair, signale l'absence de
@@ -129,6 +135,46 @@ def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | Non
             "webcal": webcal,
             "hote": hote,
             "protocole": protocole}
+
+
+def calendriers_de(id_utilisateur: int) -> list[dict]:
+    """Les calendriers composés qu'on a créés, avec de quoi les afficher."""
+    return lister(
+        """
+        SELECT c.id_calendrier, c.libelle, c.jeton, c.personnes, c.contenus,
+               (SELECT array_agg(u.nom ORDER BY u.nom)
+                  FROM utilisateur u
+                 WHERE u.id_utilisateur = ANY (c.personnes)) AS noms
+          FROM calendrier c
+         WHERE c.id_proprietaire = %(u)s
+         ORDER BY c.libelle
+        """,
+        {"u": id_utilisateur},
+    )
+
+
+def creer_calendrier(id_utilisateur: int, libelle: str,
+                     personnes: list[int], contenus: list[str]) -> dict | None:
+    return un_seul(
+        "SELECT * FROM creer_calendrier(%(u)s, %(libelle)s, %(personnes)s, %(contenus)s)",
+        {"u": id_utilisateur, "libelle": libelle,
+         "personnes": list(personnes), "contenus": list(contenus)},
+    )
+
+
+def supprimer_calendrier(id_utilisateur: int, id_calendrier: int) -> bool:
+    ligne = un_seul(
+        "SELECT supprimer_calendrier(%(u)s, %(c)s) AS parti",
+        {"u": id_utilisateur, "c": id_calendrier},
+    )
+    return bool(ligne and ligne["parti"])
+
+
+def comptes_actifs() -> list[dict]:
+    return lister(
+        "SELECT id_utilisateur, pseudo, nom FROM utilisateur "
+        " WHERE actif ORDER BY id_utilisateur"
+    )
 
 
 def renouveler_calendrier(id_utilisateur: int) -> str | None:

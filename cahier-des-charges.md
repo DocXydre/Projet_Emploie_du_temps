@@ -293,6 +293,11 @@ Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald
 | NOT-2 | T | Une notification est enregistrée en base avant d'être envoyée. Un échec d'envoi la laisse en attente et ne la perd pas |
 | NOT-3 | T | Le flux iCalendar expose les occupations et les occurrences placées. Une tâche sans heure devient un événement journée entière, une tâche à heure imposée un événement horaire |
 | NOT-4 | T | Le bilan du matin annonce la journée entière : cours, services, tâches et propositions, avec horaires et lieu. Il ne lisait que les tâches, et une journée de cours n'y apparaissait pas alors qu'elle figurait dans le planning et sur le téléphone |
+| NOT-5 | M | Un calendrier se compose : une ou plusieurs personnes, une ou plusieurs familles de contenu, et une adresse d'abonnement à lui. On en tient autant qu'on veut, chacun nommé d'après ce qu'il montre |
+| NOT-6 | M | Six familles de contenu, cochables une par une : cours, travail, perso, tâches, sport, week-ends. Un flux qui mêle les cours, les gardes d'enfants, la litière et le sport ne se lit plus |
+| NOT-7 | M | Supprimer un calendrier composé coupe son adresse et rien d'autre : les autres abonnements continuent, et le jeton personnel n'est pas renouvelé. On ne supprime que les siens |
+| NOT-8 | D | Deux sortes de jetons ouvrent le flux : celui d'un compte, qui donne tout son planning et se restreint dans l'URL par `qui` et `quoi`, et celui d'un calendrier composé, qui donne exactement ce qu'il déclare. Un jeton composé ne s'élargit jamais par l'URL, sans quoi donner les cours de quelqu'un reviendrait à donner tout son planning |
+| NOT-9 | M | Chacun peut composer le calendrier de l'autre : on vit à deux, et un planning que l'autre ne peut pas consulter oblige à le redemander tous les jours. Dans un calendrier à plusieurs, chaque événement porte le nom de la personne |
 
 ---
 
@@ -326,6 +331,7 @@ erDiagram
     OCCURRENCE  ||--o{ NOTIFICATION : "motive"
     OCCURRENCE  ||--o| CHOIX_SPORT  : "est retenue par"
     OCCURRENCE  ||--o{ OCCURRENCE   : "engendre la suivante"
+    UTILISATEUR ||--o{ CALENDRIER   : "compose"
 
     UTILISATEUR {
         serial  id_utilisateur PK
@@ -376,6 +382,14 @@ erDiagram
         varchar     statut
         integer     nb_relances
         timestamptz date_faite
+    }
+    CALENDRIER {
+        serial    id_calendrier PK
+        varchar   jeton UK
+        varchar   libelle
+        integer   id_proprietaire FK
+        integer   personnes
+        text      contenus
     }
     NOTIFICATION {
         serial      id_notification PK
@@ -529,6 +543,20 @@ Les deux drapeaux `rappel_journee` et `utilise_machine` sont recopiés de la tâ
 
 Une ligne par séance choisie. Les habitudes n'ont pas de table : elles se calculent à la volée sur ces lignes, sur les huit dernières semaines, ce qui évite un compteur à tenir à jour et un pourcentage qui vieillirait mal (SPT-22).
 
+### Table : Calendrier
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_calendrier | SERIAL | non | | oui | | oui | |
+| jeton | VARCHAR(64) | non | | oui | UUID sans tirets | | |
+| libelle | VARCHAR(60) | non | non vide | par propriétaire | | | |
+| id_proprietaire | INTEGER | non | | | | | Utilisateur (suppression en cascade) |
+| personnes | INTEGER[] | non | au moins une | | | | |
+| contenus | TEXT[] | non | parmi cours, travail, perso, taches, sport, weekends | | | | |
+| date_creation | TIMESTAMPTZ | non | | | now() | | |
+
+Un calendrier composé : de qui, et quoi (NOT-5, NOT-6). `personnes` est un tableau et non une table de liaison, parce qu'on n'y accède jamais autrement que d'un bloc : on lit un calendrier entier ou pas du tout. Le jeton est distinct de celui du compte, et meurt avec la ligne : couper une adresse ne doit pas obliger à renouveler le jeton personnel, ni casser les autres abonnements (NOT-7).
+
 ### Table : Notification
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -652,6 +680,11 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | EXE-5 | Le statut ne régresse pas : les statuts faite, reportée et abandonnée sont terminaux : trigger | Dynamique forte |
 | EXE-6 | `nb_relances >= 0`, et il n'augmente que d'une unité par report d'office : trigger | Dynamique forte |
 | NOT-2 | `date_envoi` est renseignée dès que le statut passe à envoyée | Statique forte |
+| NOT-5 | `calendrier` : jeton unique, au moins une personne et un contenu, libellé unique par propriétaire | Statique forte |
+| NOT-6 | `contenus` n'accepte que les six familles : contrainte `calendrier_contenus_connus` | Statique forte |
+| NOT-6 | `planning_filtre()` ne rend que les personnes et les familles demandées | Dynamique forte |
+| NOT-7 | `supprimer_calendrier()` n'efface que le calendrier de son propriétaire | Dynamique forte |
+| NOT-8 | `abonnement_du_jeton()` reconnaît un jeton de compte ou de calendrier ; les paramètres d'URL ne s'appliquent qu'au premier | Dynamique forte |
 | COL-9 | Une source est en panne quand `now() - derniere_collecte > 2 × frequence_heures` : vue | Dynamique faible |
 | UNI-12 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
 | TAC-9 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
@@ -853,9 +886,12 @@ Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérat
 ```
 Planning
   GET    /planning?debut=&fin=            planning consolidé
-  GET    /planning.ics?cle=               flux iCalendar (jeton de calendrier)
+  GET    /planning.ics?cle=&qui=&quoi=    flux iCalendar (jeton de calendrier)
   GET    /moi/calendrier                  URL d'abonnement à donner au téléphone
   POST   /moi/calendrier/renouveler       révoque les abonnements en place
+  GET    /moi/calendriers                 mes calendriers composés, avec leur adresse
+  POST   /moi/calendriers                 en composer un (libelle, personnes, contenus)
+  DELETE /moi/calendriers/{id}            coupe cette adresse, et elle seule
   POST   /planning/placer                 relance le placement
 
 Trajets

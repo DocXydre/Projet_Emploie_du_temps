@@ -55,7 +55,13 @@ def _titre(ligne: dict) -> str:
     return titre
 
 
-def flux_ics(id_utilisateur: int, jours: int | None = None) -> bytes:
+def flux_ics(abonnement, jours: int | None = None) -> bytes:
+    """Le flux d'un abonnement : ses personnes, ses contenus, rien d'autre.
+
+    L'abonnement vient de `securite.abonnement_par_url` : jeton d'un compte,
+    qui donne tout son planning, ou jeton d'un calendrier composé, qui donne
+    les cases cochées (NOT-6).
+    """
     conf = configuration()
     fuseau = ZoneInfo(conf.fuseau)
     # Le passé est exporté lui aussi. Il n'est jamais supprimé en base, mais un
@@ -69,29 +75,30 @@ def flux_ics(id_utilisateur: int, jours: int | None = None) -> bytes:
            + timedelta(days=(jours or conf.horizon_calendrier_jours) + 1))
 
     lignes = lister(
-        """
-        SELECT nature, id, categorie, libelle, debut, fin,
-               journee_entiere, statut, lieu, motif, nb_relances
-          FROM v_planning
-         WHERE id_utilisateur = %(u)s
-           AND debut < %(fin)s AND fin > %(debut)s
-         ORDER BY debut
-        """,
-        {"u": id_utilisateur, "debut": debut, "fin": fin},
+        "SELECT * FROM planning_filtre(%(personnes)s, %(contenus)s, %(debut)s, %(fin)s)",
+        {"personnes": list(abonnement.personnes), "contenus": list(abonnement.contenus),
+         "debut": debut, "fin": fin},
     )
+
+    # Le nom n'apparaît que dans un calendrier à plusieurs : « Lorette · Cours »
+    # est utile quand les deux plannings se mélangent, encombrant sinon.
+    nommer = len(abonnement.personnes) > 1
 
     calendrier = Calendar()
     calendrier.add("prodid", "-//Planification personnelle//FR")
     calendrier.add("version", "2.0")
     calendrier.add("calscale", "GREGORIAN")
     calendrier.add("method", "PUBLISH")
-    calendrier.add("x-wr-calname", "Planning")
+    calendrier.add("x-wr-calname", abonnement.libelle)
     calendrier.add("x-wr-timezone", conf.fuseau)
 
     for ligne in lignes:
         evenement = Event()
         evenement.add("uid", _identifiant(ligne))
-        evenement.add("summary", _titre(ligne))
+        titre = _titre(ligne)
+        if nommer:
+            titre = f"{ligne['qui']} · {titre}"
+        evenement.add("summary", titre)
         evenement.add("dtstamp", datetime.now(fuseau))
 
         if ligne["journee_entiere"]:

@@ -17,7 +17,6 @@ dates compactes, jamais de libellés.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -25,6 +24,7 @@ import psycopg
 
 from api.base import executer, lister, un_seul
 from api.config import configuration
+from api.ecran import Ecran
 
 LOG = logging.getLogger(__name__)
 
@@ -42,12 +42,9 @@ JOURS_LONGS = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dim
 ORIGINES = {"p": "proposition", "h": "habitude", "m": "modifiee", "c": "manuelle"}
 
 
-@dataclass
-class Ecran:
-    """Ce que le bot affiche : un texte, et des rangées de (libellé, rappel)."""
-
-    texte: str
-    boutons: list[list[tuple[str, str]]] = field(default_factory=list)
+# `Ecran` vient de api/ecran.py : les calendriers s'en servent aussi. Le nom
+# reste importable ici, où tous les écrans du sport le nomment.
+__all__ = ["Ecran"]
 
 
 # ---------------------------------------------------------------------------

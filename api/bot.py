@@ -95,7 +95,7 @@ MENU = [
     [("En retard", "retards"), ("Demain", "demain")],
     [("C'est déjà fait", "fait"), ("Ajouter au planning", "ajouter")],
     [("Sport", "sport"), ("Trains", "train")],
-    [("Billets", "billets")],
+    [("Billets", "billets"), ("Calendriers", "calendrier")],
     [("Je pars", "parti"), ("Je rentre", "retour")],
 ]
 
@@ -324,59 +324,41 @@ async def absent(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    """Envoie l'adresse d'abonnement, là où on en a besoin : sur le téléphone.
+    """Les calendriers : les siens, et de quoi en composer un autre (NOT-5).
 
-    C'est tout l'intérêt de passer par le bot : l'adresse contient un jeton de
-    trente-deux caractères que personne ne recopie à la main sans se tromper.
-    Elle est envoyée en monospace et non en lien, parce qu'un lien touché sur
-    iOS importe les événements au lieu de créer un abonnement.
+    « /calendrier renouveler » garde son sens d'avant : il change le jeton
+    personnel, donc coupe les abonnements pris sur le planning complet.
     """
     compte = await _appelant(update)
     if compte is None:
         return await _refuser(update)
 
-    renouveler = bool(contexte.args and contexte.args[0] in ("renouveler", "reset"))
-    if renouveler:
-        await asyncio.to_thread(conv.renouveler_calendrier, compte["id_utilisateur"])
+    from api import calendriers
 
-    lien = await asyncio.to_thread(conv.url_calendrier, compte["id_utilisateur"])
-    if lien is None:
-        await update.effective_message.reply_text(
-            "Je ne sais pas sous quel nom cette machine est joignable depuis "
-            "ton téléphone. Renseigne HOTE_PUBLIC dans le .env — par exemple "
-            "« HOTE_PUBLIC=mon-mac.local:8000 » — puis relance l'API."
-        )
+    if contexte.args and contexte.args[0] in ("renouveler", "reset"):
+        await asyncio.to_thread(conv.renouveler_calendrier, compte["id_utilisateur"])
+        ecran = await asyncio.to_thread(calendriers.ecran_personnel,
+                                        compte["id_utilisateur"])
+        ecran.texte = ("Nouveau lien. L'ancien ne fonctionne plus, il faut te "
+                       "réabonner.\n\n" + ecran.texte)
+        await _afficher(update, ecran)
         return
 
-    entete = ("Nouveau lien. L'ancien ne fonctionne plus, il faut te réabonner.\n\n"
-              if renouveler else "")
+    ecran = await asyncio.to_thread(calendriers.ecran_liste, compte["id_utilisateur"])
+    await _afficher(update, ecran)
 
-    # Le chemin par les réglages est le chemin normal, pas le recours. Toucher
-    # un lien vers un .ics importe les événements une fois pour toutes au lieu
-    # de créer un abonnement : le calendrier ne se met alors plus jamais à jour,
-    # et rien ne le signale. L'adresse part donc en <code>, que Telegram affiche
-    # sans en faire un lien et qu'un appui long recopie.
-    corps = (
-        f"{entete}"
-        f"Copie cette adresse :\n\n"
-        f"<code>{lien['url']}</code>\n\n"
-        f"puis, sur le téléphone :\n"
-        f"Réglages → Apps → Calendrier → Comptes → Ajouter un compte → "
-        f"Autre → Ajouter un calendrier avec abonnement.\n"
-        f"Colle l'adresse telle quelle et règle l'actualisation sur "
-        f"« Toutes les heures ».\n\n"
-    )
 
-    # Sur un flux en clair seulement : ailleurs, iOS traduirait webcal:// en
-    # http:// et l'abonnement échouerait.
-    if lien["webcal"]:
-        corps += (f"Sur un ordinateur, ce lien ouvre directement la boîte "
-                  f"d'abonnement :\n{lien['webcal']}\n\n")
+async def _bouton_calendrier(update: Update, compte: dict,
+                             action: str, arguments: str) -> None:
+    from api import calendriers
 
-    corps += ("Le lien ne donne que la lecture du planning. Pour le révoquer : "
-              "« /calendrier renouveler ».")
+    try:
+        ecran = await asyncio.to_thread(
+            calendriers.repondre, compte["id_utilisateur"], action, arguments)
+    except Exception as erreur:  # noqa: BLE001 - un bouton ne doit jamais rester muet
+        ecran = calendriers.Ecran(_message_lisible(erreur))
 
-    await update.effective_message.reply_text(corps, parse_mode=ParseMode.HTML)
+    await _afficher(update, ecran)
 
 
 async def train(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -839,6 +821,10 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_sport(update, compte, choix, identifiant)
         return
 
+    if genre == "cal":
+        await _bouton_calendrier(update, compte, choix, identifiant)
+        return
+
     if genre == "seance":
         # Boutons de l'ancienne organisation, restés dans la conversation.
         await requete.edit_message_text(
@@ -935,6 +921,7 @@ async def _bouton_menu(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         "retour": retour,
         "train": train,
         "billets": commande_billets,
+        "calendrier": calendrier,
     }
 
     action = commandes.get(choix)
@@ -1186,7 +1173,7 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          "relever les confirmations SNCF de la boîte", commande_billets),
 
         ("Emploi du temps", "calendrier", "",
-         "le lien à abonner sur le téléphone", calendrier),
+         "tes calendriers : qui, quoi, et le lien à abonner", calendrier),
         ("Emploi du temps", "collecter", "", "forcer une collecte", collecter),
         ("Emploi du temps", "conflits", "", "cours en double à départager", conflits),
         ("Emploi du temps", "groupe", "2", "changer de groupe de TD", groupe),
