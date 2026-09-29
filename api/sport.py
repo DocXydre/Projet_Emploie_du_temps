@@ -185,6 +185,16 @@ def _h(instant: datetime) -> str:
     return _local(instant).strftime("%Hh%M")
 
 
+def _marque(origine: str) -> str:
+    """Ce qu'un bouton dit d'une proposition tirée d'une habitude.
+
+    SPT-22 : le pourcentage classe les propositions, il ne s'affiche pas.
+    « 50 % » sur un bouton demandait de deviner 50 % de quoi, et ne voulait
+    rien dire les premières semaines, faute d'historique.
+    """
+    return " · habituel" if origine == "habitude" else ""
+
+
 def _court(libelle: str) -> str:
     """« Piscine du SUAPS » devient « Piscine » : un bouton a peu de place."""
     return (libelle or "").split(" ")[0]
@@ -436,10 +446,10 @@ def ecran_semaine(id_utilisateur: int, lundi: date, entete: str = "") -> Ecran:
         jours_reserves = [_local(r["debut"]).date() for r in reservees]
         for p in propositions(id_utilisateur, lundi, jours_pris=jours_reserves,
                               maximum=5 - proposees):
-            pourcentage = f" · {p['pourcentage']} %" if p["pourcentage"] is not None else ""
+            marque = _marque(p["origine"])
             origine = "h" if p["origine"] == "habitude" else "p"
             boutons.append([(f"{_date(p['jour'])} · {_court(p['lieu'])} "
-                             f"{_h(p['debut'])}{pourcentage}",
+                             f"{_h(p['debut'])}{marque}",
                              f"sp:p:{p['id_lieu']}_{_code_instant(p['debut'])}_0_{origine}")])
             proposees += 1
 
