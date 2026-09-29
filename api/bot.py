@@ -476,6 +476,13 @@ async def _confirmer_trajet(id_aller: int, id_retour: int | None) -> str:
     resultat = await asyncio.to_thread(trajets.retenir, id_aller, id_retour)
     absence = resultat["absence"]
 
+    # TRJ-10 : parti et revenu le même jour, il n'y a pas d'absence. Les trains
+    # sont au planning, et la soirée reste à soi.
+    if absence is None:
+        return ("C'est noté : aller-retour dans la journée. Les trains sont "
+                "dans ton planning, et rien n'est gelé côté tâches.\n\n"
+                "Le billet, lui, reste à acheter.")
+
     fin = ("retour à fixer" if id_retour is None
            else f"rentré le {conv._jour(absence['fin'])}")
     return (f"C'est noté : parti le {conv._jour(absence['debut'])}, {fin}.\n"

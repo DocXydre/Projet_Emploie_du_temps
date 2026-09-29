@@ -192,21 +192,34 @@ def relever(id_utilisateur: int | None = None,
     """
     if messages is None:
         # Les identifiants déjà traités partent avec la demande : le serveur
-        # n'a alors à rendre que les corps des courriels neufs.
+        # n'a alors à rendre que les corps des courriels neufs (BIL-1).
+        from api.config import configuration
+
         connus = {ligne["identifiant"] for ligne in lister(
             "SELECT identifiant FROM courriel")}
-        messages = lecteur.relever_imap(connus=connus)
+        boites = configuration().boites
+
+        # BIL-10 : une boîte par personne. Au-delà d'une, chacune est relevée
+        # pour son propriétaire, sans quoi un billet gèlerait le planning de
+        # quelqu'un qui n'est pas parti.
+        if len(boites) > 1:
+            total = _additionner([_relever_une_boite(b, id_utilisateur) for b in boites])
+            if annoncer and (total["traites"] or total["illisibles"] or total["refuses"]):
+                _annoncer(total, id_utilisateur)
+            return total
+
+        if boites:
+            messages = lecteur.relever_imap(connus=connus, boite_lue=boites[0])
+            id_utilisateur = id_utilisateur or _compte_du_pseudo(boites[0].get("pseudo"))
+        else:
+            messages = lecteur.relever_imap(connus=connus)
 
     if id_utilisateur is None:
-        proprietaire = un_seul(
-            "SELECT id_utilisateur FROM utilisateur WHERE actif AND role = 'admin' "
-            "ORDER BY id_utilisateur LIMIT 1")
-        if proprietaire is None:
-            raise ValueError("Aucun administrateur à qui rattacher les billets")
-        id_utilisateur = proprietaire["id_utilisateur"]
+        id_utilisateur = _proprietaire()
 
     bilan = {"lus": len(messages), "traites": 0, "ignores": 0,
-             "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": []}
+             "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": [],
+             "voyages": []}
 
     # On trie par date de voyage et non par ordre d'arrivée dans la boîte,
     # pour que le retour d'un voyage soit traité avant l'aller du suivant.
@@ -231,6 +244,12 @@ def relever(id_utilisateur: int | None = None,
             # il n'y avait pas d'absence à fermer.
             if resultat.get("id_absence") is not None:
                 bilan["absences"].append(resultat["id_absence"])
+            # BIL-11 : tout voyage se dit, même sans absence, et même quand il
+            # ne va pas chez la famille.
+            voyage = _raconter(lecture, id_utilisateur,
+                               resultat.get("id_absence") is not None)
+            if voyage:
+                bilan["voyages"].append(voyage)
         else:
             bilan["illisibles" if resultat["statut"] == "illisible"
                   else "refuses"] += 1
@@ -241,16 +260,88 @@ def relever(id_utilisateur: int | None = None,
         bilan["occurrences_replacees"] = placer()
 
     if annoncer and (bilan["traites"] or bilan["illisibles"] or bilan["refuses"]):
-        # BIL-9 : une absence déclarée sans qu'on l'ait demandée doit s'annoncer.
-        # Geler deux jours de ménage en silence sur une analyse fausse est le
-        # défaut qu'il faut éviter avant tous les autres.
+        _annoncer(bilan, id_utilisateur)
+
+    return bilan
+
+
+def _proprietaire() -> int:
+    ligne = un_seul(
+        "SELECT id_utilisateur FROM utilisateur WHERE actif AND role = 'admin' "
+        "ORDER BY id_utilisateur LIMIT 1")
+    if ligne is None:
+        raise ValueError("Aucun administrateur à qui rattacher les billets")
+    return ligne["id_utilisateur"]
+
+
+def _compte_du_pseudo(pseudo: str | None) -> int:
+    """Le compte d'une boîte : son pseudo, sinon l'administrateur."""
+    if pseudo:
+        ligne = un_seul(
+            "SELECT id_utilisateur FROM utilisateur WHERE pseudo = %(p)s AND actif",
+            {"p": pseudo})
+        if ligne is not None:
+            return ligne["id_utilisateur"]
+        LOG.warning("Boîte rattachée à « %s », compte inconnu : "
+                    "les billets iront à l'administrateur", pseudo)
+    return _proprietaire()
+
+
+def _relever_une_boite(reglage: dict, id_utilisateur: int | None) -> dict:
+    """Relève une boîte, pour la personne à qui elle appartient (BIL-10)."""
+    connus = {ligne["identifiant"] for ligne in lister(
+        "SELECT identifiant FROM courriel")}
+    messages = lecteur.relever_imap(connus=connus, boite_lue=reglage)
+    qui = id_utilisateur or _compte_du_pseudo(reglage.get("pseudo"))
+    return relever(id_utilisateur=qui, messages=messages)
+
+
+def _additionner(bilans: list[dict]) -> dict:
+    total = {"lus": 0, "traites": 0, "ignores": 0, "illisibles": 0,
+             "refuses": 0, "deja_vus": 0, "absences": [], "voyages": []}
+    for bilan in bilans:
+        for cle in ("lus", "traites", "ignores", "illisibles", "refuses", "deja_vus"):
+            total[cle] += bilan.get(cle, 0)
+        total["absences"] += bilan.get("absences", [])
+        total["voyages"] += bilan.get("voyages", [])
+        if bilan.get("occurrences_replacees"):
+            total["occurrences_replacees"] = (total.get("occurrences_replacees", 0)
+                                              + bilan["occurrences_replacees"])
+    return total
+
+
+def _annoncer(bilan: dict, id_utilisateur: int | None) -> None:
+    # BIL-9 : une absence déclarée sans qu'on l'ait demandée doit s'annoncer.
+    # Geler deux jours de ménage en silence sur une analyse fausse est le
+    # défaut qu'il faut éviter avant tous les autres.
+    for qui in {v["id_utilisateur"] for v in bilan.get("voyages", [])} or \
+               {id_utilisateur or _proprietaire()}:
+        sien = dict(bilan)
+        sien["voyages"] = [v for v in bilan.get("voyages", [])
+                           if v["id_utilisateur"] == qui]
         executer(
             "INSERT INTO notification (id_utilisateur, type, contenu) "
             "VALUES (%(u)s, 'alerte', %(texte)s) RETURNING id_notification",
-            {"u": id_utilisateur, "texte": resume(bilan)},
+            {"u": qui, "texte": resume(sien)},
         )
 
-    return bilan
+
+def _raconter(lecture: Lecture, id_utilisateur: int, absence: bool) -> dict | None:
+    """Ce qu'il y a à dire d'un billet : où, quand, et si on note l'absence."""
+    if not lecture.segments:
+        return None
+
+    aller = next((s for s in lecture.segments if s.sens == "aller"), None)
+    retour = next((s for s in lecture.segments if s.sens == "retour"), None)
+    depart = aller or retour
+    return {
+        "id_utilisateur": id_utilisateur,
+        "destination": NOMS.get(depart.arrivee_gare, depart.arrivee_gare),
+        "depart": depart.depart,
+        "retour": retour.arrivee if retour else None,
+        "sens": depart.sens,
+        "absence": absence,
+    }
 
 
 def a_revoir(limite: int = 10) -> list[dict]:
@@ -289,14 +380,35 @@ def absences_issues_de_billets() -> list[dict]:
     )
 
 
+def _jour_heure(instant) -> str:
+    from zoneinfo import ZoneInfo
+
+    from api.config import configuration
+    local = instant.astimezone(ZoneInfo(configuration().fuseau))
+    return f"{local:%d/%m à %Hh%M}"
+
+
 def resume(bilan: dict) -> str:
     """Le compte rendu tel que le bot l'annonce."""
     if bilan["traites"] == 0 and bilan["illisibles"] == 0 and bilan["refuses"] == 0:
         return "Rien de neuf dans la boîte."
 
     lignes = []
-    if bilan["traites"]:
-        lignes.append(f"{bilan['traites']} billet(s) lu(s), absence déclarée.")
+    # BIL-11 : chaque voyage est nommé, où qu'il aille. Un billet pour Paris
+    # compte autant qu'un billet pour Saint-Dié, et une journée aller-retour
+    # se dit même si elle ne déclare pas d'absence.
+    for voyage in bilan.get("voyages", []):
+        if voyage["sens"] == "retour" and not voyage.get("depart"):
+            continue
+        ligne = f"🚆 {voyage['destination']}, départ le {_jour_heure(voyage['depart'])}"
+        if voyage["retour"]:
+            ligne += f", retour le {_jour_heure(voyage['retour'])}"
+        ligne += (". Absence notée." if voyage["absence"]
+                  else ". Aller-retour dans la journée : rien n'est gelé.")
+        lignes.append(ligne)
+
+    if bilan["traites"] and not bilan.get("voyages"):
+        lignes.append(f"{bilan['traites']} billet(s) lu(s).")
     if bilan["refuses"]:
         lignes.append(f"{bilan['refuses']} billet(s) refusé(s) — sans doute une "
                       f"absence déjà déclarée sur les mêmes dates.")

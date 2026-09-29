@@ -110,11 +110,56 @@ class Configuration(BaseSettings):
     # trafic.
     imap_depuis_jours: int = 30
 
+    # Le compte à qui appartiennent les billets de cette boîte, par son pseudo.
+    # Vide : ils reviennent à l'administrateur, comme avant.
+    imap_pseudo: str = ""
+
+    # --- Deuxième boîte ------------------------------------------------------
+    # On vit à deux, et les confirmations SNCF arrivent chacune dans sa boîte.
+    # Renseigner IMAP2_* ajoute une boîte à relever ; la laisser vide n'ajoute
+    # rien et ne change rien au reste.
+    imap2_hote: str = ""
+    imap2_port: int = 993
+    imap2_utilisateur: str = ""
+    imap2_mot_de_passe: str = ""
+    imap2_dossier: str = "INBOX"
+    imap2_filtre_expediteur: str = "sncf"
+    imap2_pseudo: str = ""
+
     # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
     # à la main pour ne pas dépendre de l'heure qu'il est.
     ordonnanceur_actif: bool = True
 
     version: str = "0.1.0"
+
+    @property
+    def boites(self) -> list[dict]:
+        """Les boîtes à relever, avec le compte auquel rattacher leurs billets.
+
+        Une liste plutôt qu'une boîte unique : à deux, chacun reçoit ses
+        confirmations chez lui, et un billet rattaché à la mauvaise personne
+        gèlerait le planning de quelqu'un qui n'est pas parti (BIL-10).
+        """
+        boites = []
+        if self.imap_hote and self.imap_utilisateur and self.imap_mot_de_passe:
+            boites.append({
+                "hote": self.imap_hote, "port": self.imap_port,
+                "utilisateur": self.imap_utilisateur,
+                "mot_de_passe": self.imap_mot_de_passe,
+                "dossier": self.imap_dossier,
+                "filtre": self.imap_filtre_expediteur,
+                "pseudo": self.imap_pseudo or None,
+            })
+        if self.imap2_hote and self.imap2_utilisateur and self.imap2_mot_de_passe:
+            boites.append({
+                "hote": self.imap2_hote, "port": self.imap2_port,
+                "utilisateur": self.imap2_utilisateur,
+                "mot_de_passe": self.imap2_mot_de_passe,
+                "dossier": self.imap2_dossier,
+                "filtre": self.imap2_filtre_expediteur,
+                "pseudo": self.imap2_pseudo or None,
+            })
+        return boites
 
     @property
     def url_base(self) -> str:

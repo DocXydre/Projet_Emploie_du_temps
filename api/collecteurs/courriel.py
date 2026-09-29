@@ -457,15 +457,22 @@ def identifiant_de(entete: bytes) -> str:
 
 
 def relever_imap(depuis_jours: int | None = None,
-                 connus: set[str] | None = None) -> list[bytes]:
+                 connus: set[str] | None = None,
+                 boite_lue: dict | None = None) -> list[bytes]:
     """Récupère les courriels récents. Seule fonction du module qui utilise le réseau.
 
     Se fait en deux passes : les Message-ID d'abord, puis les corps des seuls
     courriels encore inconnus. Évite de retélécharger toute la boîte toutes les
     deux heures (BIL-1).
+
+    `boite_lue` désigne la boîte à ouvrir, telle que la configuration les
+    décrit. Sans elle, la première boîte configurée : à deux, il y en a
+    plusieurs, et chacune appartient à quelqu'un (BIL-10).
     """
     conf = configuration()
-    if not (conf.imap_hote and conf.imap_utilisateur and conf.imap_mot_de_passe):
+    boites = conf.boites
+    reglage = boite_lue or (boites[0] if boites else None)
+    if reglage is None:
         raise BoiteIndisponible(
             "boite_absente",
             "Pas de boîte configurée. Renseigner IMAP_HOTE, IMAP_UTILISATEUR "
@@ -476,12 +483,12 @@ def relever_imap(depuis_jours: int | None = None,
         days=depuis_jours or conf.imap_depuis_jours)
 
     try:
-        with imaplib.IMAP4_SSL(conf.imap_hote, conf.imap_port) as boite:
-            boite.login(conf.imap_utilisateur, conf.imap_mot_de_passe)
-            _selectionner(boite, conf.imap_dossier)
+        with imaplib.IMAP4_SSL(reglage["hote"], reglage["port"]) as boite:
+            boite.login(reglage["utilisateur"], reglage["mot_de_passe"])
+            _selectionner(boite, reglage["dossier"])
 
             statut, reponse = boite.search(
-                None, *criteres_recherche(depuis, conf.imap_filtre_expediteur))
+                None, *criteres_recherche(depuis, reglage["filtre"]))
             if statut != "OK":
                 raise BoiteIndisponible("recherche_refusee",
                                         "La boîte a refusé la recherche")

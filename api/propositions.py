@@ -34,8 +34,15 @@ def _destinataire(id_utilisateur: int | None) -> int:
 
 def reperer(id_utilisateur: int | None = None,
             delai_jours: int | None = None) -> list[dict]:
-    """Crée une proposition par creux assez long dans le délai voulu."""
+    """Crée une proposition par creux assez long dans le délai voulu.
+
+    TRJ-8 : le lieu est celui de la personne. Proposer Lusse à qui va à
+    Saint-Dié n'apprend rien et sonne faux.
+    """
+    from api.trajets import destination
+
     conf = configuration()
+    qui = _destinataire(id_utilisateur)
     return lister(
         """
         SELECT id_proposition, id_utilisateur,
@@ -43,8 +50,8 @@ def reperer(id_utilisateur: int | None = None,
           FROM proposer_weekends(%(u)s, %(lieu)s, %(delai)s, %(duree)s)
         """,
         {
-            "u": _destinataire(id_utilisateur),
-            "lieu": conf.lieu_famille,
+            "u": qui,
+            "lieu": destination(qui)["lieu"],
             "delai": delai_jours or conf.proposition_delai_jours,
             "duree": conf.fenetre_absence_heures,
         },

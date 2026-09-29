@@ -97,6 +97,23 @@ def _enregistrer(id_utilisateur: int, sens: str, trajet: Trajet,
     return ligne
 
 
+def destination(id_utilisateur: int) -> dict:
+    """Où va cette personne, et par quelle gare                          (TRJ-8).
+
+    Thomas rentre à Lusse et descend à Saint-Dié ; Lorette va à Saint-Dié.
+    Sans rien de renseigné sur le compte, on suit la configuration du serveur,
+    qui est celle de l'administrateur.
+    """
+    conf = configuration()
+    ligne = un_seul(
+        "SELECT lieu_famille, gare_famille FROM utilisateur "
+        " WHERE id_utilisateur = %(u)s",
+        {"u": id_utilisateur},
+    ) or {}
+    return {"lieu": ligne.get("lieu_famille") or conf.lieu_famille,
+            "gare": ligne.get("gare_famille") or conf.gare_famille}
+
+
 def proposer_aller(id_utilisateur: int, rang: int = 1,
                    charge: dict | None = None) -> dict:
     """Horaires possibles pour partir, sur la fenêtre demandée.
@@ -110,11 +127,12 @@ def proposer_aller(id_utilisateur: int, rang: int = 1,
         return {"fenetre": None, "trajets": []}
 
     conf = configuration()
+    gare = destination(id_utilisateur)["gare"]
     _, nom_depart = sncf.GARES.get(conf.gare_domicile, ("", conf.gare_domicile))
-    _, nom_arrivee = sncf.GARES.get(conf.gare_famille, ("", conf.gare_famille))
+    _, nom_arrivee = sncf.GARES.get(gare, ("", gare))
 
     trouves = sncf.chercher(
-        conf.gare_domicile, conf.gare_famille,
+        conf.gare_domicile, gare,
         pas_avant=creneau["depart_au_plus_tot"],
         # Le train doit arriver avant la fin de la fenêtre.
         arrive_avant=creneau["fin"],
@@ -162,7 +180,7 @@ def proposer_retour(id_trajet_aller: int, charge: dict | None = None) -> dict:
     limite = contenante["retour_au_plus_tard"] if contenante else None
 
     trouves = sncf.chercher(
-        conf.gare_famille, conf.gare_domicile,
+        destination(aller["id_utilisateur"])["gare"], conf.gare_domicile,
         # Douze heures sur place au minimum, soit une nuit.
         pas_avant=aller["arrivee"] + timedelta(hours=12),
         arrive_avant=limite,
@@ -202,6 +220,8 @@ def retenir(id_aller: int, id_retour: int | None = None) -> dict:
     from api.ordonnanceur import placer
     replacees = placer()
 
+    # TRJ-10 : un aller-retour dans la journée n'ouvre aucune absence. Les
+    # trains sont au planning, et le reste de la journée reste dû.
     absence = un_seul(
         """
         SELECT id_absence, lower(periode) AS debut, upper(periode) AS fin,
@@ -209,7 +229,7 @@ def retenir(id_aller: int, id_retour: int | None = None) -> dict:
           FROM absence WHERE id_absence = %(id)s
         """,
         {"id": ligne["id_absence"]},
-    )
+    ) if ligne["id_absence"] is not None else None
     return {"absence": absence, "occurrences_replacees": replacees}
 
 
@@ -227,17 +247,15 @@ def trajets_retenus(id_utilisateur: int) -> list[dict]:
 
 
 def oublier(id_absence: int) -> int:
-    """Annule une absence issue d'un trajet, et libère ses propositions."""
-    executer(
-        "UPDATE trajet SET statut = 'ecartee', id_absence = NULL "
-        "WHERE id_absence = %(id)s RETURNING id_trajet",
-        {"id": id_absence},
-    )
-    supprimee = executer(
-        "DELETE FROM absence WHERE id_absence = %(id)s RETURNING id_absence",
-        {"id": id_absence},
-    )
-    if supprimee is None:
+    """Annule une absence issue d'un trajet, et libère ses propositions.
+
+    TRJ-11 : les trains posés au planning partent avec elle. Les laisser
+    afficherait un voyage qu'on a annulé.
+    """
+    existe = un_seul("SELECT id_absence FROM absence WHERE id_absence = %(id)s",
+                     {"id": id_absence})
+    executer("SELECT oublier_trajet(%(id)s) AS retires", {"id": id_absence})
+    if existe is None:
         return 0
 
     from api.ordonnanceur import placer

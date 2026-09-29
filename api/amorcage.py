@@ -65,6 +65,10 @@ def amorcer_assignations() -> int:
         perso = executer("SELECT assigner_calendriers_perso() AS touchees")
         touchees += (perso or {}).get("touchees", 0)
 
+        # TRJ-8 : chacun sa destination, posée sur les comptes créés depuis.
+        destinations = executer("SELECT appliquer_destinations() AS touchees")
+        touchees += (destinations or {}).get("touchees", 0)
+
         resultat = executer("SELECT appliquer_assignations() AS touchees")
     except psycopg.Error as erreur:
         LOG.warning("Assignations reportées : %s", erreur.diag.message_primary or erreur)

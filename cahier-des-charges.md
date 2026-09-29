@@ -223,6 +223,9 @@ l'utilisateur.
 | TRJ-6 | T | Les autres horaires proposés sont écartés, non supprimés : relire ce qui avait été proposé aide à comprendre un choix |
 | TRJ-7 | T | Un aller retenu sans retour gèle jusqu'à la prochaine obligation connue |
 | TRJ-8 | M | L'achat du billet reste manuel. Une proposition retenue est une intention, pas une réservation |
+| TRJ-9 | M | La destination est celle de la personne : le lieu tel qu'elle le nomme, et la gare où elle descend. Sans réglage sur le compte, celle du serveur. Proposer Lusse à qui va à Saint-Dié sonne faux et n'apprend rien |
+| TRJ-10 | M | Un voyage ne déclare une absence que s'il passe une nuit dehors. Parti et rentré le même jour, on dort chez soi : les tâches du soir restent dues, et le voyage se signale quand même |
+| TRJ-11 | M | Un trajet retenu s'affiche au planning en occupation ordinaire, qui peut recouvrir un cours ou un service : partir pendant un cours est un choix, pas une erreur à empêcher. Annuler le voyage retire les trains avec l'absence |
 
 ### 3.8 Billets lus par courriel — `BIL`
 
@@ -237,6 +240,8 @@ l'utilisateur.
 | BIL-7 | T | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée |
 | BIL-8 | T | Un courriel d'expéditeur légitime qu'on n'a pas su lire est conservé avec son motif : le format ne nous appartient pas et changera |
 | BIL-9 | T | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler |
+| BIL-10 | M | Chacun reçoit ses confirmations dans sa boîte : la relève fait le tour des boîtes configurées et rattache chaque billet au compte de sa boîte. Un billet rattaché à la mauvaise personne gèlerait le planning de quelqu'un qui n'est pas parti |
+| BIL-11 | M | Tout voyage lu est annoncé, quelle que soit sa destination, avec son lieu, ses dates, et ce qu'il gèle ou non. Un billet pour ailleurs que la famille compte autant que les autres |
 
 ### 3.9 Propositions de week-end — `WKD`
 
@@ -427,6 +432,9 @@ erDiagram
 | fuseau | VARCHAR(50) | non | | | 'Europe/Paris' | | |
 | cle_api | VARCHAR(64) | non | longueur >= 32 | oui | | | |
 | jeton_calendrier | VARCHAR(64) | non | | oui | UUID sans tirets | | |
+| lieu_famille | VARCHAR(60) | oui | | | | | |
+| gare_famille | VARCHAR(40) | oui | | | | | |
+| minimum_sport | SMALLINT | oui | entre 0 et 7 | | | | |
 | id_telegram | BIGINT | oui | | oui | | | |
 | actif | BOOLEAN | non | | | TRUE | | |
 | date_creation | DATE | non | | | CURRENT_DATE | | |
@@ -761,6 +769,10 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | ABS-7 | Un départ est refusé si une absence est déjà en cours à cet instant | Dynamique forte |
 | BIL-3 | Un sujet est retenu s'il contient « voyage », deux gares distinctes et une date | Dynamique forte |
 | BIL-6 | Les courriels d'une relève sont traités dans l'ordre du voyage, non dans celui de la boîte | Dynamique forte |
+| TRJ-9 | `destination()` rend le réglage du compte, sinon celui du serveur | Dynamique forte |
+| TRJ-10 | `retenir_trajet()` rend NULL, et ne crée aucune absence, quand le retour arrive le jour du départ | Dynamique forte |
+| TRJ-11 | Les trains posés sont de type « autre », donc hors contrainte d'exclusion ; leur clé externe porte l'identifiant du trajet | Statique forte |
+| BIL-10 | Une boîte sans pseudo rattache ses billets à l'administrateur ; un pseudo inconnu aussi, avec une trace dans le journal | Dynamique faible |
 | COL-14 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
 | COL-15 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
 | COL-16 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |
