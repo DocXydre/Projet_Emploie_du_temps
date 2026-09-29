@@ -161,6 +161,7 @@ l'utilisateur.
 | TAC-8 | D | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
 | TAC-9 | D | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
 | TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider la litière vaut ramassage ; laver la fontaine vaut changer l'eau |
+| TAC-11 | M | Les poubelles sortent tous les quatre jours, sans heure imposée et sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
 
 ### 3.4 Placement — `PLA`
 
@@ -745,6 +746,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | PLA-12 | `dernier_a_faire()` rend la personne de la dernière occurrence de la tâche, faite ou prévue | Dynamique forte |
 | PLA-12 | `choisir_assigne()` rend l'autre que le dernier tant que l'écart de charge reste sous une heure | Dynamique forte |
 | PLA-12 | `charge_domestique()` ignore le sport et les tâches à deux | Dynamique forte |
+| PLA-1 | La disponibilité se calcule sur la somme des calendriers d'une personne : deux calendriers personnels creusent deux trous | Dynamique forte |
+| SPT-30 | « À deux » se juge sur tous les calendriers de l'autre, cours comme gardes d'enfants | Dynamique forte |
 | ABS-1 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | ABS-1 | `periode` est non vide et bornée | Statique forte |
 | ABS-2 | La recherche de jour et de créneau saute les jours d'absence | Dynamique forte |
