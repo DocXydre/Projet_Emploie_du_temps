@@ -841,7 +841,7 @@ def notifications_a_envoyer(limite: int = 20) -> list[dict]:
     return lister(
         """
         SELECT n.id_notification, n.id_utilisateur, u.id_telegram,
-               n.id_occurrence, n.id_proposition, n.type, n.contenu,
+               n.id_occurrence, n.id_proposition, n.id_invitation, n.type, n.contenu,
                o.tache_libelle, o.tache_code, o.actions_possibles
           FROM notification n
           JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur

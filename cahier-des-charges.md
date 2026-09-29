@@ -282,6 +282,9 @@ l'utilisateur.
 | SPT-27 | T | Le lundi matin, un message prévient si la semaine n'a pas son minimum de séances choisies, et donne ce qui est réservé en attendant. Il se tait quand la semaine est choisie |
 | SPT-28 | M | La fréquence de sport se règle par personne, de zéro à sept séances par semaine, depuis le bot. Sans réglage, c'est celle de la tâche. À zéro, plus rien n'est réservé et le lundi ne relance plus, mais les écrans restent et une séance se pose toujours à la main |
 | SPT-29 | M | Chaque compte actif a ses trois semaines, ses propositions et ses réservations. Le sport était réservé à un seul compte : l'autre n'avait rien, et rien ne le disait |
+| SPT-30 | M | Une proposition tombant sur un créneau où quelqu'un d'autre est libre au même endroit est marquée « à deux » et passe devant les autres. Le système sait qui est libre quand : autant le dire |
+| SPT-31 | M | Choisir une séance à deux crée la sienne et invite l'autre, qui répond « je viens » ou « pas cette fois ». Accepter crée sa propre séance, aux mêmes règles qu'un choix ordinaire : elle peut donc être refusée si son emploi du temps a changé depuis. On ne répond qu'une fois |
+| SPT-32 | M | Une invitation refusée ou sans réponse ne défait rien : la séance de celui qui a invité tient, et il peut y aller seul. Deux séances distinctes, une par personne : annuler la sienne n'annule pas celle de l'autre, mais retire l'invitation restée en attente |
 
 ### 3.11 Machine à laver — `UNI`
 
@@ -339,6 +342,7 @@ erDiagram
     OCCURRENCE  ||--o| CHOIX_SPORT  : "est retenue par"
     OCCURRENCE  ||--o{ OCCURRENCE   : "engendre la suivante"
     UTILISATEUR ||--o{ CALENDRIER   : "compose"
+    OCCURRENCE  ||--o{ INVITATION_SPORT : "propose à"
 
     UTILISATEUR {
         serial  id_utilisateur PK
@@ -564,6 +568,20 @@ Une ligne par séance choisie. Les habitudes n'ont pas de table : elles se calcu
 
 Un calendrier composé : de qui, et quoi (NOT-5, NOT-6). `personnes` est un tableau et non une table de liaison, parce qu'on n'y accède jamais autrement que d'un bloc : on lit un calendrier entier ou pas du tout. Le jeton est distinct de celui du compte, et meurt avec la ligne : couper une adresse ne doit pas obliger à renouveler le jeton personnel, ni casser les autres abonnements (NOT-7).
 
+### Table : InvitationSport
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_invitation | SERIAL | non | | oui | | oui | |
+| id_occurrence | INTEGER | non | | avec id_invite | | | Occurrence (suppression en cascade) |
+| id_invite | INTEGER | non | | avec id_occurrence | | | Utilisateur (suppression en cascade) |
+| statut | VARCHAR(10) | non | 'attente', 'acceptee', 'refusee' | | 'attente' | | |
+| id_occurrence_reponse | INTEGER | oui | | | | | Occurrence (mise à nul) |
+| date_creation | TIMESTAMPTZ | non | | | now() | | |
+| date_reponse | TIMESTAMPTZ | oui | | | | | |
+
+Une séance proposée à quelqu'un d'autre (SPT-31). La cascade dit le reste : l'invitation dépend de la séance de celui qui invite, la séance créée en réponse n'en dépend pas. Annuler la sienne retire donc l'invitation en attente, sans toucher à la séance de qui avait déjà dit oui (SPT-32).
+
 ### Table : Notification
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -764,6 +782,10 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-28 | `minimum_sport` est nul ou compris entre 0 et 7 : contrainte `utilisateur_minimum_sport_raisonnable` | Statique forte |
 | SPT-28 | `regler_minimum_sport()` refuse une valeur hors bornes et réorganise les trois semaines | Dynamique forte |
 | SPT-29 | `sportifs()` rend tous les comptes actifs ; une séance garde toujours son propriétaire | Dynamique forte |
+| SPT-30 | `seance_possible_a_deux()` : vrai seulement si un autre compte n'a aucun obstacle strict sur le même bloc | Dynamique forte |
+| SPT-31 | `invitation_sport` : une seule invitation par séance et par personne, statut parmi attente, acceptée, refusée | Statique forte |
+| SPT-31 | `repondre_invitation()` refuse une deuxième réponse, et crée la séance de l'invité par `choisir_seance_sport` | Dynamique forte |
+| SPT-32 | L'invitation meurt avec la séance qui l'a créée (ON DELETE CASCADE) ; la séance acceptée, elle, survit | Statique forte |
 
 ---
 

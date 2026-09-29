@@ -1103,6 +1103,13 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         if notification["type"] == "rappel" and notification["id_occurrence"]:
             boutons = _boutons(notification["id_occurrence"],
                                notification.get("tache_code") == "SPORT")
+        elif notification.get("id_invitation"):
+            # SPT-31 : une séance à deux se répond ici, et nulle part ailleurs.
+            invitation = notification["id_invitation"]
+            boutons = InlineKeyboardMarkup([[
+                InlineKeyboardButton("👍 Je viens", callback_data=f"sp:inv:{invitation}_1"),
+                InlineKeyboardButton("Pas cette fois", callback_data=f"sp:inv:{invitation}_0"),
+            ]])
         elif notification["type"] == "sport":
             # Alerte du lundi, séance à déterminer manquée : un bouton qui ouvre
             # la semaine en cours.

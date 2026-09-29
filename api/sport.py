@@ -308,13 +308,66 @@ def propositions(id_utilisateur: int, lundi: date, ignorer: int | None = None,
         """
         SELECT p.rang, p.jour, p.id_lieu, l.libelle AS lieu, p.debut,
                lower(p.bloc) AS bloc_debut, upper(p.bloc) AS bloc_fin,
-               p.origine, p.pourcentage
+               p.origine, p.pourcentage,
+               seance_possible_a_deux(%(u)s, p.id_lieu, p.debut) AS a_deux
           FROM propositions_sport(%(u)s, %(l)s, %(i)s, %(j)s::DATE[], %(m)s) p
           JOIN lieu_sport l ON l.id_lieu = p.id_lieu
-         ORDER BY p.rang
+         -- SPT-30 : les créneaux où l'autre est libre passent devant.
+         ORDER BY seance_possible_a_deux(%(u)s, p.id_lieu, p.debut) DESC, p.rang
         """,
         {"u": id_utilisateur, "l": lundi, "i": ignorer, "j": jours_pris or [],
          "m": maximum},
+    )
+
+
+def possible_a_deux(id_utilisateur: int, id_lieu: int, debut: datetime) -> bool:
+    """SPT-30 : quelqu'un d'autre tient-il ce créneau, au même endroit ?"""
+    ligne = un_seul(
+        "SELECT seance_possible_a_deux(%(u)s, %(l)s, %(d)s) AS oui",
+        {"u": id_utilisateur, "l": id_lieu, "d": debut},
+    )
+    return bool(ligne and ligne["oui"])
+
+
+def autres_sportifs(id_utilisateur: int) -> list[dict]:
+    return lister(
+        "SELECT u.id_utilisateur, u.nom FROM partenaires_sport(%(u)s) p "
+        "  JOIN utilisateur u ON u.id_utilisateur = p ORDER BY u.nom",
+        {"u": id_utilisateur},
+    )
+
+
+def inviter(occ: int) -> int:
+    """SPT-31 : propose la séance aux autres, s'ils sont libres à ce moment."""
+    ligne = un_seul("SELECT inviter_a_la_seance(%(o)s) AS n", {"o": occ})
+    return (ligne or {}).get("n", 0)
+
+
+def compagnons(occ: int) -> list[dict]:
+    return lister("SELECT * FROM compagnons_de_seance(%(o)s)", {"o": occ})
+
+
+def repondre_a_l_invitation(id_utilisateur: int, invitation: int,
+                            vient: bool) -> int | None:
+    ligne = un_seul(
+        "SELECT repondre_invitation(%(i)s, %(u)s, %(v)s) AS id_occurrence",
+        {"i": invitation, "u": id_utilisateur, "v": vient},
+    )
+    return (ligne or {}).get("id_occurrence")
+
+
+def invitation(id_utilisateur: int, invitation_id: int) -> dict | None:
+    return un_seul(
+        """
+        SELECT inv.id_invitation, inv.statut, u.nom AS qui, l.libelle AS lieu,
+               o.debut_seance AS debut
+          FROM invitation_sport inv
+          JOIN occurrence o ON o.id_occurrence = inv.id_occurrence
+          JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
+          LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
+         WHERE inv.id_invitation = %(i)s AND inv.id_invite = %(u)s
+        """,
+        {"i": invitation_id, "u": id_utilisateur},
     )
 
 
@@ -498,11 +551,13 @@ def ecran_semaine(id_utilisateur: int, lundi: date, entete: str = "") -> Ecran:
         jours_reserves = [_local(r["debut"]).date() for r in reservees]
         for p in propositions(id_utilisateur, lundi, jours_pris=jours_reserves,
                               maximum=5 - proposees):
-            marque = _marque(p["origine"])
+            marque = _marque(p["origine"]) + (" · à deux" if p["a_deux"] else "")
             origine = "h" if p["origine"] == "habitude" else "p"
+            duo = "1" if p["a_deux"] else "0"
             boutons.append([(f"{_date(p['jour'])} · {_court(p['lieu'])} "
                              f"{_h(p['debut'])}{marque}",
-                             f"sp:p:{p['id_lieu']}_{_code_instant(p['debut'])}_0_{origine}")])
+                             f"sp:p:{p['id_lieu']}_{_code_instant(p['debut'])}"
+                             f"_0_{origine}_{duo}")])
             proposees += 1
 
     lignes.append("")
@@ -526,8 +581,12 @@ def _retour(lundi: date, occ: int) -> tuple[str, str]:
 
 
 def ecran_confirmation(id_utilisateur: int, id_lieu: int, debut: datetime,
-                       occ: int = 0, origine: str = "p") -> Ecran:
-    """SPT-21 : avant de valider, on peut changer l'heure, le sport ou le jour."""
+                       occ: int = 0, origine: str = "p", duo: str = "0") -> Ecran:
+    """SPT-21 : avant de valider, on peut changer l'heure, le sport ou le jour.
+
+    SPT-30 : quand l'autre est libre au même moment, on le dit ici, et valider
+    lui posera la question. Il reste libre de ne pas venir.
+    """
     lieu = _lieu(id_lieu)
     if lieu is None:
         return Ecran("Sport inconnu.", [[("↩ Semaines", "sp:w:0")]])
@@ -547,7 +606,13 @@ def ecran_confirmation(id_utilisateur: int, id_lieu: int, debut: datetime,
     avertissement = None if bloquant else obstacle(id_utilisateur, id_lieu, debut,
                                                    occ or None, strict=True)
 
-    code = f"{id_lieu}_{_code_instant(debut)}_{occ}_{origine}"
+    a_deux = duo == "1" and not occ and possible_a_deux(id_utilisateur, id_lieu, debut)
+    if a_deux:
+        autres = " et ".join(c["nom"] for c in autres_sportifs(id_utilisateur))
+        lignes += ["", f"{autres} est libre à ce moment : en validant, "
+                       f"je lui propose de venir."]
+
+    code = f"{id_lieu}_{_code_instant(debut)}_{occ}_{origine}_{'1' if a_deux else '0'}"
     suite = "c" if origine == "c" else "m"
     changer = [("🕐 Changer l'heure", f"sp:h:{id_lieu}_{_code_jour(jour)}_{occ}_{suite}"),
                ("🔁 Changer le sport", f"sp:s:{_code_instant(debut)}_{occ}_{suite}")]
@@ -558,7 +623,8 @@ def ecran_confirmation(id_utilisateur: int, id_lieu: int, debut: datetime,
     else:
         if avertissement:
             lignes += ["", f"Attention : {avertissement}."]
-        boutons.append([("✅ Valider", f"sp:ok:{code}")])
+        boutons.append([("✅ Valider à deux" if a_deux else "✅ Valider",
+                         f"sp:ok:{code}")])
 
     boutons.append(changer)
     boutons.append([("📅 Changer le jour", f"sp:j:{id_lieu}_{_code_jour(lundi)}_{occ}_{suite}"),
@@ -659,8 +725,17 @@ def ecran_seance(id_utilisateur: int, occ: int) -> Ecran:
         return Ecran("Cette séance n'existe plus.", [[("📅 Mes semaines", "sp:w:0")]])
 
     jour = _local(seance["debut"]).date()
+    lignes = [f"<b>{seance['lieu']}</b>",
+              f"{_date_longue(jour)} à {_h(seance['debut'])}"]
+
+    # SPT-32 : qui a dit qu'il venait, qui a dit non, qui n'a pas répondu.
+    for c in compagnons(occ):
+        lignes.append({"acceptee": f"Avec {c['nom']}.",
+                       "refusee": f"{c['nom']} ne vient pas.",
+                       "attente": f"En attente de la réponse de {c['nom']}."}[c["statut"]])
+
     return Ecran(
-        f"<b>{seance['lieu']}</b>\n{_date_longue(jour)} à {_h(seance['debut'])}",
+        "\n".join(lignes),
         [[("✏️ Modifier", f"sp:m:{occ}"), ("🗑 Supprimer", f"sp:del:{occ}")],
          [("Ne rien faire", "sp:x:0")]])
 
@@ -697,24 +772,55 @@ def choisir(id_utilisateur: int, id_lieu: int, debut: datetime,
 
 
 def valider(id_utilisateur: int, id_lieu: int, debut: datetime,
-            occ: int = 0, origine: str = "p") -> Ecran:
+            occ: int = 0, origine: str = "p", duo: str = "0") -> Ecran:
     try:
-        choisir(id_utilisateur, id_lieu, debut, occ or None, ORIGINES.get(origine, "proposition"))
+        nouvelle = choisir(id_utilisateur, id_lieu, debut, occ or None,
+                           ORIGINES.get(origine, "proposition"))
     except psycopg.Error as erreur:
         # L'emploi du temps a pu changer depuis l'affichage : on remontre la
         # séance, avec ce qui bloque et de quoi la déplacer.
-        ecran = ecran_confirmation(id_utilisateur, id_lieu, debut, occ, origine)
+        ecran = ecran_confirmation(id_utilisateur, id_lieu, debut, occ, origine, duo)
         raison = _raison(erreur)
         if raison not in ecran.texte:
             ecran.texte = f"{raison}.\n\n{ecran.texte}"
         return ecran
 
+    # SPT-31 : la séance est à moi, l'invitation part à l'autre. Sa réponse ne
+    # changera rien à la mienne.
+    invitees = inviter(nouvelle) if duo == "1" and not occ else 0
+
     lieu = _lieu(id_lieu)
     jour = _local(debut).date()
     verbe = "Modifiée" if occ else "C'est noté"
+    entete = (f"{verbe} : {lieu['libelle']}, {_date_longue(jour)} à {_h(debut)}.")
+    if invitees:
+        autres = " et ".join(c["nom"] for c in autres_sportifs(id_utilisateur))
+        entete += f"\nJ'ai demandé à {autres} s'il ou elle vient."
+    return ecran_semaine(id_utilisateur, lundi_de(jour), entete=entete)
+
+
+def repondre_invitation_ecran(id_utilisateur: int, invitation_id: int,
+                              vient: bool) -> Ecran:
+    """SPT-31 : « je viens » crée ma séance, « pas cette fois » ne fait rien."""
+    details = invitation(id_utilisateur, invitation_id)
+    if details is None:
+        return Ecran("Cette invitation n'existe plus.", [[("📅 Mes semaines", "sp:w:0")]])
+
+    try:
+        repondre_a_l_invitation(id_utilisateur, invitation_id, vient)
+    except psycopg.Error as erreur:
+        return Ecran(_raison(erreur) + ".", [[("📅 Mes semaines", "sp:w:0")]])
+
+    jour = _local(details["debut"]).date()
+    if not vient:
+        return Ecran(f"C'est noté, tu ne viens pas {_date_longue(jour)}. "
+                     f"{details['qui']} y va quand même.",
+                     [[("📅 Mes semaines", "sp:w:0")]])
+
+    _replacer()
     return ecran_semaine(id_utilisateur, lundi_de(jour),
-                         entete=f"{verbe} : {lieu['libelle']}, {_date_longue(jour)} "
-                                f"à {_h(debut)}.")
+                         entete=f"C'est noté : {details['lieu']} avec {details['qui']}, "
+                                f"{_date_longue(jour)} à {_h(details['debut'])}.")
 
 
 def supprimer(id_utilisateur: int, occ: int) -> Ecran:
@@ -784,9 +890,13 @@ def repondre(id_utilisateur: int, action: str, arguments: str) -> Ecran | None:
     if action == "sem":
         return ecran_semaine(id_utilisateur, _jour(a[0]))
     if action == "p":
-        return ecran_confirmation(id_utilisateur, int(a[0]), _instant(a[1]), int(a[2]), a[3])
+        return ecran_confirmation(id_utilisateur, int(a[0]), _instant(a[1]), int(a[2]),
+                                  a[3], a[4] if len(a) > 4 else "0")
     if action == "ok":
-        return valider(id_utilisateur, int(a[0]), _instant(a[1]), int(a[2]), a[3])
+        return valider(id_utilisateur, int(a[0]), _instant(a[1]), int(a[2]),
+                       a[3], a[4] if len(a) > 4 else "0")
+    if action == "inv":
+        return repondre_invitation_ecran(id_utilisateur, int(a[0]), a[1] == "1")
     if action == "h":
         return ecran_heures(id_utilisateur, int(a[0]), _jour(a[1]), int(a[2]), a[3])
     if action == "s":
