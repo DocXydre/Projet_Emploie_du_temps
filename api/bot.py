@@ -591,9 +591,12 @@ async def collecter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
 
     from api.collecteurs.service import CollecteImpossible, collecter_source, sources_a_collecter
 
-    codes = contexte.args or await asyncio.to_thread(sources_a_collecter)
+    # Demandée à la main, la collecte ne regarde pas la fréquence : on la
+    # demande justement parce qu'on attend un changement tout de suite.
+    codes = contexte.args or await asyncio.to_thread(sources_a_collecter, True)
     if not codes:
-        await update.effective_message.reply_text("Rien à collecter pour l'instant.")
+        await update.effective_message.reply_text(
+            "Aucun flux à collecter : aucune source active n'a d'adresse.")
         return
 
     for code in codes:
@@ -603,10 +606,11 @@ async def collecter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None
             await update.effective_message.reply_text(f"{code} : {erreur.message}")
             continue
 
-        await update.effective_message.reply_text(
-            f"{code} : {bilan['crees']} nouveau(x), {bilan['mis_a_jour']} mis à jour, "
-            f"{bilan['annules']} annulé(s)."
-        )
+        texte = (f"{code} : {bilan['crees']} nouveau(x), "
+                 f"{bilan['mis_a_jour']} mis à jour, {bilan['annules']} retiré(s).")
+        if not (bilan["crees"] or bilan["mis_a_jour"] or bilan["annules"]):
+            texte += f"\n{bilan['lues']} événement(s) lus, rien n'a changé."
+        await update.effective_message.reply_text(texte)
 
 
 async def groupe(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:

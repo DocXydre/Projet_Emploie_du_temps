@@ -334,6 +334,7 @@ def analyser(texte_ics: str, profil: str = "ade",
 
     seances: list[Seance] = []
     ignorees = 0
+    annulees = 0
 
     for occurrence in recurring_ical_events.of(calendrier).between(debut, fin):
         uid = _texte(occurrence, "UID")
@@ -343,6 +344,16 @@ def analyser(texte_ics: str, profil: str = "ade",
 
         if not (uid and resume and depart is not None and arrivee is not None):
             ignorees += 1
+            continue
+
+        # COL-22 : un cours annulé reste souvent dans le flux, marqué
+        # « STATUS:CANCELLED », au lieu d'en disparaître. Le lire comme un cours
+        # ordinaire le laisse au planning et dans le calendrier du téléphone,
+        # alors qu'il n'a pas lieu. On l'écarte : la réconciliation retire
+        # ensuite l'occupation devenue orpheline, comme pour un événement
+        # réellement supprimé.
+        if (_texte(occurrence, "STATUS") or "").upper() == "CANCELLED":
+            annulees += 1
             continue
 
         # Une journée entière est écrite en dates, pas en horaires. On la ramène
@@ -375,6 +386,8 @@ def analyser(texte_ics: str, profil: str = "ade",
 
     if ignorees:
         LOG.warning("%d événement(s) ICS ignoré(s), incomplets ou mal formés", ignorees)
+    if annulees:
+        LOG.info("%d événement(s) annulé(s) dans le flux, écarté(s)", annulees)
 
     return sorted(seances, key=lambda s: s.debut)
 

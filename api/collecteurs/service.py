@@ -313,16 +313,23 @@ def collecter_source(code: str, id_utilisateur: int | None = None,
     return compte_rendu
 
 
-def sources_a_collecter() -> list[str]:
-    """Sources actives dont la fréquence est écoulée."""
+def sources_a_collecter(toutes: bool = False) -> list[str]:
+    """Sources actives dont la fréquence est écoulée.
+
+    `toutes` ignore la fréquence : c'est ce qu'on veut quand quelqu'un demande
+    explicitement une collecte. Répondre « rien à collecter » à qui vient de
+    supprimer un cours et veut le voir disparaître n'aide personne (COL-22).
+    """
     lignes = un_seul(
         """
         SELECT array_agg(code ORDER BY code) AS codes FROM source
          WHERE active
            AND mode_collecte = 'ics'
            AND url IS NOT NULL
-           AND (derniere_collecte IS NULL
+           AND (%(toutes)s
+                OR derniere_collecte IS NULL
                 OR now() - derniere_collecte > make_interval(hours => frequence_heures))
-        """
+        """,
+        {"toutes": toutes},
     )
     return (lignes or {}).get("codes") or []

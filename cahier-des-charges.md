@@ -145,6 +145,7 @@ l'utilisateur.
 | COL-18 | T | Un relevé qui ne rend aucun événement ne supprime rien tant que la source a des occupations à venir : une page injoignable, un site refondu et une session expirée produisent tous zéro événement derrière un code 200. La collecte est refusée et la source finit par apparaître en panne. Un agenda qui se vide légitimement le déclare dans sa configuration |
 | COL-19 | T | Un conflit dont la période a commencé n'est plus soumis à arbitrage : la journée a eu lieu, quel que soit le choix. Il est clos comme caduc, et non supprimé : l'historique des collectes doit rester lisible |
 | COL-20 | T | Un conflit qu'une collecte ne reproduit plus est clos comme caduc. Choisir un groupe de TD ou écarter une UE au choix fait disparaître la séance rejetée du flux filtré : la question ne se pose plus, et la reposer ferait arbitrer un chevauchement qui n'existe pas |
+| COL-22 | M | Un cours annulé dans le flux, marqué « STATUS:CANCELLED », est écarté comme s'il en avait disparu : il quitte le planning et le calendrier. ADE et les applications de calendrier gardent souvent l'événement au lieu de le retirer, et le lire comme un cours ordinaire laissait au planning un cours qui n'a pas lieu |
 | COL-21 | M | Un emploi du temps peut cesser d'être suivi : il n'est plus collecté, ses occupations à venir sont retirées du planning, et les passées restent. Une démission n'efface pas les mois travaillés, le calendrier doit toujours dire ce qu'on faisait tel jour |
 
 ### 3.3 Tâches et occurrences — `TAC`
@@ -779,6 +780,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | COL-14 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
 | COL-15 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
 | COL-16 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |
+| COL-22 | Un événement portant `STATUS:CANCELLED` ne produit aucune séance, et la réconciliation retire l'occupation devenue orpheline | Dynamique forte |
+| COL-22 | Une collecte demandée à la main ignore la fréquence des sources | Dynamique faible |
 | WKD-1 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
 | WKD-2 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | WKD-5 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
