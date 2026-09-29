@@ -204,10 +204,21 @@ def _court(libelle: str) -> str:
 # Lectures
 # ---------------------------------------------------------------------------
 
-def minimum() -> int:
-    ligne = un_seul("SELECT COALESCE(quota_hebdomadaire, 3) AS n FROM tache "
-                    " WHERE code = 'SPORT' AND active")
+def minimum(id_utilisateur: int) -> int:
+    """La fréquence de cette personne : la sienne, sinon celle de la tâche.
+
+    SPT-28 : trois séances par semaine pour l'un peut n'avoir aucun sens pour
+    l'autre, et zéro est une réponse valable.
+    """
+    ligne = un_seul("SELECT minimum_sport(%(u)s) AS n", {"u": id_utilisateur})
     return (ligne or {}).get("n", 3)
+
+
+def regler_minimum(id_utilisateur: int, valeur: int) -> int:
+    """Change la fréquence et réorganise les trois semaines aussitôt."""
+    ligne = un_seul("SELECT regler_minimum_sport(%(u)s, %(n)s) AS n",
+                    {"u": id_utilisateur, "n": valeur})
+    return (ligne or {}).get("n", valeur)
 
 
 def lieux() -> list[dict]:
@@ -386,8 +397,10 @@ def ecran_semaines(id_utilisateur: int) -> Ecran:
     qui est choisi dans chaque semaine, puis on en ouvre une pour choisir,
     modifier ou supprimer.
     """
-    mini = minimum()
-    lignes = [f"<b>Tes trois semaines de sport</b> (au moins {mini} séances par semaine)"]
+    mini = minimum(id_utilisateur)
+    entete = (f"(au moins {mini} séances par semaine)" if mini
+              else "(aucune séance organisée : fréquence à zéro)")
+    lignes = [f"<b>Tes trois semaines de sport</b> {entete}"]
     boutons = []
     for lundi in semaines_ouvertes():
         n = nombre_choisies(id_utilisateur, lundi)
@@ -402,12 +415,51 @@ def ecran_semaines(id_utilisateur: int) -> Ecran:
                          f"sp:sem:{_code_jour(lundi)}")])
 
     lignes += ["", "Ouvre une semaine pour choisir, modifier ou supprimer tes séances."]
+    boutons.append([("⚙ Fréquence", "sp:fq:")])
     return Ecran("\n".join(lignes), boutons)
+
+
+def ecran_frequence(id_utilisateur: int) -> Ecran:
+    """Combien de séances par semaine, de zéro à cinq (SPT-28)."""
+    actuel = minimum(id_utilisateur)
+    lignes = [
+        "<b>Ta fréquence de sport</b>",
+        "",
+        f"Actuellement : {actuel} séance(s) par semaine.",
+        "",
+        "C'est le nombre de séances que le système tient dans chaque semaine. "
+        "Ce qui manque est réservé « à déterminer » sur tes meilleurs créneaux. "
+        "À zéro, plus rien n'est réservé et le lundi ne te relance plus, mais "
+        "tu gardes tes écrans et tu peux poser une séance quand tu veux.",
+    ]
+    rangee, boutons = [], []
+    for n in range(6):
+        marque = "🔘 " if n == actuel else ""
+        rangee.append((f"{marque}{n}", f"sp:fq:{n}"))
+        if len(rangee) == 3:
+            boutons.append(rangee)
+            rangee = []
+    if rangee:
+        boutons.append(rangee)
+    boutons.append([("↩ Mes semaines", "sp:w:0")])
+    return Ecran("\n".join(lignes), boutons)
+
+
+def changer_frequence(id_utilisateur: int, valeur: int) -> Ecran:
+    try:
+        applique = regler_minimum(id_utilisateur, valeur)
+    except Exception as erreur:  # noqa: BLE001 - la base écrit déjà son refus
+        return Ecran(_raison(erreur) + ".", [[("↩ Mes semaines", "sp:w:0")]])
+
+    ecran = ecran_semaines(id_utilisateur)
+    entete = (f"Fréquence réglée sur {applique} séance(s) par semaine."
+              if applique else "Fréquence à zéro : plus rien ne sera réservé.")
+    return Ecran(entete + "\n\n" + ecran.texte, ecran.boutons)
 
 
 def ecran_semaine(id_utilisateur: int, lundi: date, entete: str = "") -> Ecran:
     """Ce qui est choisi, ce qui est réservé, et ce qu'on propose (SPT-20)."""
-    mini = minimum()
+    mini = minimum(id_utilisateur)
     choisies = seances_choisies(id_utilisateur, lundi)
     reservees = reservations(id_utilisateur, lundi)
     n = nombre_choisies(id_utilisateur, lundi)
@@ -751,6 +803,10 @@ def repondre(id_utilisateur: int, action: str, arguments: str) -> Ecran | None:
         return supprimer(id_utilisateur, int(a[0]))
     if action == "pf":
         return pas_faite(id_utilisateur, int(a[0]))
+    if action == "fq":
+        if not a[0]:
+            return ecran_frequence(id_utilisateur)
+        return changer_frequence(id_utilisateur, int(a[0]))
     if action == "x":
         return None
     return Ecran("Ce bouton ne mène plus nulle part. Refais /organiser.")

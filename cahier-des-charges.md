@@ -260,6 +260,7 @@ l'utilisateur.
 | SPT-6 | T | Une seule séance par jour. Trois séances entassées le même après-midi n'en font pas trois |
 | SPT-7 | T | Une séance qui finit après l'heure tardive d'un lieu exige un repos avant la prochaine obligation. La règle ne vise que la nuit |
 | SPT-8 | D | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux : la piscine n'ouvre que deux heures à midi, la salle est ouverte tout le jour |
+| SPT-8b | M | Les lieux ont un ordre de préférence : le moteur propose le premier qui tient dans la journée. Un sport qu'on ne pratique plus se met en dernier recours plutôt que d'être supprimé, ce qui garde ses horaires et son historique. La piscine y est depuis octobre |
 | SPT-9 | D | La durée d'une séance dépend du lieu et non de la tâche : une heure de piscine, une demi-heure de course à pied |
 | SPT-10 | D | Chaque lieu déclare un battement libre exigé avant et après la séance, en plus du trajet. Trente minutes pour la piscine et la salle, quinze pour la course |
 | SPT-11 | D | Chaque lieu déclare l'heure à laquelle commencer une journée sans aucune obligation |
@@ -279,6 +280,8 @@ l'utilisateur.
 | SPT-25 | T | Une séance choisie se valide faite ou pas faite, jamais « plus tard ». Pas faite, elle est close et la semaine se recomplète sur un autre jour. Une réservation passée sans être choisie ne demande pas si elle a été faite : un message constate qu'il n'y a pas eu de sport et dit ce qui reste réservé cette semaine |
 | SPT-26 | M | Les séances choisies se consultent depuis leur semaine, se modifient (sport, jour, heure) ou se suppriment. Supprimer une séance efface aussi son choix, qui ne compte plus pour les habitudes. La migration 034 a tout remis à zéro une fois : séances ouvertes et choix effacés, séances faites conservées |
 | SPT-27 | T | Le lundi matin, un message prévient si la semaine n'a pas son minimum de séances choisies, et donne ce qui est réservé en attendant. Il se tait quand la semaine est choisie |
+| SPT-28 | M | La fréquence de sport se règle par personne, de zéro à sept séances par semaine, depuis le bot. Sans réglage, c'est celle de la tâche. À zéro, plus rien n'est réservé et le lundi ne relance plus, mais les écrans restent et une séance se pose toujours à la main |
+| SPT-29 | M | Chaque compte actif a ses trois semaines, ses propositions et ses réservations. Le sport était réservé à un seul compte : l'autre n'avait rien, et rien ne le disait |
 
 ### 3.11 Machine à laver — `UNI`
 
@@ -758,6 +761,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-21 | `obstacle_seance()` : stricte pour les propositions, souple pour un choix, qui ne refuse que cours, service, jour déjà pris et ce qui est annoncé ou épinglé | Dynamique forte |
 | SPT-22 | `choix_sport` suit sa séance : modifiée, elle est mise à jour ; supprimée, la ligne part avec elle (ON DELETE CASCADE) | Dynamique forte |
 | SPT-25 | `relance_du_soir()` ignore les réservations ; `seances_a_determiner_passees()` les clôt et notifie ; le report de minuit ne reporte pas une séance | Dynamique forte |
+| SPT-28 | `minimum_sport` est nul ou compris entre 0 et 7 : contrainte `utilisateur_minimum_sport_raisonnable` | Statique forte |
+| SPT-28 | `regler_minimum_sport()` refuse une valeur hors bornes et réorganise les trois semaines | Dynamique forte |
+| SPT-29 | `sportifs()` rend tous les comptes actifs ; une séance garde toujours son propriétaire | Dynamique forte |
 
 ---
 
