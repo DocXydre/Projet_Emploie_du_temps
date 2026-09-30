@@ -57,14 +57,29 @@ def _consigner(lecture: Lecture, statut: str, motif: str | None,
     )
 
 
+def _resume(lecture: Lecture) -> str:
+    """Ce qui s'affichera dans le détail du train au planning.
+
+    Le numéro de train et la référence sont les deux choses qu'on cherche quand
+    on est sur le quai. Autant les y mettre.
+    """
+    morceaux = ["Billet acheté"]
+    if lecture.train:
+        morceaux.append(lecture.train)
+    if lecture.reference:
+        morceaux.append(lecture.reference)
+    return " · ".join(morceaux)[:200]
+
+
 def _enregistrer_segment(id_utilisateur: int, segment: Segment,
-                         id_trajet_aller: int | None = None) -> int:
+                         id_trajet_aller: int | None = None,
+                         resume: str = "Billet acheté") -> int:
     ligne = executer(
         """
         INSERT INTO trajet (id_utilisateur, sens, periode, origine, destination,
                             resume, id_trajet_aller)
         VALUES (%(u)s, %(sens)s, tstzrange(%(d)s, %(a)s, '[)'),
-                %(o)s, %(dest)s, 'Billet acheté', %(aller)s)
+                %(o)s, %(dest)s, %(resume)s, %(aller)s)
         RETURNING id_trajet
         """,
         {
@@ -72,7 +87,7 @@ def _enregistrer_segment(id_utilisateur: int, segment: Segment,
             "d": segment.depart, "a": segment.arrivee,
             "o": NOMS.get(segment.depart_gare, segment.depart_gare),
             "dest": NOMS.get(segment.arrivee_gare, segment.arrivee_gare),
-            "aller": id_trajet_aller,
+            "resume": resume, "aller": id_trajet_aller,
         },
     )
     assert ligne is not None
@@ -145,24 +160,34 @@ def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
                 "motif": f"{len(retours)} retours reconnus dans le même billet"}
 
     if not allers and len(retours) == 1:
-        # Un retour acheté seul, ce qui arrive quand on part sans savoir quand
-        # on rentre. Il ferme l'absence en cours, à son heure d'arrivée cette
-        # fois — c'est le même geste que « /retour », déclenché par le billet.
-        ferme = un_seul(
-            "SELECT terminer_absence(%(u)s, %(quand)s) AS id_absence",
-            {"u": id_utilisateur, "quand": retours[0].arrivee},
-        )
-        if ferme is None or ferme["id_absence"] is None:
-            return {"statut": "traite",
-                    "motif": "Retour noté, aucune absence ouverte"}
-        return {"statut": "traite", "id_absence": ferme["id_absence"]}
+        # Un retour acheté à part : le cas ordinaire depuis que la SNCF envoie
+        # un courriel par trajet. Le train s'affiche, et l'absence ouverte par
+        # l'aller est raccordée sur l'heure du retour (BIL-15).
+        id_retour = _enregistrer_segment(id_utilisateur, retours[0],
+                                         resume=_resume(lecture))
+        try:
+            raccorde = un_seul("SELECT raccorder_retour(%(r)s) AS id_absence",
+                               {"r": id_retour})
+        except psycopg.Error as erreur:
+            diag = erreur.diag.message_primary if erreur.diag else str(erreur)
+            return {"statut": "refuse", "motif": diag}
+
+        if raccorde is None or raccorde["id_absence"] is None:
+            # Soit l'aller n'a jamais été vu, soit le retour tombe le jour du
+            # départ et l'absence devient inutile. Dans les deux cas il y a de
+            # quoi replacer : un train de plus au planning, une absence de moins.
+            return {"statut": "traite", "replacer": True,
+                    "motif": "Retour noté, aucune absence à raccorder"}
+        return {"statut": "traite", "id_absence": raccorde["id_absence"]}
 
     if len(allers) != 1:
         return {"statut": "illisible",
                 "motif": f"{len(allers)} aller(s) reconnu(s) au lieu d'un seul"}
 
-    id_aller = _enregistrer_segment(id_utilisateur, allers[0])
-    id_retour = (_enregistrer_segment(id_utilisateur, retours[0], id_aller)
+    id_aller = _enregistrer_segment(id_utilisateur, allers[0],
+                                    resume=_resume(lecture))
+    id_retour = (_enregistrer_segment(id_utilisateur, retours[0], id_aller,
+                                      resume=_resume(lecture))
                  if retours else None)
 
     try:
@@ -220,6 +245,9 @@ def relever(id_utilisateur: int | None = None,
     bilan = {"lus": len(messages), "traites": 0, "ignores": 0,
              "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": [],
              "voyages": []}
+    # Un billet peut changer le planning sans créer d'absence : un train de plus
+    # à afficher, ou une absence rendue inutile par le retour du même jour.
+    a_replacer = False
 
     # On trie par date de voyage et non par ordre d'arrivée dans la boîte,
     # pour que le retour d'un voyage soit traité avant l'aller du suivant.
@@ -240,6 +268,7 @@ def relever(id_utilisateur: int | None = None,
 
         if resultat["statut"] == "traite":
             bilan["traites"] += 1
+            a_replacer = a_replacer or bool(resultat.get("replacer"))
             # Un billet de retour sans aller connu est traité sans rien créer :
             # il n'y avait pas d'absence à fermer.
             if resultat.get("id_absence") is not None:
@@ -254,8 +283,8 @@ def relever(id_utilisateur: int | None = None,
             bilan["illisibles" if resultat["statut"] == "illisible"
                   else "refuses"] += 1
 
-    if bilan["absences"]:
-        # Un seul replacement, à la fin, pour toutes les absences créées.
+    if bilan["absences"] or a_replacer:
+        # Un seul replacement, à la fin, pour tout ce que la relève a changé.
         from api.ordonnanceur import placer
         bilan["occurrences_replacees"] = placer()
 
@@ -327,7 +356,13 @@ def _annoncer(bilan: dict, id_utilisateur: int | None) -> None:
 
 
 def _raconter(lecture: Lecture, id_utilisateur: int, absence: bool) -> dict | None:
-    """Ce qu'il y a à dire d'un billet : où, quand, et si on note l'absence."""
+    """Ce qu'il y a à dire d'un billet : où, quand, et si on note l'absence.
+
+    On annonce des heures de départ, jamais d'arrivée : c'est ce que le billet
+    dit, et les confirmations actuelles ne donnent pas l'arrivée (BIL-12).
+    Annoncer une heure estimée comme un horaire serait mentir sur un détail
+    qu'on vérifie en gare.
+    """
     if not lecture.segments:
         return None
 
@@ -337,8 +372,9 @@ def _raconter(lecture: Lecture, id_utilisateur: int, absence: bool) -> dict | No
     return {
         "id_utilisateur": id_utilisateur,
         "destination": NOMS.get(depart.arrivee_gare, depart.arrivee_gare),
+        "origine": NOMS.get(depart.depart_gare, depart.depart_gare),
         "depart": depart.depart,
-        "retour": retour.arrivee if retour else None,
+        "retour": retour.depart if retour else None,
         "sens": depart.sens,
         "absence": absence,
     }
@@ -398,8 +434,18 @@ def resume(bilan: dict) -> str:
     # compte autant qu'un billet pour Saint-Dié, et une journée aller-retour
     # se dit même si elle ne déclare pas d'absence.
     for voyage in bilan.get("voyages", []):
-        if voyage["sens"] == "retour" and not voyage.get("depart"):
+        if not voyage.get("depart"):
             continue
+        if voyage["sens"] == "retour":
+            # Un retour acheté à part : c'est un voyage du sens inverse, et le
+            # dire « départ pour Nancy » n'aiderait personne.
+            ligne = (f"🚆 Retour de {voyage.get('origine', '')}, "
+                     f"départ le {_jour_heure(voyage['depart'])}")
+            ligne += (". Absence ajustée." if voyage["absence"]
+                      else ". Aucune absence à ajuster.")
+            lignes.append(ligne)
+            continue
+
         ligne = f"🚆 {voyage['destination']}, départ le {_jour_heure(voyage['depart'])}"
         if voyage["retour"]:
             ligne += f", retour le {_jour_heure(voyage['retour'])}"

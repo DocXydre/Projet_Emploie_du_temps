@@ -236,7 +236,7 @@ l'utilisateur.
 | BIL-1 | D | Un courriel n'est lu qu'une fois. Son en-tête `Message-ID` lui tient lieu d'identité |
 | BIL-2 | D | Seuls les courriels des domaines officiels de SNCF Connect sont analysés. Les faux courriels au nom de la SNCF sont répandus |
 | BIL-3 | D | Quand le corps ne porte aucun trajet, le sujet est lu : il nomme les deux gares, le sens et la date, jamais l'heure |
-| BIL-4 | T | Le sens d'un trajet se juge sur sa destination, non sur la gare de domicile : on part tantôt de Nancy, tantôt de Lunéville |
+| BIL-4 | T | Le sens d'un trajet se juge sur ses deux gares : rentrer au domicile est un retour, en partir est un aller, et pour les trajets qui ne le touchent pas, la gare famille tranche. On part tantôt de Nancy, tantôt de Lunéville |
 | BIL-5 | T | Un billet lu crée l'aller, le retour s'il figure, puis l'absence — par le même chemin qu'une réservation faite au bot |
 | BIL-6 | T | Un billet sans horaire vers la gare famille ouvre l'absence au lendemain, et un billet qui en revient la ferme au matin. Seules les journées certaines sont gelées |
 | BIL-7 | T | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée |
@@ -244,6 +244,10 @@ l'utilisateur.
 | BIL-9 | T | Une absence déclarée sans qu'on l'ait demandée est annoncée, avec de quoi l'annuler |
 | BIL-10 | M | Chacun reçoit ses confirmations dans sa boîte : la relève fait le tour des boîtes configurées et rattache chaque billet au compte de sa boîte. Un billet rattaché à la mauvaise personne gèlerait le planning de quelqu'un qui n'est pas parti |
 | BIL-11 | M | Tout voyage lu est annoncé, quelle que soit sa destination, avec son lieu, ses dates, et ce qu'il gèle ou non. Un billet pour ailleurs que la famille compte autant que les autres |
+| BIL-12 | M | Une confirmation actuelle ne décrit qu'un trajet : les deux gares dans le sujet, l'heure de départ sur une ligne du corps, et rien sur l'arrivée. Celle-ci est estimée d'après la liaison, et signalée comme telle : assez pour afficher le train et geler les bonnes journées, pas assez pour être annoncée comme un horaire |
+| BIL-13 | M | Le mot « Aller » figure sur les deux courriels d'un aller-retour : chaque trajet est un voyage pour la SNCF. Le sens se déduit des gares, jamais de ce mot |
+| BIL-14 | M | Une gare inconnue nommée par le sujet est acceptée sous son nom : un billet pour Metz doit se dire même si l'on n'y cherchera jamais d'horaire |
+| BIL-15 | M | Un retour acheté à part raccorde l'absence ouverte par l'aller sur son heure réelle, qu'il faille l'allonger ou la raccourcir. Un retour le jour du départ l'efface : les trains restent au planning, les tâches du soir restent dues |
 
 ### 3.9 Propositions de week-end — `WKD`
 
@@ -777,6 +781,10 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | TRJ-10 | `retenir_trajet()` rend NULL, et ne crée aucune absence, quand le retour arrive le jour du départ | Dynamique forte |
 | TRJ-11 | Les trains posés sont de type « autre », donc hors contrainte d'exclusion ; leur clé externe porte l'identifiant du trajet | Statique forte |
 | BIL-10 | Une boîte sans pseudo rattache ses billets à l'administrateur ; un pseudo inconnu aussi, avec une trace dans le journal | Dynamique faible |
+| BIL-12 | Trois lectures sont tentées dans l'ordre, de la plus riche à la plus pauvre : récapitulatif complet, gares du sujet avec heure du corps, puis sujet seul | Dynamique forte |
+| BIL-13 | `sens` est calculé sur les gares du segment, sans jamais lire le libellé du courriel | Statique forte |
+| BIL-14 | Une gare inconnue n'est retenue que du motif « Votre voyage A - B, » du sujet, et doit compter au moins trois lettres | Dynamique forte |
+| BIL-15 | `raccorder_retour()` ne touche qu'une absence commencée dans les quatorze jours précédant le retour et non terminée deux jours avant lui | Dynamique forte |
 | COL-14 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
 | COL-15 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
 | COL-16 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |

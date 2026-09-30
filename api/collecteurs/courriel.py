@@ -3,6 +3,12 @@
 Le module lit la boîte aux lettres, repère les courriels de billets et en
 extrait les trajets (gares, date, horaires).
 
+Trois formats se sont succédé et coexistent dans la boîte. Le récapitulatif
+complet, qui aligne gare, heure, gare, heure. Le courriel muet, dont seul le
+sujet parle. Et celui d'aujourd'hui, un trajet par courriel : les gares au
+sujet, l'heure de départ au corps, rien sur l'arrivée, et le mot « Aller » sur
+les deux billets d'un aller-retour (BIL-12, BIL-13).
+
 Seuls les expéditeurs de la liste blanche sont analysés (BIL-2). Un courriel
 qu'on ne sait pas lire est conservé avec son motif (BIL-8).
 
@@ -56,6 +62,17 @@ NOMS_LISIBLES = {
     "LUNEVILLE": "Lunéville",
 }
 
+# Durées approximatives des liaisons, en minutes. Les confirmations actuelles ne
+# donnent jamais l'heure d'arrivée (BIL-12) : il faut pourtant une fin au
+# créneau, sans quoi le train ne s'affiche pas au planning. L'estimation est
+# grossière et le segment le dit, pour que personne ne la prenne pour un horaire.
+DUREES = {
+    frozenset(("NANCY", "SAINT_DIE")): 80,
+    frozenset(("LUNEVILLE", "SAINT_DIE")): 60,
+    frozenset(("NANCY", "LUNEVILLE")): 25,
+}
+DUREE_PAR_DEFAUT = 90
+
 MOIS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
     "juillet": 7, "aout": 8, "septembre": 9, "octobre": 10, "novembre": 11,
@@ -74,9 +91,12 @@ DATE_LONGUE = re.compile(
     r"\b(\d{1,2})\s+(" + "|".join(MOIS) + r")\s+(\d{4})\b")
 DATE_COURTE = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 # Le mot-clé est cherché sans tenir compte de la casse ni des accents. La
-# référence, elle, est en capitales : six lettres majuscules.
+# référence, elle, est en capitales : six caractères, lettres et chiffres mêlés
+# — « QQRQCW », mais aussi « HY2F2R ». Un groupe de six chiffres n'en est pas
+# une, c'est un montant ou un numéro de transaction.
 REFERENCE = re.compile(
-    r"(?i:dossier|r[ée]f[ée]rence|r[ée]servation)\D{0,30}?\b([A-Z]{6})\b")
+    r"(?i:dossier|r[ée]f[ée]rence|r[ée]servation)\D{0,30}?"
+    r"\b(?![0-9]{6}\b)([A-Z0-9]{6})\b")
 
 # Le sujet d'une confirmation contient toujours le mot « voyage ». C'est le
 # seul repère stable : le reste de la phrase change d'une année sur l'autre.
@@ -84,6 +104,29 @@ MOT_VOYAGE = re.compile(r"\bvoyage\b")
 
 # Exclut les durées (« durée 1h35 »), qui ne sont pas des horaires.
 AVANT_DUREE = re.compile(r"(dur[ée]e?|trajet\s+de|environ)\W{0,12}$")
+
+JOURS_SEMAINE = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+                 "dimanche")
+
+# « Votre voyage Nancy - Saint-Die-Des-Vosges, aller le vendredi 2 octobre 2026 »
+#
+# Le tiret entouré d'espaces sépare les deux gares ; ceux des noms composés,
+# non. D'où une recherche sur le sujet brut : la normalisation, qui remplace les
+# tirets par des espaces, effacerait justement le séparateur.
+GARES_DU_SUJET = re.compile(
+    r"(?i)votre\s+voyage\s+(?P<depart>[^,;|<>]{2,60}?)"
+    r"\s+[-–—]\s+(?P<arrivee>[^,;|<>]{2,60}?)\s*(?:,|$)")
+
+# « Aller : vendredi 2 octobre 2026 à 13:03 » : la seule heure que porte une
+# confirmation. Le texte est normalisé avant, donc sans accent — « a 13:03 ».
+ANNONCE = re.compile(
+    r"\b(aller|retour|depart)\b\s*:?\s+(?:(?:" + "|".join(JOURS_SEMAINE) + r")\s+)?"
+    r"(\d{1,2})\s+(" + "|".join(MOIS) + r")\s+(\d{4})"
+    r"\s+a\s+(\d{1,2})\s*[h:]\s*(\d{2})\b")
+
+# « TRAIN TER 834115 ». Sert au libellé du planning, pas à l'analyse.
+TRAIN = re.compile(
+    r"\btrain\s+(ter|tgv|inoui|ouigo|intercites|ice|car)\s*(?:inoui\s+)?(\d{2,6})\b")
 
 
 @dataclass(frozen=True)
@@ -94,17 +137,31 @@ class Segment:
     arrivee: datetime
     # Vrai quand le trajet vient du sujet : on a le jour, pas l'heure.
     sans_horaire: bool = False
+    # Vrai quand l'heure d'arrivée est une estimation et non une lecture.
+    duree_estimee: bool = False
 
     @property
     def sens(self) -> str:
-        """Aller ou retour, selon la gare d'arrivée.
+        """Aller ou retour, d'après les deux gares.                    (BIL-13)
 
-        On regarde la gare d'arrivée et non celle de départ, car le départ se
-        fait tantôt de Nancy, tantôt de Lunéville. Arriver à la gare famille
-        est un aller, en repartir est un retour.
+        Jamais d'après le mot « Aller » du courriel : la SNCF l'écrit sur les
+        deux billets d'un aller-retour, puisque chacun est un voyage pour elle.
+
+        Rentrer chez soi est un retour, en partir est un aller. Restent les
+        trajets qui ne touchent pas le domicile — on part parfois de Lunéville :
+        la gare famille tranche alors, comme avant.
         """
-        famille = configuration().gare_famille
-        return "aller" if self.arrivee_gare == famille else "retour"
+        conf = configuration()
+        if self.arrivee_gare == conf.gare_domicile:
+            return "retour"
+        if self.depart_gare == conf.gare_domicile:
+            return "aller"
+        if self.arrivee_gare == conf.gare_famille:
+            return "aller"
+        if self.depart_gare == conf.gare_famille:
+            return "retour"
+        # Ni le domicile ni la famille : un voyage ailleurs, donc un départ.
+        return "aller"
 
 
 @dataclass
@@ -116,6 +173,7 @@ class Lecture:
     sujet: str
     recu_le: datetime | None = None
     reference: str | None = None
+    train: str | None = None
     segments: list[Segment] = field(default_factory=list)
     statut: str = "ignore"
     motif: str | None = None
@@ -143,6 +201,45 @@ def _gare_de(mot: str) -> str | None:
         if mot in variantes:
             return code
     return None
+
+
+def _duree(depart_gare: str, arrivee_gare: str) -> int:
+    """Durée du trajet en minutes, faute de mieux.                     (BIL-12)"""
+    return DUREES.get(frozenset((depart_gare, arrivee_gare)), DUREE_PAR_DEFAUT)
+
+
+def _gare_ou_nom(brut: str) -> str | None:
+    """Code interne d'une gare connue, ou son nom si on ne la connaît pas.
+
+    BIL-14 : un billet pour Metz doit se dire, même si Metz n'est ni le
+    domicile ni la famille et qu'on n'y cherchera jamais d'horaire. Refuser ce
+    qu'on ne connaît pas ferait taire la moitié des voyages.
+    """
+    propre = re.sub(r"\s+", " ", brut).strip(" -–—")
+    if len(re.findall(r"[^\W\d_]", propre)) < 3 or len(propre) > 60:
+        return None
+
+    code = _gare_de(normaliser(propre))
+    if code is not None:
+        return code
+
+    # Une gare inconnue garde son nom, qui servira de libellé. « METZ » écrit en
+    # capitales n'a pas à s'afficher ainsi.
+    tout_en_capitales = propre == propre.upper()
+    return propre.title() if tout_en_capitales or propre == propre.lower() else propre
+
+
+def gares_du_sujet(sujet: str) -> tuple[str, str] | None:
+    """Les deux gares nommées par le sujet, dans l'ordre du voyage."""
+    trouve = GARES_DU_SUJET.search(sujet)
+    if trouve is None:
+        return None
+
+    depart = _gare_ou_nom(trouve.group("depart"))
+    arrivee = _gare_ou_nom(trouve.group("arrivee"))
+    if depart is None or arrivee is None or depart == arrivee:
+        return None
+    return depart, arrivee
 
 
 def texte_de(message: EmailMessage) -> str:
@@ -263,28 +360,65 @@ def segments_de(texte: str) -> list[Segment]:
     return segments
 
 
+def voyages_annonces(sujet: str, texte: str) -> list[Segment]:
+    """Trajets du format actuel : les gares au sujet, l'heure au corps. (BIL-12)
+
+    Depuis 2025, une confirmation ne décrit qu'un trajet, et l'écrit en deux
+    endroits : le sujet nomme les deux gares, le corps donne le jour et l'heure
+    de départ sur une seule ligne, « Aller : vendredi 2 octobre 2026 à 13:03 ».
+
+    L'heure d'arrivée ne figure nulle part. Elle est estimée, et le segment le
+    signale : c'est assez pour afficher le train et pour geler ce qu'il faut,
+    pas assez pour être présenté comme un horaire.
+
+    Le mot « Aller » ne dit pas le sens (BIL-13) ; il sert seulement à savoir,
+    si un jour les deux trajets tiennent dans le même courriel, lequel des deux
+    se lit à l'envers.
+    """
+    paire = gares_du_sujet(sujet)
+    if paire is None:
+        return []
+    depuis, vers = paire
+
+    fuseau = ZoneInfo(configuration().fuseau)
+    segments: list[Segment] = []
+    vus: set[tuple] = set()
+
+    for mot, jour, mois, annee, heures, minutes in ANNONCE.findall(normaliser(texte)):
+        if int(heures) > 23 or int(minutes) > 59:
+            continue
+        a, b = (vers, depuis) if mot == "retour" else (depuis, vers)
+        depart = datetime(int(annee), MOIS[mois], int(jour),
+                          int(heures), int(minutes), tzinfo=fuseau)
+        if (a, b, depart) in vus:
+            continue
+        vus.add((a, b, depart))
+        segments.append(Segment(
+            depart_gare=a, arrivee_gare=b, depart=depart,
+            arrivee=depart + timedelta(minutes=_duree(a, b)),
+            duree_estimee=True,
+        ))
+
+    return segments
+
+
 def segment_du_sujet(sujet: str) -> Segment | None:
-    """Trajet lu dans le sujet, quand le corps n'en porte aucun.        (BIL-3)
+    """Trajet lu dans le sujet seul, sans aucune heure.                  (BIL-3)
 
     « Votre voyage St Die Des Vosges - Nancy, aller le dimanche 6 février 2022 »
-    donne les deux gares, le sens et la date ; le corps ne contient que
+    donne les deux gares, le sens et la date ; certains corps ne contiennent que
     l'horodatage du paiement.
 
-    Comme on n'a pas les horaires, le segment couvre la journée entière. On
-    repère les gares et non une tournure de phrase, qui change chaque année.
+    Comme on n'a pas les horaires, le segment couvre la journée entière.
     """
     texte = normaliser(sujet)
     if not MOT_VOYAGE.search(texte):
         return None
 
-    gares: list[str] = []
-    for trouve in GARE.finditer(texte):
-        gare = _gare_de(trouve.group(0))
-        if gare is not None and (not gares or gares[-1] != gare):
-            gares.append(gare)
-
-    if len(gares) < 2 or gares[0] == gares[1]:
+    paire = gares_du_sujet(sujet)
+    if paire is None:
         return None
+    depuis, vers = paire
 
     longue = DATE_LONGUE.search(texte)
     if longue is not None:
@@ -300,24 +434,27 @@ def segment_du_sujet(sujet: str) -> Segment | None:
     fuseau = ZoneInfo(configuration().fuseau)
     minuit = datetime(annee, mois, jour, tzinfo=fuseau)
 
-    return Segment(depart_gare=gares[0], arrivee_gare=gares[1],
+    return Segment(depart_gare=depuis, arrivee_gare=vers,
                    depart=minuit, arrivee=minuit + timedelta(days=1),
                    sans_horaire=True)
 
 
-def _pourquoi_rien(normalise: str) -> str:
+def _pourquoi_rien(normalise: str, sujet: str = "") -> str:
     """Message d'échec qui compte ce qui a été trouvé : gares, heures, dates.
 
     Plus utile qu'un simple « aucun trajet reconnu » pour comprendre d'où vient
-    le problème.
+    le problème. Le sujet y figure aussi : c'est de lui que viennent les gares
+    du format actuel, et le savoir vide ou illisible est la moitié du diagnostic.
     """
     gares = sorted({g for m in GARE.finditer(normalise)
                     if (g := _gare_de(m.group(0))) is not None})
     heures = len(HEURE.findall(normalise))
     dates = len(DATE_LONGUE.findall(normalise)) + len(DATE_COURTE.findall(normalise))
+    paire = gares_du_sujet(sujet)
 
     return (f"Aucun trajet reconnu — gares connues vues : "
-            f"{', '.join(gares) or 'aucune'} ; heures : {heures} ; dates : {dates}")
+            f"{', '.join(gares) or 'aucune'} ; heures : {heures} ; dates : {dates}"
+            f" ; sujet : {' → '.join(paire) if paire else 'aucune gare'}")
 
 
 def expediteur_reconnu(adresse: str) -> bool:
@@ -363,13 +500,23 @@ def analyser(brut: bytes) -> Lecture:
     normalise = normaliser(texte)
     reference = REFERENCE.search(texte)
     lecture.reference = reference.group(1) if reference else None
+    train = TRAIN.search(normalise)
+    lecture.train = f"{train.group(1).upper()} {train.group(2)}" if train else None
 
+    # Trois lectures, de la plus riche à la plus pauvre. La première qui donne
+    # quelque chose gagne : mieux vaut un horaire lu qu'un horaire estimé, et un
+    # horaire estimé qu'une journée entière gelée au hasard.
     lecture.segments = segments_de(texte)
 
     if not lecture.segments:
-        # BIL-3 : le corps de ces confirmations ne porte que l'horodatage du
-        # paiement — le récapitulatif part en pièce jointe. Le sujet, lui,
-        # nomme les deux gares, le sens et la date.
+        # BIL-12 : le format courant. Les gares au sujet, l'heure de départ au
+        # corps, et rien sur l'arrivée.
+        lecture.segments = voyages_annonces(sujet, texte)
+
+    if not lecture.segments:
+        # BIL-3 : certains corps ne portent que l'horodatage du paiement — le
+        # récapitulatif part en pièce jointe. Le sujet, lui, nomme les deux
+        # gares et la date.
         depuis_sujet = segment_du_sujet(sujet)
         if depuis_sujet is not None:
             lecture.segments = [depuis_sujet]
@@ -381,7 +528,7 @@ def analyser(brut: bytes) -> Lecture:
         gares = GARE.search(normalise) or GARE.search(normaliser(sujet))
         lecture.statut = "illisible" if gares else "ignore"
         lecture.motif = (
-            _pourquoi_rien(normalise) if gares
+            _pourquoi_rien(normalise, sujet) if gares
             else "Commande sans trajet : abonnement, carte ou reçu"
         )
         return lecture
