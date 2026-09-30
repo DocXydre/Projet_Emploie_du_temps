@@ -455,9 +455,18 @@ def oublier_les_rates() -> int:
 
 
 def absences_issues_de_billets() -> list[dict]:
+    """Un voyage par absence, et non par courriel.
+
+    Depuis que l'aller et le retour arrivent dans deux courriels, deux billets
+    pointent sur la même absence. La lister deux fois donnerait deux lignes
+    identiques et deux boutons pour annuler la même chose.
+    """
     return lister(
         """
-        SELECT c.id_courriel, c.reference, c.sujet,
+        SELECT min(c.id_courriel)                                AS id_courriel,
+               string_agg(DISTINCT c.reference, ', '
+                          ORDER BY c.reference)                  AS references,
+               min(c.sujet)                                      AS sujet,
                a.id_absence, lower(a.periode) AS debut, upper(a.periode) AS fin,
                a.lieu,
                -- Sans billet de retour, la fin n'est qu'une supposition : la
@@ -468,6 +477,7 @@ def absences_issues_de_billets() -> list[dict]:
           FROM courriel c
           JOIN absence a ON a.id_absence = c.id_absence
          WHERE c.statut = 'traite' AND upper(a.periode) > now()
+         GROUP BY a.id_absence, a.periode, a.lieu
          ORDER BY lower(a.periode)
         """
     )

@@ -525,9 +525,13 @@ async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE) 
 
     voyages = await asyncio.to_thread(billets.absences_issues_de_billets)
     for voyage in voyages:
-        reference = f" ({voyage['reference']})" if voyage["reference"] else ""
+        # Un aller et un retour achetés séparément font deux billets pour un
+        # seul voyage : une ligne, un bouton, les deux références.
+        refs = voyage.get("references") or ""
+        titre = "Billets" if "," in refs else "Billet"
         await update.effective_message.reply_text(
-            f"Billet{reference} : absent du {conv._jour(voyage['debut'])} "
+            f"{titre}{f' ({refs})' if refs else ''} "
+            f": absent du {conv._jour(voyage['debut'])} "
             f"au {conv._jour(voyage['fin'])}"
             f"{' à ' + voyage['lieu'] if voyage['lieu'] else ''}"
             # TRJ-7 : sans billet de retour, la fin est une supposition, pas
