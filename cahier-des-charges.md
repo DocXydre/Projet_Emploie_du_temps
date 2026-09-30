@@ -248,6 +248,8 @@ l'utilisateur.
 | BIL-13 | M | Le mot « Aller » figure sur les deux courriels d'un aller-retour : chaque trajet est un voyage pour la SNCF. Le sens se déduit des gares, jamais de ce mot |
 | BIL-14 | M | Une gare inconnue nommée par le sujet est acceptée sous son nom : un billet pour Metz doit se dire même si l'on n'y cherchera jamais d'horaire |
 | BIL-15 | M | Un retour acheté à part raccorde l'absence ouverte par l'aller sur son heure réelle, qu'il faille l'allonger ou la raccourcir. Un retour le jour du départ l'efface : les trains restent au planning, les tâches du soir restent dues |
+| BIL-16 | M | Une confirmation est envoyée en deux versions : un texte brut muet et un HTML qui porte le récapitulatif. Les deux sont lues, dans l'ordre de préférence. S'arrêter à la première, c'est ne jamais voir l'heure de départ |
+| BIL-17 | M | Un billet dont le voyage est terminé est classé sans rien déclarer ni annoncer. La relève regarde un mois en arrière : rejouer ces billets créerait des absences dans le passé et annoncerait des voyages dont on est revenu |
 
 ### 3.9 Propositions de week-end — `WKD`
 
@@ -785,6 +787,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | BIL-13 | `sens` est calculé sur les gares du segment, sans jamais lire le libellé du courriel | Statique forte |
 | BIL-14 | Une gare inconnue n'est retenue que du motif « Votre voyage A - B, » du sujet, et doit compter au moins trois lettres | Dynamique forte |
 | BIL-15 | `raccorder_retour()` ne touche qu'une absence commencée dans les quatorze jours précédant le retour et non terminée deux jours avant lui | Dynamique forte |
+| BIL-16 | Chaque lecture est tentée sur toutes les versions du courriel, la préférée d'abord ; la référence et le numéro de train se cherchent sur leur réunion | Dynamique forte |
+| BIL-17 | Un voyage est passé si l'arrivée de son dernier segment précède l'instant de la relève | Dynamique forte |
+| TRJ-7 | Une absence sans billet de retour est présentée comme telle : sa fin est une supposition, pas une date lue | Dynamique faible |
 | COL-14 | Une URL `webcal://` est ramenée à `https://` avant d'être stockée | Dynamique forte |
 | COL-15 | `type` d'une occupation personnelle vaut 'autre', hors du champ de la contrainte d'exclusion | Statique forte |
 | COL-16 | Le code d'un calendrier personnel s'écrit `PERSO_<PSEUDO>` et détermine son propriétaire | Statique faible |

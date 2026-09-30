@@ -520,7 +520,10 @@ async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE) 
         await update.effective_message.reply_text(
             f"Billet{reference} : absent du {conv._jour(voyage['debut'])} "
             f"au {conv._jour(voyage['fin'])}"
-            f"{' à ' + voyage['lieu'] if voyage['lieu'] else ''}",
+            f"{' à ' + voyage['lieu'] if voyage['lieu'] else ''}"
+            # TRJ-7 : sans billet de retour, la fin est une supposition, pas
+            # une date. La donner sans le dire, c'est la faire passer pour lue.
+            f"{'' if voyage.get('retour_connu') else ' (retour à confirmer)'}",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton(
                     "Ce n'est pas ça, annule",

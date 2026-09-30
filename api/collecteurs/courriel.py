@@ -242,14 +242,10 @@ def gares_du_sujet(sujet: str) -> tuple[str, str] | None:
     return depart, arrivee
 
 
-def texte_de(message: EmailMessage) -> str:
-    """Corps du message en texte, que l'expéditeur ait envoyé du texte ou du HTML."""
-    corps = message.get_body(preferencelist=("plain", "html"))
-    if corps is None:
-        return ""
-
-    contenu = corps.get_content()
-    if corps.get_content_subtype() == "html":
+def _texte_de_partie(partie) -> str:
+    """Une partie du courriel en texte, qu'elle soit écrite en texte ou en HTML."""
+    contenu = partie.get_content()
+    if partie.get_content_subtype() == "html":
         contenu = re.sub(r"(?is)<(script|style).*?</\1>", " ", contenu)
         # Les balises de fin de bloc deviennent des sauts de ligne : une gare
         # et son heure sont sur la même ligne, l'arrivée sur la suivante.
@@ -258,6 +254,37 @@ def texte_de(message: EmailMessage) -> str:
         contenu = html.unescape(contenu)
 
     return contenu
+
+
+def corps_lisibles(message: EmailMessage) -> list[str]:
+    """Toutes les versions du courriel, la préférée en premier.        (BIL-16)
+
+    Une confirmation est envoyée en deux exemplaires : un texte brut réduit à
+    deux phrases et à l'horodatage du paiement, et un HTML qui porte le
+    récapitulatif du voyage. Les lecteurs de courriel préfèrent le texte brut,
+    et nous avec : c'est ce qui a fait croire pendant des mois que ces
+    confirmations ne disaient rien. L'heure de départ était dans l'autre
+    version, celle qu'on ne lisait pas.
+
+    On garde l'ordre de préférence, mais on ne s'arrête plus à la première.
+    """
+    corps = message.get_body(preferencelist=("plain", "html"))
+    parties = [corps] if corps is not None else []
+    parties += [p for p in message.walk()
+                if p is not corps
+                and p.get_content_maintype() == "text"
+                and p.get_content_subtype() in ("plain", "html")]
+
+    textes: list[str] = []
+    for partie in parties:
+        try:
+            texte = _texte_de_partie(partie)
+        except Exception:  # noqa: BLE001 - une partie illisible n'empêche pas les autres
+            LOG.warning("Partie de courriel illisible, ignorée")
+            continue
+        if texte and texte not in textes:
+            textes.append(texte)
+    return textes
 
 
 def _jetons(texte: str) -> list[tuple[int, str, object]]:
@@ -491,27 +518,37 @@ def analyser(brut: bytes) -> Lecture:
         return lecture
 
     try:
-        texte = texte_de(message)
+        textes = corps_lisibles(message)
     except Exception as erreur:  # noqa: BLE001 - un corps illisible est un cas, pas un bug
         lecture.statut = "illisible"
         lecture.motif = f"Corps illisible : {erreur}"
         return lecture
 
-    normalise = normaliser(texte)
-    reference = REFERENCE.search(texte)
+    # La référence et le numéro de train se cherchent partout : ils ne sont pas
+    # forcément dans la version qui porte les horaires.
+    entier = "\n".join(textes)
+    normalise = normaliser(entier)
+    reference = REFERENCE.search(entier)
     lecture.reference = reference.group(1) if reference else None
     train = TRAIN.search(normalise)
     lecture.train = f"{train.group(1).upper()} {train.group(2)}" if train else None
 
-    # Trois lectures, de la plus riche à la plus pauvre. La première qui donne
-    # quelque chose gagne : mieux vaut un horaire lu qu'un horaire estimé, et un
-    # horaire estimé qu'une journée entière gelée au hasard.
-    lecture.segments = segments_de(texte)
+    # Trois lectures, de la plus riche à la plus pauvre, chacune essayée sur
+    # toutes les versions du courriel (BIL-16). La première qui donne quelque
+    # chose gagne : mieux vaut un horaire lu qu'un horaire estimé, et un horaire
+    # estimé qu'une journée entière gelée au hasard.
+    for candidat in textes:
+        lecture.segments = segments_de(candidat)
+        if lecture.segments:
+            break
 
     if not lecture.segments:
         # BIL-12 : le format courant. Les gares au sujet, l'heure de départ au
         # corps, et rien sur l'arrivée.
-        lecture.segments = voyages_annonces(sujet, texte)
+        for candidat in textes:
+            lecture.segments = voyages_annonces(sujet, candidat)
+            if lecture.segments:
+                break
 
     if not lecture.segments:
         # BIL-3 : certains corps ne portent que l'horodatage du paiement — le

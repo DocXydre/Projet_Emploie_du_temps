@@ -149,6 +149,12 @@ def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
     Un billet contient un aller seul, ou un aller et un retour. Deux allers
     correspondent à deux voyages distincts et ne sont pas traités ici.
     """
+    if max(s.arrivee for s in lecture.segments) < datetime.now(UTC):
+        # BIL-17 : un voyage terminé ne gèle rien et ne s'annonce pas. La relève
+        # regarde un mois en arrière ; rejouer ces billets créerait des absences
+        # dans le passé et annoncerait des trajets dont on est déjà revenu.
+        return {"statut": "traite", "motif": "Voyage déjà passé", "passe": True}
+
     if len(lecture.segments) == 1 and lecture.segments[0].sans_horaire:
         return _appliquer_sans_horaire(lecture.segments[0], id_utilisateur)
 
@@ -229,7 +235,7 @@ def relever(id_utilisateur: int | None = None,
         # quelqu'un qui n'est pas parti.
         if len(boites) > 1:
             total = _additionner([_relever_une_boite(b, id_utilisateur) for b in boites])
-            if annoncer and (total["traites"] or total["illisibles"] or total["refuses"]):
+            if annoncer and _a_dire(total):
                 _annoncer(total, id_utilisateur)
             return total
 
@@ -242,7 +248,7 @@ def relever(id_utilisateur: int | None = None,
     if id_utilisateur is None:
         id_utilisateur = _proprietaire()
 
-    bilan = {"lus": len(messages), "traites": 0, "ignores": 0,
+    bilan = {"lus": len(messages), "traites": 0, "passes": 0, "ignores": 0,
              "illisibles": 0, "refuses": 0, "deja_vus": 0, "absences": [],
              "voyages": []}
     # Un billet peut changer le planning sans créer d'absence : un train de plus
@@ -268,15 +274,18 @@ def relever(id_utilisateur: int | None = None,
 
         if resultat["statut"] == "traite":
             bilan["traites"] += 1
+            bilan["passes"] += bool(resultat.get("passe"))
             a_replacer = a_replacer or bool(resultat.get("replacer"))
             # Un billet de retour sans aller connu est traité sans rien créer :
             # il n'y avait pas d'absence à fermer.
             if resultat.get("id_absence") is not None:
                 bilan["absences"].append(resultat["id_absence"])
             # BIL-11 : tout voyage se dit, même sans absence, et même quand il
-            # ne va pas chez la famille.
-            voyage = _raconter(lecture, id_utilisateur,
-                               resultat.get("id_absence") is not None)
+            # ne va pas chez la famille. Sauf s'il est passé (BIL-17) : là, il
+            # n'y a plus rien à en dire.
+            voyage = (None if resultat.get("passe") else
+                      _raconter(lecture, id_utilisateur,
+                                resultat.get("id_absence") is not None))
             if voyage:
                 bilan["voyages"].append(voyage)
         else:
@@ -288,10 +297,20 @@ def relever(id_utilisateur: int | None = None,
         from api.ordonnanceur import placer
         bilan["occurrences_replacees"] = placer()
 
-    if annoncer and (bilan["traites"] or bilan["illisibles"] or bilan["refuses"]):
+    if annoncer and _a_dire(bilan):
         _annoncer(bilan, id_utilisateur)
 
     return bilan
+
+
+def _a_dire(bilan: dict) -> bool:
+    """Y a-t-il quelque chose à annoncer ?
+
+    Un billet dont le voyage est passé est lu, classé, et tu : la relève
+    regarde un mois en arrière, et ce n'est pas une nouvelle (BIL-17).
+    """
+    return bool(bilan["traites"] - bilan.get("passes", 0)
+                or bilan["illisibles"] or bilan["refuses"])
 
 
 def _proprietaire() -> int:
@@ -326,10 +345,11 @@ def _relever_une_boite(reglage: dict, id_utilisateur: int | None) -> dict:
 
 
 def _additionner(bilans: list[dict]) -> dict:
-    total = {"lus": 0, "traites": 0, "ignores": 0, "illisibles": 0,
+    total = {"lus": 0, "traites": 0, "passes": 0, "ignores": 0, "illisibles": 0,
              "refuses": 0, "deja_vus": 0, "absences": [], "voyages": []}
     for bilan in bilans:
-        for cle in ("lus", "traites", "ignores", "illisibles", "refuses", "deja_vus"):
+        for cle in ("lus", "traites", "passes", "ignores", "illisibles",
+                    "refuses", "deja_vus"):
             total[cle] += bilan.get(cle, 0)
         total["absences"] += bilan.get("absences", [])
         total["voyages"] += bilan.get("voyages", [])
@@ -407,7 +427,12 @@ def absences_issues_de_billets() -> list[dict]:
         """
         SELECT c.id_courriel, c.reference, c.sujet,
                a.id_absence, lower(a.periode) AS debut, upper(a.periode) AS fin,
-               a.lieu
+               a.lieu,
+               -- Sans billet de retour, la fin n'est qu'une supposition : la
+               -- prochaine obligation connue (TRJ-7). Autant le dire.
+               EXISTS (SELECT 1 FROM trajet t
+                        WHERE t.id_absence = a.id_absence
+                          AND t.sens = 'retour') AS retour_connu
           FROM courriel c
           JOIN absence a ON a.id_absence = c.id_absence
          WHERE c.statut = 'traite' AND upper(a.periode) > now()
@@ -426,7 +451,7 @@ def _jour_heure(instant) -> str:
 
 def resume(bilan: dict) -> str:
     """Le compte rendu tel que le bot l'annonce."""
-    if bilan["traites"] == 0 and bilan["illisibles"] == 0 and bilan["refuses"] == 0:
+    if not _a_dire(bilan):
         return "Rien de neuf dans la boîte."
 
     lignes = []
@@ -453,8 +478,9 @@ def resume(bilan: dict) -> str:
                   else ". Aller-retour dans la journée : rien n'est gelé.")
         lignes.append(ligne)
 
-    if bilan["traites"] and not bilan.get("voyages"):
-        lignes.append(f"{bilan['traites']} billet(s) lu(s).")
+    neufs = bilan["traites"] - bilan.get("passes", 0)
+    if neufs and not bilan.get("voyages"):
+        lignes.append(f"{neufs} billet(s) lu(s).")
     if bilan["refuses"]:
         lignes.append(f"{bilan['refuses']} billet(s) refusé(s) — sans doute une "
                       f"absence déjà déclarée sur les mêmes dates.")
