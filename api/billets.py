@@ -4,19 +4,23 @@ Un billet lu est enregistré comme n'importe quel trajet, puis retenu par la
 même fonction que celle du bot : un second chemin d'écriture finirait par
 diverger du premier.
 
-Ce module ne parle ni à IMAP ni à la SNCF. Il reçoit des courriels bruts, ce
-qui permet de rejouer une boîte entière dans les tests.
+Ce module ne relève pas la boîte lui-même : il reçoit des courriels bruts, ce
+qui permet de rejouer une boîte entière dans les tests. Il interroge en
+revanche la SNCF, pour une seule chose : l'heure d'arrivée, que la
+confirmation d'achat ne donne jamais (BIL-21).
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 
 import psycopg
 
 from api.base import executer, lister, un_seul
 from api.collecteurs import courriel as lecteur
+from api.collecteurs import sncf
 from api.collecteurs.courriel import NOMS_LISIBLES, Lecture, Segment
 from api.collecteurs.sncf import GARES
 
@@ -94,6 +98,43 @@ def _enregistrer_segment(id_utilisateur: int, segment: Segment,
     return ligne["id_trajet"]
 
 
+def _preciser(segment: Segment) -> Segment:
+    """Remplace l'arrivée estimée par l'heure réelle du train.        (BIL-21)
+
+    Une confirmation d'achat ne porte que l'heure de départ. L'arrivée, elle,
+    dépend du train pris : un direct et un avec correspondance à Lunéville ne
+    rentrent pas à la même heure, et c'est elle qui décide de la fin de
+    l'absence. On la demande donc à la SNCF, pour le train qui part à la minute
+    lue sur le billet.
+
+    Si la SNCF ne répond pas, ou si la gare lui est inconnue, l'estimation
+    reste : mieux vaut une fin approximative qu'un voyage non déclaré.
+    """
+    if not segment.duree_estimee:
+        return segment
+    if segment.depart_gare not in GARES or segment.arrivee_gare not in GARES:
+        return segment
+
+    try:
+        trajets = sncf.chercher(segment.depart_gare, segment.arrivee_gare,
+                                segment.depart - timedelta(minutes=5), limite=6)
+    except sncf.TrajetImpossible as erreur:
+        LOG.info("Horaire SNCF indisponible (%s) : arrivée estimée conservée",
+                 erreur.code)
+        return segment
+
+    # Le bon train est celui qui part à l'heure du billet. En prendre un autre
+    # parce qu'il est proche donnerait une arrivée fausse avec l'air d'être lue.
+    exact = next((t for t in trajets
+                  if abs((t.depart - segment.depart).total_seconds()) <= 120), None)
+    if exact is None:
+        LOG.info("Aucun train SNCF à %s pour %s → %s : arrivée estimée conservée",
+                 segment.depart, segment.depart_gare, segment.arrivee_gare)
+        return segment
+
+    return replace(segment, arrivee=exact.arrivee, duree_estimee=False)
+
+
 def _quand(lecture: Lecture) -> datetime:
     """Date du voyage, ou à défaut celle du courriel.
 
@@ -154,6 +195,11 @@ def _appliquer(lecture: Lecture, id_utilisateur: int) -> dict:
         # regarde un mois en arrière ; rejouer ces billets créerait des absences
         # dans le passé et annoncerait des trajets dont on est déjà revenu.
         return {"statut": "traite", "motif": "Voyage déjà passé", "passe": True}
+
+    # BIL-21 : l'heure d'arrivée se demande à la SNCF, une fois qu'on sait que
+    # le voyage a encore lieu. Inutile d'appeler le réseau pour un billet
+    # périmé.
+    lecture.segments = [_preciser(s) for s in lecture.segments]
 
     if len(lecture.segments) == 1 and lecture.segments[0].sans_horaire:
         return _appliquer_sans_horaire(lecture.segments[0], id_utilisateur)

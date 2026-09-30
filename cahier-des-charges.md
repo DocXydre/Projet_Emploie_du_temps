@@ -162,7 +162,9 @@ l'utilisateur.
 | TAC-8 | D | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
 | TAC-9 | D | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
 | TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi la tâche couverte, à la même date. Vider la litière vaut ramassage ; laver la fontaine vaut changer l'eau |
-| TAC-11 | M | Les poubelles sortent tous les quatre jours, sans heure imposée et sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
+| TAC-11 | M | Les poubelles sortent tous les quatre jours au plus tard, sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
+| TAC-12 | M | Une tâche peut être marquée « avant le départ » : quand l'appartement se vide, elle est posée avant que la dernière personne parte, en plus de sa récurrence. Les poubelles et la litière ne peuvent pas attendre le retour, et il n'y a plus personne pour s'en occuper |
+| TAC-13 | M | Les poubelles se sortent à partir de 17h et pas avant : le ramassage passe à l'aube, un sac sorti le matin attend dehors toute la journée. Un départ avant 17h fait donc tomber la corvée la veille au soir |
 
 ### 3.4 Placement — `PLA`
 
@@ -253,6 +255,7 @@ l'utilisateur.
 | BIL-18 | M | Une relève dit ce qu'elle a vu même quand elle n'a rien à déclarer : combien de courriels relevés, déjà vus, passés. Un « rien de neuf » muet ne distingue pas une boîte vide d'une boîte qu'on ne sait plus lire |
 | BIL-19 | M | « /billets relire » rouvre tous les courriels récents, y compris ceux classés traités, et rend les absences à venir qui en étaient nées. Un courriel mal lu mais classé ne se signale nulle part et ne reviendrait jamais |
 | BIL-20 | M | Un voyage se liste une fois, avec les références de tous les billets qui le composent. L'aller et le retour arrivent séparément : deux lignes donneraient deux boutons pour annuler la même absence |
+| BIL-21 | M | L'heure d'arrivée est demandée à la SNCF pour le train qui part à la minute lue sur le billet, parce qu'elle dépend du train et qu'aucun courriel ne la donne. Sans réponse, ou pour une gare que Navitia ignore, l'estimation reste : mieux vaut une fin approximative qu'un voyage non déclaré |
 
 ### 3.9 Propositions de week-end — `WKD`
 
@@ -263,6 +266,7 @@ l'utilisateur.
 | WKD-3 | T | Une proposition couverte par une absence est soldée, quelle qu'en soit l'origine. Passée, elle est périmée |
 | WKD-4 | T | Un week-end décliné ne revient jamais : revenir à la charge est le meilleur moyen de faire couper les notifications |
 | WKD-5 | T | Une proposition s'annonce quinze jours avant et se relance une seule fois trois jours avant, jamais deux fois le même jour |
+| WKD-6 | M | Une proposition couverte par une absence devient le week-end : elle reste au calendrier, sans point d'interrogation, et l'entretien tourne à chaque placement pour qu'un billet acheté suffise à la confirmer |
 
 ### 3.10 Séances de sport — `SPT`
 
@@ -801,6 +805,10 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | WKD-1 | `statut` appartient à {proposee, ecartee, realisee, perimee} | Statique forte |
 | WKD-2 | Deux propositions de statut 'proposee' d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | WKD-5 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
+| TAC-12 | Les fenêtres où l'appartement se vide sont l'intersection des absences de tous les comptes actifs : une seule personne présente suffit à l'annuler | Dynamique forte |
+| TAC-12 | Une occurrence « depart » est unique par tâche et par départ, et disparaît si le départ disparaît | Dynamique forte |
+| TAC-13 | Une tâche à heure imposée déclare ses deux bornes et une périodicité ouverte : bornes égales, la fenêtre serait vide | Statique forte |
+| BIL-21 | Seul un train partant à moins de deux minutes de l'heure du billet est retenu comme étant le bon | Dynamique forte |
 | SPT-1 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
 | SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
 | SPT-7 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
