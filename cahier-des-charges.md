@@ -250,6 +250,8 @@ l'utilisateur.
 | BIL-15 | M | Un retour acheté à part raccorde l'absence ouverte par l'aller sur son heure réelle, qu'il faille l'allonger ou la raccourcir. Un retour le jour du départ l'efface : les trains restent au planning, les tâches du soir restent dues |
 | BIL-16 | M | Une confirmation est envoyée en deux versions : un texte brut muet et un HTML qui porte le récapitulatif. Les deux sont lues, dans l'ordre de préférence. S'arrêter à la première, c'est ne jamais voir l'heure de départ |
 | BIL-17 | M | Un billet dont le voyage est terminé est classé sans rien déclarer ni annoncer. La relève regarde un mois en arrière : rejouer ces billets créerait des absences dans le passé et annoncerait des voyages dont on est revenu |
+| BIL-18 | M | Une relève dit ce qu'elle a vu même quand elle n'a rien à déclarer : combien de courriels relevés, déjà vus, passés. Un « rien de neuf » muet ne distingue pas une boîte vide d'une boîte qu'on ne sait plus lire |
+| BIL-19 | M | « /billets relire » rouvre tous les courriels récents, y compris ceux classés traités, et rend les absences à venir qui en étaient nées. Un courriel mal lu mais classé ne se signale nulle part et ne reviendrait jamais |
 
 ### 3.9 Propositions de week-end — `WKD`
 

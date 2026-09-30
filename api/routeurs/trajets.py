@@ -153,3 +153,14 @@ def reessayer(qui: Administrateur) -> dict:
     avait échoué sont marqués comme vus et ne seraient pas relus.
     """
     return {"oublies": billets.oublier_les_rates()}
+
+
+@routeur.delete("/courriels", summary="Tout relire depuis la boîte")
+def relire(qui: Administrateur, jours: int = 120) -> dict:
+    """Oublie les courriels récents, exploités ou non, pour les relire tous.
+
+    Plus large que « a-revoir » : un courriel mal lu mais classé « traité » ne
+    se signale nulle part et ne reviendrait jamais. Les absences encore à venir
+    qui en étaient nées sont rendues, puisqu'elles vont être recréées.
+    """
+    return billets.relire_les_billets(jours)

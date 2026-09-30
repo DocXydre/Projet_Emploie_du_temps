@@ -502,6 +502,15 @@ async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE) 
     if compte is None:
         return await _refuser(update)
 
+    # « /billets relire » repart de zéro : la mémoire des courriels récents est
+    # effacée et tout est relu. À faire après une correction du lecteur, sans
+    # quoi les courriels mal lus mais classés « traités » ne reviennent jamais.
+    if contexte.args and contexte.args[0].lower() in ("relire", "tout", "oublier"):
+        efface = await asyncio.to_thread(billets.relire_les_billets)
+        await update.effective_message.reply_text(
+            f"Mémoire effacée : {efface['courriels_oublies']} courriel(s) à relire, "
+            f"{efface['absences_rendues']} absence(s) rendue(s) au ménage.")
+
     try:
         bilan = await asyncio.to_thread(billets.relever, compte["id_utilisateur"])
     except BoiteIndisponible as erreur:

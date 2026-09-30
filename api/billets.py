@@ -409,6 +409,38 @@ def a_revoir(limite: int = 10) -> list[dict]:
     )
 
 
+def relire_les_billets(jours: int = 120) -> dict:
+    """Efface la mémoire des courriels récents pour que la relève les relise.
+
+    Corriger le lecteur ne sert à rien tant que les courriels sur lesquels il
+    s'est trompé restent marqués comme vus, et `oublier_les_rates` ne rouvre
+    que ceux qu'il avait su signaler. Un courriel mal lu mais classé « traité »,
+    lui, ne revient jamais : c'est exactement le retour dont l'absence n'avait
+    rien à fermer.
+
+    Les absences encore à venir nées d'un billet s'en vont avec leurs trains,
+    puisqu'elles vont être recréées. Le passé n'est pas touché : il a été vécu
+    tel quel, et un billet passé ne redéclare rien (BIL-17).
+    """
+    a_rendre = lister(
+        """
+        SELECT DISTINCT c.id_absence
+          FROM courriel c
+          JOIN absence a ON a.id_absence = c.id_absence
+         WHERE upper(a.periode) > now()
+        """)
+    for ligne in a_rendre:
+        executer("SELECT oublier_trajet(%(a)s) AS trains", {"a": ligne["id_absence"]})
+
+    oublies = lister(
+        "DELETE FROM courriel "
+        " WHERE recu_le IS NULL OR recu_le > now() - make_interval(days => %(j)s) "
+        "RETURNING id_courriel",
+        {"j": jours})
+
+    return {"absences_rendues": len(a_rendre), "courriels_oublies": len(oublies)}
+
+
 def oublier_les_rates() -> int:
     """Efface la trace des courriels non exploités, pour qu'ils soient relus.
 
@@ -449,10 +481,28 @@ def _jour_heure(instant) -> str:
     return f"{local:%d/%m à %Hh%M}"
 
 
+def _ce_qu_on_a_vu(bilan: dict) -> str:
+    """Ce que la relève a trouvé, même quand elle n'a rien à déclarer.
+
+    « Rien de neuf » tout court ne distingue pas une boîte vide d'une boîte
+    qu'on ne sait plus lire, ni de billets qu'on avait déjà. C'est ce silence
+    qui a laissé passer une lecture fausse pendant des mois.
+    """
+    comptes = [(bilan.get("deja_vus"), "déjà vu", "déjà vus"),
+               (bilan.get("passes"), "voyage passé", "voyages passés"),
+               (bilan.get("ignores"), "sans billet", "sans billet")]
+    morceaux = [f"{n} {seul if n == 1 else plusieurs}"
+                for n, seul, plusieurs in comptes if n]
+    if not bilan.get("lus") and not morceaux:
+        return ""
+    return (f" {bilan.get('lus', 0)} courriel(s) relevé(s)"
+            + (f" : {', '.join(morceaux)}" if morceaux else "") + ".")
+
+
 def resume(bilan: dict) -> str:
     """Le compte rendu tel que le bot l'annonce."""
     if not _a_dire(bilan):
-        return "Rien de neuf dans la boîte."
+        return f"Rien de neuf dans la boîte.{_ce_qu_on_a_vu(bilan)}"
 
     lignes = []
     # BIL-11 : chaque voyage est nommé, où qu'il aille. Un billet pour Paris
