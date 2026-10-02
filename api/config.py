@@ -80,12 +80,17 @@ class Configuration(BaseSettings):
     # descend à Saint-Dié.
     lieu_famille: str = "Lusse"
 
-    # Quinze jours avant : un billet coûte encore peu et l'on peut s'organiser.
+    # Quinze jours avant, le creux est repéré et s'inscrit au calendrier. Il ne
+    # dit rien : à quinze jours, la question ne se pose pas encore (WKD-7).
     proposition_delai_jours: int = 14
 
-    # Trois jours avant : la relance, parce qu'entre les deux on a oublié. Une
-    # seule, sans quoi le service devient du harcèlement et l'on coupe tout.
-    proposition_relance_jours: int = 3
+    # Une semaine avant, elle se pose. Le billet coûte encore peu, et l'on sait
+    # à peu près de quoi sera faite la semaine.
+    proposition_annonce_jours: int = 7
+
+    # La relance est coupée : une annonce suffit, et deux week-ends dans la
+    # fenêtre faisaient quatre messages. Remettre un nombre de jours la rallume.
+    proposition_relance_jours: int = 0
 
     # --- Boîte aux lettres --------------------------------------------------
     # Boîte où arrivent les confirmations SNCF. Sans configuration, la relève ne

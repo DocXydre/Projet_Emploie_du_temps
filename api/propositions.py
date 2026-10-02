@@ -1,10 +1,14 @@
 """Repère les week-ends libres et les propose sans qu'on les demande.
 
-Deux annonces : quinze jours avant, quand le billet est encore bon marché, et
-trois jours avant. Pas de troisième.
+Repérer et annoncer sont deux gestes distincts (WKD-7). Le creux est repéré
+quinze jours avant et s'inscrit au calendrier, en silence : à quinze jours la
+question ne se pose pas encore. La notification part une semaine avant, quand
+le billet se décide. La relance existe toujours mais est coupée par défaut :
+deux week-ends dans la fenêtre faisaient quatre messages pour une question.
 
 Une proposition ne bloque rien dans le planning. Elle s'affiche au calendrier
-et disparaît dès qu'on y répond : refus, billet acheté ou départ déclaré.
+et cesse de poser la question dès qu'on y répond : refus, billet acheté ou
+départ déclaré.
 """
 
 from __future__ import annotations
@@ -58,15 +62,33 @@ def reperer(id_utilisateur: int | None = None,
     )
 
 
+def a_annoncer(jours: int | None = None) -> list[dict]:
+    """Propositions déjà au calendrier dont il est temps de parler.   (WKD-7)"""
+    conf = configuration()
+    return lister(
+        """
+        SELECT id_proposition, id_utilisateur,
+               lower(periode) AS debut, upper(periode) AS fin, lieu
+          FROM propositions_a_annoncer(%(j)s)
+        """,
+        {"j": jours if jours is not None else conf.proposition_annonce_jours},
+    )
+
+
 def a_relancer(jours: int | None = None) -> list[dict]:
     conf = configuration()
+    jours = jours if jours is not None else conf.proposition_relance_jours
+    # Zéro jour : la relance est coupée. Mieux vaut un réglage lisible qu'une
+    # fonction supprimée qu'il faudrait réécrire pour la remettre.
+    if not jours:
+        return []
     return lister(
         """
         SELECT id_proposition, id_utilisateur,
                lower(periode) AS debut, upper(periode) AS fin, lieu
           FROM propositions_a_relancer(%(j)s)
         """,
-        {"j": jours or conf.proposition_relance_jours},
+        {"j": jours},
     )
 
 
@@ -145,16 +167,21 @@ def tour_de_ronde(id_utilisateur: int | None = None) -> dict:
     """
     executer("SELECT entretenir_propositions() AS touchees")
 
+    # WKD-7 : repérer n'est pas annoncer. Celles-ci s'inscrivent au calendrier
+    # sans un mot ; elles parleront quand le départ approchera.
     nouvelles = reperer(id_utilisateur)
-    for proposition in nouvelles:
+
+    annonces = a_annoncer()
+    for proposition in annonces:
         _annoncer(proposition, resumer(proposition), "annoncee_le")
 
     relances = a_relancer()
     for proposition in relances:
         _annoncer(proposition, resumer(proposition, relance=True), "relancee_le")
 
-    if nouvelles or relances:
-        LOG.info("Propositions : %s nouvelle(s), %s relance(s)",
-                 len(nouvelles), len(relances))
+    if nouvelles or annonces or relances:
+        LOG.info("Propositions : %s repérée(s), %s annoncée(s), %s relance(s)",
+                 len(nouvelles), len(annonces), len(relances))
 
-    return {"proposees": len(nouvelles), "relancees": len(relances)}
+    return {"proposees": len(nouvelles), "annoncees": len(annonces),
+            "relancees": len(relances)}
