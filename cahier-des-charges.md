@@ -181,6 +181,7 @@ l'utilisateur.
 | PLA-9 | T | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
 | PLA-12 | M | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
+| PLA-13 | M | Reprendre une tâche à quelqu'un rouvre la semaine à la répartition : ce qui n'a pas encore été annoncé repasse à placer et se redistribue avec les charges à jour. Sans cela, le gel de sept jours empêcherait la balance de tenir compte du coup de main. Ce qui est épinglé, annoncé ou nominatif ne bouge pas |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
 
 ### 3.5 Exécution et suivi — `EXE`
@@ -201,6 +202,7 @@ l'utilisateur.
 | EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
 | EXE-14 | M | N'importe lequel des deux coche n'importe quelle tâche : celui qui la valide est celui qui l'a faite, et elle lui est recréditée. Refuser la validation d'une tâche assignée à l'autre obligeait à laisser au planning une tâche déjà faite |
 | EXE-15 | M | Déclarer une tâche faite reprend l'occurrence ouverte la plus proche, quel que soit son assigné, et le planning se refait aussitôt : une tâche faite en avance décale la suite sans attendre le placement de la nuit |
+| EXE-16 | M | Faire une tâche prévue pour l'autre le lui dit : il reçoit un message nommant la tâche et celui qui l'a faite, et le rappel qui attendait encore dans la file part avec. Une tâche qui disparaît sans un mot laisse croire à un bug |
 | EXE-13 | D | Effacer une occurrence ne bute pas sur ce qui la référence : la notification déjà envoyée garde sa trace et perd seulement le lien. Une prévision effacée à la validation ne doit pas faire échouer cette validation |
 
 ### 3.6 Absences et présence — `ABS`
@@ -760,6 +762,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | PLA-12 | `dernier_a_faire()` rend la personne de la dernière occurrence de la tâche, faite ou prévue | Dynamique forte |
 | PLA-12 | `choisir_assigne()` rend l'autre que le dernier tant que l'écart de charge reste sous une heure | Dynamique forte |
 | PLA-12 | `charge_domestique()` ignore le sport et les tâches à deux | Dynamique forte |
+| EXE-16 | La notification part à l'ancien assigné, et seulement s'il existe et diffère de celui qui valide | Dynamique forte |
+| PLA-13 | `reequilibrer()` ne libère que des occurrences planifiées, non épinglées, sans assigné fixe, sans notification déjà créée, et à venir dans la semaine | Dynamique forte |
 | PLA-1 | La disponibilité se calcule sur la somme des calendriers d'une personne : deux calendriers personnels creusent deux trous | Dynamique forte |
 | SPT-30 | « À deux » se juge sur tous les calendriers de l'autre, cours comme gardes d'enfants | Dynamique forte |
 | ABS-1 | Deux absences d'une même personne ne se chevauchent pas : contrainte d'exclusion | Statique forte |

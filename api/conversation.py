@@ -213,6 +213,14 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
         raise ValueError(f"Action inconnue : {action}")
 
     if action == "valider":
+        # À qui elle était, avant d'être recréditée : c'est ce qui distingue
+        # « j'ai fait ma vaisselle » de « j'ai fait la sienne ».
+        avant = un_seul(
+            "SELECT o.id_utilisateur, u.nom FROM occurrence o "
+            "  LEFT JOIN utilisateur u USING (id_utilisateur) "
+            " WHERE o.id_occurrence = %(o)s",
+            {"o": id_occurrence},
+        )
         executer(
             "SELECT valider_occurrence(%(o)s, %(u)s, NULL)",
             {"o": id_occurrence, "u": id_utilisateur},
@@ -221,6 +229,12 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
         # avance avance tout le reste. Replacer tout de suite évite d'attendre
         # la nuit pour voir un planning juste.
         _replacer()
+
+        if avant and avant["id_utilisateur"] not in (None, id_utilisateur):
+            # EXE-16 : le dire à celui qui coche aussi, sinon il ne sait pas
+            # que son coup de main a eu un effet ailleurs.
+            return (f"C'est noté, merci. Je préviens {avant['nom']} "
+                    f"et je rééquilibre la suite.")
         return "C'est noté, merci."
 
     if action == "reporter":
@@ -542,6 +556,15 @@ def declarer_faite(id_utilisateur: int, code_tache: str) -> str:
     if resultat is None:
         return "Tâche inconnue."
 
+    # EXE-16 : la validation a prévenu l'autre si la tâche était la sienne. On
+    # lit l'avis qu'elle vient de déposer plutôt que de refaire le calcul.
+    reprise = un_seul(
+        "SELECT u.nom FROM notification n JOIN utilisateur u USING (id_utilisateur) "
+        " WHERE n.id_occurrence = %(o)s AND n.type = 'alerte' "
+        "   AND n.statut = 'a_envoyer' ORDER BY n.id_notification DESC LIMIT 1",
+        {"o": resultat["id_occurrence"]},
+    )
+
     _replacer()
 
     ligne = un_seul(
@@ -551,9 +574,11 @@ def declarer_faite(id_utilisateur: int, code_tache: str) -> str:
         " ORDER BY echeance_max LIMIT 1",
         {"c": code_tache.upper()},
     )
+
+    repris = f"\nC'était à {reprise['nom']} : je la préviens." if reprise else ""
     if ligne is None:
-        return "C'est noté."
-    return (f"{ligne['tache_libelle']} : c'est noté.\n"
+        return f"C'est noté.{repris}"
+    return (f"{ligne['tache_libelle']} : c'est noté.{repris}\n"
             f"Prochaine échéance le {_jour(ligne['echeance_max'])}.")
 
 
