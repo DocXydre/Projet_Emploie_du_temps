@@ -9,7 +9,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Configuration(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # env_ignore_empty : une variable présente mais vide dans le .env vaut
+    # « non renseignée », et le défaut ci-dessous s'applique. Sans cela, un
+    # `IMAP_PORT=` laissé vide ferait échouer le démarrage sur une conversion
+    # en entier, puisque tout le .env entre désormais dans le conteneur.
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore",
+                                      env_ignore_empty=True)
 
     postgres_db: str = "planif"
     postgres_user: str = "planif"

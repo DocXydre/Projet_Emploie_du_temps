@@ -287,7 +287,7 @@ def relever(id_utilisateur: int | None = None,
 
         if boites:
             messages = lecteur.relever_imap(connus=connus, boite_lue=boites[0])
-            id_utilisateur = id_utilisateur or _compte_du_pseudo(boites[0].get("pseudo"))
+            id_utilisateur = _titulaire(boites[0], id_utilisateur)
         else:
             messages = lecteur.relever_imap(connus=connus)
 
@@ -381,13 +381,27 @@ def _compte_du_pseudo(pseudo: str | None) -> int:
     return _proprietaire()
 
 
+def _titulaire(reglage: dict, appelant: int | None) -> int:
+    """À qui reviennent les billets d'une boîte.                      (BIL-10)
+
+    La boîte décide, pas celui qui lance la relève. L'inverse rattachait les
+    billets de Lorette à Thomas chaque fois que c'était lui qui tapait
+    « /billets » : son planning se gelait pour un voyage qu'il ne faisait pas.
+    Celui qui appelle ne sert que de repli, pour une boîte sans propriétaire
+    déclaré.
+    """
+    if reglage.get("pseudo"):
+        return _compte_du_pseudo(reglage["pseudo"])
+    return appelant or _proprietaire()
+
+
 def _relever_une_boite(reglage: dict, id_utilisateur: int | None) -> dict:
     """Relève une boîte, pour la personne à qui elle appartient (BIL-10)."""
     connus = {ligne["identifiant"] for ligne in lister(
         "SELECT identifiant FROM courriel")}
     messages = lecteur.relever_imap(connus=connus, boite_lue=reglage)
-    qui = id_utilisateur or _compte_du_pseudo(reglage.get("pseudo"))
-    return relever(id_utilisateur=qui, messages=messages)
+    return relever(id_utilisateur=_titulaire(reglage, id_utilisateur),
+                   messages=messages)
 
 
 def _additionner(bilans: list[dict]) -> dict:

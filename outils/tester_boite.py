@@ -3,6 +3,7 @@
 
     python3 outils/tester_boite.py            vérifie l'accès et le libellé
     python3 outils/tester_boite.py --corps 2  montre le texte des N derniers
+    python3 outils/tester_boite.py --boite 2  teste la deuxième boîte (IMAP2_*)
 
 Quand la relève échoue, trois causes se ressemblent : des identifiants
 refusés par le serveur, un conteneur qui tourne encore avec l'ancien `.env`, ou
@@ -48,24 +49,38 @@ def reglages() -> dict[str, str]:
     return {c: v.strip().strip("\"'") for c, v in valeurs.items()}
 
 
+def prefixe() -> str:
+    """« IMAP » pour la première boîte, « IMAP2 » pour la seconde."""
+    if "--boite" not in sys.argv:
+        return "IMAP"
+    rang = sys.argv.index("--boite")
+    numero = sys.argv[rang + 1] if len(sys.argv) > rang + 1 else "1"
+    if numero not in ("1", "2"):
+        sys.exit("--boite attend 1 ou 2.")
+    return "IMAP" if numero == "1" else "IMAP2"
+
+
 def main() -> int:
     conf = reglages()
-    hote = conf.get("IMAP_HOTE", "")
-    utilisateur = conf.get("IMAP_UTILISATEUR", "")
-    secret = conf.get("IMAP_MOT_DE_PASSE", "")
-    dossier = conf.get("IMAP_DOSSIER", "INBOX")
+    p = prefixe()
+    hote = conf.get(f"{p}_HOTE", "")
+    utilisateur = conf.get(f"{p}_UTILISATEUR", "")
+    secret = conf.get(f"{p}_MOT_DE_PASSE", "")
+    dossier = conf.get(f"{p}_DOSSIER", "") or "INBOX"
 
     if not (hote and utilisateur and secret):
-        return sortir("IMAP_HOTE, IMAP_UTILISATEUR ou IMAP_MOT_DE_PASSE manque dans .env.")
+        return sortir(f"{p}_HOTE, {p}_UTILISATEUR ou {p}_MOT_DE_PASSE manque dans .env.")
 
-    print(f"Serveur      : {hote}:{conf.get('IMAP_PORT', '993')}")
+    titulaire = conf.get(f"{p}_PSEUDO", "") or "l'administrateur"
+    print(f"Boîte        : {p}, billets rattachés à {titulaire}")
+    print(f"Serveur      : {hote}:{conf.get(f'{p}_PORT', '') or '993'}")
     print(f"Utilisateur  : {utilisateur}")
     print(f"Mot de passe : {len(secret)} caractères, "
           f"{'que des lettres minuscules' if re.fullmatch(r'[a-z]+', secret) else 'mélangé'}")
     print(f"Dossier visé : {dossier}\n")
 
     try:
-        boite = imaplib.IMAP4_SSL(hote, int(conf.get("IMAP_PORT", 993)))
+        boite = imaplib.IMAP4_SSL(hote, int(conf.get(f"{p}_PORT", "") or 993))
     except OSError as erreur:
         return sortir(f"Serveur injoignable : {erreur}")
 
