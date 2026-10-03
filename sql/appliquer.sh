@@ -8,6 +8,19 @@
 # Chaque fichier appliqué est enregistré dans `schema_migration`. Relancer le
 # script est donc sans effet tant qu'aucun fichier n'a été ajouté — ce qui
 # compte dès qu'il y a en base des données qu'on ne veut pas perdre.
+#
+# Trois temps, toujours dans cet ordre :
+#
+#   1. sql/NNN_*.sql         les migrations : tables, colonnes, données. Une fois.
+#   2. sql/definitions/      les fonctions, les vues, les déclencheurs. À chaque
+#                            passage : la base reçoit ce que dit le dépôt.
+#   3. sql/apres/NNN_*.sql   les rattrapages qui appellent une fonction à jour.
+#                            Une fois.
+#
+# Jusqu'à la migration 047, les fonctions étaient réécrites de migration en
+# migration, et la version en vigueur était celle du dernier fichier à en
+# parler. Elles ont maintenant un fichier chacune, dans sql/definitions/, et les
+# migrations suivantes n'ont plus le droit d'en définir.
 
 set -euo pipefail
 
@@ -39,6 +52,61 @@ jouer() {
     docker exec -i "$CONTENEUR" psql --username="$UTILISATEUR" --dbname="$BASE" \
         --set ON_ERROR_STOP=1 --quiet --single-transaction --file=- < "$1"
 }
+
+# La dernière migration écrite à l'ancienne manière, fonctions comprises.
+DERNIERE_ANCIENNE=47
+
+# Le flux SQL des définitions, dans l'ordre où il se charge.
+#
+# Les fonctions d'abord, sans vérifier leur corps : elles se citent entre elles
+# et citent les vues, et l'ordre alphabétique ne sait rien de ces dépendances.
+# Les vues ensuite, retirées puis recréées : CREATE OR REPLACE VIEW refuse de
+# changer une colonne, alors qu'ici le fichier doit toujours avoir raison. Leur
+# numéro donne l'ordre de création, et l'ordre inverse celui du retrait.
+flux_definitions() {
+    local d="$RACINE/sql/definitions" f vues i nom
+    echo "SET LOCAL check_function_bodies = off;"
+    for f in "$d"/fonctions/*.sql; do cat "$f"; echo; done
+    vues=("$d"/vues/[0-9][0-9]_*.sql)
+    for ((i = ${#vues[@]} - 1; i >= 0; i--)); do
+        nom="$(basename "${vues[i]}" .sql)"
+        echo "DROP VIEW IF EXISTS ${nom#*_};"
+    done
+    for f in "${vues[@]}"; do cat "$f"; echo; done
+    cat "$d/declencheurs.sql"
+}
+
+# Tout dans une transaction : si une seule définition est fausse, la base garde
+# les précédentes en entier, vues comprises.
+charger_definitions() {
+    flux_definitions | docker exec -i "$CONTENEUR" psql --username="$UTILISATEUR" \
+        --dbname="$BASE" --set ON_ERROR_STOP=1 --quiet --single-transaction --file=-
+}
+
+# Une migration récente qui définit une fonction, une vue ou un déclencheur :
+# on s'arrête avant d'avoir rien appliqué. Sans ce refus, la définition du
+# dossier l'écraserait dans la minute, et la migration mentirait sur ce qu'elle
+# fait. Retirer (DROP) reste permis : c'est même le seul moyen de changer une
+# signature.
+refuser_les_definitions_en_migration() {
+    local fichier nom fautes="" trouve
+    for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
+        nom="$(basename "$fichier")"
+        [ "$((10#${nom:0:3}))" -gt "$DERNIERE_ANCIENNE" ] || continue
+        trouve="$(grep -v '^[[:space:]]*--' "$fichier" \
+            | grep -oiE "CREATE([[:space:]]+OR[[:space:]]+REPLACE)?[[:space:]]+(CONSTRAINT[[:space:]]+)?(FUNCTION|PROCEDURE|VIEW|TRIGGER)[[:space:]]+[a-z_0-9.]+" \
+            | awk '{ print tolower($NF) }' | sort -u | tr '\n' ' ' || true)"
+        [ -n "$trouve" ] && fautes="$fautes
+  $nom : $trouve"
+    done
+    [ -z "$fautes" ] && return 0
+    echo "Ces migrations définissent des fonctions, des vues ou des déclencheurs :$fautes"
+    echo "Depuis la migration 0$DERNIERE_ANCIENNE, leur place est dans sql/definitions/,"
+    echo "un fichier par fonction. Rien n'a été appliqué."
+    return 1
+}
+
+refuser_les_definitions_en_migration
 
 if [ "${1:-}" = "--recreer" ]; then
     echo "Suppression des schémas public et archive"
@@ -113,12 +181,17 @@ if [ "${1:-}" = "--adopter" ]; then
     # Pour la virgule corrigée dans un commentaire : on prend acte du nouveau
     # contenu sans rien exécuter. À n'utiliser que si le changement ne touche
     # pas au SQL, puisque rien n'en arrivera en base.
-    cible="$RACINE/sql/$(basename "${2:?nom du fichier attendu}")"
+    demande="${2:?nom du fichier attendu}"
+    case "$demande" in
+        */apres/*|apres/*) connu="apres/$(basename "$demande")" ;;
+        *)                 connu="$(basename "$demande")" ;;
+    esac
+    cible="$RACINE/sql/$connu"
     [ -f "$cible" ] || { echo "Fichier inconnu : $cible" >&2; exit 1; }
     psql_exec -c "UPDATE schema_migration
                      SET empreinte = '$(empreinte_de "$cible")'
-                   WHERE fichier = '$(basename "$cible")';"
-    echo "· $(basename "$cible") : contenu actuel adopté, rien n'a été rejoué."
+                   WHERE fichier = '$connu';"
+    echo "· $connu : contenu actuel adopté, rien n'a été rejoué."
     exit 0
 fi
 
@@ -203,6 +276,39 @@ for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
                   VALUES ('$nom', '$empreinte')
                   ON CONFLICT (fichier)
                   DO UPDATE SET empreinte = EXCLUDED.empreinte, applique_le = now();"
+done
+
+# Les définitions, à chaque passage. C'est ce qui rend une vieille migration
+# inoffensive : quoi qu'elle ait réinstallé, le dossier a le dernier mot.
+charger_definitions
+echo "✓ définitions ($(find "$RACINE/sql/definitions/fonctions" -name '*.sql' | wc -l | tr -d ' ') fonctions," \
+     "$(find "$RACINE/sql/definitions/vues" -name '*.sql' | wc -l | tr -d ' ') vues, déclencheurs)"
+
+# Les rattrapages : des étapes à ne jouer qu'une fois, mais qui ont besoin des
+# fonctions à jour. Recalculer des propositions après en avoir changé la règle,
+# par exemple. Ils passent après toutes les migrations : aucune migration ne
+# doit donc compter sur eux.
+for fichier in "$RACINE"/sql/apres/[0-9][0-9][0-9]_*.sql; do
+    [ -f "$fichier" ] || continue
+    nom="apres/$(basename "$fichier")"
+    empreinte="$(empreinte_de "$fichier")"
+    connue="$(psql_exec --tuples-only --no-align \
+              --command "SELECT COALESCE(empreinte, '-') FROM schema_migration
+                          WHERE fichier = '$nom'")"
+    if [ "$connue" = "$empreinte" ]; then
+        echo "· $nom (déjà appliqué)"
+        continue
+    fi
+    if [ -n "$connue" ]; then
+        divergents="$divergents $nom"
+        echo "! $nom a changé mais ne se rejoue pas : écris un nouveau rattrapage"
+        continue
+    fi
+    echo "→ $nom"
+    jouer "$fichier"
+    psql_exec -c "INSERT INTO schema_migration (fichier, empreinte)
+                  VALUES ('$nom', '$empreinte');"
+    applique=$((applique + 1))
 done
 
 echo

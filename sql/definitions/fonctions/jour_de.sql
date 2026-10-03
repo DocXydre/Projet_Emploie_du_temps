@@ -1,0 +1,4 @@
+CREATE OR REPLACE FUNCTION jour_de(p_instant TIMESTAMPTZ)
+RETURNS DATE LANGUAGE sql STABLE AS $$
+    SELECT (p_instant AT TIME ZONE 'Europe/Paris')::DATE;
+$$;

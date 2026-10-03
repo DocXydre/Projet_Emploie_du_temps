@@ -99,6 +99,10 @@ Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
 
 **Rejouer une vieille migration cassait le placement.** Le remède précédent avait son revers. Quinze fonctions sont réécrites d'une migration à l'autre, et le script rejouait un fichier modifié sans rejouer ceux qui l'avaient repris depuis : corriger un commentaire dans `003` réinstallait un `placer_taches` vieux de quarante migrations, qui appelle une fonction supprimée. Un fichier dont une migration plus récente a repris une fonction, une vue ou une contrainte n'est plus rejoué : le script le dit, nomme ce qui a été repris, et ne touche à rien. Chaque migration passe aussi dans une seule transaction, pour qu'un échec au milieu ne laisse pas la base entre deux versions.
 
+**Une fonction existait en trois versions.** C'est la cause du défaut précédent, et le garde-fou ne la supprimait pas. Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, la version en vigueur était celle du dernier, et un `git diff` montrait deux cents lignes recopiées pour trois lignes changées. Les 90 fonctions, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant de basculer, j'ai vérifié que charger ce dossier sur une base construite par les 47 migrations la laisse identique, objet par objet. Une migration récente qui définit encore une fonction est refusée.
+
+**Un déploiement raté ne se voyait pas.** Le script comparait `HEAD` à `origin/main`, et fusionnait avant d'appliquer les migrations. Si l'une d'elles échouait, la fusion était déjà faite : le passage suivant concluait qu'il n'y avait plus rien à faire, et le serveur restait sur l'ancienne API avec une base à moitié migrée. Le script retient maintenant le dernier commit déployé avec succès, réessaie tout seul, et prévient une fois sur Telegram. Un déploiement ne compte que si l'API répond sur `/sante` après le redémarrage.
+
 **Une collecte muette effaçait deux semaines de planning.** La réconciliation supprime les occupations à venir qui ne sont plus dans le flux — c'est ce qu'il faut faire quand un shift est annulé. Mais un flux qui ne répond plus, ou qui renvoie une page de connexion, produit exactement le même signal : zéro événement. Le relevé des horaires de sport refuse désormais un résultat vide et conserve ce qu'il avait, plutôt que de vider le planning en silence.
 
 **Le bot restait muet après un redémarrage du serveur.** Docker relance les conteneurs au démarrage, mais avant que le DNS soit prêt : la connexion à Telegram échouait sur une erreur de résolution de nom, et le code abandonnait définitivement. L'API répondait normalement, la sonde de santé était au vert, et rien n'arrivait sur le téléphone — le pire genre de panne. La connexion se retente maintenant en tâche de fond, avec un délai qui double jusqu'à cinq minutes.
@@ -156,12 +160,12 @@ Le système tourne sur un petit serveur dédié — un portable de récupératio
 
 L'accès distant passe par **Tailscale** : aucun port n'est ouvert sur Internet, et `tailscale serve` fournit le HTTPS et son certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre — contrairement à une adresse IP locale.
 
-**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `HEAD` à `origin/main`, et s'il y a du nouveau, applique les migrations puis relance `docker compose up -d --build`.
+**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
 
 ```
 git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
                                                   │
-                                    migrations ───┴─── compose up --build
+                      migrations ─── définitions ─┴─ compose up --build ─── /sante
 ```
 
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
@@ -171,12 +175,15 @@ Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à
 ## Structure
 
 ```
-sql/          14 migrations : schéma, vues, fonctions, triggers, données
+sql/          migrations numérotées : tables, contraintes, données
+sql/definitions/   fonctions, vues et déclencheurs, un fichier par fonction
 api/          FastAPI — routeurs, collecteurs, bot, ordonnanceur
 outils/       script de déploiement, diagnostic IMAP hors Docker
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent et si aucune migration plus récente n'a repris ce qu'il définit ; sinon le script le signale et demande une migration nouvelle. `./sql/appliquer.sh --adopter FICHIER` prend acte d'une retouche sans SQL, un commentaire corrigé par exemple, sans rien rejouer.
+
+Les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations mais dans `sql/definitions/`, que le script recharge à chaque passage : pour changer une fonction, on modifie son fichier. Les règles tiennent en une page, dans `sql/definitions/LISEZMOI.md`.
 
 ---
 

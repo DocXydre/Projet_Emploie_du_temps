@@ -98,7 +98,7 @@ Deux conteneurs Docker, `planif-db` et `planif-api`, avec `restart: unless-stopp
 
 **Fuseau horaire.** Les conteneurs vivent en UTC et tous les horodatages sont stockés en UTC. La conversion vers `Europe/Paris` se fait à l'affichage et au déclenchement des tâches planifiées, ce qui évite d'avoir à traiter le changement d'heure dans les comparaisons de dates.
 
-**Déploiement.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `HEAD` à `origin/main`, et s'il y a du nouveau, applique les migrations puis reconstruit l'API. Un `git push` suffit donc à mettre le serveur à jour. Le serveur interroge GitHub au lieu de recevoir un webhook, ce qui évite d'ouvrir un port et rattrape les push faits pendant qu'il était éteint.
+**Déploiement.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, applique les migrations, recharge `sql/definitions/` (fonctions, vues, déclencheurs), reconstruit l'API, puis vérifie qu'elle répond sur `/sante`. Un `git push` suffit donc à mettre le serveur à jour. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure. Le serveur interroge GitHub au lieu de recevoir un webhook, ce qui évite d'ouvrir un port et rattrape les push faits pendant qu'il était éteint.
 
 ---
 
