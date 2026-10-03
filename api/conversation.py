@@ -310,7 +310,7 @@ def planning_du_jour(id_utilisateur: int, dans_jours: int = 0) -> str:
          WHERE id_utilisateur = %(u)s
            AND debut < debut_jour(jour_de(now()) + %(j)s + 1)
            AND fin   > debut_jour(jour_de(now()) + %(j)s)
-         ORDER BY journee_entiere, debut
+         ORDER BY journee_entiere, debut, libelle
         """,
         {"u": id_utilisateur, "j": dans_jours},
     )

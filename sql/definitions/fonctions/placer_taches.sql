@@ -1,9 +1,9 @@
 -- -----------------------------------------------------------------------------
 -- Le placement enchaîne les trois                               (TAC-12, WKD-3)
 --
--- Corps repris tel quel de la migration 033, avec deux appels en tête. Le
--- reste est inchangé : la fonction est longue, mais la recopier entière évite
--- de deviner ce qu'une réécriture partielle aurait emporté.
+-- Le placement prépare, pose, puis rapproche. Avant la boucle : ce qu'on fait
+-- en rentrant, les occurrences manquantes, les propositions, ce qu'on fait en
+-- partant. Après elle : ce qu'une autre tâche couvre, et ce qui va ensemble.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION placer_taches(p_horizon_jours integer DEFAULT 35, p_stabilite_jours integer DEFAULT 7)
  RETURNS integer
@@ -18,6 +18,11 @@ DECLARE
     v_assigne INTEGER;
     v_lieu    INTEGER;
 BEGIN
+    -- ABS-8 : ce qu'on refait en rentrant. Avant la génération, pour que la
+    -- chaîne de la tâche reparte du retour et non d'une prévision tombée
+    -- pendant l'absence.
+    PERFORM taches_au_retour(p_horizon_jours);
+
     PERFORM generer_occurrences(p_horizon_jours);
 
     -- WKD-3 : une absence vaut réponse à une proposition de week-end. Sans cet
@@ -49,6 +54,10 @@ BEGIN
             OR lower(creneau) > v_gele
             OR (id_utilisateur IS NOT NULL
                 AND est_absent(id_utilisateur, jour_de(lower(creneau)))));
+
+    -- TAC-19 : une première fois avant d'attribuer quoi que ce soit, pour que
+    -- le ramassage retiré ne compte pas dans le tour de celui qui l'aurait eu.
+    PERFORM absorber_les_couvertes();
 
     -- SPT-23 : les réservations de sport d'abord, le ménage se range autour.
     PERFORM organiser_sport();
@@ -149,6 +158,14 @@ BEGIN
             v_places := v_places + 1;
         END IF;
     END LOOP;
+
+    -- TAC-19 : le vidage vaut ramassage. Une occurrence que couvre une autre
+    -- tâche prévue le même jour n'a rien à faire au planning.
+    PERFORM absorber_les_couvertes();
+
+    -- TAC-15 à TAC-17 : ce qui va ensemble se fait le même jour. Après le
+    -- placement, puisqu'il faut savoir où tombe la tâche qui mène.
+    PERFORM poser_les_accompagnements();
 
     RETURN v_places;
 END $$;

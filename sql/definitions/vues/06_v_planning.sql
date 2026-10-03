@@ -22,8 +22,9 @@ SELECT
     o.id_occurrence::BIGINT            AS id,
     o.id_utilisateur,
     t.categorie,
+    -- TAC-16 : le titre de l'occurrence quand elle en accompagne une autre.
     CASE WHEN o.origine = 'quota' THEN t.libelle || ' à déterminer'
-         ELSE t.libelle END            AS libelle,
+         ELSE COALESCE(o.titre, t.libelle) END AS libelle,
     o.creneau                          AS periode,
     lower(o.creneau)                   AS debut,
     upper(o.creneau)                   AS fin,

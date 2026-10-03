@@ -165,6 +165,12 @@ l'utilisateur.
 | TAC-11 | M | Les poubelles sortent tous les quatre jours au plus tard, sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
 | TAC-12 | M | Une tâche peut être marquée « avant le départ » : quand l'appartement se vide, elle est posée avant que la dernière personne parte, en plus de sa récurrence. Les poubelles et la litière ne peuvent pas attendre le retour, et il n'y a plus personne pour s'en occuper |
 | TAC-13 | M | Les poubelles se sortent à partir de 17h et pas avant : le ramassage passe à l'aube, un sac sorti le matin attend dehors toute la journée. Un départ avant 17h fait donc tomber la corvée la veille au soir |
+| TAC-14 | T | Le lave-vaisselle lancé le soir se vide dans la journée qui suit. La tâche n'a pas de récurrence propre : elle naît de la validation du lancement, et revient à qui le roulement désigne, quel que soit celui qui a lancé |
+| TAC-15 | T | Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée |
+| TAC-16 | T | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) », « Nettoyage 2/3 : Passer l'aspirateur ». Les titres se refont à chaque placement |
+| TAC-17 | M | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
+| TAC-18 | M | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse de Sassy changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
+| TAC-19 | T | Ce qu'une tâche couvre disparaît du planning sans attendre qu'on la coche : pas de ramassage le jour d'un vidage, et un ramassage oublié s'efface quand le vidage est dû. Un ramassage en retard reste tant que le vidage est à venir. Même règle pour l'eau et la fontaine |
 
 ### 3.4 Placement — `PLA`
 
@@ -182,6 +188,8 @@ l'utilisateur.
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
 | PLA-12 | M | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
 | PLA-13 | M | Reprendre une tâche à quelqu'un rouvre la semaine à la répartition : ce qui n'a pas encore été annoncé repasse à placer et se redistribue avec les charges à jour. Sans cela, le gel de sept jours empêcherait la balance de tenir compte du coup de main. Ce qui est épinglé, annoncé ou nominatif ne bouge pas |
+| PLA-14 | M | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage |
+| PLA-15 | M | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour, pas plus que les tâches de départ et de retour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
 
 ### 3.5 Exécution et suivi — `EXE`
@@ -216,6 +224,7 @@ l'utilisateur.
 | ABS-5 | T | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan tenable, pas un plan devenu impossible |
 | ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu |
 | ABS-7 | M | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue |
+| ABS-8 | T | Quand l'appartement est resté vide plus de deux jours, l'eau de Sassy se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
 
 ### 3.7 Trajets en train — `TRJ`
 
@@ -529,6 +538,8 @@ L'URL n'est jamais écrite dans le code ni dans le dépôt : celle du planning d
 | reportable | BOOLEAN | non | | | TRUE | | |
 | id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
 | active | BOOLEAN | non | | | TRUE | | |
+| avant_depart | BOOLEAN | non | | | FALSE | | |
+| au_retour_apres_jours | SMALLINT | oui | > 0 | | | | |
 
 La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière et l'eau du chat.
 
@@ -553,6 +564,20 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 
 « Faire ceci vaut avoir fait cela ». La relation n'est pas symétrique : vider la litière dispense du ramassage, laver la fontaine dispense de changer l'eau, l'inverse est faux.
 
+### Table : Accompagnement
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_accompagnement | SERIAL | non | | oui | | oui | |
+| id_tache | INTEGER | non | | oui avec id_tache_jointe | | | Tache |
+| id_tache_jointe | INTEGER | non | ≠ id_tache | | | | Tache |
+| place | VARCHAR(5) | non | 'avant', 'apres' | | | | |
+| mention | VARCHAR(60) | oui | | | | | |
+| journee_libre | BOOLEAN | non | | | FALSE | | |
+| bloc | VARCHAR(40) | oui | renseigné si et seulement si journee_libre | | | | |
+
+« Quand ceci est prévu, cela vient le même jour ». `id_tache` mène et décide du jour, `id_tache_jointe` la rejoint. La `mention` est ce qu'on lit à côté de la tâche jointe : « avant de récurer ». Avec `journee_libre`, la règle ne joue que les jours sans cours ni travail, et les tâches réunies portent le nom du `bloc`.
+
 ### Table : Occurrence
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -563,7 +588,7 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | fenetre | TSTZRANGE | non | non vide, bornée | | | | |
 | creneau | TSTZRANGE | oui | inclus dans fenetre | | | | |
 | statut | VARCHAR(20) | non | 'a_placer', 'planifiee', 'notifiee', 'faite', 'reportee', 'abandonnee' | | 'a_placer' | | |
-| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'quota', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
+| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'quota', 'depart', 'retour', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
 | epinglee | BOOLEAN | non | | | FALSE | | |
 | rappel_journee | BOOLEAN | non | recopié de la tâche | | TRUE | | |
 | utilise_machine | BOOLEAN | non | recopié de la tâche | | FALSE | | |
@@ -574,6 +599,7 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
 | id_lieu | INTEGER | oui | | | | | LieuSport |
 | debut_seance | TIMESTAMPTZ | oui | sport : début de la séance, sans trajet ni marges | | | | |
+| titre | TEXT | oui | ce qu'on affiche quand l'occurrence en accompagne une autre | | | | |
 
 Le champ `motif` conserve la raison du placement ou de l'échec : « placée à 18h, dernier créneau de 40 min avant l'échéance » ou « aucun créneau libre avant le 12 ». C'est ce qui rend le système compréhensible plutôt qu'arbitraire.
 
@@ -793,7 +819,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | COL-19, COL-20 | Un conflit caduc porte son motif et sa date, jamais un choix : contrainte `conflit_resolution_coherente` | Statique forte |
 | COL-5 | `configuration` est un JSONB, validé à l'usage par le collecteur | Statique faible |
 | TAC-10 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
-| TAC-10 | Valider une tâche solde les occurrences ouvertes des tâches qu'elle couvre : trigger | Dynamique forte |
+| TAC-10 | Valider une tâche solde, des tâches qu'elle couvre, ce qui était dû ce jour-là ou déjà annoncé. Les prévisions à venir ne sont pas marquées faites : la chaîne repart de la date réelle | Dynamique forte |
 | COL-8 | Le total des compteurs de collecte égale le nombre de séances lues | Dynamique faible |
 | PLA-6 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
 | TAC-8 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
@@ -856,6 +882,15 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | TAC-12 | Les fenêtres où l'appartement se vide sont l'intersection des absences de tous les comptes actifs : une seule personne présente suffit à l'annuler | Dynamique forte |
 | TAC-12 | Une occurrence « depart » est unique par tâche et par départ, et disparaît si le départ disparaît | Dynamique forte |
 | TAC-13 | Une tâche à heure imposée déclare ses deux bornes et une périodicité ouverte : bornes égales, la fenêtre serait vide | Statique forte |
+| TAC-15 | Un accompagnement n'est pas réflexif, et le couple (tâche, tâche jointe) est unique | Statique forte |
+| TAC-15 | `poser_les_accompagnements()` ne déplace ni une occurrence annoncée ni une occurrence épinglée, et seulement des rappels de journée | Dynamique forte |
+| TAC-17 | Une règle de journée libre nomme son bloc, et inversement : contrainte `accompagnement_bloc_nomme` | Statique forte |
+| TAC-17 | `journee_libre()` : aucune occupation de type cours ou travail ce jour-là | Dynamique forte |
+| TAC-18 | Une occurrence « depart » va à celui dont l'absence commence à l'instant où l'appartement se vide, s'il est seul dans ce cas | Dynamique forte |
+| TAC-19 | `absorber_les_couvertes()` efface une occurrence jamais annoncée, et clôt une occurrence annoncée avec le motif « Couverte par » | Dynamique forte |
+| PLA-15 | `seul_ce_jour()` : tous les autres comptes actifs sont absents la journée entière | Dynamique forte |
+| ABS-8 | `au_retour_apres_jours` est nul ou strictement positif | Statique forte |
+| ABS-8 | Une occurrence « retour » est unique par tâche et par retour, et disparaît si le retour disparaît | Dynamique forte |
 | BIL-21 | Seul un train partant à moins de deux minutes de l'heure du billet est retenu comme étant le bon | Dynamique forte |
 | SPT-1 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
 | SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |

@@ -34,7 +34,9 @@ BEGIN
              WHERE p.id_utilisateur = u.id_utilisateur
                AND p.debut < debut_jour(v_jour + 1)
                AND p.fin   > debut_jour(v_jour)
-             ORDER BY p.journee_entiere, p.debut
+             -- Le libellé départage les rappels du même jour : c'est lui qui
+             -- range « Nettoyage 1/3 », « 2/3 », « 3/3 » dans l'ordre.
+             ORDER BY p.journee_entiere, p.debut, p.libelle
         LOOP
             v_lignes := v_lignes || (
                 CASE WHEN o.journee_entiere

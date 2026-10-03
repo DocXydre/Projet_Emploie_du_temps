@@ -10,6 +10,7 @@ DECLARE
     v_depart   TIMESTAMPTZ;
     v_limite   TIMESTAMPTZ;
     v_existante INTEGER;
+    v_couvertes INTEGER;
 BEGIN
     SELECT * INTO t FROM tache WHERE id_tache = NEW.id_tache;
 
@@ -81,16 +82,50 @@ BEGIN
 
     -- ---- TAC-10 : faire ceci vaut avoir fait cela ------------------------------
     --
-    -- L'occurrence couverte est marquée faite à la même date. Ce trigger se
-    -- redéclenche alors pour elle, ce qui recrée sa suivante au bon moment :
-    -- vider la litière un mardi repousse le prochain ramassage au jeudi.
-    FOR e IN SELECT id_tache_couverte FROM remplacement WHERE id_tache_faite = NEW.id_tache LOOP
+    -- Ce qui était dû ce jour-là est couvert, à la même date et au nom de celui
+    -- qui vient de faire le travail. Ce trigger se redéclenche alors pour
+    -- l'occurrence couverte, ce qui recrée sa suivante au bon moment : vider la
+    -- litière un mardi repousse le prochain ramassage au jeudi.
+    --
+    -- Seulement ce qui était dû. Marquer faites toutes les occurrences ouvertes
+    -- inscrivait d'un coup douze ramassages « faits » jusqu'au mois suivant :
+    -- des prévisions, que personne n'avait faites.
+    FOR e IN
+        SELECT c.* FROM remplacement r
+          JOIN tache c ON c.id_tache = r.id_tache_couverte
+         WHERE r.id_tache_faite = NEW.id_tache
+    LOOP
         UPDATE occurrence
-           SET statut     = 'faite',
-               date_faite = NEW.date_faite,
-               motif      = format('Couverte par %s', t.code)
-         WHERE id_tache = e.id_tache_couverte
-           AND statut IN ('a_placer', 'planifiee', 'notifiee');
+           SET statut         = 'faite',
+               date_faite     = NEW.date_faite,
+               id_utilisateur = COALESCE(NEW.id_utilisateur, id_utilisateur),
+               motif          = format('Couverte par %s', t.code)
+         WHERE id_tache = e.id_tache
+           AND statut IN ('a_placer', 'planifiee', 'notifiee')
+           AND (statut = 'notifiee'
+                OR lower(COALESCE(creneau, fenetre))
+                   < debut_jour(jour_de(NEW.date_faite) + 1));
+        GET DIAGNOSTICS v_couvertes = ROW_COUNT;
+
+        -- TAC-19 : le planning a déjà retiré le ramassage du jour, il n'y a
+        -- alors rien à couvrir. La chaîne repart quand même de la date réelle.
+        IF v_couvertes = 0 AND e.active AND e.recurrente THEN
+            DELETE FROM occurrence
+             WHERE id_tache = e.id_tache
+               AND origine = 'recurrence'
+               AND statut IN ('a_placer', 'planifiee')
+               AND NOT epinglee;
+
+            INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
+                                    id_occurrence_source)
+            VALUES (e.id_tache,
+                    e.id_utilisateur_defaut,
+                    fenetre_pour(e.rappel_journee,
+                                 NEW.date_faite + make_interval(days => e.periodicite_min_jours),
+                                 NEW.date_faite + make_interval(days => e.periodicite_max_jours)),
+                    'recurrence',
+                    NEW.id_occurrence);
+        END IF;
     END LOOP;
 
     RETURN NULL;

@@ -155,7 +155,9 @@ def _occurrence(e: dict, noms: dict[int, str]) -> str:
                          else f"faite par {qui}")
             return f"{tache} : {faits[0]}"
         if statut == "abandonnee":
-            return f"{tache} : abandonnée"
+            # « Couverte par « Litière : vidage complet » » : la raison compte.
+            raison = f" ({apres['motif'].lower()})" if apres.get("motif") else ""
+            return f"{tache} : abandonnée{raison}"
         if statut == "reportee":
             return f"{tache} : reportée"
         if statut == "notifiee":

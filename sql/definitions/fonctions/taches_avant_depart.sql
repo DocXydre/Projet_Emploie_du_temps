@@ -5,6 +5,10 @@
 -- du train. Le placement ordinaire la case ensuite, en respectant les heures de
 -- la tâche : le dernier soir possible pour les poubelles, la journée du départ
 -- pour la litière.
+--
+-- TAC-18 : ces occurrences viennent en plus du roulement, même si la tâche a
+-- été faite deux jours plus tôt. Elles reviennent au dernier à partir, celui
+-- qui ferme l'appartement. Partis ensemble, le placement les répartit.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION taches_avant_depart(p_horizon_jours INTEGER DEFAULT 35)
 RETURNS INTEGER LANGUAGE plpgsql AS $$
@@ -15,6 +19,7 @@ DECLARE
     v_heure  TIME;
     v_jour   DATE;
     v_debut  TIMESTAMPTZ;
+    v_dernier INTEGER;
     v_creees INTEGER := 0;
 BEGIN
     -- Un départ qui a bougé laisse une occurrence qui ne veut plus rien dire.
@@ -29,6 +34,12 @@ BEGIN
     FOR f IN SELECT * FROM fenetres_appartement_vide(p_horizon_jours) LOOP
         v_depart := lower(f);
         CONTINUE WHEN v_depart <= now();
+
+        -- Celui dont l'absence commence à l'instant où l'appartement se vide.
+        SELECT CASE WHEN count(*) = 1 THEN min(a.id_utilisateur) END INTO v_dernier
+          FROM absence a
+          JOIN utilisateur u ON u.id_utilisateur = a.id_utilisateur AND u.actif
+         WHERE lower(a.periode) = v_depart;
 
         FOR t IN SELECT * FROM tache WHERE active AND avant_depart ORDER BY priorite LOOP
 
@@ -69,8 +80,10 @@ BEGIN
             -- TAC-5 : un rappel de journée se pose sur la journée entière, et
             -- sa fenêtre doit pouvoir la contenir. Elle déborde donc l'heure du
             -- train, mais le motif, lui, dit bien avant quoi.
-            INSERT INTO occurrence (id_tache, fenetre, origine, motif)
+            INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine, motif)
             VALUES (t.id_tache,
+                    -- Une tâche réservée à quelqu'un le reste.
+                    COALESCE(t.id_utilisateur_defaut, v_dernier),
                     fenetre_pour(t.rappel_journee, v_debut,
                                  v_depart - INTERVAL '1 second'),
                     'depart',
@@ -87,4 +100,5 @@ END $$;
 
 COMMENT ON FUNCTION taches_avant_depart IS
     'Crée, avant chaque départ qui vide l''appartement, une occurrence des
-     tâches qui ne peuvent pas attendre le retour (TAC-12).';
+     tâches qui ne peuvent pas attendre le retour, pour le dernier à partir
+     (TAC-12, TAC-18).';
