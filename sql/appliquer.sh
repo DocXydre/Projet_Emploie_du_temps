@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Applique les migrations qui ne l'ont pas encore été.
 #
-#   ./sql/appliquer.sh            applique ce qui manque
-#   ./sql/appliquer.sh --recreer  repart de zéro, en effaçant tout
+#   ./sql/appliquer.sh                      applique ce qui manque
+#   ./sql/appliquer.sh --recreer            repart de zéro, en effaçant tout
+#   ./sql/appliquer.sh --adopter FICHIER    accepte un fichier modifié sans le rejouer
 #
 # Chaque fichier appliqué est enregistré dans `schema_migration`. Relancer le
 # script est donc sans effet tant qu'aucun fichier n'a été ajouté — ce qui
@@ -31,6 +32,14 @@ psql_exec() {
         --set ON_ERROR_STOP=1 --quiet "$@"
 }
 
+# Un fichier entier dans une seule transaction. PostgreSQL sait annuler du DDL :
+# une migration qui casse à la ligne 200 n'en laisse donc rien, au lieu de
+# laisser les 199 premières appliquées et la base entre deux versions.
+jouer() {
+    docker exec -i "$CONTENEUR" psql --username="$UTILISATEUR" --dbname="$BASE" \
+        --set ON_ERROR_STOP=1 --quiet --single-transaction --file=- < "$1"
+}
+
 if [ "${1:-}" = "--recreer" ]; then
     echo "Suppression des schémas public et archive"
     psql_exec -c 'DROP SCHEMA IF EXISTS archive CASCADE;
@@ -56,11 +65,90 @@ empreinte_de() {
     else shasum -a 256 "$1" | cut -d' ' -f1; fi
 }
 
+# Un fichier se déclare rejouable dans ses cinq premières lignes. « NON
+# rejouable » contient le même mot : sans l'écarter, les deux migrations qui
+# effacent des lignes passaient pour rejouables, et un caractère changé dans
+# l'une d'elles aurait relancé l'effacement.
+est_rejouable() {
+    # Sans `grep -q` : il rend la main dès la première ligne trouvée, et avec
+    # `pipefail` le grep d'avant, coupé en plein travail, ferait passer le
+    # fichier pour non rejouable.
+    [ -n "$(head -5 "$1" | grep -i "rejouable" \
+            | grep -ivE "(non|pas)[ -]*rejouable" || true)" ]
+}
+
+# Ce qu'un fichier installe ou retire : fonctions, vues, triggers, contraintes.
+# Les commentaires sont écartés, ils citent souvent des noms sans rien définir.
+objets_de() {
+    grep -v '^[[:space:]]*--' "$1" \
+      | grep -oiE "((CREATE([[:space:]]+OR[[:space:]]+REPLACE)?|DROP)[[:space:]]+(FUNCTION|VIEW|TRIGGER)|(ADD|DROP)[[:space:]]+CONSTRAINT)[[:space:]]+(IF[[:space:]]+EXISTS[[:space:]]+)?[a-z_0-9]+" \
+      | awk '{ print tolower($NF) }' | sort -u || true
+}
+
+# Ce que des migrations plus récentes, déjà en base, ont repris à ce fichier.
+#
+# C'est le piège que cette fonction ferme. `placer_taches` est écrite dans 003,
+# réécrite dans 033 puis dans 044. Rejouer 003 parce qu'on y a corrigé une
+# virgule réinstallait la version de 003, qui appelle une fonction supprimée
+# depuis : le placement cassait, pour un commentaire.
+#
+# Seules les migrations déjà appliquées comptent. Une migration encore en
+# attente passera après et aura de toute façon le dernier mot.
+repris_depuis() {
+    local nom miens suivant ns
+    nom="$(basename "$1")"
+    miens="$(objets_de "$1")"
+    [ -n "$miens" ] || return 0
+
+    for suivant in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
+        ns="$(basename "$suivant")"
+        [[ "$ns" > "$nom" ]] || continue
+        grep -qxF "$ns" <<< "$APPLIQUES" || continue
+        comm -12 <(printf '%s\n' "$miens") <(objets_de "$suivant") \
+          | sed "s/\$/ (repris par ${ns:0:3})/"
+    done | sort -u
+}
+
+if [ "${1:-}" = "--adopter" ]; then
+    # Pour la virgule corrigée dans un commentaire : on prend acte du nouveau
+    # contenu sans rien exécuter. À n'utiliser que si le changement ne touche
+    # pas au SQL, puisque rien n'en arrivera en base.
+    cible="$RACINE/sql/$(basename "${2:?nom du fichier attendu}")"
+    [ -f "$cible" ] || { echo "Fichier inconnu : $cible" >&2; exit 1; }
+    psql_exec -c "UPDATE schema_migration
+                     SET empreinte = '$(empreinte_de "$cible")'
+                   WHERE fichier = '$(basename "$cible")';"
+    echo "· $(basename "$cible") : contenu actuel adopté, rien n'a été rejoué."
+    exit 0
+fi
+
+# Ce qui est déjà en base au début du passage, pour savoir quelles migrations
+# plus récentes ont pu reprendre un fichier modifié.
+APPLIQUES="$(psql_exec --tuples-only --no-align \
+             --command "SELECT fichier FROM schema_migration")"
+
 # Seuls les fichiers numérotés sont des migrations. Le scénario de test, lui,
 # n'a pas de numéro : il ne doit jamais être rejoué automatiquement.
 applique=0
 rejoue=0
 divergents=""
+depasses=""
+
+# Refuse de rejouer un fichier dont une partie a été reprise depuis, et dit
+# quoi. Rend 0 quand le rejeu est sûr.
+rejeu_sur() {
+    local repris
+    repris="$(repris_depuis "$1")"
+    [ -z "$repris" ] && return 0
+
+    depasses="$depasses $(basename "$1")"
+    echo "! $(basename "$1") a changé, mais des migrations plus récentes ont repris"
+    echo "  une partie de ce qu'il définit. Le rejouer remettrait d'anciennes versions :"
+    printf '%s\n' "$repris" | head -6 | sed 's/^/      /'
+    [ "$(printf '%s\n' "$repris" | wc -l)" -gt 6 ] && echo "      ..."
+    echo "  Rien n'a été touché."
+    return 1
+}
 for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
     nom="$(basename "$fichier")"
     empreinte="$(empreinte_de "$fichier")"
@@ -76,11 +164,13 @@ for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
         # est de le rejouer — c'est gratuit, et cela garantit que la base
         # correspond au dépôt. Enregistrer l'empreinte sans rejouer figerait
         # au contraire une divergence pour toujours.
-        if head -5 "$fichier" | grep -qi "rejouable"; then
+        if est_rejouable "$fichier" && [ -z "$(repris_depuis "$fichier")" ]; then
             echo "↻ $nom (empreinte inconnue, rejoué par sécurité)"
-            psql_exec < "$fichier"
+            jouer "$fichier"
             rejoue=$((rejoue + 1))
         else
+            # Non rejouable, ou repris depuis par une migration plus récente :
+            # dans les deux cas le rejouer ferait plus de mal que de bien.
             echo "· $nom (déjà appliqué, empreinte adoptée)"
         fi
         psql_exec -c "UPDATE schema_migration
@@ -95,11 +185,12 @@ for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
     fi
 
     if [ -n "$connue" ]; then
-        if ! head -5 "$fichier" | grep -qi "rejouable"; then
+        if ! est_rejouable "$fichier"; then
             divergents="$divergents $nom"
             echo "! $nom a changé mais ne se rejoue pas : écris une nouvelle migration"
             continue
         fi
+        rejeu_sur "$fichier" || continue
         echo "↻ $nom (modifié, rejoué)"
         rejoue=$((rejoue + 1))
     else
@@ -107,7 +198,7 @@ for fichier in "$RACINE"/sql/0[0-9][0-9]_*.sql; do
         applique=$((applique + 1))
     fi
 
-    psql_exec < "$fichier"
+    jouer "$fichier"
     psql_exec -c "INSERT INTO schema_migration (fichier, empreinte)
                   VALUES ('$nom', '$empreinte')
                   ON CONFLICT (fichier)
@@ -118,8 +209,15 @@ echo
 echo "$applique migration(s) appliquée(s), $rejoue rejouée(s)."
 if [ -n "$divergents" ]; then
     echo
-    echo "Attention — ces fichiers ont changé sans être rejouables :$divergents"
+    echo "Attention : ces fichiers ont changé sans être rejouables :$divergents"
     echo "Leurs modifications ne sont PAS en base."
+fi
+if [ -n "$depasses" ]; then
+    echo
+    echo "Attention : ces fichiers ont changé après avoir été repris par d'autres :$depasses"
+    echo "Leurs modifications ne sont PAS en base. Deux issues :"
+    echo "  une nouvelle migration, si le changement touche au SQL ;"
+    echo "  ./sql/appliquer.sh --adopter FICHIER, si ce n'est qu'un commentaire."
 fi
 
 echo
