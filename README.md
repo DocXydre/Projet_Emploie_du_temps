@@ -1,6 +1,6 @@
 # Planificateur personnel
 
-API qui croise des emplois du temps — cours, shifts McDonald's, calendriers personnels — en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport.
+API qui croise les emplois du temps de deux personnes (cours, travail, calendriers personnels), en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport.
 
 Projet personnel, M1 MIAGE (Université de Lorraine).
 Spécification complète : [`cahier-des-charges.md`](cahier-des-charges.md).
@@ -9,19 +9,42 @@ Spécification complète : [`cahier-des-charges.md`](cahier-des-charges.md).
 
 ## Le problème
 
-Je travaille en horaires variables au McDonald's, j'ai des cours qui changent chaque semaine, et je pars régulièrement en train chez ma famille. Le ménage, les lessives et le sport passent à la trappe — non par mauvaise volonté, mais parce que les caser demande de croiser mentalement trois plannings qui bougent tout le temps.
+Nous sommes deux dans l'appartement. Mes cours changent chaque semaine, j'ai longtemps travaillé en horaires variables chez McDonald's, et je pars régulièrement en train chez ma famille. Le ménage, les lessives et le sport passaient à la trappe. Pas par mauvaise volonté : les caser demande de croiser de tête plusieurs plannings qui bougent tout le temps.
 
-Le système fait ce croisement à ma place et rend deux choses : **un calendrier** à afficher sur le téléphone, et **un bot Telegram** pour cocher ce qui est fait.
+Le système fait ce croisement à notre place et rend deux choses : **un calendrier** à afficher sur le téléphone, et **un bot Telegram** pour cocher ce qui est fait.
 
 ```
 Aujourd'hui :
-  08h00–11h00  Cours : Algo IA — Amphi 201
-  11h55–13h05  Sport : Piscine du SUAPS
-  17h00–23h00  Travail : Shift McDonald's
+  08h00-11h00  Cours : Algo IA, Amphi 201
+  17h45-19h15  Sport : Salle de musculation
+  21h45-23h30  Lancer le lave-vaisselle
 
-  ○ Passer l'aspirateur
-  ○ Ramasser la litière
+  ○ Passer l'aspirateur (avant de récurer)
+  ○ Récurer
+  ○ Litière : ramassage
 ```
+
+---
+
+## Fonctionnalités
+
+| | |
+|---|---|
+| **Collecte** | Flux iCalendar de l'université et calendriers personnels publiés depuis l'app Calendrier ; un planning de travail se collecte de la même façon. Réconciliation par clé externe, arbitrage des conflits horaires |
+| **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
+| **Répartition** | Les tâches alternent entre nous deux, et la balance reprend la main quand l'écart se creuse. N'importe qui coche n'importe quoi, l'autre est prévenu |
+| **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
+| **Tâches ajoutées** | Un cycle long ou une chose à faire avant une date, créés depuis Telegram en cinq questions |
+| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
+| **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
+| **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
+| **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
+| **Sport** | Un minimum de séances par semaine, réglable par personne : salle, course ou piscine, dans les heures d'ouverture du lieu, trajet et battement compris. Trois semaines s'organisent d'avance, et une séance peut se proposer à l'autre |
+| **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
+| **Journal** | Ce qui change, qui l'a déclenché et dans quelle action : `/pourquoi` répond en phrases |
+| **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
+
+Le stock d'uniforme, retiré avec la fin du contrat McDonald's, est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service.
 
 ---
 
@@ -36,16 +59,17 @@ L'API est une couche mince : elle appelle des fonctions et expose des vues. Elle
 | Deux cours ne peuvent pas se chevaucher | `EXCLUDE USING gist` |
 | Une occurrence faite ne peut plus être modifiée | Trigger sur colonnes |
 | La récurrence repart de la date réelle, pas théorique | Trigger après validation |
-| Le linge lavé n'est pas portable tout de suite | Trigger + vue |
+| Deux lessives ne tournent pas le même jour | Trigger |
+| Deux modes allégés d'une même personne ne se chevauchent pas | `EXCLUDE USING gist` |
 | Le grand nettoyage exige que nous soyons libres tous les deux | Intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
 
-L'intérêt est concret : si un script, une saisie manuelle ou un futur front-end contourne l'API, la base refuse quand même ce qui est incohérent. Et il n'existe qu'une seule définition de « en retard », donc aucun client ne peut en inventer une autre.
+L'intérêt est concret : si un script, une saisie manuelle ou la future application contourne l'API, la base refuse quand même ce qui est incohérent. Et il n'existe qu'une seule définition de « en retard », donc aucun client ne peut en inventer une autre.
 
 **Ce que PostgreSQL apporte ici**, au-delà du stockage :
 
-- `TSTZRANGE` et l'arithmétique de multirange — les disponibilités se calculent en une soustraction d'ensembles, sans boucle ;
-- `EXCLUDE USING gist` — le non-chevauchement est une contrainte, pas une vérification applicative ;
+- `TSTZRANGE` et l'arithmétique de multirange : les disponibilités se calculent en une soustraction d'ensembles, sans boucle ;
+- `EXCLUDE USING gist` : le non-chevauchement est une contrainte, pas une vérification applicative ;
 - des fonctions PL/pgSQL pour le placement, appelées à l'identique par l'API et par l'ordonnanceur.
 
 ```sql
@@ -62,8 +86,8 @@ SELECT unnest(
 
 ```
    Flux ADE (ICS) ─┐
-Flux McDo (ICS) ───┼──▶ Collecteurs ──▶ ┌──────────────┐
-Calendriers perso ─┘                    │              │
+Calendriers perso ─┼──▶ Collecteurs ──▶ ┌──────────────┐
+   Site du SUAPS ──┘                    │              │
                                         │  PostgreSQL  │ ◀── règles métier
    API SNCF (Navitia) ──▶ Trajets ──▶   │              │     contraintes
    Boîte mail (IMAP) ──▶ Billets ──▶    └──────┬───────┘     fonctions
@@ -85,51 +109,21 @@ Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idé
 
 ## Quelques problèmes rencontrés
 
-Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
+Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré. Il y en a d'autres, sur la collecte et le déploiement : ils sont tous dans le [cahier des charges](cahier-des-charges.md), section 11.
 
-**Le flux de l'université publie chaque cours deux fois**, avec le même identifiant : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par identifiant faisait gagner la dernière lue — donc parfois la version vide, et la salle disparaissait du calendrier. La fusion garde la version la plus informative.
+**Le flux de l'université publie chaque cours deux fois**, avec le même identifiant : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par identifiant faisait gagner la dernière lue, donc parfois la version vide, et la salle disparaissait du calendrier. La fusion garde la version la plus informative.
 
 **Une collecte perdait six cours en silence.** Les compteurs affichaient « 80 lues, 51 créées » sans que la différence soit expliquée. J'ai ajouté un invariant : chaque séance lue doit être comptée quelque part, sinon l'écart est signalé. C'est ce contrôle qui a révélé que des chevauchements disparaissaient sans trace.
 
-**Toutes les tâches se posaient le même jour.** Le moteur prenait le premier créneau disponible dans la fenêtre d'échéance, ce qui entassait sept rappels sur un seul soir — donc aucun n'était fait. Il choisit maintenant le jour le moins chargé, et à charge égale le plus libre.
+**Toutes les tâches se posaient le même jour.** Le moteur prenait le premier créneau disponible dans la fenêtre d'échéance, ce qui entassait sept rappels sur un seul soir, et aucun n'était fait. Il choisit maintenant le jour le moins chargé, et à charge égale le plus libre.
 
-**Le gel du planning neutralisait les absences.** Un créneau prévu dans les sept jours ne bougeait plus, ce qui est souhaitable — sauf quand on déclare partir ce week-end-là. Le gel protège un plan encore tenable, pas un plan devenu impossible.
+**Le gel du planning neutralisait les absences.** Un créneau prévu dans les sept jours ne bougeait plus, ce qui est souhaitable, sauf quand on déclare partir ce week-end-là. Le gel protège un plan encore tenable, pas un plan devenu impossible.
 
-**Une migration corrigée n'atteignait jamais la base.** Le script sautait tout fichier déjà appliqué, même modifié depuis. Il compare désormais une empreinte SHA-256 et rejoue les fichiers qui se déclarent idempotents.
-
-**Rejouer une vieille migration cassait le placement.** Le remède précédent avait son revers. Quinze fonctions sont réécrites d'une migration à l'autre, et le script rejouait un fichier modifié sans rejouer ceux qui l'avaient repris depuis : corriger un commentaire dans `003` réinstallait un `placer_taches` vieux de quarante migrations, qui appelle une fonction supprimée. Un fichier dont une migration plus récente a repris une fonction, une vue ou une contrainte n'est plus rejoué : le script le dit, nomme ce qui a été repris, et ne touche à rien. Chaque migration passe aussi dans une seule transaction, pour qu'un échec au milieu ne laisse pas la base entre deux versions.
-
-**Une fonction existait en trois versions.** C'est la cause du défaut précédent, et le garde-fou ne la supprimait pas. Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, la version en vigueur était celle du dernier, et un `git diff` montrait deux cents lignes recopiées pour trois lignes changées. Les 90 fonctions, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant de basculer, j'ai vérifié que charger ce dossier sur une base construite par les 47 migrations la laisse identique, objet par objet. Une migration récente qui définit encore une fonction est refusée.
+**Une fonction existait en trois versions.** Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, et la version en vigueur était celle du dernier. Corriger un commentaire dans une vieille migration suffisait à réinstaller un placement vieux de quarante migrations, qui appelait une fonction supprimée. Les fonctions, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant de basculer, j'ai vérifié que charger ce dossier sur une base construite par les 47 migrations la laissait identique, objet par objet.
 
 **Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « Thomas a déclaré une absence » et « l'aspirateur passe à Lorette » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
 
-**Un déploiement raté ne se voyait pas.** Le script comparait `HEAD` à `origin/main`, et fusionnait avant d'appliquer les migrations. Si l'une d'elles échouait, la fusion était déjà faite : le passage suivant concluait qu'il n'y avait plus rien à faire, et le serveur restait sur l'ancienne API avec une base à moitié migrée. Le script retient maintenant le dernier commit déployé avec succès, réessaie tout seul, et prévient une fois sur Telegram. Un déploiement ne compte que si l'API répond sur `/sante` après le redémarrage.
-
-**Une collecte muette effaçait deux semaines de planning.** La réconciliation supprime les occupations à venir qui ne sont plus dans le flux — c'est ce qu'il faut faire quand un shift est annulé. Mais un flux qui ne répond plus, ou qui renvoie une page de connexion, produit exactement le même signal : zéro événement. Le relevé des horaires de sport refuse désormais un résultat vide et conserve ce qu'il avait, plutôt que de vider le planning en silence.
-
-**Le bot restait muet après un redémarrage du serveur.** Docker relance les conteneurs au démarrage, mais avant que le DNS soit prêt : la connexion à Telegram échouait sur une erreur de résolution de nom, et le code abandonnait définitivement. L'API répondait normalement, la sonde de santé était au vert, et rien n'arrivait sur le téléphone — le pire genre de panne. La connexion se retente maintenant en tâche de fond, avec un délai qui double jusqu'à cinq minutes.
-
-**Les tâches de nuit tournaient deux heures trop tard.** Le conteneur vit en UTC, et l'ordonnanceur était bien configuré en `Europe/Paris` — mais un `CronTrigger` construit à la main fige son fuseau à la construction, et celui du scheduler ne s'applique qu'aux déclencheurs qu'il crée lui-même. Le « report de minuit » se déclenchait donc à 2 h, une fois la date déjà changée. Le fuseau est maintenant passé explicitement à chaque déclencheur.
-
----
-
-## Fonctionnalités
-
-| | |
-|---|---|
-| **Collecte** | Flux iCalendar de l'université et du travail, calendriers personnels publiés depuis l'app Calendrier. Réconciliation par clé externe, arbitrage des conflits horaires |
-| **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
-| **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
-| **Tâches ajoutées** | Un cycle long ou une chose à faire avant une date, créés depuis Telegram en cinq questions |
-| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
-| **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
-| **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
-| **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
-| **Sport** | Trois séances par semaine — piscine, course ou salle — dans les heures d'ouverture du lieu, trajet et battement compris. Les créneaux possibles sont proposés le lundi matin |
-| **Journal** | Ce qui change, qui l'a déclenché et dans quelle action : `/pourquoi` répond en phrases |
-| **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
-
-Le stock d'uniforme, retiré avec la fin du contrat McDonald's, est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service.
+**Les tâches de nuit tournaient deux heures trop tard.** Le conteneur vit en UTC, et l'ordonnanceur était bien configuré en `Europe/Paris`, mais un `CronTrigger` construit à la main fige son fuseau à la construction, et celui du scheduler ne s'applique qu'aux déclencheurs qu'il crée lui-même. Le « report de minuit » se déclenchait donc à 2 h, une fois la date déjà changée. Le fuseau est maintenant passé explicitement à chaque déclencheur.
 
 ---
 
@@ -138,10 +132,10 @@ Le stock d'uniforme, retiré avec la fin du contrat McDonald's, est rangé dans 
 ```bash
 cp .env.example .env          # renseigner le mot de passe et les clés d'API
 docker compose up -d
-./sql/appliquer.sh            # applique les migrations manquantes
+./sql/appliquer.sh            # migrations, puis fonctions, vues et déclencheurs
 ```
 
-Créer les comptes, puis rejouer les assignations par défaut :
+Créer les comptes, puis relancer l'API : c'est à son démarrage qu'elle rattache les tâches et les calendriers aux comptes.
 
 ```bash
 docker exec -i planif-db psql -U planif -d planif <<SQL
@@ -149,8 +143,10 @@ INSERT INTO utilisateur (pseudo, nom, role, cle_api) VALUES
   ('thomas',  'Thomas',  'admin',    'CLÉ_A'),
   ('lorette', 'Lorette', 'standard', 'CLÉ_B');
 SQL
-./sql/appliquer.sh
+docker compose restart api
 ```
+
+Chacun relie ensuite son compte Telegram, avec `/demarrer` suivi de sa clé d'API.
 
 | | |
 |---|---|
@@ -162,9 +158,9 @@ SQL
 
 ## Déploiement
 
-Le système tourne sur un petit serveur dédié — un portable de récupération sous **Debian 13**, allumé en permanence. C'est ce qui permet aux tâches de nuit de se déclencher pour de bon : un ordonnanceur qui vise 7 h et minuit n'a aucun intérêt sur une machine qui dort.
+Le système tourne sur un petit serveur dédié : un portable de récupération sous **Debian 13**, allumé en permanence. C'est ce qui permet aux tâches de nuit de se déclencher pour de bon : un ordonnanceur qui vise 7 h et minuit n'a aucun intérêt sur une machine qui dort.
 
-L'accès distant passe par **Tailscale** : aucun port n'est ouvert sur Internet, et `tailscale serve` fournit le HTTPS et son certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre — contrairement à une adresse IP locale.
+L'accès distant passe par **Tailscale** : aucun port n'est ouvert sur Internet, et `tailscale serve` fournit le HTTPS et son certificat. Le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre, contrairement à une adresse IP locale.
 
 **Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
 
@@ -181,10 +177,11 @@ Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à
 ## Structure
 
 ```
-sql/          migrations numérotées : tables, contraintes, données
-sql/definitions/   fonctions, vues et déclencheurs, un fichier par fonction
-api/          FastAPI — routeurs, collecteurs, bot, ordonnanceur
-outils/       script de déploiement, diagnostic IMAP hors Docker
+sql/                        migrations numérotées : tables, contraintes, données
+sql/definitions/            fonctions, vues et déclencheurs, un fichier par fonction
+api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur
+outils/                     script de déploiement, diagnostic IMAP hors Docker
+anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent et si aucune migration plus récente n'a repris ce qu'il définit ; sinon le script le signale et demande une migration nouvelle. `./sql/appliquer.sh --adopter FICHIER` prend acte d'une retouche sans SQL, un commentaire corrigé par exemple, sans rien rejouer.
@@ -204,4 +201,4 @@ Les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations 
 
 ## Suite
 
-Une interface web (Angular) pour remplacer le bot sur les usages qui demandent un écran.
+Une application iPhone, qui consommera la même API. Aujourd'hui le calendrier sert à voir et le bot à agir : l'application réunira les deux.
