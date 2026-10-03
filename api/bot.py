@@ -20,9 +20,11 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    filters,
 )
 
-from api import billets, journal, operation, propositions, trajets
+from api import ajout, allegement, billets, journal, operation, propositions, trajets
 from api import conversation as conv
 from api.collecteurs.courriel import BoiteIndisponible
 from api.collecteurs.sncf import TrajetImpossible
@@ -250,6 +252,89 @@ async def pourquoi(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     texte = await asyncio.to_thread(
         journal.raconter, mot, compte["role"] == "admin")
     await update.effective_message.reply_text(texte, parse_mode=ParseMode.HTML)
+
+
+async def allege(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """PLA-16 : en faire moins pendant quelques jours.
+
+    « /allege » montre où on en est et propose des durées, « /allege 3 » lance
+    trois jours, « /allege stop » arrête.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    try:
+        ecran = await asyncio.to_thread(
+            allegement.commande, compte["id_utilisateur"], contexte.args or [])
+    except Exception as erreur:  # noqa: BLE001 - une commande ne doit jamais rester muette
+        ecran = allegement.Ecran(_message_lisible(erreur))
+    await _afficher(update, ecran)
+
+
+def _saisie(contexte: ContextTypes.DEFAULT_TYPE) -> dict:
+    """L'ajout de tâche en cours pour cette personne, vide s'il n'y en a pas.
+
+    Gardé en mémoire par Telegram, personne par personne. Un redémarrage
+    l'efface : la saisie suivante le dit et propose de recommencer.
+    """
+    return contexte.user_data.setdefault("ajout", {})
+
+
+async def tache(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """TAC-20 : ajouter une tâche, une fois ou régulière, question par question."""
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    ecran = ajout.ouvrir(_saisie(contexte), " ".join(contexte.args or []))
+    await _afficher(update, ecran)
+
+
+async def texte_libre(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Un message qui n'est pas une commande.
+
+    Il ne veut quelque chose que si une question attend sa réponse : le nom
+    d'une tâche, un nombre de jours, une date. Sinon le bot se tait, comme il
+    l'a toujours fait devant du texte libre.
+    """
+    saisie = _saisie(contexte)
+    if not saisie.get("attend") or update.effective_message is None:
+        return
+
+    compte = await _appelant(update)
+    if compte is None:
+        return
+
+    operation.preciser("bot : /tache")
+    try:
+        ecran = await asyncio.to_thread(
+            ajout.texte, saisie, compte["id_utilisateur"],
+            update.effective_message.text or "")
+    except Exception as erreur:  # noqa: BLE001
+        ecran = ajout.Ecran(_message_lisible(erreur))
+    if ecran is not None:
+        await _afficher(update, ecran)
+
+
+async def _bouton_tache(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                        compte: dict, action: str, arguments: str) -> None:
+    try:
+        ecran = await asyncio.to_thread(
+            ajout.repondre, _saisie(contexte), compte["id_utilisateur"], action, arguments)
+    except Exception as erreur:  # noqa: BLE001 - un bouton ne doit jamais rester muet
+        ecran = ajout.Ecran(_message_lisible(erreur))
+    await _afficher(update, ecran)
+
+
+async def _bouton_allegement(update: Update, compte: dict,
+                             action: str, arguments: str) -> None:
+    try:
+        ecran = await asyncio.to_thread(
+            allegement.repondre, compte["id_utilisateur"], action, arguments)
+    except Exception as erreur:  # noqa: BLE001 - un bouton ne doit jamais rester muet
+        ecran = allegement.Ecran(_message_lisible(erreur))
+    await _afficher(update, ecran)
 
 
 async def retards(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -822,6 +907,10 @@ NOMS_DES_BOUTONS = {
     ("sp", "pf"): "bouton Pas faite",
     ("prop", "trains"): "bouton Voir les trains",
     ("prop", "non"): "bouton Non merci",
+    ("tch", "ok"): "/tache",
+    ("tch", "stop"): "/tache, bouton Arrêter",
+    ("alg", "j"): "/allege",
+    ("alg", "stop"): "/allege, bouton Arrêter",
 }
 
 
@@ -885,6 +974,14 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
     if genre == "cal":
         await _bouton_calendrier(update, compte, choix, identifiant)
+        return
+
+    if genre == "tch":
+        await _bouton_tache(update, contexte, compte, choix, identifiant)
+        return
+
+    if genre == "alg":
+        await _bouton_allegement(update, compte, choix, identifiant)
         return
 
     if genre == "seance":
@@ -1229,6 +1326,10 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          "ce qui a changé, et ce qui l'a déclenché", pourquoi),
         ("Au quotidien", "ajouter", "Titre JJ/MM 14h 16h",
          "poser un créneau au planning", ajouter),
+        ("Au quotidien", "tache", "Nom",
+         "ajouter une tâche, une fois ou régulière", tache),
+        ("Au quotidien", "allege", "3",
+         "mode allégé : en faire moins pendant quelques jours", allege),
 
         ("Sport", "sport", "",
          "tes trois semaines : choisir, modifier, supprimer", organiser),
@@ -1303,7 +1404,9 @@ def _suivie(nom: str, fonction):
     """
     @wraps(fonction)
     async def enveloppe(update: Update, contexte: ContextTypes.DEFAULT_TYPE):
-        with operation.ouvrir(f"bot : /{nom}" if nom != "bouton" else "bot : bouton"):
+        # Un bouton et un message libre ne sont pas des commandes : pas de barre.
+        origine = f"bot : {nom}" if nom in ("bouton", "message") else f"bot : /{nom}"
+        with operation.ouvrir(origine):
             return await fonction(update, contexte)
 
     return enveloppe
@@ -1326,6 +1429,9 @@ def construire() -> Application:
     application.add_handler(CommandHandler("start", demarrer))
     application.add_handler(CommandHandler("help", aide))
     application.add_handler(CallbackQueryHandler(_suivie("bouton", bouton)))
+    # TAC-20 : le nom d'une tâche, un nombre de jours ou une date s'écrivent.
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
+                                           _suivie("message", texte_libre)))
 
     if application.job_queue is not None:
         application.job_queue.run_repeating(vider_la_file, interval=60, first=15)

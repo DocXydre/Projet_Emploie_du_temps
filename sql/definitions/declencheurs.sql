@@ -51,6 +51,11 @@ CREATE OR REPLACE TRIGGER journal_absence
         'foyer', 'id_utilisateur', 'periode', 'lieu', 'origine');
 
 
+CREATE OR REPLACE TRIGGER journal_allegement
+    AFTER INSERT OR UPDATE OR DELETE ON allegement
+    FOR EACH ROW EXECUTE FUNCTION trg_journal('foyer', 'id_utilisateur', 'periode');
+
+
 CREATE OR REPLACE TRIGGER journal_proposition
     AFTER INSERT OR UPDATE OR DELETE ON proposition
     FOR EACH ROW EXECUTE FUNCTION trg_journal(

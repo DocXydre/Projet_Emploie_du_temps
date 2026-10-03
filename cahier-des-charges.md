@@ -171,6 +171,7 @@ l'utilisateur.
 | TAC-17 | M | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
 | TAC-18 | M | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse de Sassy changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
 | TAC-19 | T | Ce qu'une tâche couvre disparaît du planning sans attendre qu'on la coche : pas de ramassage le jour d'un vidage, et un ramassage oublié s'efface quand le vidage est dû. Un ramassage en retard reste tant que le vidage est à venir. Même règle pour l'eau et la fontaine |
+| TAC-20 | M | Une tâche s'ajoute depuis le bot, question par question : son nom, une fois ou régulière, tous les combien ou avant quelle date, pour qui (soi, l'autre, à tour de rôle), sa durée. Une tâche ponctuelle ne s'abandonne pas toute seule : elle reste en retard jusqu'à être faite ou refusée. Seules les tâches ainsi ajoutées s'arrêtent depuis le bot ; arrêtée, une tâche est désactivée et garde son historique |
 
 ### 3.4 Placement — `PLA`
 
@@ -188,8 +189,9 @@ l'utilisateur.
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
 | PLA-12 | M | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
 | PLA-13 | M | Reprendre une tâche à quelqu'un rouvre la semaine à la répartition : ce qui n'a pas encore été annoncé repasse à placer et se redistribue avec les charges à jour. Sans cela, le gel de sept jours empêcherait la balance de tenir compte du coup de main. Ce qui est épinglé, annoncé ou nominatif ne bouge pas |
-| PLA-14 | M | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage |
+| PLA-14 | M | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives, tâches ponctuelles. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage, cycles longs ajoutés |
 | PLA-15 | M | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour, pas plus que les tâches de départ et de retour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
+| PLA-16 | M | Le mode allégé : pendant la durée qu'il donne, de 1 à 14 jours, celui qui l'active fait un quart des tâches partagées et l'autre trois quarts. Ce qui lui est réservé lui reste. Activé par les deux le même jour, il s'annule ce jour-là : on ne vit pas dans la crasse. Les jours allégés ne comptent pas dans la balance, pour que la part cédée ne se rattrape pas ensuite. L'autre est prévenu à l'activation et à l'arrêt |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
 
 ### 3.5 Exécution et suivi — `EXE`
@@ -540,6 +542,7 @@ L'URL n'est jamais écrite dans le code ni dans le dépôt : celle du planning d
 | active | BOOLEAN | non | | | TRUE | | |
 | avant_depart | BOOLEAN | non | | | FALSE | | |
 | au_retour_apres_jours | SMALLINT | oui | > 0 | | | | |
+| ajoutee_par | INTEGER | oui | | | | | Utilisateur |
 
 La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut pas repousser : la litière et l'eau du chat.
 
@@ -577,6 +580,17 @@ La priorité 1 est la plus forte. Elle est réservée aux tâches qu'on ne peut 
 | bloc | VARCHAR(40) | oui | renseigné si et seulement si journee_libre | | | | |
 
 « Quand ceci est prévu, cela vient le même jour ». `id_tache` mène et décide du jour, `id_tache_jointe` la rejoint. La `mention` est ce qu'on lit à côté de la tâche jointe : « avant de récurer ». Avec `journee_libre`, la règle ne joue que les jours sans cours ni travail, et les tâches réunies portent le nom du `bloc`.
+
+### Table : Allegement
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_allegement | SERIAL | non | | oui | | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| periode | TSTZRANGE | non | bornée des deux côtés, sans chevauchement pour une même personne | | | | |
+| date_creation | TIMESTAMPTZ | non | | | now() | | |
+
+Une ligne par période de mode allégé. Arrêter avant la fin ferme la période à l'instant présent au lieu de l'effacer : ce qui a été réparti pendant qu'elle courait garde son explication.
 
 ### Table : Occurrence
 
@@ -889,6 +903,13 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | TAC-18 | Une occurrence « depart » va à celui dont l'absence commence à l'instant où l'appartement se vide, s'il est seul dans ce cas | Dynamique forte |
 | TAC-19 | `absorber_les_couvertes()` efface une occurrence jamais annoncée, et clôt une occurrence annoncée avec le motif « Couverte par » | Dynamique forte |
 | PLA-15 | `seul_ce_jour()` : tous les autres comptes actifs sont absents la journée entière | Dynamique forte |
+| PLA-16 | Deux modes allégés d'une même personne ne se chevauchent pas : contrainte d'exclusion. Relancer remplace | Statique forte |
+| PLA-16 | `activer_allegement()` refuse une durée hors de 1 à 14 jours | Dynamique forte |
+| PLA-16 | `est_allege()` : la personne est allégée ce jour-là et au moins un autre compte actif ne l'est pas | Dynamique forte |
+| PLA-16 | `choisir_assigne()` donne la tâche à l'allégé seulement si trois fois ses minutes sur la période restent sous celles de l'autre | Dynamique forte |
+| TAC-20 | `ajouter_tache()` exige un rythme ou une échéance, jamais les deux ; nom de 2 à 100 caractères, rythme de 1 à 730 jours, échéance non passée, durée de 1 minute à 8 heures | Dynamique forte |
+| TAC-20 | `arreter_tache()` ne touche qu'une tâche dont `ajoutee_par` est renseigné | Dynamique forte |
+| TAC-20 | Une tâche ponctuelle a `abandon_apres_jours` à zéro : le report d'office ne l'abandonne jamais | Dynamique forte |
 | ABS-8 | `au_retour_apres_jours` est nul ou strictement positif | Statique forte |
 | ABS-8 | Une occurrence « retour » est unique par tâche et par retour, et disparaît si le retour disparaît | Dynamique forte |
 | BIL-21 | Seul un train partant à moins de deux minutes de l'heure du billet est retenu comme étant le bon | Dynamique forte |
@@ -1133,6 +1154,8 @@ Le bot n'est pas une interface graphique, c'est un client de l'API. Il doit suff
 - Rappel du soir pour les tâches du jour non validées, puis report d'office à minuit.
 - Commandes de consultation : planning du jour, tâches en retard.
 - « /pourquoi » : ce qui a changé récemment, qui l'a déclenché, et ce qui s'est passé dans la même action.
+- « /tache » : ajouter une tâche, une fois ou régulière, en répondant à cinq questions par des boutons. La liste des tâches ajoutées permet d'en arrêter une.
+- « /allege » : passer en mode allégé pour quelques jours, voir où on en est, ou l'arrêter.
 - Commandes de saisie rapide : ajouter un créneau, forcer une collecte, arrêter de suivre un flux.
 
 Si cet ensemble suffit à vivre une semaine sans écran, l'API est complète.

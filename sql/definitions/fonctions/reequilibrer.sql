@@ -21,6 +21,9 @@ BEGIN
        AND NOT o.epinglee
        -- Une séance de sport est personnelle : elle ne se redistribue pas.
        AND o.origine <> 'quota'
+       -- TAC-18, ABS-8 : une tâche de départ ou de retour revient à celui qui
+       -- part le dernier ou rentre le premier, pas au roulement.
+       AND o.origine NOT IN ('depart', 'retour')
        AND t.categorie <> 'sport'
        -- ABS-2 : le pliage du linge reste à Lorette, quoi qu'il arrive.
        AND t.id_utilisateur_defaut IS NULL

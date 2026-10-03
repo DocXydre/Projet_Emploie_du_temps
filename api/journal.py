@@ -89,6 +89,11 @@ def _jour(instant: datetime) -> str:
     return f"{JOURS[local.weekday()]} {local.day} {MOIS[local.month - 1]}"
 
 
+def jour_en_clair(instant: datetime) -> str:
+    """« sam. 3 oct. » : la même écriture partout où le bot parle d'un jour."""
+    return _jour(instant)
+
+
 def _moment(instant: datetime | None) -> str:
     if instant is None:
         return "sans date"
@@ -208,6 +213,17 @@ def _absence(e: dict, noms: dict[int, str]) -> str:
         return f"Absence de {qui} annulée : {lieu}, {_periode(avant['periode'])}"
     return (f"Absence de {qui} ajustée : {lieu}, {_periode(apres['periode'])} "
             f"(avant : {_periode(avant['periode'])})")
+
+
+def _allegement(e: dict, noms: dict[int, str]) -> str:
+    avant, apres = e["avant"], e["apres"]
+    qui = _nom(noms, (apres or avant).get("id_utilisateur"))
+    if avant is None:
+        return f"Mode allégé pour {qui} : {_periode(apres['periode'])}"
+    if apres is None:
+        return f"Mode allégé de {qui} annulé : {_periode(avant['periode'])}"
+    _, fin = _bornes(apres["periode"])
+    return f"Mode allégé de {qui} : il s'arrête le {_moment(fin)}"
 
 
 def _proposition(e: dict, noms: dict[int, str]) -> str:
@@ -370,7 +386,7 @@ PHRASES = {
     "occurrence": _occurrence, "absence": _absence, "proposition": _proposition,
     "trajet": _trajet, "courriel": _courriel, "occupation": _occupation,
     "conflit": _conflit, "notification": _notification, "tache": _tache,
-    "utilisateur": _utilisateur, "source": _source,
+    "utilisateur": _utilisateur, "source": _source, "allegement": _allegement,
 }
 
 

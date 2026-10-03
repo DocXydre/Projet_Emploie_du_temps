@@ -21,6 +21,7 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
         WHEN 'notification' THEN
             left(regexp_replace(p_ligne ->> 'contenu', '<[^>]+>', '', 'g'), 120)
         WHEN 'utilisateur' THEN p_ligne ->> 'nom'
+        WHEN 'allegement'  THEN 'Mode allégé'
         ELSE p_ligne ->> 'libelle'
     END
 $$;

@@ -119,10 +119,14 @@ Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré.
 |---|---|
 | **Collecte** | Flux iCalendar de l'université et du travail, calendriers personnels publiés depuis l'app Calendrier. Réconciliation par clé externe, arbitrage des conflits horaires |
 | **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
-| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, répartie en minutes |
+| **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
+| **Tâches ajoutées** | Un cycle long ou une chose à faire avant une date, créés depuis Telegram en cinq questions |
+| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
+| **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
 | **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
 | **Sport** | Trois séances par semaine — piscine, course ou salle — dans les heures d'ouverture du lieu, trajet et battement compris. Les créneaux possibles sont proposés le lundi matin |
+| **Journal** | Ce qui change, qui l'a déclenché et dans quelle action : `/pourquoi` répond en phrases |
 | **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
 
 Le stock d'uniforme, retiré avec la fin du contrat McDonald's, est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service.
