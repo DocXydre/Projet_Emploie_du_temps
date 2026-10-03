@@ -271,6 +271,8 @@ l'utilisateur.
 | WKD-6 | M | Une proposition couverte par une absence devient le week-end : elle reste au calendrier, sans point d'interrogation, et l'entretien tourne à chaque placement pour qu'un billet acheté suffise à la confirmer |
 | WKD-7 | M | Repérer n'est pas annoncer. Le creux s'inscrit au calendrier quinze jours avant, en silence, et la notification part une semaine avant, quand le billet se décide. Annoncer deux week-ends quinze jours à l'avance faisait du bruit pour une question qui ne se posait pas encore |
 | WKD-8 | M | Un week-end confirmé s'affiche sur les dates du voyage, pas sur celles du creux repéré : le train du retour part le dimanche, le lundi n'est pas du week-end. La période est recalculée à l'affichage, pour suivre un retour qui change |
+| WKD-9 | M | Une proposition se revérifie à chaque changement de l'emploi du temps, quel que soit le chemin qui l'a écrit. Elle ne peut que rétrécir : elle garde le plus long morceau encore libre, ou disparaît s'il ne reste plus de quoi partir. Elle ne s'allonge jamais, pour qu'un cours annulé ne fasse pas bouger le calendrier dans l'autre sens |
+| WKD-10 | M | Une proposition déjà annoncée qui change ou disparaît est corrigée par un message, un seul, qui nomme ce qui s'est mis en travers. Sans annonce préalable il n'y a rien à corriger, et un message pas encore parti est remplacé plutôt que doublé |
 
 ### 3.10 Séances de sport — `SPT`
 
@@ -813,6 +815,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | WKD-5 | Une relance suppose une annonce antérieure, faite un autre jour, et jamais deux | Dynamique forte |
 | WKD-7 | Une proposition n'est annoncée que si `annoncee_le` est nul et que le départ entre dans le délai d'annonce | Dynamique forte |
 | WKD-8 | La période affichée d'une proposition réalisée est l'intersection avec l'absence qui la couvre | Dynamique forte |
+| WKD-9 | La revérification est un trigger par instruction sur `occupation` ; seuls les cours et le travail comptent, et une proposition déjà commencée n'est pas touchée | Dynamique forte |
+| WKD-10 | La correction n'est émise que si `annoncee_le` est renseigné | Dynamique forte |
 | TAC-12 | Les fenêtres où l'appartement se vide sont l'intersection des absences de tous les comptes actifs : une seule personne présente suffit à l'annuler | Dynamique forte |
 | TAC-12 | Une occurrence « depart » est unique par tâche et par départ, et disparaît si le départ disparaît | Dynamique forte |
 | TAC-13 | Une tâche à heure imposée déclare ses deux bornes et une périodicité ouverte : bornes égales, la fenêtre serait vide | Statique forte |

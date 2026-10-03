@@ -166,6 +166,11 @@ def tour_de_ronde(id_utilisateur: int | None = None) -> dict:
     être relancée le matin où l'on vient d'acheter le billet.
     """
     executer("SELECT entretenir_propositions() AS touchees")
+    # WKD-9 : la base revérifie avec quarante-huit heures, faute de connaître
+    # le réglage. On repasse ici avec la durée configurée, pour qu'un seuil
+    # relevé dans le .env s'applique aussi aux propositions déjà faites.
+    executer("SELECT reverifier_propositions(%(h)s) AS touchees",
+             {"h": configuration().fenetre_absence_heures})
 
     # WKD-7 : repérer n'est pas annoncer. Celles-ci s'inscrivent au calendrier
     # sans un mot ; elles parleront quand le départ approchera.
