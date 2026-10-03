@@ -18,6 +18,7 @@ from datetime import UTC, datetime, timedelta
 
 import psycopg
 
+from api import journal, operation
 from api.base import executer, lister, un_seul
 from api.collecteurs import courriel as lecteur
 from api.collecteurs import sncf
@@ -346,7 +347,35 @@ def relever(id_utilisateur: int | None = None,
     if annoncer and _a_dire(bilan):
         _annoncer(bilan, id_utilisateur)
 
+    _noter_la_releve(bilan)
     return bilan
+
+
+def _noter_la_releve(bilan: dict) -> None:
+    """JRN-7 : une relève qui ne trouve rien ne change rien en base.
+
+    C'est pourtant ce qu'on cherche quand /billets répond « rien de neuf ». La
+    relève automatique, elle, passe douze fois par jour : elle ne s'inscrit que
+    si elle a vu un courriel neuf.
+    """
+    en_cours = operation.courante()
+    a_la_main = en_cours is not None and en_cours.acteur not in (None, "ordonnanceur")
+    if not bilan["lus"] and not a_la_main:
+        return
+
+    comptes = [(bilan["traites"], "billet lu", "billets lus"),
+               (bilan["passes"], "voyage déjà passé", "voyages déjà passés"),
+               (bilan["ignores"], "sans billet", "sans billet"),
+               (bilan["illisibles"], "illisible", "illisibles"),
+               (bilan["refuses"], "refusé", "refusés"),
+               (bilan["deja_vus"], "déjà vu", "déjà vus")]
+    morceaux = [f"{n} {seul if n == 1 else plusieurs}"
+                for n, seul, plusieurs in comptes if n]
+    neufs = (f"{bilan['lus']} courriel{'s' if bilan['lus'] > 1 else ''} "
+             f"neuf{'s' if bilan['lus'] > 1 else ''}" if bilan["lus"]
+             else "aucun courriel neuf")
+    journal.noter("releve", "Relève de la boîte",
+                  detail=neufs + (f" ({', '.join(morceaux)})" if morceaux else ""))
 
 
 def _a_dire(bilan: dict) -> bool:

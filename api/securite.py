@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Query, status
 from pydantic import BaseModel
 
+from api import operation
 from api.base import lister, un_seul
 
 EN_TETE = "X-Cle-Api"
@@ -45,6 +46,8 @@ def _par_cle(cle: str | None) -> Appelant:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"code": "cle_invalide", "message": "Clé d'API inconnue ou compte inactif"},
         )
+    # JRN-4 : ce que cet appel changera sera noté à son nom.
+    operation.signer(ligne["pseudo"])
     return Appelant(**ligne)
 
 

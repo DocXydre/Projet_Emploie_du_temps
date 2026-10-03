@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from functools import wraps
 
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
@@ -21,7 +22,7 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from api import billets, propositions, trajets
+from api import billets, journal, operation, propositions, trajets
 from api import conversation as conv
 from api.collecteurs.courriel import BoiteIndisponible
 from api.collecteurs.sncf import TrajetImpossible
@@ -43,7 +44,11 @@ async def _appelant(update: Update) -> dict | None:
     """Compte associé à cette conversation, ou None si non appairé."""
     if update.effective_user is None:
         return None
-    return await asyncio.to_thread(conv.compte_de, update.effective_user.id)
+    compte = await asyncio.to_thread(conv.compte_de, update.effective_user.id)
+    if compte is not None:
+        # JRN-4 : ce que cette commande changera sera noté à son nom.
+        operation.signer(compte["pseudo"])
+    return compte
 
 
 async def _refuser(update: Update) -> None:
@@ -229,6 +234,22 @@ async def planning(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 async def demain(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     contexte.args = ["demain"]
     await planning(update, contexte)
+
+
+async def pourquoi(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """JRN-9 : ce qui a changé récemment, qui l'a déclenché, et dans quelle action.
+
+    Sans argument, les dernières actions. Avec un mot, celles qui en parlent :
+    « /pourquoi poubelles », « /pourquoi lorette », « /pourquoi week-end ».
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+
+    mot = " ".join(contexte.args) if contexte.args else None
+    texte = await asyncio.to_thread(
+        journal.raconter, mot, compte["role"] == "admin")
+    await update.effective_message.reply_text(texte, parse_mode=ParseMode.HTML)
 
 
 async def retards(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
@@ -792,6 +813,18 @@ async def arreter(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
 # Boutons
 # ---------------------------------------------------------------------------
 
+# Ce que le journal écrit quand une action vient d'un bouton : son texte, tel
+# qu'il est à l'écran, plutôt que le code qui circule dans Telegram.
+NOMS_DES_BOUTONS = {
+    ("tache", "valider"): "bouton Fait",
+    ("tache", "reporter"): "bouton Plus tard",
+    ("tache", "refuser"): "bouton Non",
+    ("sp", "pf"): "bouton Pas faite",
+    ("prop", "trains"): "bouton Voir les trains",
+    ("prop", "non"): "bouton Non merci",
+}
+
+
 def _boutons(id_occurrence: int, sport: bool = False) -> InlineKeyboardMarkup:
     if sport:
         # SPT-25 : une séance est faite ou pas faite. La repousser au lendemain
@@ -826,6 +859,8 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         return
 
     genre, choix, identifiant = requete.data.split(":", 2)
+    operation.preciser("bot : " + NOMS_DES_BOUTONS.get((genre, choix),
+                                                     f"bouton {genre} {choix}"))
 
     # Les trajets se déroulent en plusieurs temps : choisir un aller appelle la
     # question du retour. On acquitte donc le message courant, puis on pose la
@@ -1123,6 +1158,11 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
     if conv.en_silence():
         return
 
+    with operation.ouvrir("envoi des messages", acteur="bot"):
+        await _envoyer_la_file(contexte)
+
+
+async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
     for notification in await asyncio.to_thread(conv.notifications_a_envoyer):
         boutons = None
         # Seuls les rappels, qui portent sur une occurrence précise, ont des
@@ -1185,6 +1225,8 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
         ("Au quotidien", "valider", "", "cocher ce qui est fait", valider),
         ("Au quotidien", "fait", "", "c'est fait, même si ce n'était pas prévu", fait),
         ("Au quotidien", "retards", "", "ce qui traîne", retards),
+        ("Au quotidien", "pourquoi", "mot",
+         "ce qui a changé, et ce qui l'a déclenché", pourquoi),
         ("Au quotidien", "ajouter", "Titre JJ/MM 14h 16h",
          "poser un créneau au planning", ajouter),
 
@@ -1253,10 +1295,29 @@ def commandes_telegram() -> list[BotCommand]:
     ]
 
 
+def _suivie(nom: str, fonction):
+    """JRN-4 : chaque commande est une action du journal.
+
+    Tout ce qu'elle écrit en base, placement compris, porte le même numéro
+    d'opération : c'est ce qui permet de lire la cause à côté de l'effet.
+    """
+    @wraps(fonction)
+    async def enveloppe(update: Update, contexte: ContextTypes.DEFAULT_TYPE):
+        with operation.ouvrir(f"bot : /{nom}" if nom != "bouton" else "bot : bouton"):
+            return await fonction(update, contexte)
+
+    return enveloppe
+
+
+def gestionnaires() -> list[tuple[str, object]]:
+    """Les commandes telles qu'elles sont branchées : chacune dans son action."""
+    return [(nom, _suivie(nom, fonction)) for _, nom, _, _, fonction in catalogue()]
+
+
 def construire() -> Application:
     application = Application.builder().token(configuration().telegram_token).build()
 
-    for _, nom, _, _, fonction in catalogue():
+    for nom, fonction in gestionnaires():
         application.add_handler(CommandHandler(nom, fonction))
 
     # Deux alias que Telegram propose de lui-même : /start à la première
@@ -1264,7 +1325,7 @@ def construire() -> Application:
     # n'ont donc pas à figurer dans l'aide.
     application.add_handler(CommandHandler("start", demarrer))
     application.add_handler(CommandHandler("help", aide))
-    application.add_handler(CallbackQueryHandler(bouton))
+    application.add_handler(CallbackQueryHandler(_suivie("bouton", bouton)))
 
     if application.job_queue is not None:
         application.job_queue.run_repeating(vider_la_file, interval=60, first=15)

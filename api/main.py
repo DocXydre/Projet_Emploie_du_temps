@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import bot, conversation, ordonnanceur
+from api import bot, conversation, journal, operation, ordonnanceur
 from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
@@ -28,6 +28,7 @@ from api.routeurs import (
     taches,
     trajets,
 )
+from api.routeurs.journal import routeur as routeur_du_journal
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
 
 conf = configuration()
@@ -36,8 +37,13 @@ conf = configuration()
 @asynccontextmanager
 async def cycle_de_vie(app: FastAPI):
     demarrer_pool()
-    amorcer_sources()
-    amorcer_assignations()
+    # JRN-7 : un redémarrage explique les tâches planifiées manquées, et ce que
+    # l'amorçage modifie doit porter son nom plutôt que « direct ».
+    with operation.ouvrir("démarrage de l'API", acteur="api"):
+        amorcer_sources()
+        amorcer_assignations()
+        journal.noter("demarrage", f"API démarrée, version {conf.version}",
+                      technique=True)
     if conf.ordonnanceur_actif:
         ordonnanceur.demarrer()
         await bot.demarrer_bot()
@@ -61,6 +67,28 @@ app = FastAPI(
     lifespan=cycle_de_vie,
 )
 
+
+class SuiviDesAppels:
+    """JRN-4 : chaque appel de l'API est une action du journal.
+
+    Écrit en ASGI nu plutôt qu'avec le décorateur de FastAPI : l'action doit
+    être ouverte dans la tâche qui servira la requête, pour que la vérification
+    de la clé et la route la voient toutes les deux.
+    """
+
+    def __init__(self, application):
+        self.application = application
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.application(scope, receive, send)
+            return
+        with operation.ouvrir(f"api : {scope['method']} {scope['path']}"):
+            await self.application(scope, receive, send)
+
+
+app.add_middleware(SuiviDesAppels)
+
 # Une seule forme d'erreur pour tout le monde : {code, message}.
 app.add_exception_handler(psycopg.Error, gerer_erreur_sql)
 app.add_exception_handler(StarletteHTTPException, gerer_erreur_http)
@@ -73,6 +101,7 @@ app.include_router(contraintes.routeur)
 app.include_router(notifications.routeur)
 app.include_router(absences.routeur)
 app.include_router(trajets.routeur)
+app.include_router(routeur_du_journal)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")

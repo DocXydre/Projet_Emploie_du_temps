@@ -12,6 +12,7 @@ from psycopg import Connection
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
+from api import operation
 from api.config import configuration
 
 _pool: ConnectionPool | None = None
@@ -42,7 +43,25 @@ def connexion() -> Iterator[Connection]:
         demarrer_pool()
     assert _pool is not None
     with _pool.connection() as conn:
+        _dire_l_operation(conn)
         yield conn
+
+
+def _dire_l_operation(conn: Connection) -> None:
+    """JRN-4 : dit à PostgreSQL de quelle action vient cette transaction.
+
+    Les trois réglages ne valent que pour la transaction : une connexion rendue
+    au pool ne garde rien de l'action précédente.
+    """
+    en_cours = operation.courante()
+    if en_cours is None:
+        return
+    conn.execute(
+        "SELECT set_config('planif.operation', %s, TRUE),"
+        "       set_config('planif.acteur', %s, TRUE),"
+        "       set_config('planif.origine', %s, TRUE)",
+        (en_cours.identifiant, en_cours.acteur or "", en_cours.origine),
+    )
 
 
 def lister(requete: str, params: dict[str, Any] | None = None) -> list[dict]:

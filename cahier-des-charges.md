@@ -335,6 +335,22 @@ Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald
 | NOT-10 | M | Un événement personnel garde le titre qu'on lui a donné. Le préfixe de catégorie ne s'applique qu'aux familles qui en ont un : « autre : baby-sitting » n'apprend rien à personne |
 | NOT-9 | M | Chacun peut composer le calendrier de l'autre : on vit à deux, et un planning que l'autre ne peut pas consulter oblige à le redemander tous les jours. Dans un calendrier à plusieurs, chaque événement porte le nom de la personne |
 
+### 3.13 Journal des événements : `JRN`
+
+Presque toutes les questions posées au système ont la même forme : « pourquoi ça a fait ça ? ». Le journal y répond sans relire le code : il note ce qui change, qui l'a déclenché, et dans quelle action.
+
+| Code | Type | Règle |
+|---|---|---|
+| JRN-1 | T | Tout changement sur une table suivie est noté : occurrences, absences, propositions de week-end, trains retenus, courriels lus, occupations, conflits, notifications, tâches, réglages d'un compte, sources. L'événement garde l'état des colonnes suivies avant et après |
+| JRN-2 | T | Une ligne par objet et par action, quel que soit le nombre de retouches. Le placement défait ce qui n'est pas gelé avant de le reposer : une tâche revenue à sa place ne laisse aucune ligne. Un journal qui note chaque geste ne se lit plus |
+| JRN-3 | T | Seules les colonnes suivies font un événement : une collecte qui réécrit des cours identiques ne note rien. Chaque ligne garde un libellé en clair, pour rester lisible après la suppression de l'objet. L'URL d'une source n'est jamais suivie, elle peut contenir un jeton |
+| JRN-4 | T | Chaque événement porte son auteur, son origine et un numéro d'opération. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur forment une action : tout ce qu'elle change partage le même numéro, et la cause se lit à côté de l'effet |
+| JRN-5 | T | Le journal ne fait jamais échouer ce qu'il observe. Une erreur d'écriture au journal devient un avertissement, et l'opération se termine normalement |
+| JRN-6 | D | La vie du foyer se lit à deux : chacun voit les mêmes événements, y compris ceux de l'autre, puisque ce sont eux qui expliquent ses propres tâches. Le technique, sources en panne et déploiements, est réservé à l'administrateur |
+| JRN-7 | T | Les faits qui ne changent aucune ligne sont notés à part : un déploiement réussi ou raté, un démarrage de l'API, une relève de la boîte. La relève automatique ne s'inscrit que si elle a vu un courriel neuf ; demandée à la main, elle s'inscrit toujours |
+| JRN-8 | T | Le journal garde 90 jours. Il dit quand l'appartement était vide et qui a fait quoi : rien ne justifie de le conserver au-delà. La purge passe chaque nuit avec le report d'office |
+| JRN-9 | M | « /pourquoi » rend les dernières actions avec ce que chacune a changé. Suivi d'un mot, il ne garde que les actions qui en parlent, sans tenir compte des accents, et montre à côté ce qui s'est passé d'autre dans la même action |
+
 ---
 
 ## 4. Acteurs du système
@@ -704,6 +720,25 @@ Le champ `choix` est mémorisé pour que la collecte suivante ne repose pas la m
 
 ---
 
+### Table : Evenement
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_evenement | BIGINT | non | | oui | identité | oui | |
+| quand | TIMESTAMPTZ | non | | | horloge | | |
+| operation | TEXT | non | | | | | |
+| acteur | TEXT | non | | | | | |
+| origine | TEXT | oui | | | | | |
+| objet | TEXT | non | | | | | |
+| id_objet | BIGINT | oui | | | | | |
+| libelle | TEXT | oui | | | | | |
+| avant | JSONB | oui | | | | | |
+| apres | JSONB | oui | | | | | |
+| detail | TEXT | oui | | | | | |
+| technique | BOOLEAN | non | | | FALSE | | |
+
+`objet` et `id_objet` désignent la ligne concernée sans clé étrangère : l'événement doit survivre à la suppression de ce qu'il décrit. `avant` vide veut dire créé, `apres` vide veut dire supprimé. `acteur` est un pseudo, ou « ordonnanceur », « bot », « deploiement », « direct » pour une requête tapée à la main.
+
 ## 7. Contraintes d'intégrité
 
 Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et triggers.
@@ -841,6 +876,11 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-31 | `invitation_sport` : une seule invitation par séance et par personne, statut parmi attente, acceptée, refusée | Statique forte |
 | SPT-31 | `repondre_invitation()` refuse une deuxième réponse, et crée la séance de l'invité par `choisir_seance_sport` | Dynamique forte |
 | SPT-32 | L'invitation meurt avec la séance qui l'a créée (ON DELETE CASCADE) ; la séance acceptée, elle, survit | Statique forte |
+| JRN-1 | Un déclencheur `journal_<table>` par table suivie, tous sur la fonction `trg_journal()` | Dynamique forte |
+| JRN-2 | Au plus une ligne par (`operation`, `objet`, `id_objet`) ; elle est supprimée si l'état revient à celui d'avant l'opération | Dynamique forte |
+| JRN-4 | L'auteur, l'origine et l'opération viennent des réglages de transaction `planif.acteur`, `planif.origine` et `planif.operation` ; à défaut, « direct » et le numéro de transaction | Dynamique forte |
+| JRN-5 | `trg_journal()` rattrape toute erreur et la rend en avertissement | Dynamique forte |
+| JRN-8 | `purger_journal()` supprime les événements de plus de 90 jours | Dynamique forte |
 
 ---
 
@@ -1023,6 +1063,9 @@ Sources
   GET    /sources                         avec leur état de santé
   POST   /sources/{code}/collecter        forcer une collecte
 
+Journal
+  GET    /journal?mot=&actions=           ce qui a changé, groupé par action
+
 Système
   GET    /sante
 ```
@@ -1054,6 +1097,7 @@ Le bot n'est pas une interface graphique, c'est un client de l'API. Il doit suff
 - Notifications avec trois boutons : fait, reporter, refuser.
 - Rappel du soir pour les tâches du jour non validées, puis report d'office à minuit.
 - Commandes de consultation : planning du jour, tâches en retard.
+- « /pourquoi » : ce qui a changé récemment, qui l'a déclenché, et ce qui s'est passé dans la même action.
 - Commandes de saisie rapide : ajouter un créneau, forcer une collecte, arrêter de suivre un flux.
 
 Si cet ensemble suffit à vivre une semaine sans écran, l'API est complète.

@@ -21,12 +21,14 @@ de nuit reste ainsi couvert par les tests de l'API.
 
 import logging
 from datetime import datetime, timedelta
+from functools import wraps
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+from api import operation
 from api.base import executer
 from api.collecteurs.service import CollecteImpossible, collecter_source, sources_a_collecter
 from api.config import configuration
@@ -201,7 +203,31 @@ def report_de_minuit() -> dict:
         LOG.info("Conflits périmés : %s", perimes)
     bilan["conflits_perimes"] = perimes
 
+    # JRN-8 : le journal ne garde que trois mois.
+    purges = (executer("SELECT purger_journal() AS nombre") or {}).get("nombre", 0)
+    if purges:
+        LOG.info("Journal : %s événement(s) purgé(s)", purges)
+    bilan["journal_purge"] = purges
+
     return bilan
+
+
+class _Suivi(BackgroundScheduler):
+    """JRN-4 : chaque tâche planifiée est une action du journal, à son nom.
+
+    Le nom est celui donné à `add_job` : « Bilan du matin », « Report d'office ».
+    C'est ce qu'on lira à côté de ce que la tâche a changé.
+    """
+
+    def add_job(self, func, *args, **kwargs):
+        nom = kwargs.get("name") or func.__name__
+
+        @wraps(func)
+        def suivie(*a, **k):
+            with operation.ouvrir(nom, acteur="ordonnanceur"):
+                return func(*a, **k)
+
+        return super().add_job(suivie, *args, **kwargs)
 
 
 def demarrer() -> BackgroundScheduler:
@@ -210,7 +236,7 @@ def demarrer() -> BackgroundScheduler:
         return _ordonnanceur
 
     conf = configuration()
-    ordonnanceur = BackgroundScheduler(timezone=conf.fuseau)
+    ordonnanceur = _Suivi(timezone=conf.fuseau)
 
     def a(heure: int, minute: int) -> CronTrigger:
         """Un rendez-vous quotidien, à l'heure de Paris.

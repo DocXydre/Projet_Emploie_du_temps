@@ -69,6 +69,19 @@ retenir_destinataire() {
     return 0
 }
 
+# JRN-7 : inscrire le déploiement au journal de l'application, pour qu'il se lise
+# à côté de ce qu'il a changé. Les textes passent en variables psql et non dans
+# la requête : le sujet d'un commit peut contenir une apostrophe. Sans effet si
+# la base ne répond pas, ou si le journal n'existe pas encore.
+noter() {
+    printf '%s\n' \
+        "SELECT set_config('planif.acteur', 'deploiement', FALSE);" \
+        "SELECT noter_evenement('deploiement', :'libelle', :'detail', TRUE);" \
+    | docker exec -i "${PLANIF_CONTENEUR:-planif-db}" psql \
+          --username="$(lire_env POSTGRES_USER)" --dbname="$(lire_env POSTGRES_DB)" \
+          --quiet --set libelle="$1" --set detail="$2" > /dev/null 2>&1 || true
+}
+
 # L'API répond-elle, base comprise ? `docker compose up` rend la main dès que le
 # conteneur est lancé : une API qui tombe au démarrage, faute d'une fonction SQL
 # par exemple, passerait sinon pour un déploiement réussi.
@@ -132,6 +145,7 @@ if deployer > "$JOURNAL" 2>&1; then
     cat "$JOURNAL"
     printf '%s\n' "$DISTANT" > "$TEMOIN"
     retenir_destinataire
+    noter "Déploiement de $COURT" "$SUJET"
     if [ -f "$ECHEC" ]; then
         rm -f "$ECHEC"
         prevenir "✅ Déploiement rétabli : $COURT, $SUJET"
@@ -151,6 +165,10 @@ if [ "$(cat "$ECHEC" 2>/dev/null || true)" != "$DISTANT" ]; then
 $(tail -n 12 "$JOURNAL" | cut -c1-300)
 
 Le serveur garde l'ancienne version et réessaie toutes les $ATTENTE_MINUTES minutes."
+fi
+# Au journal aussi, une fois par commit, comme l'alerte.
+if [ "$(cat "$ECHEC" 2>/dev/null || true)" != "$DISTANT" ]; then
+    noter "Déploiement raté de $COURT" "$SUJET"
 fi
 printf '%s\n' "$DISTANT" > "$ECHEC"
 exit 1

@@ -28,3 +28,81 @@ CREATE OR REPLACE TRIGGER occurrence_apres_validation
 CREATE OR REPLACE TRIGGER occupation_reverifier_propositions
     AFTER INSERT OR UPDATE OR DELETE ON occupation
     FOR EACH STATEMENT EXECUTE FUNCTION trg_occupation_reverifier();
+
+
+-- -----------------------------------------------------------------------------
+-- Le journal                                                     (JRN-1 à JRN-6)
+--
+-- Chaque table suivie donne ses colonnes : ce sont elles qui font un événement.
+-- Le premier argument dit qui peut le lire, « foyer » ou « technique ».
+--
+-- L'URL d'une source n'est pas suivie : celle d'un calendrier privé contient
+-- son jeton d'accès, et le journal n'a pas à en garder une copie.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER journal_occurrence
+    AFTER INSERT OR UPDATE OR DELETE ON occurrence
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'creneau', 'statut', 'motif', 'fenetre', 'epinglee');
+
+
+CREATE OR REPLACE TRIGGER journal_absence
+    AFTER INSERT OR UPDATE OR DELETE ON absence
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'periode', 'lieu', 'origine');
+
+
+CREATE OR REPLACE TRIGGER journal_proposition
+    AFTER INSERT OR UPDATE OR DELETE ON proposition
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'periode', 'lieu', 'statut', 'annoncee_le');
+
+
+CREATE OR REPLACE TRIGGER journal_trajet
+    AFTER INSERT OR UPDATE OR DELETE ON trajet
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'sens', 'periode', 'statut');
+
+
+CREATE OR REPLACE TRIGGER journal_courriel
+    AFTER INSERT OR UPDATE OR DELETE ON courriel
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'statut', 'motif', 'reference', 'id_absence');
+
+
+CREATE OR REPLACE TRIGGER journal_occupation
+    AFTER INSERT OR UPDATE OR DELETE ON occupation
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'type', 'libelle', 'periode', 'lieu');
+
+
+CREATE OR REPLACE TRIGGER journal_conflit
+    AFTER INSERT OR UPDATE OR DELETE ON conflit
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'statut', 'choix', 'periode', 'motif_caducite');
+
+
+CREATE OR REPLACE TRIGGER journal_notification
+    AFTER INSERT OR UPDATE OR DELETE ON notification
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'type', 'statut');
+
+
+CREATE OR REPLACE TRIGGER journal_tache
+    AFTER INSERT OR UPDATE OR DELETE ON tache
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'libelle', 'active', 'duree_minutes', 'periodicite_min_jours',
+        'periodicite_max_jours', 'heure_min', 'heure_max', 'id_utilisateur_defaut',
+        'priorite', 'avant_depart');
+
+
+CREATE OR REPLACE TRIGGER journal_utilisateur
+    AFTER UPDATE ON utilisateur
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'minimum_sport', 'actif', 'lieu_famille', 'gare_famille');
+
+
+CREATE OR REPLACE TRIGGER journal_source
+    AFTER INSERT OR UPDATE OR DELETE ON source
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'technique', 'libelle', 'etat', 'active', 'frequence_heures',
+        'id_utilisateur');
