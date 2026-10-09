@@ -2,13 +2,15 @@
 
 Le profil, l'état du dépistage, les limitations avec leur fiche, les lieux de
 chaque discipline, les objectifs, la feuille de route, la trame du plan, le
-rôle de chaque semaine, la pause, le carnet. Tout le reste se lit par un outil.
+rôle de chaque semaine, la pause, la mémoire en quatre étages (MEM-1). Tout le
+reste se lit par un outil.
 
 COA-15 : rien de ce qui est ici ne concerne l'autre personne, et aucune clé ni
 aucun jeton n'y figure.
 """
 
 from api.base import lister, un_seul
+from api.coach import memoire
 from api.coach.clair import aujourd_hui, clair, jour_en_clair, lundi_de, maintenant, sans_vides
 
 
@@ -107,13 +109,6 @@ def pause(id_utilisateur: int) -> dict | None:
              FROM pause pa
             WHERE pa.id_utilisateur = %(u)s AND pa.periode @> jour_de(now())""",
         {"u": id_utilisateur})
-
-
-def carnet(id_utilisateur: int) -> list[dict]:
-    return lister(
-        """SELECT n.id_note, n.categorie, n.texte, n.source, n.confirmee, n.date_creation
-             FROM note_coach n WHERE n.id_utilisateur = %(u)s
-            ORDER BY n.categorie, n.id_note""", {"u": id_utilisateur})
 
 
 def reglages(id_utilisateur: int) -> dict:
@@ -262,14 +257,7 @@ def texte(id_utilisateur: int) -> str:
     morceaux.append(_ligne("Besoin de sommeil",
                            f"{r.get('besoin_sommeil_minutes', 480) // 60} h"))
 
-    morceaux.append("## Carnet")
-    notes = carnet(id_utilisateur)
-    if not notes:
-        morceaux.append("Le carnet est vide.")
-    for n in notes:
-        origine = "dit par l'utilisateur" if n["source"] == "utilisateur" else (
-            "déduction confirmée" if n["confirmee"] else "déduction NON confirmée")
-        morceaux.append(f"- [{n['id_note']}] ({n['categorie']}, {origine}, "
-                        f"{clair(n['date_creation'])}) {n['texte']}")
+    morceaux.append("")
+    morceaux.append(memoire.texte(id_utilisateur))
 
     return "\n".join(morceaux)

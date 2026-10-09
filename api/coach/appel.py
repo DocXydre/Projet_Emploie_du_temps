@@ -7,7 +7,8 @@ texte. Il ne décide de rien : il transmet.
 
     1. un seul appel en cours par compte, l'appel est enregistré      (COA-21, COA-22)
     2. une opération du journal à lui, sous l'acteur « coach »        (COA-6)
-    3. la consigne : dossier, contexte, derniers échanges, moment     (COA-3)
+    3. la consigne : socle, paquets du sujet, contexte et mémoire,
+       derniers échanges, moment                       (COA-3, DOS-3, MEM-1)
     4. la boucle, bornée en tours et en temps                         (COA-7, COA-16)
     5. la réponse : le texte du modèle, et ce que la base a écrit     (COA-17, COA-18)
     6. l'échange et la notification, écrits ensemble                  (CAR-6, NOT-11)
@@ -23,7 +24,7 @@ from psycopg.types.json import Jsonb
 
 from api import operation
 from api.base import connexion, executer, lister, un_seul
-from api.coach import contexte, dossier, modele, outils, reponse
+from api.coach import aiguillage, contexte, dossier, modele, outils, reponse
 from api.coach.clair import clair, jour_en_clair, maintenant
 from api.config import configuration
 
@@ -99,8 +100,9 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "synthèse de la journée. Puis révise les esquisses des semaines suivantes selon "
             "l'emploi du temps et la forme, détaille la première semaine qui n'est pas "
             "validée (ses exercices, avec `modifier_seance_proposee`), et propose-la à la "
-            "validation. Relis le carnet : fusionne les doublons, retire ce qui est périmé. "
-            "Si le plan est arrivé à son terme, construis le suivant dans ce même appel.")
+            "validation. Si le plan est arrivé à son terme, construis le suivant dans ce "
+            "même appel. Termine en réécrivant la mémoire de la semaine : cette nuit, elle "
+            "sera versée dans celle du mois.")
     elif m == "synthese":
         lignes.append(
             "C'est la synthèse du soir. Elle couvre la journée entière : séances faites, pas "
@@ -109,8 +111,10 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "bilan. Pour chaque séance pas faite, décide : une séance clé est proposée à "
             "nouveau s'il reste un jour qui tient, une séance secondaire est abandonnée. "
             "Pour chaque séance libre du jour, rends un avis puis compense ou allège la "
-            "suite. Note au carnet ce qui est durable. Termine par ce qui attend demain. Un "
-            "jour sans rien à dire donne une synthèse courte, pas un silence.")
+            "suite. Mets à jour la mémoire de la semaine avec ce que la journée a appris "
+            "(`ecrire_memoire`, niveau semaine, en repartant du texte actuel). Termine par "
+            "ce qui attend demain. Un jour sans rien à dire donne une synthèse courte, pas "
+            "un silence.")
     elif m == "bilan":
         lignes.append(
             "L'utilisateur vient de clore une séance et demande ton bilan tout de suite. Lis "
@@ -121,7 +125,8 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "une séance libre annoncée, ou la réponse à une question que tu avais posée. "
             "Applique d'abord le chapitre 1.2, puis le chapitre 8.4 ou 7.4 selon le cas. Tu "
             "peux retirer ou modifier des séances proposées. Sur une séance validée, tu "
-            "déposes un ajustement. Note au carnet ce qui doit être retenu.")
+            "déposes un ajustement. Garde la trace de ce qui est signalé dans la mémoire "
+            "de la semaine, et marque l'échange important s'il change la suite.")
     elif m == "chat":
         lignes.append(
             "L'utilisateur pose une question. Réponds-y, en lisant les chapitres et les "
@@ -172,18 +177,29 @@ def derniers_echanges(id_utilisateur: int) -> str:
     return "\n\n".join(morceaux)
 
 
-def consigne(id_utilisateur: int) -> list[dict]:
+def consigne(id_utilisateur: int, choix: dict[str, str] | None = None) -> list[dict]:
     """La consigne, du plus stable au plus changeant.
 
     Le fournisseur facture moins cher une partie déjà vue : la partie fixe vient
     donc en premier et reste identique d'un appel à l'autre, au caractère près.
+    Puis les paquets du dossier choisis pour cet appel (DOS-3), identiques pour
+    un même choix. Puis le contexte et la mémoire.
     """
     return [
         {"type": "text", "text": dossier.consigne() + "\n\n" + dossier.base(),
          "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": dossier.texte_des_paquets(choix or {}),
+         "cache_control": {"type": "ephemeral"}},
         {"type": "text", "text": contexte.texte(id_utilisateur),
          "cache_control": {"type": "ephemeral"}},
     ]
+
+
+def dernier_message_du_coach(id_utilisateur: int) -> str | None:
+    ligne = un_seul("SELECT contenu FROM echange WHERE id_utilisateur = %(u)s "
+                    "AND auteur = 'coach' ORDER BY id_echange DESC LIMIT 1",
+                    {"u": id_utilisateur})
+    return (ligne or {}).get("contenu")
 
 
 # ---------------------------------------------------------------------------
@@ -335,6 +351,12 @@ def appeler_coach(demande: Demande) -> dict:
     # appels suivants : il est donc lu avant d'être gardé, pour ne pas figurer
     # deux fois dans celui-ci.
     echanges = derniers_echanges(demande.id_utilisateur)
+    # DOS-2 : les paquets du dossier, choisis avant que le texte soit gardé, pour
+    # que « le dernier message du coach » soit bien celui auquel il répond.
+    choix = aiguillage.choisir(demande.id_utilisateur, demande.moment, demande.texte,
+                               demande.id_occurrence,
+                               dernier_message_du_coach(demande.id_utilisateur)
+                               if demande.texte else None)
     id_texte = garder_le_texte(demande) if demande.essai == 1 else None
 
     operation_id = demande.operation_id or uuid.uuid4().hex[:16]
@@ -345,8 +367,19 @@ def appeler_coach(demande: Demande) -> dict:
         return _enregistrer(demande, demande.moment, "systeme",
                             reponse.MESSAGE_INJOIGNABLE, [], None, None)
 
+    # MEM-8 : le texte de l'utilisateur est rattaché à l'appel qui y répond, et en
+    # prend l'importance.
+    executer("UPDATE appel_coach SET paquets = %(p)s WHERE id_appel = %(a)s",
+             {"p": choix.en_liste(), "a": id_appel})
+    if id_texte is not None:
+        executer("UPDATE echange SET id_appel = %(a)s WHERE id_echange = %(e)s",
+                 {"a": id_appel, "e": id_texte})
+
     suivi = {"tours": 0, "entree": 0, "cache": 0, "sortie": 0, "moment": demande.moment,
-             "deroule": []}
+             "deroule": [{"aiguillage": choix.en_liste(), "par": choix.par or "moment",
+                          "tokens_entree": choix.tokens_entree,
+                          "tokens_sortie": choix.tokens_sortie}],
+             "choix": choix.choix}
     with operation.ouvrir_a_part(f"coach : {demande.moment}", "coach", operation_id):
         try:
             texte = _boucler(demande, compte, echanges, id_texte, suivi,
@@ -388,7 +421,7 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
     borne = conf.coach_tours_plan if moment in MOMENTS_LONGS else conf.coach_tours
 
     deja_ecrit = reponse.elements_de(suivi_operation()) if demande.essai > 1 else []
-    systeme = consigne(id_utilisateur)
+    systeme = consigne(id_utilisateur, suivi.get("choix"))
     messages: list[dict] = [{"role": "user", "content": [
         {"type": "text", "text": echanges + "\n\n" + _moment_du(demande, deja_ecrit)}]}]
     requalifie = False
@@ -438,8 +471,8 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
                     "Requalifié en signalement. Tu disposes maintenant des outils du "
                     "signalement : applique d'abord le chapitre 1.2, puis le chapitre 8.4 "
                     "ou 7.4 selon le cas. Tu peux retirer ou modifier des séances "
-                    "proposées, et déposer un ajustement sur une séance validée. Note au "
-                    "carnet ce qui doit être retenu.", False)
+                    "proposées, et déposer un ajustement sur une séance validée. Garde la "
+                    "trace de ce qui est signalé dans la mémoire de la semaine.", False)
             else:
                 contenu, erreur = outils.executer_outil(
                     voulu.nom, id_utilisateur, voulu.arguments, noms_permis)

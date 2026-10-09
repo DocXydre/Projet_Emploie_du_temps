@@ -1,0 +1,282 @@
+{
+  "_lisezmoi": "Le dossier du coach découpé en paquets (DOS-1 à DOS-6). Le socle part à chaque appel, en entier. Chaque paquet part soit en résumé (coach/dossier/resumes/<code>.md), soit en complet (ses chapitres). Le choix se fait à chaque appel : par le moment pour les appels automatiques, par Haiku pour un message libre, par les mots-clés si Haiku ne répond pas. Changer ce fichier change ce que le coach lit : relancer les scénarios.",
+  "socle": [
+    "1.1",
+    "1.2",
+    "2.4",
+    "10.2",
+    "10.3"
+  ],
+  "paquets": {
+    "sante": {
+      "titre": "Santé, douleur, blessure, fatigue, sommeil, récupération, score de forme, données de la montre",
+      "chapitres": [
+        "2.2",
+        "7.4",
+        "8.1",
+        "8.2",
+        "8.3",
+        "8.4"
+      ],
+      "mots": [
+        "douleur",
+        "mal",
+        "blessure",
+        "blesse",
+        "genou",
+        "dos",
+        "epaule",
+        "cheville",
+        "tendon",
+        "fatigue",
+        "fatigue",
+        "creve",
+        "sommeil",
+        "dormi",
+        "malade",
+        "rhume",
+        "fievre",
+        "recuperation",
+        "courbature",
+        "vfc",
+        "variabilite",
+        "frequence cardiaque",
+        "forme",
+        "montre",
+        "stress",
+        "examen",
+        "alcool"
+      ]
+    },
+    "musculation": {
+      "titre": "Musculation : force, prise de muscle, exercices, machines, programmes, séances ciblées",
+      "chapitres": [
+        "4.1",
+        "4.2",
+        "4.3",
+        "4.4",
+        "4.5",
+        "4.6",
+        "4.7",
+        "4.8"
+      ],
+      "mots": [
+        "muscu",
+        "musculation",
+        "salle",
+        "force",
+        "squat",
+        "developpe",
+        "souleve",
+        "traction",
+        "rowing",
+        "machine",
+        "poulie",
+        "haltere",
+        "barre",
+        "serie",
+        "repetition",
+        "charge",
+        "kg",
+        "pectoraux",
+        "biceps",
+        "triceps",
+        "fessier",
+        "abdos",
+        "abdominaux",
+        "prise de muscle",
+        "hypertrophie",
+        "1rm"
+      ]
+    },
+    "course": {
+      "titre": "Course à pied : zones, séances, terrain, objectif de course, chrono, plan, jour de course",
+      "chapitres": [
+        "5.1",
+        "5.2",
+        "5.3",
+        "5.4",
+        "5.5",
+        "5.6",
+        "5.7",
+        "5.8"
+      ],
+      "mots": [
+        "course",
+        "courir",
+        "running",
+        "footing",
+        "fractionne",
+        "allure",
+        "km",
+        "kilometre",
+        "semi",
+        "marathon",
+        "10 km",
+        "trail",
+        "tapis",
+        "chrono",
+        "vma",
+        "endurance",
+        "zone 2",
+        "fartlek",
+        "seuil"
+      ]
+    },
+    "cardio": {
+      "titre": "Natation, vélo et machines cardio de la salle",
+      "chapitres": [
+        "6.1",
+        "6.2",
+        "6.3"
+      ],
+      "mots": [
+        "natation",
+        "nager",
+        "piscine",
+        "velo",
+        "cyclisme",
+        "rameur",
+        "elliptique",
+        "stepper",
+        "cardio",
+        "spinning"
+      ]
+    },
+    "alimentation": {
+      "titre": "Alimentation : calories, protéines, repas, sèche, prise de masse, shakers, compléments",
+      "chapitres": [
+        "9.1",
+        "9.2",
+        "9.3",
+        "9.4",
+        "9.5"
+      ],
+      "mots": [
+        "manger",
+        "repas",
+        "calorie",
+        "proteine",
+        "glucide",
+        "lipide",
+        "regime",
+        "seche",
+        "prise de masse",
+        "poids",
+        "maigrir",
+        "nutrition",
+        "shaker",
+        "whey",
+        "creatine",
+        "complement",
+        "petit dejeuner",
+        "hydratation",
+        "boire"
+      ]
+    },
+    "planification": {
+      "titre": "Planifier : principes d'entraînement, échauffement, cycles, combiner les piliers, emploi du temps, logique de décision",
+      "chapitres": [
+        "3.1",
+        "3.2",
+        "7.1",
+        "7.2",
+        "7.3",
+        "10.1"
+      ],
+      "mots": [
+        "plan",
+        "planning",
+        "semaine",
+        "programme",
+        "organiser",
+        "deplacer",
+        "decaler",
+        "emploi du temps",
+        "cycle",
+        "progression",
+        "echauffement",
+        "etirement",
+        "mobilite",
+        "repos",
+        "combien de seances"
+      ]
+    },
+    "objectifs": {
+      "titre": "Profil, repères de niveau, juger un objectif et sa faisabilité",
+      "chapitres": [
+        "2.1",
+        "2.3",
+        "5.4"
+      ],
+      "mots": [
+        "objectif",
+        "niveau",
+        "realiste",
+        "faisable",
+        "but",
+        "atteindre",
+        "profil",
+        "progresser"
+      ]
+    },
+    "cadre": {
+      "titre": "Cadre légal, le coach dans l'application, formules, limites de fiabilité",
+      "chapitres": [
+        "1.3",
+        "10.4",
+        "11.1",
+        "11.2"
+      ],
+      "mots": [
+        "legal",
+        "loi",
+        "certificat",
+        "application",
+        "formule",
+        "fiable",
+        "source"
+      ]
+    }
+  },
+  "moments": {
+    "plan": {
+      "planification": "complet",
+      "objectifs": "complet",
+      "sante": "resume"
+    },
+    "revision": {
+      "planification": "complet",
+      "sante": "resume"
+    },
+    "synthese": {
+      "planification": "resume",
+      "sante": "resume"
+    },
+    "faisabilite": {
+      "objectifs": "complet",
+      "planification": "resume"
+    },
+    "bilan": {
+      "sante": "resume"
+    },
+    "signalement": {
+      "sante": "complet",
+      "planification": "resume"
+    },
+    "chat": {}
+  },
+  "disciplines": {
+    "musculation": "musculation",
+    "course": "course",
+    "cardio": "cardio"
+  },
+  "detail_discipline": {
+    "_lisezmoi": "Comment part le paquet d'une discipline dont parle un objectif actif ou la séance, selon le moment. Pour un message libre (chat, signalement), c'est Haiku qui choisit.",
+    "plan": "complet",
+    "revision": "complet",
+    "faisabilite": "complet",
+    "synthese": "resume",
+    "bilan": "resume"
+  }
+}

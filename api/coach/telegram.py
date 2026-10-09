@@ -17,7 +17,7 @@ from datetime import date, datetime, time, timedelta
 import psycopg
 
 from api.base import lister, un_seul
-from api.coach import appel, contexte, outils, planifie
+from api.coach import appel, contexte, memoire, outils, planifie
 from api.coach.clair import aujourd_hui, fuseau, jour_en_clair, lundi_de, maintenant
 from api.ecran import Ecran
 from api.erreurs import refus_coach
@@ -40,6 +40,18 @@ def h(texte) -> str:
     """Le bot envoie en HTML : tout texte variable est échappé, sans toucher aux
     apostrophes, que Telegram afficherait telles quelles."""
     return html.escape(str(texte if texte is not None else ""), quote=False)
+
+
+_GRAS = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
+
+
+def mise_en_forme(texte: str) -> str:
+    """Le message du coach pour Telegram : coupé, échappé, et son **gras** rendu.
+
+    Le texte vient du modèle : il est échappé en entier avant d'être mis en
+    forme, et seul le gras en est tiré. Rien d'autre ne devient une balise.
+    """
+    return _GRAS.sub(r"<b>\1</b>", h(_couper(texte or "")))
 
 
 def _couper(texte: str) -> str:
@@ -155,13 +167,13 @@ def boutons_des_elements(elements: list[dict]) -> list[list[tuple[str, str]]]:
 
 def ecran_reponse(rendu: dict) -> Ecran:
     """Le message du coach, puis ses boutons."""
-    texte = h(rendu.get("message") or "")
+    texte = mise_en_forme(rendu.get("message") or "")
     for cle, titre in (("plan_en_attente_de", "Le plan attend encore"),):
         if rendu.get(cle):
             texte += f"\n\n<b>{titre}</b> : " + h(" ; ".join(rendu[cle]))
     if rendu.get("plan_en_construction"):
         texte += "\n\n<i>Je construis ton plan. Il arrive par message dans quelques minutes.</i>"
-    return Ecran(_couper(texte), boutons_des_elements(rendu.get("elements") or []))
+    return Ecran(texte, boutons_des_elements(rendu.get("elements") or []))
 
 
 def boutons_de_l_echange(id_echange: int | None) -> list[list[tuple[str, str]]]:
@@ -717,7 +729,83 @@ def _coach(id_utilisateur: int, args: list[str]) -> Ecran:
     return ecran_coach(id_utilisateur)
 
 
+NIVEAUX_MEMOIRE = {"g": "globale", "t": "trois_mois", "m": "mois", "s": "semaine"}
+TITRES_MEMOIRE = {"globale": "Mémoire globale", "trois_mois": "Les trois derniers mois",
+                  "mois": "Le mois en cours", "semaine": "La semaine en cours"}
+MOTS_MEMOIRE = {"globale": "globale", "mois": "mois", "semaine": "semaine"}
+
+
+def _texte_d_etage(e: dict, niveau: str) -> str:
+    if niveau == "trois_mois":
+        return "\n\n".join(f"{memoire.mois_en_clair(a['periode']).capitalize()}\n{a['texte']}"
+                           for a in e["trois_mois"])
+    return (e.get(niveau) or {}).get("texte") or ""
+
+
+def ecran_memoire(id_utilisateur: int) -> Ecran:
+    """MEM-1 : ce que le coach retient, étage par étage, en bref."""
+    e = memoire.etat(id_utilisateur)
+    lignes = ["<b>Ce que le coach retient</b>",
+              "Du plus ancien et plus résumé au plus récent et plus précis."]
+    for niveau in ("globale", "trois_mois", "mois", "semaine"):
+        texte = _texte_d_etage(e, niveau).strip()
+        apercu = (texte[:280] + "…") if len(texte) > 280 else texte
+        taille = f" ({len(texte)} car.)" if texte else ""
+        lignes.append(f"\n<b>{TITRES_MEMOIRE[niveau]}</b>{taille}\n"
+                      f"{h(apercu) if apercu else '<i>vide</i>'}")
+    lignes.append("\nPour corriger : dis-le au coach (« oublie que… »), ou envoie "
+                  "<code>/memoire semaine</code>, <code>/memoire mois</code> ou "
+                  "<code>/memoire globale</code> suivi du nouveau texte.")
+    boutons = [[("🌍 Globale", "co:mem:g"), ("🗓 3 mois", "co:mem:t")],
+               [("📆 Mois", "co:mem:m"), ("📅 Semaine", "co:mem:s")]]
+    return Ecran(_couper("\n".join(lignes)), boutons)
+
+
+def ecran_etage(id_utilisateur: int, code: str) -> Ecran:
+    niveau = NIVEAUX_MEMOIRE.get(code)
+    if niveau is None:
+        return Ecran("Étage inconnu.")
+    texte = _texte_d_etage(memoire.etat(id_utilisateur), niveau).strip()
+    boutons = [[("⬅️ Toute la mémoire", "co:mem:0")]]
+    if niveau != "trois_mois":
+        boutons.insert(0, [("↩️ Revenir à la version d'avant", f"co:memr:{code}")])
+    return Ecran(f"<b>{TITRES_MEMOIRE[niveau]}</b>\n\n"
+                 + (h(_couper(texte)) if texte else "<i>vide</i>"), boutons)
+
+
+def _periode_de(niveau: str):
+    jour = aujourd_hui()
+    return {"semaine": lundi_de(jour), "mois": jour.replace(day=1)}.get(niveau)
+
+
+def revenir_en_arriere(id_utilisateur: int, code: str) -> Ecran:
+    niveau = NIVEAUX_MEMOIRE.get(code)
+    if niveau not in MOTS_MEMOIRE:
+        return Ecran("Cet étage ne se restaure pas d'ici.")
+    versions = memoire.versions(id_utilisateur, niveau, _periode_de(niveau), 2)
+    if len(versions) < 2:
+        return Ecran("Il n'y a pas de version plus ancienne.")
+    routes.restaurer_memoire(_qui(id_utilisateur), versions[1]["id_memoire"])
+    ecran = ecran_etage(id_utilisateur, code)
+    ecran.texte = "↩️ Version précédente remise en place.\n\n" + ecran.texte
+    return ecran
+
+
+def _memoire(id_utilisateur: int, args: list[str]) -> Ecran:
+    if args and args[0].lower() in MOTS_MEMOIRE:
+        niveau = MOTS_MEMOIRE[args[0].lower()]
+        texte = " ".join(args[1:]).strip()
+        if not texte:
+            return ecran_etage(id_utilisateur, niveau[0])
+        memoire.ecrire(id_utilisateur, niveau, texte, "utilisateur", _periode_de(niveau))
+        ecran = ecran_etage(id_utilisateur, niveau[0])
+        ecran.texte = "✅ Mémoire corrigée. L'ancienne version est gardée.\n\n" + ecran.texte
+        return ecran
+    return ecran_memoire(id_utilisateur)
+
+
 COMMANDES = {
+    "memoire": _memoire,
     "objectifs": _objectifs,
     "profil": _profil,
     "semaine": lambda u, a: ecran_semaine(
@@ -822,6 +910,11 @@ def repondre(id_utilisateur: int, action: str, argument: str) -> Ecran | None:
             return Ecran("Mesure reportée. Le coach en rouvrira une plus tard.")
         if action == "plan":
             return ecran_plan(id_utilisateur)
+        if action == "mem":
+            return ecran_memoire(id_utilisateur) if argument == "0" \
+                else ecran_etage(id_utilisateur, argument)
+        if action == "memr":
+            return revenir_en_arriere(id_utilisateur, argument)
         if action == "obp":
             routes.designer_principal(qui, int(argument))
         elif action == "obs":

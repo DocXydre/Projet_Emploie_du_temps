@@ -32,6 +32,7 @@ STATUTS_COACH = {
     "non_autorise": status.HTTP_403_FORBIDDEN,
     "coach_inactif": status.HTTP_403_FORBIDDEN,
     "requete_invalide": 422,
+    "memoire_trop_longue": 422,
 }
 
 

@@ -55,18 +55,29 @@ def _le_client():
 def appeler(systeme: list[dict], messages: list[dict], outils: list[dict],
             delai: float) -> Tour:
     """Un tour : la consigne, la conversation, les outils permis, et la réponse."""
+    conf = configuration()
+    return _creer(model=conf.coach_modele, max_tokens=conf.coach_max_tokens,
+                  system=systeme, messages=messages, tools=outils,
+                  timeout=max(delai, 5.0))
+
+
+def ecrire(systeme: str, texte: str, modele_nom: str, max_tokens: int,
+           delai: float) -> Tour:
+    """Un appel sans outils : une consigne, un texte, une réponse.
+
+    Sert au choix des paquets du dossier (DOS-4) et aux résumés de la mémoire
+    (MEM-7). Les tests le remplacent comme `appeler`.
+    """
+    return _creer(model=modele_nom, max_tokens=max_tokens, system=systeme,
+                  messages=[{"role": "user", "content": texte}],
+                  timeout=max(delai, 5.0))
+
+
+def _creer(**parametres) -> Tour:
     import anthropic
 
-    conf = configuration()
     try:
-        reponse = _le_client().messages.create(
-            model=conf.coach_modele,
-            max_tokens=conf.coach_max_tokens,
-            system=systeme,
-            messages=messages,
-            tools=outils,
-            timeout=max(delai, 5.0),
-        )
+        reponse = _le_client().messages.create(**parametres)
     except anthropic.APIError as erreur:
         raise ModeleInjoignable(f"{type(erreur).__name__} : {erreur}") from erreur
 

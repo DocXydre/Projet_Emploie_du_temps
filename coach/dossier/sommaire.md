@@ -1,6 +1,6 @@
 # Dossier du coach : sommaire
 
-Un fichier par chapitre, nommé par son numéro (`4.5.md`). Les chapitres 1.1, 1.2, 2.4, 10.1, 10.2 et 10.3 partent à chaque appel. Les autres se lisent à la demande, avec l'outil `lire_chapitre`.
+Un fichier par chapitre, nommé par son numéro (`4.5.md`). Les chapitres 1.1, 1.2, 2.4, 10.2 et 10.3 partent à chaque appel. Selon le sujet, d'autres parties sont jointes, en résumé ou en entier : la liste est donnée plus bas, sous « Le dossier joint à cet appel ». Tout le reste se lit à la demande, avec l'outil `lire_chapitre`.
 
 
 ## Partie 1. Le cadre

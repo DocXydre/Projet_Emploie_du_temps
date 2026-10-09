@@ -183,8 +183,8 @@ def verifier(scenario: dict, u: int, rendu: dict, debut: datetime) -> list[str]:
     """Les faits. Rend la liste de ce qui ne va pas, vide si tout va bien."""
     fautes = []
     deroule = un("SELECT deroule FROM appel_coach ORDER BY id_appel DESC LIMIT 1") or []
-    appeles = {d["outil"] for d in deroule}
-    aboutis = {d["outil"] for d in deroule if not d["refus"]}
+    appeles = {d["outil"] for d in deroule if "outil" in d}
+    aboutis = {d["outil"] for d in deroule if "outil" in d and not d["refus"]}
     message = (rendu.get("message") or "").lower()
 
     if rendu.get("auteur") != "coach":
@@ -275,9 +275,13 @@ def main(arguments: list[str]) -> int:
                         f"Moment : {scenario['moment']}. Situation : "
                         f"{', '.join(scenario['situation'])}.",
                         f"Message de l'utilisateur : {scenario.get('texte') or '(aucun)'}", "",
+                        "Paquets du dossier : " + (", ".join(
+                            ", ".join(d["aiguillage"]) + f" (par {d['par']})"
+                            for d in deroule if "aiguillage" in d) or "socle seul"),
+                        "",
                         "Outils : " + (", ".join(
                             d["outil"] + (" (refusé)" if d["refus"] else "")
-                            for d in deroule) or "aucun"), "",
+                            for d in deroule if "outil" in d) or "aucun"), "",
                         "Réponse du coach :", "", "> " + (rendu.get("message") or "")
                         .replace("\n", "\n> "), "",
                         f"À juger à la lecture : {scenario.get('a_lire', '')}", ""]

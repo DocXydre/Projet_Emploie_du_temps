@@ -1346,11 +1346,13 @@ async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
     for notification in await asyncio.to_thread(conv.notifications_a_envoyer):
         boutons = None
         mise_en_forme = ParseMode.HTML if "<" in notification["contenu"] else None
+        contenu = notification["contenu"]
         if notification["type"] == "coach":
-            # NOT-11, COA-19 : le message du coach tel qu'il l'a écrit, sans
-            # l'interpréter, puis un bouton par action de chaque élément.
+            # NOT-11, COA-19 : le message du coach tel qu'il l'a écrit, échappé, son
+            # gras rendu, puis un bouton par action de chaque élément.
             from api.coach import telegram as coach
-            mise_en_forme = None
+            mise_en_forme = ParseMode.HTML
+            contenu = coach.mise_en_forme(contenu)
             rangees = await asyncio.to_thread(
                 coach.boutons_de_l_echange, notification.get("id_echange"))
             if rangees:
@@ -1383,7 +1385,7 @@ async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             await contexte.bot.send_message(
                 notification["id_telegram"],
-                notification["contenu"][:4090],
+                contenu if notification["type"] == "coach" else contenu[:4090],
                 reply_markup=boutons,
                 parse_mode=mise_en_forme,
             )
@@ -1456,6 +1458,8 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          _commande_du_coach("lieux")),
         ("Coach", "pause", "JJ/MM motif", "mettre le coach en pause, ou la lever",
          _commande_du_coach("pause")),
+        ("Coach", "memoire", "", "ce que le coach retient de toi, et le corriger",
+         _commande_du_coach("memoire")),
         ("Coach", "coach", "", "état du coach et ce qu'il a consommé",
          _commande_du_coach("coach")),
 

@@ -167,3 +167,14 @@ CREATE OR REPLACE TRIGGER journal_plan
     AFTER INSERT OR UPDATE OR DELETE ON plan
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'foyer', 'id_utilisateur', 'periode', 'statut');
+
+
+-- MEM-8 : l'importance d'un échange se calcule à son écriture.
+CREATE OR REPLACE TRIGGER echange_importance
+    BEFORE INSERT ON echange
+    FOR EACH ROW EXECUTE FUNCTION trg_echange_importance();
+
+
+CREATE OR REPLACE TRIGGER echange_importance_reportee
+    AFTER INSERT ON echange
+    FOR EACH ROW EXECUTE FUNCTION trg_echange_importance();

@@ -17,11 +17,12 @@ from uuid import UUID
 
 import psycopg
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import PlainTextResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from api.base import connexion, executer, lister, un_seul
-from api.coach import appel, contexte, outils, planifie, reponse, sante
+from api.coach import appel, contexte, memoire, outils, planifie, reponse, sante
 from api.coach.clair import aujourd_hui, clair, fuseau, lundi_de
 from api.erreurs import refus_coach
 from api.securite import Administrateur, Authentifie
@@ -910,13 +911,14 @@ def relire_echanges(qui: Authentifie, limite: int = Query(default=20, ge=1, le=2
                     moment: str | None = None) -> list[dict]:
     """CAR-8 : seul leur propriétaire les lit."""
     lignes = lister(
-        """SELECT id_echange, quand, auteur, moment, contenu, elements, id_occurrence
+        """SELECT id_echange, quand, auteur, moment, contenu, elements, id_occurrence,
+                  importance
              FROM echange
             WHERE id_utilisateur = %(u)s AND (%(m)s::TEXT IS NULL OR moment = %(m)s::TEXT)
             ORDER BY id_echange DESC LIMIT %(n)s""",
         {"u": qui.id_utilisateur, "m": moment, "n": limite})
-    return [{**reponse.depuis_echange(ligne), "id_occurrence": ligne["id_occurrence"]}
-            for ligne in lignes]
+    return [{**reponse.depuis_echange(ligne), "id_occurrence": ligne["id_occurrence"],
+             "importance": ligne["importance"]} for ligne in lignes]
 
 
 @routeur.post("/coach/synthese", tags=["Coach"], summary="Déclencher la synthèse du soir")
@@ -966,6 +968,71 @@ def lever_pause(qui: Authentifie) -> dict:
                      name="coach-reprise", daemon=True).start()
     return {"levee": True, "message": "Pause levée. Le coach prépare la reprise et te "
                                       "l'envoie par message."}
+
+
+# ---------------------------------------------------------------------------
+# La mémoire du coach                                         (MEM-1 à MEM-9)
+# ---------------------------------------------------------------------------
+
+NiveauMemoire = Literal["globale", "archive_mois", "mois", "semaine"]
+
+
+class TexteMemoire(BaseModel):
+    texte: str = Field(max_length=4000)
+    periode: date | None = Field(
+        default=None, description="Le lundi de la semaine, ou un jour du mois. Vide : "
+                                  "la semaine ou le mois en cours.")
+
+
+@routeur.get("/coach/memoire", tags=["Coach : mémoire"],
+             summary="La mémoire du coach, étage par étage")
+def lire_memoire(qui: Authentifie) -> dict:
+    """MEM-1 : ce que le coach relit avant chaque réponse. Seul le propriétaire la lit."""
+    return clair(memoire.etat(qui.id_utilisateur))
+
+
+@routeur.get("/coach/memoire.md", tags=["Coach : mémoire"], response_class=PlainTextResponse,
+             summary="La mémoire en Markdown, telle que le coach la lit")
+def exporter_memoire(qui: Authentifie) -> str:
+    return memoire.texte(qui.id_utilisateur)
+
+
+@routeur.put("/coach/memoire/{niveau}", tags=["Coach : mémoire"],
+             summary="Corriger un étage de la mémoire")
+def corriger_memoire(qui: Authentifie, niveau: NiveauMemoire, corps: TexteMemoire) -> dict:
+    """MEM-5 : l'utilisateur corrige ce que le coach retient. L'ancienne version reste."""
+    id_memoire = memoire.ecrire(qui.id_utilisateur, niveau, corps.texte, "utilisateur",
+                                corps.periode)
+    return {"id_memoire": id_memoire, "memoire": clair(memoire.etat(qui.id_utilisateur))}
+
+
+@routeur.get("/coach/memoire/{niveau}/versions", tags=["Coach : mémoire"],
+             summary="Les versions d'un étage, de la plus récente à la plus ancienne")
+def versions_memoire(qui: Authentifie, niveau: NiveauMemoire,
+                     periode: date | None = None) -> list[dict]:
+    if niveau == "semaine":
+        periode = lundi_de(periode or aujourd_hui())
+    elif niveau != "globale":
+        periode = (periode or aujourd_hui()).replace(day=1)
+    else:
+        periode = None
+    return clair(memoire.versions(qui.id_utilisateur, niveau, periode, 30))
+
+
+@routeur.post("/coach/memoire/versions/{id_memoire}/restaurer", tags=["Coach : mémoire"],
+              summary="Remettre une ancienne version en vigueur")
+def restaurer_memoire(qui: Authentifie, id_memoire: int) -> dict:
+    ligne = executer("SELECT restaurer_memoire(%(u)s, %(m)s) AS id",
+                     {"u": qui.id_utilisateur, "m": id_memoire})
+    return {"id_memoire": ligne["id"], "memoire": clair(memoire.etat(qui.id_utilisateur))}
+
+
+@routeur.post("/coach/memoire/rouler", tags=["Coach : mémoire"],
+              summary="Faire tout de suite le roulement de la nuit")
+def rouler_memoire(qui: Administrateur) -> dict:
+    """MEM-6 : réservé à l'administrateur, pour ne pas attendre 0 h 05."""
+    _exiger_coach(qui.id_utilisateur)
+    return {"fait": memoire.rouler(qui.id_utilisateur)}
 
 
 @routeur.get("/coach/appels", tags=["Coach"],

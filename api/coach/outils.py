@@ -30,15 +30,15 @@ from api.erreurs import message_lisible, refus_coach
 MOMENTS = ("faisabilite", "plan", "revision", "synthese", "bilan", "signalement", "chat")
 
 FAMILLES_DU_MOMENT = {
-    "faisabilite": {"lecture", "avis", "carnet"},
-    "plan":        {"lecture", "trame", "seances", "fenetre", "carnet"},
-    "revision":    {"lecture", "trame", "seances", "fenetre", "carnet", "avis_libre"},
-    "synthese":    {"lecture", "seances", "fenetre", "carnet", "avis_libre"},
-    "bilan":       {"lecture", "seances", "carnet", "avis_libre"},
-    "signalement": {"lecture", "seances", "carnet", "avis_libre"},
-    # Dans le chat, le coach lit, note et oublie : il ne propose aucune séance.
+    "faisabilite": {"lecture", "avis", "memoire"},
+    "plan":        {"lecture", "trame", "seances", "fenetre", "memoire"},
+    "revision":    {"lecture", "trame", "seances", "fenetre", "memoire", "avis_libre"},
+    "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre"},
+    "bilan":       {"lecture", "seances", "memoire", "avis_libre"},
+    "signalement": {"lecture", "seances", "memoire", "avis_libre"},
+    # Dans le chat, le coach lit et tient sa mémoire : il ne propose aucune séance.
     # S'il lit un signalement dans le texte, il le requalifie (COA-25).
-    "chat":        {"lecture", "carnet", "requalification"},
+    "chat":        {"lecture", "memoire", "requalification"},
 }
 
 # PAU-2 : en pause, ces familles sont fermées pour tous les moments.
@@ -98,6 +98,30 @@ def lire_chapitre(u: int, a: dict) -> object:
         raise RefusOutil("introuvable",
                          "Ce chapitre n'existe pas. Les numéros sont dans le sommaire.")
     return texte
+
+
+def lire_echanges(u: int, a: dict) -> object:
+    """MEM-8 : chercher dans tout l'historique, au-delà des derniers échanges."""
+    limite = min(int(a.get("limite") or 10), 20)
+    cherche = (a.get("cherche") or "").strip()
+    du = _jour(a["du"], "du") if a.get("du") else None
+    au = _jour(a["au"], "au") if a.get("au") else None
+    lignes = lister(
+        """SELECT id_echange, quand, auteur, moment, importance,
+                  CASE WHEN char_length(contenu) > 1500
+                       THEN left(contenu, 1500) || ' […]' ELSE contenu END AS contenu
+             FROM echange
+            WHERE id_utilisateur = %(u)s
+              AND importance >= %(i)s
+              AND (%(du)s::DATE IS NULL OR jour_de(quand) >= %(du)s::DATE)
+              AND (%(au)s::DATE IS NULL OR jour_de(quand) <= %(au)s::DATE)
+              AND (%(c)s = '' OR contenu ILIKE '%%' || %(c)s || '%%')
+            ORDER BY id_echange DESC LIMIT %(l)s""",
+        {"u": u, "i": int(a.get("importance_min") or 1), "du": du, "au": au,
+         "c": cherche, "l": limite})
+    if not lignes:
+        return {"echanges": [], "note": "Aucun échange ne correspond."}
+    return {"echanges": list(reversed(lignes))}
 
 
 def lire_planning(u: int, a: dict) -> object:
@@ -431,16 +455,18 @@ def ouvrir_fenetre_mesure(u: int, a: dict) -> object:
     return {"fenetre_ouverte": ligne["id"]}
 
 
-def noter(u: int, a: dict) -> object:
-    ligne = _sql("SELECT noter(%(u)s, %(c)s, %(t)s, %(s)s, %(ok)s) AS id",
-                 {"u": u, "c": a.get("categorie"), "t": a.get("texte"),
-                  "s": a.get("source", "deduction"), "ok": a.get("confirmee")})
-    return {"note": ligne["id"]}
+def ecrire_memoire(u: int, a: dict) -> object:
+    niveau = a.get("niveau")
+    if niveau not in ("semaine", "globale"):
+        raise RefusOutil("requete_invalide", "« niveau » vaut semaine ou globale")
+    ligne = _sql("SELECT ecrire_memoire(%(u)s, %(n)s, %(t)s, 'coach') AS id",
+                 {"u": u, "n": niveau, "t": a.get("texte")})
+    return {"fait": f"mémoire {niveau} écrite", "version": ligne["id"]}
 
 
-def oublier(u: int, a: dict) -> object:
-    _sql("SELECT oublier(%(u)s, %(n)s)", {"u": u, "n": a.get("id_note")})
-    return {"fait": "note retirée"}
+def marquer_important(u: int, a: dict) -> object:
+    _sql("SELECT marquer_important(%(u)s, %(r)s)", {"u": u, "r": a.get("raison")})
+    return {"fait": "échange marqué important : les résumés le garderont"}
 
 
 def requalifier_en_signalement(u: int, a: dict) -> object:
@@ -489,8 +515,18 @@ _PLAGE = {
 OUTILS: tuple[Outil, ...] = (
     Outil("lire_chapitre", "lecture",
           "Rend le texte d'un chapitre du dossier, par son numéro (par exemple 4.7). "
-          "Les six chapitres de base sont déjà dans la consigne.",
+          "Le socle et les paquets joints à cet appel sont déjà dans la consigne.",
           _objet({"numero": {"type": "string"}}, ["numero"]), lire_chapitre),
+    Outil("lire_echanges", "lecture",
+          "Cherche dans tous vos échanges passés, au-delà des derniers que tu as sous "
+          "les yeux : par mot (« genou »), par période, ou seulement les importants "
+          "(importance_min 2 ou 3). Du plus ancien au plus récent, 20 au plus.",
+          _objet({"cherche": {"type": "string"},
+                  "du": {"type": "string", "description": "AAAA-MM-JJ"},
+                  "au": {"type": "string", "description": "AAAA-MM-JJ"},
+                  "importance_min": {"type": "integer", "minimum": 1, "maximum": 3},
+                  "limite": {"type": "integer", "minimum": 1, "maximum": 20}}),
+          lire_echanges),
     Outil("lire_planning", "lecture",
           "Emploi du temps, absences et charge de chaque journée (légère, moyenne, "
           "lourde) sur une période de 35 jours au plus.",
@@ -633,21 +669,24 @@ OUTILS: tuple[Outil, ...] = (
                   "consigne": {"type": "string"}}, ["type", "du", "au"]),
           ouvrir_fenetre_mesure),
 
-    Outil("noter", "carnet",
-          "Écrit une note courte au carnet (300 caractères) : ce qui est durable. "
-          "source vaut « utilisateur » quand il l'a dit lui-même, « deduction » sinon. "
-          "Une déduction non confirmée ne fonde pas une décision.",
-          _objet({"categorie": {"type": "string",
-                                "enum": ["preference", "efficacite", "corps", "engagement",
-                                         "contexte"]},
-                  "texte": {"type": "string", "maxLength": 300},
-                  "source": {"type": "string", "enum": ["utilisateur", "deduction"]},
-                  "confirmee": {"type": "boolean"}}, ["categorie", "texte", "source"]),
-          noter),
-    Outil("oublier", "carnet",
-          "Retire une note du carnet, par son numéro : quand l'utilisateur te demande "
-          "d'oublier quelque chose, ou quand une note est périmée ou en double.",
-          _objet({"id_note": {"type": "integer"}}, ["id_note"]), oublier),
+    Outil("ecrire_memoire", "memoire",
+          "Réécrit en entier un étage de ta mémoire (MEM-4). « semaine » : la semaine en "
+          "cours, 3 000 caractères, ce qui s'est passé et ce que tu en retiens ; tu la "
+          "tiens à jour chaque soir et dès qu'un fait compte. « globale » : ce qui est "
+          "durable sur la personne (préférences dites, ce qui marche, limites), 4 000 "
+          "caractères ; tu ne la touches que pour un fait durable ou quand l'utilisateur "
+          "te demande d'oublier quelque chose. Repars toujours du texte actuel, que tu "
+          "as dans ta mémoire, pour ne rien perdre. Écris « (déduit) » après une "
+          "déduction et « (à confirmer) » si elle n'est pas confirmée.",
+          _objet({"niveau": {"type": "string", "enum": ["semaine", "globale"]},
+                  "texte": {"type": "string"}}, ["niveau", "texte"]),
+          ecrire_memoire),
+    Outil("marquer_important", "memoire",
+          "Marque l'échange en cours comme important : les résumés de la mémoire le "
+          "garderont toujours. Un objectif, un plan ou un ajustement le sont déjà "
+          "d'office. À utiliser pour ce qui ne laisse pas de trace en base : une "
+          "décision de l'utilisateur, une douleur nouvelle, un changement de vie.",
+          _objet({"raison": {"type": "string"}}, ["raison"]), marquer_important),
 
     Outil("requalifier_en_signalement", "requalification",
           "Dans le chat seulement : dit que le texte reçu est en fait un signalement "

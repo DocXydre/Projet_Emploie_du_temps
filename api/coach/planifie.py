@@ -5,7 +5,8 @@
     23h05, 23h20, 23h50 nouveaux essais si l'appel a échoué. Chacun reprend là
                         où le précédent s'est arrêté.
     6h55                rattrapage, si les trois essais ont échoué.
-    0h05                fenêtres de mesure expirées, pauses arrivées à leur terme.
+    0h05                fenêtres de mesure expirées, pauses arrivées à leur terme,
+                        puis le roulement de la mémoire (MEM-6).
 
 Les heures sont celles de Paris : l'ordonnanceur passe le fuseau à chaque
 déclencheur.
@@ -15,7 +16,7 @@ import logging
 from datetime import timedelta
 
 from api.base import executer, lister, un_seul
-from api.coach import appel
+from api.coach import appel, memoire
 from api.coach.clair import aujourd_hui, maintenant
 
 LOG = logging.getLogger(__name__)
@@ -183,7 +184,15 @@ def minuit() -> dict:
             WHERE upper(pa.periode) = jour_de(now()) AND u.coach_actif AND u.actif""")
     for pause in finies:
         reprise(pause["id_utilisateur"], pause["motif"])
-    return {"fenetres_expirees": expirees, "pauses_levees": len(finies)}
+    roulement = {}
+    for compte in comptes_avec_coach():
+        try:
+            roulement[compte["pseudo"]] = memoire.rouler(compte["id_utilisateur"])
+        except Exception:  # noqa: BLE001 - un compte ne doit pas priver l'autre
+            LOG.exception("Roulement de la mémoire impossible pour %s", compte["pseudo"])
+            roulement[compte["pseudo"]] = ["erreur"]
+    return {"fenetres_expirees": expirees, "pauses_levees": len(finies),
+            "memoire": roulement}
 
 
 def matin() -> int:

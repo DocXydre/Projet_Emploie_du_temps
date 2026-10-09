@@ -7,6 +7,8 @@
 #   ./outils/local.sh compte        prépare le compte du coach avec local/demarrage.json
 #   ./outils/local.sh scenarios S   rejoue les scénarios avec le vrai modèle
 #   ./outils/local.sh appels        les derniers appels au modèle, outil par outil
+#   ./outils/local.sh memoire       la mémoire du coach, étage par étage
+#   ./outils/local.sh rouler        le roulement de la mémoire de la nuit, tout de suite
 #   ./outils/local.sh journal       les 200 dernières lignes de l'API
 #   ./outils/local.sh etat          ce qui tourne
 #   ./outils/local.sh arreter
@@ -102,15 +104,40 @@ SELECT a.id_appel, to_char(a.debut AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI')
        a.moment, a.statut, a.essai, a.tours,
        round(EXTRACT(EPOCH FROM (a.fin - a.debut))) AS secondes,
        a.tokens_entree AS lus, a.tokens_cache AS cache, a.tokens_sortie AS ecrits,
-       left(a.motif_echec, 60) AS echec
+       array_to_string(a.paquets, ' ') AS paquets, left(a.motif_echec, 60) AS echec
   FROM appel_coach a ORDER BY a.id_appel DESC LIMIT 15;
 SELECT a.id_appel, d ->> 'tour' AS tour, d ->> 'outil' AS outil,
        CASE WHEN (d ->> 'refus')::BOOLEAN THEN 'REFUS' ELSE '' END AS refus,
        left(d ->> 'arguments', 90) AS arguments, left(d ->> 'resultat', 110) AS resultat
   FROM (SELECT * FROM appel_coach ORDER BY id_appel DESC LIMIT 3) a,
        jsonb_array_elements(a.deroule) d
+ WHERE d ? 'outil'
  ORDER BY a.id_appel DESC, (d ->> 'tour')::INTEGER;
 SQL
+        ;;
+    memoire)
+        # La mémoire du coach, étage par étage, telle qu'il la lit ce soir.
+        psql_local "$BASE" -P pager=off <<'SQL'
+SELECT m.niveau, m.periode, m.auteur,
+       to_char(m.quand AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS ecrite,
+       m.longueur || '/' || m.limite AS taille
+  FROM v_memoire_coach m ORDER BY m.niveau, m.periode DESC NULLS FIRST;
+SQL
+        psql_local "$BASE" -At <<'SQL'
+SELECT E'\n===== ' || upper(m.niveau) || COALESCE(' ' || m.periode, '') || E' =====\n'
+       || m.texte
+  FROM v_memoire_coach m
+ ORDER BY array_position(ARRAY['globale','archive_mois','mois','semaine'], m.niveau::TEXT),
+          m.periode;
+SQL
+        ;;
+    rouler)
+        # Le roulement de la nuit, tout de suite : semaines vers mois, mois vers archive.
+        docker exec -i planif-api python -c "
+from api.base import lister
+from api.coach import memoire
+for c in lister('SELECT id_utilisateur, pseudo FROM utilisateur WHERE coach_actif'):
+    print(c['pseudo'], memoire.rouler(c['id_utilisateur']))"
         ;;
     journal)
         docker logs --tail 200 planif-api 2>&1

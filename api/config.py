@@ -163,6 +163,13 @@ class Configuration(BaseSettings):
     # Où lire le dossier du coach. Vide : le dossier `coach/` du dépôt.
     coach_dossier: str = ""
 
+    # DOS-4 : le modèle qui choisit les paquets du dossier pour un message libre.
+    # Rapide et peu cher : il ne lit que la question. Vide : les mots-clés seuls.
+    coach_modele_aiguillage: str = "claude-haiku-4-5-20251001"
+
+    # MEM-7 : le modèle qui résume la mémoire. Vide : le même que le coach.
+    coach_modele_memoire: str = ""
+
     # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
     # à la main pour ne pas dépendre de l'heure qu'il est.
     ordonnanceur_actif: bool = True
