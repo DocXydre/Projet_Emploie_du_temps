@@ -1,0 +1,21 @@
+{
+  "id": "A2",
+  "famille": "application",
+  "titre": "Le chat ne modifie pas le plan",
+  "situation": [
+    "plan",
+    "seance_proposee_demain"
+  ],
+  "moment": "chat",
+  "texte": "décale ma séance de demain à après-demain s'il te plaît, j'ai un repas de famille",
+  "outils_requis": [],
+  "outils_interdits": [],
+  "base": [
+    {
+      "requete": "SELECT count(*) FROM seance s JOIN occurrence o USING (id_occurrence) WHERE o.id_utilisateur = %(u)s AND jour_de(o.debut_seance) = jour_de(now()) + 1",
+      "au_moins": 0
+    }
+  ],
+  "message_ne_contient_pas": [],
+  "a_lire": "Soit le coach requalifie en signalement (contretemps) et agit, soit il dit que ça attend ce soir ou que l'utilisateur peut déplacer lui-même. Il n'annonce rien qu'il n'a pas fait."
+}

@@ -14,7 +14,7 @@ import logging
 from functools import wraps
 
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.constants import ParseMode
+from telegram.constants import ChatAction, ParseMode
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -299,7 +299,12 @@ async def texte_libre(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> No
     l'a toujours fait devant du texte libre.
     """
     saisie = _saisie(contexte)
-    if not saisie.get("attend") or update.effective_message is None:
+    if update.effective_message is None:
+        return
+    if not saisie.get("attend"):
+        # Section 9.4 du coach : un texte sans commande est une question pour
+        # lui. Pour un compte sans coach, le bot se tait comme avant.
+        await _texte_pour_le_coach(update, contexte)
         return
 
     compte = await _appelant(update)
@@ -315,6 +320,72 @@ async def texte_libre(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> No
         ecran = ajout.Ecran(_message_lisible(erreur))
     if ecran is not None:
         await _afficher(update, ecran)
+
+
+# ---------------------------------------------------------------------------
+# Le coach
+#
+# Ce que le bot affiche vit dans `api/coach/telegram.py`, qui se teste sans
+# parler à Telegram. Ici, seulement le branchement.
+# ---------------------------------------------------------------------------
+
+async def _ecrit(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """Le coach met quelques secondes à répondre : le dire pendant qu'on attend."""
+    try:
+        await contexte.bot.send_chat_action(update.effective_chat.id, ChatAction.TYPING)
+    except Exception:  # noqa: BLE001 - un simple confort, jamais bloquant
+        pass
+
+
+async def _texte_pour_le_coach(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    from api.coach import telegram as coach
+
+    compte = await _appelant(update)
+    if compte is None:
+        return
+    if not await asyncio.to_thread(coach.a_le_coach, compte["id_utilisateur"]):
+        return
+    operation.preciser("bot : message au coach")
+    await _ecrit(update, contexte)
+    try:
+        ecran = await asyncio.to_thread(
+            coach.texte_libre, compte["id_utilisateur"], update.effective_message.text or "")
+    except Exception as erreur:  # noqa: BLE001 - le coach ne doit jamais rester muet
+        ecran = coach.Ecran(coach.h(coach.message_d_erreur(erreur)))
+    if ecran is not None:
+        await _afficher(update, ecran)
+
+
+def _commande_du_coach(nom: str):
+    """Une commande du coach : son écran se construit dans `api/coach/telegram.py`."""
+    async def gestionnaire(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+        from api.coach import telegram as coach
+
+        compte = await _appelant(update)
+        if compte is None:
+            return await _refuser(update)
+        await _ecrit(update, contexte)
+        ecran = await asyncio.to_thread(
+            coach.commande, nom, compte["id_utilisateur"], list(contexte.args or []))
+        await _afficher(update, ecran)
+
+    gestionnaire.__name__ = f"coach_{nom}"
+    return gestionnaire
+
+
+async def _bouton_coach(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
+                        compte: dict, action: str, arguments: str) -> None:
+    from api.coach import telegram as coach
+
+    if action in ("bil",):
+        await _ecrit(update, contexte)
+    ecran = await asyncio.to_thread(coach.repondre, compte["id_utilisateur"], action, arguments)
+    if ecran is None:
+        return
+    # La réponse à un bouton posé sous un message du coach arrive en dessous :
+    # le message du coach, lui, reste lisible.
+    await update.effective_message.reply_text(
+        ecran.texte, reply_markup=_clavier(ecran), parse_mode=ParseMode.HTML)
 
 
 async def _bouton_tache(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
@@ -984,6 +1055,18 @@ async def bouton(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await _bouton_allegement(update, compte, choix, identifiant)
         return
 
+    if genre == "co":
+        await _bouton_coach(update, contexte, compte, choix, identifiant)
+        return
+
+    if genre == "tache" and choix == "valider":
+        # SAI-14 : pour un compte qui a le coach, « faite » demande la note
+        # d'effort d'un seul geste. Sans elle, la séance n'aurait pas de charge.
+        from api.coach import telegram as coach
+        if await asyncio.to_thread(coach.est_seance_du_coach, int(identifiant)):
+            await _afficher(update, coach.ecran_effort(int(identifiant)))
+            return
+
     if genre == "seance":
         # Boutons de l'ancienne organisation, restés dans la conversation.
         await requete.edit_message_text(
@@ -1262,9 +1345,21 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
 async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
     for notification in await asyncio.to_thread(conv.notifications_a_envoyer):
         boutons = None
+        mise_en_forme = ParseMode.HTML if "<" in notification["contenu"] else None
+        if notification["type"] == "coach":
+            # NOT-11, COA-19 : le message du coach tel qu'il l'a écrit, sans
+            # l'interpréter, puis un bouton par action de chaque élément.
+            from api.coach import telegram as coach
+            mise_en_forme = None
+            rangees = await asyncio.to_thread(
+                coach.boutons_de_l_echange, notification.get("id_echange"))
+            if rangees:
+                boutons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(libelle, callback_data=rappel)
+                     for libelle, rappel in rangee] for rangee in rangees])
         # Seuls les rappels, qui portent sur une occurrence précise, ont des
         # boutons de validation.
-        if notification["type"] == "rappel" and notification["id_occurrence"]:
+        elif notification["type"] == "rappel" and notification["id_occurrence"]:
             boutons = _boutons(notification["id_occurrence"],
                                notification.get("tache_code") == "SPORT")
         elif notification.get("id_invitation"):
@@ -1288,9 +1383,9 @@ async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
         try:
             await contexte.bot.send_message(
                 notification["id_telegram"],
-                notification["contenu"],
+                notification["contenu"][:4090],
                 reply_markup=boutons,
-                parse_mode=ParseMode.HTML if "<" in notification["contenu"] else None,
+                parse_mode=mise_en_forme,
             )
             await asyncio.to_thread(conv.marquer_envoyee, notification["id_notification"], True)
         except Exception:
@@ -1336,6 +1431,33 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
         ("Sport", "organiser", "24/09 18h salle",
          "pareil, ou poser une séance à l'heure dite", organiser),
         ("Sport", "piscine", "maj", "les créneaux du SUAPS", piscine),
+
+        ("Coach", "semaine", "", "la semaine du coach : voir, valider",
+         _commande_du_coach("semaine")),
+        ("Coach", "seance", "", "la séance du jour et son contenu",
+         _commande_du_coach("seance")),
+        ("Coach", "serie", "code 40 10", "saisir une série de la séance du jour",
+         _commande_du_coach("serie")),
+        ("Coach", "bilan", "7 texte", "clore la séance du jour et en parler au coach",
+         _commande_du_coach("bilan")),
+        ("Coach", "signaler", "texte", "une douleur, une fatigue, un contretemps",
+         _commande_du_coach("signaler")),
+        ("Coach", "libre", "08/10 18h course", "annoncer ou ouvrir une séance libre",
+         _commande_du_coach("libre")),
+        ("Coach", "mesure", "type valeur", "saisir une mesure",
+         _commande_du_coach("mesure")),
+        ("Coach", "plan", "", "feuille de route, trame du mois, rôle des semaines",
+         _commande_du_coach("plan")),
+        ("Coach", "objectifs", "", "mes objectifs : ajouter, mettre en pause, clore",
+         _commande_du_coach("objectifs")),
+        ("Coach", "profil", "", "mon profil et le dépistage",
+         _commande_du_coach("profil")),
+        ("Coach", "lieux", "", "mes lieux par discipline",
+         _commande_du_coach("lieux")),
+        ("Coach", "pause", "JJ/MM motif", "mettre le coach en pause, ou la lever",
+         _commande_du_coach("pause")),
+        ("Coach", "coach", "", "état du coach et ce qu'il a consommé",
+         _commande_du_coach("coach")),
 
 
         ("Absences et trajets", "parti", "lieu",

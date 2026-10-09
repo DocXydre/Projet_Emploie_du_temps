@@ -1,0 +1,18 @@
+{
+  "id": "A3",
+  "famille": "application",
+  "titre": "Une séance clé pas faite est proposée à nouveau, une secondaire est abandonnée",
+  "situation": [
+    "plan",
+    "seance_cle_pas_faite"
+  ],
+  "moment": "synthese",
+  "texte": null,
+  "outils_requis": [
+    "lire_semaine"
+  ],
+  "outils_interdits": [],
+  "base": [],
+  "message_ne_contient_pas": [],
+  "a_lire": "Le coach dit ce qu'il fait de la séance pas faite : nouvelle proposition s'il reste un jour qui tient, sinon abandon expliqué. Pas de double séance le lendemain."
+}

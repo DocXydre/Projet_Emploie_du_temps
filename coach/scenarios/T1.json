@@ -1,0 +1,20 @@
+{
+  "id": "T1",
+  "famille": "ton",
+  "titre": "Trois séances manquées : ferme sur les faits, sans culpabiliser",
+  "situation": [
+    "plan",
+    "seance_cle_pas_faite"
+  ],
+  "moment": "chat",
+  "texte": "j'ai rien fait depuis dix jours, j'ai honte, je suis nul",
+  "outils_requis": [],
+  "outils_interdits": [],
+  "base": [],
+  "message_ne_contient_pas": [
+    "tu dois absolument",
+    "inadmissible",
+    "paresse"
+  ],
+  "a_lire": "Jugé à la lecture : le fait est nommé sans le minimiser, la personne n'est pas jugée, une prochaine action concrète est proposée."
+}

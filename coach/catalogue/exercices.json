@@ -1,0 +1,2095 @@
+[
+ {
+  "code": "developpe_couche_barre",
+  "libelle": "Développé couché barre",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_couche_halteres",
+   "presse_pectoraux",
+   "developpe_couche_smith"
+  ]
+ },
+ {
+  "code": "developpe_couche_smith",
+  "libelle": "Développé couché au cadre guidé",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_pectoraux",
+   "developpe_couche_halteres"
+  ]
+ },
+ {
+  "code": "developpe_couche_halteres",
+  "libelle": "Développé couché haltères",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_pectoraux",
+   "developpe_couche_barre"
+  ]
+ },
+ {
+  "code": "developpe_incline_barre",
+  "libelle": "Développé incliné barre",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "epaules",
+   "triceps"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_incline_halteres",
+   "presse_inclinee"
+  ]
+ },
+ {
+  "code": "developpe_incline_halteres",
+  "libelle": "Développé incliné haltères",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "epaules",
+   "triceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_inclinee",
+   "developpe_incline_barre"
+  ]
+ },
+ {
+  "code": "presse_pectoraux",
+  "libelle": "Presse à pectoraux",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_couche_halteres",
+   "developpe_couche_smith",
+   "pompes"
+  ]
+ },
+ {
+  "code": "presse_inclinee",
+  "libelle": "Presse inclinée",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "epaules",
+   "triceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_incline_halteres",
+   "developpe_incline_barre"
+  ]
+ },
+ {
+  "code": "pec_deck",
+  "libelle": "Pec deck",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "ecartes_poulies",
+   "ecartes_halteres"
+  ]
+ },
+ {
+  "code": "ecartes_halteres",
+  "libelle": "Écartés haltères",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pec_deck",
+   "ecartes_poulies"
+  ]
+ },
+ {
+  "code": "ecartes_poulies",
+  "libelle": "Écartés aux poulies",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pec_deck",
+   "ecartes_halteres"
+  ]
+ },
+ {
+  "code": "pompes",
+  "libelle": "Pompes",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_pectoraux",
+   "developpe_couche_halteres"
+  ]
+ },
+ {
+  "code": "tractions_pronation",
+  "libelle": "Tractions prise pronation",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "avant_bras"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tractions_neutre",
+   "tirage_vertical_large",
+   "tractions_assistees"
+  ]
+ },
+ {
+  "code": "tractions_supination",
+  "libelle": "Tractions prise supination",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tractions_neutre",
+   "tirage_vertical_neutre"
+  ]
+ },
+ {
+  "code": "tractions_neutre",
+  "libelle": "Tractions prise neutre",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "avant_bras"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_neutre",
+   "tractions_pronation",
+   "tractions_assistees"
+  ]
+ },
+ {
+  "code": "tractions_assistees",
+  "libelle": "Tractions assistées",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_neutre",
+   "tirage_vertical_large"
+  ]
+ },
+ {
+  "code": "tirage_vertical_large",
+  "libelle": "Tirage vertical prise large",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_neutre",
+   "tractions_assistees",
+   "tractions_pronation"
+  ]
+ },
+ {
+  "code": "tirage_vertical_neutre",
+  "libelle": "Tirage vertical prise neutre",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "avant_bras"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_large",
+   "tractions_neutre",
+   "tractions_assistees"
+  ]
+ },
+ {
+  "code": "tirage_vertical_supination",
+  "libelle": "Tirage vertical prise supination",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_neutre",
+   "tirage_vertical_large"
+  ]
+ },
+ {
+  "code": "tirage_bras_tendus",
+  "libelle": "Tirage bras tendus à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_unilateral_poulie",
+   "tirage_vertical_large"
+  ]
+ },
+ {
+  "code": "tirage_unilateral_poulie",
+  "libelle": "Tirage unilatéral à la poulie haute",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_vertical_neutre",
+   "rowing_haltere_un_bras"
+  ]
+ },
+ {
+  "code": "rowing_barre",
+  "libelle": "Rowing barre buste penché, prise pronation",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_t_appui",
+   "rowing_assis_machine",
+   "rowing_haltere_un_bras"
+  ]
+ },
+ {
+  "code": "rowing_barre_supination",
+  "libelle": "Rowing barre prise supination",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_barre",
+   "rowing_assis_machine"
+  ]
+ },
+ {
+  "code": "rowing_haltere_un_bras",
+  "libelle": "Rowing haltère un bras, prise neutre",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_assis_machine",
+   "rowing_poulie_basse",
+   "rowing_t_appui"
+  ]
+ },
+ {
+  "code": "rowing_haltere_rotation",
+  "libelle": "Rowing haltère avec rotation",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_haltere_un_bras",
+   "rowing_assis_machine"
+  ]
+ },
+ {
+  "code": "rowing_assis_machine",
+  "libelle": "Rowing assis machine",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_poulie_basse",
+   "rowing_t_appui",
+   "rowing_haltere_un_bras"
+  ]
+ },
+ {
+  "code": "rowing_poulie_basse",
+  "libelle": "Rowing à la poulie basse, poignée neutre",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_assis_machine",
+   "rowing_haltere_un_bras",
+   "rowing_t_appui"
+  ]
+ },
+ {
+  "code": "rowing_t_appui",
+  "libelle": "Rowing barre en T avec appui poitrine",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_assis_machine",
+   "rowing_poulie_basse"
+  ]
+ },
+ {
+  "code": "rowing_inverse",
+  "libelle": "Rowing inversé à la barre ou aux sangles",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_assis_machine",
+   "rowing_poulie_basse"
+  ]
+ },
+ {
+  "code": "haussements_halteres",
+  "libelle": "Haussements d'épaules haltères",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "marche_du_fermier"
+  ]
+ },
+ {
+  "code": "developpe_militaire_barre",
+  "libelle": "Développé militaire barre",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_epaules_halteres",
+   "presse_epaules"
+  ]
+ },
+ {
+  "code": "developpe_epaules_halteres",
+  "libelle": "Développé épaules haltères assis",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_epaules",
+   "developpe_militaire_barre"
+  ]
+ },
+ {
+  "code": "developpe_arnold",
+  "libelle": "Développé Arnold",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_epaules_halteres",
+   "presse_epaules"
+  ]
+ },
+ {
+  "code": "presse_epaules",
+  "libelle": "Presse à épaules",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_epaules_halteres",
+   "developpe_militaire_barre"
+  ]
+ },
+ {
+  "code": "elevations_laterales_halteres",
+  "libelle": "Élévations latérales haltères",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "elevations_laterales_poulie",
+   "elevations_laterales_machine"
+  ]
+ },
+ {
+  "code": "elevations_laterales_poulie",
+  "libelle": "Élévations latérales à la poulie basse",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "elevations_laterales_halteres",
+   "elevations_laterales_machine"
+  ]
+ },
+ {
+  "code": "elevations_laterales_machine",
+  "libelle": "Élévations latérales machine",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "elevations_laterales_halteres",
+   "elevations_laterales_poulie"
+  ]
+ },
+ {
+  "code": "elevations_frontales",
+  "libelle": "Élévations frontales haltères",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_epaules"
+  ]
+ },
+ {
+  "code": "oiseau_halteres",
+  "libelle": "Oiseau buste penché haltères",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pec_deck_inverse",
+   "tirage_visage"
+  ]
+ },
+ {
+  "code": "pec_deck_inverse",
+  "libelle": "Pec deck inversé",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_visage",
+   "oiseau_halteres"
+  ]
+ },
+ {
+  "code": "tirage_visage",
+  "libelle": "Tirage visage à la corde",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pec_deck_inverse",
+   "oiseau_halteres"
+  ]
+ },
+ {
+  "code": "rotation_externe_poulie",
+  "libelle": "Rotation externe à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": []
+ },
+ {
+  "code": "curl_barre",
+  "libelle": "Curl barre droite",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_marteau",
+   "curl_barre_ez"
+  ]
+ },
+ {
+  "code": "curl_barre_ez",
+  "libelle": "Curl barre EZ",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_pupitre_barre",
+  "libelle": "Curl pupitre à la barre",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_pupitre_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_pupitre_machine",
+  "libelle": "Curl pupitre machine",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_pupitre_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_pupitre_marteau",
+  "libelle": "Curl marteau sur pupitre",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_halteres",
+  "libelle": "Curl haltères classique, paume vers le haut",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_halteres_rotation",
+  "libelle": "Curl haltères avec rotation",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_incline",
+  "libelle": "Curl incliné haltères, paume vers le haut",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau_incline",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_marteau",
+  "libelle": "Curl marteau haltère, un bras",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_inverse_poulie"
+  ]
+ },
+ {
+  "code": "curl_marteau_incline",
+  "libelle": "Curl marteau sur banc incliné",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau",
+   "curl_corde_poulie"
+  ]
+ },
+ {
+  "code": "curl_corde_poulie",
+  "libelle": "Curl à la corde, poulie basse",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_marteau",
+   "curl_inverse_poulie"
+  ]
+ },
+ {
+  "code": "curl_corde_dos_poulie",
+  "libelle": "Curl à la corde dos à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_poulie_basse_barre",
+  "libelle": "Curl poulie basse à la barre droite",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_machine",
+  "libelle": "Curl biceps machine",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_poulie",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_inverse_barre",
+  "libelle": "Curl inversé barre, paume vers le sol",
+  "discipline": "musculation",
+  "groupe_principal": "avant_bras",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_inverse_poulie",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "curl_inverse_poulie",
+  "libelle": "Curl inversé à la poulie, paume vers le sol",
+  "discipline": "musculation",
+  "groupe_principal": "avant_bras",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_inverse_barre",
+   "curl_marteau"
+  ]
+ },
+ {
+  "code": "marche_du_fermier",
+  "libelle": "Marche du fermier",
+  "discipline": "musculation",
+  "groupe_principal": "avant_bras",
+  "groupes_secondaires": [
+   "dos",
+   "abdominaux"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "suspension_barre"
+  ]
+ },
+ {
+  "code": "suspension_barre",
+  "libelle": "Suspension à la barre",
+  "discipline": "musculation",
+  "groupe_principal": "avant_bras",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "marche_du_fermier"
+  ]
+ },
+ {
+  "code": "extension_triceps_corde",
+  "libelle": "Extension triceps poulie haute à la corde",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_barre",
+   "extension_triceps_machine"
+  ]
+ },
+ {
+  "code": "extension_triceps_barre",
+  "libelle": "Extension triceps poulie haute à la barre",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_corde",
+   "extension_triceps_machine"
+  ]
+ },
+ {
+  "code": "extension_triceps_dessus_tete",
+  "libelle": "Extension triceps au-dessus de la tête, corde",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_nuque_haltere",
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "extension_nuque_haltere",
+  "libelle": "Extension nuque haltère",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_dessus_tete",
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "barre_au_front",
+  "libelle": "Barre au front",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_corde",
+   "extension_triceps_dessus_tete"
+  ]
+ },
+ {
+  "code": "extension_triceps_machine",
+  "libelle": "Extension triceps machine",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_corde",
+   "extension_triceps_barre"
+  ]
+ },
+ {
+  "code": "dips",
+  "libelle": "Dips aux barres parallèles",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [
+   "pectoraux",
+   "epaules"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "dips_machine",
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "dips_machine",
+  "libelle": "Machine à dips assis",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [
+   "pectoraux"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "dips",
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "developpe_couche_serre",
+  "libelle": "Développé couché prise serrée",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [
+   "pectoraux",
+   "epaules"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "dips_machine",
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "kickback_triceps",
+  "libelle": "Kickback triceps haltère",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_corde"
+  ]
+ },
+ {
+  "code": "squat_barre",
+  "libelle": "Squat barre",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers",
+   "adducteurs",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hack_squat",
+   "presse_cuisses",
+   "squat_smith"
+  ]
+ },
+ {
+  "code": "squat_avant",
+  "libelle": "Squat avant, prise haltérophilie",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers",
+   "abdominaux"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "squat_avant_bras_croises",
+   "squat_goblet",
+   "hack_squat"
+  ]
+ },
+ {
+  "code": "squat_avant_bras_croises",
+  "libelle": "Squat avant, bras croisés",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers",
+   "abdominaux"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "squat_goblet",
+   "hack_squat"
+  ]
+ },
+ {
+  "code": "squat_goblet",
+  "libelle": "Squat goblet",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hack_squat",
+   "presse_cuisses"
+  ]
+ },
+ {
+  "code": "squat_smith",
+  "libelle": "Squat au cadre guidé",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hack_squat",
+   "presse_cuisses"
+  ]
+ },
+ {
+  "code": "hack_squat",
+  "libelle": "Hack squat",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_cuisses",
+   "squat_smith",
+   "squat_goblet"
+  ]
+ },
+ {
+  "code": "presse_cuisses",
+  "libelle": "Presse à cuisses",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers",
+   "adducteurs"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hack_squat",
+   "squat_smith",
+   "squat_goblet"
+  ]
+ },
+ {
+  "code": "leg_extension",
+  "libelle": "Leg extension",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "squat_goblet"
+  ]
+ },
+ {
+  "code": "fentes_halteres",
+  "libelle": "Fentes haltères",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "squat_bulgare",
+   "presse_cuisses"
+  ]
+ },
+ {
+  "code": "squat_bulgare",
+  "libelle": "Squat bulgare",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "fentes_halteres",
+   "presse_cuisses"
+  ]
+ },
+ {
+  "code": "montee_sur_banc",
+  "libelle": "Montée sur banc",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "fentes_halteres"
+  ]
+ },
+ {
+  "code": "souleve_de_terre",
+  "libelle": "Soulevé de terre, double pronation",
+  "discipline": "musculation",
+  "groupe_principal": "lombaires",
+  "groupes_secondaires": [
+   "fessiers",
+   "ischios",
+   "dos",
+   "avant_bras"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_barre_hexagonale",
+   "souleve_de_terre_roumain"
+  ]
+ },
+ {
+  "code": "souleve_de_terre_prise_mixte",
+  "libelle": "Soulevé de terre, prise mixte",
+  "discipline": "musculation",
+  "groupe_principal": "lombaires",
+  "groupes_secondaires": [
+   "fessiers",
+   "ischios",
+   "dos",
+   "avant_bras"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_de_terre",
+   "souleve_barre_hexagonale"
+  ]
+ },
+ {
+  "code": "souleve_barre_hexagonale",
+  "libelle": "Soulevé de terre à la barre hexagonale",
+  "discipline": "musculation",
+  "groupe_principal": "lombaires",
+  "groupes_secondaires": [
+   "fessiers",
+   "quadriceps",
+   "dos",
+   "avant_bras"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_de_terre"
+  ]
+ },
+ {
+  "code": "souleve_de_terre_roumain",
+  "libelle": "Soulevé de terre roumain barre",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [
+   "fessiers",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_roumain_halteres",
+   "leg_curl_assis",
+   "banc_lombaires_45"
+  ]
+ },
+ {
+  "code": "souleve_roumain_halteres",
+  "libelle": "Soulevé de terre roumain haltères",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [
+   "fessiers",
+   "lombaires"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_de_terre_roumain",
+   "leg_curl_assis"
+  ]
+ },
+ {
+  "code": "leg_curl_assis",
+  "libelle": "Leg curl assis",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "leg_curl_allonge",
+   "souleve_roumain_halteres"
+  ]
+ },
+ {
+  "code": "leg_curl_allonge",
+  "libelle": "Leg curl allongé",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "leg_curl_assis",
+   "souleve_roumain_halteres"
+  ]
+ },
+ {
+  "code": "curl_nordique",
+  "libelle": "Curl nordique",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "leg_curl_assis",
+   "leg_curl_allonge"
+  ]
+ },
+ {
+  "code": "banc_lombaires_45",
+  "libelle": "Banc à lombaires à 45°",
+  "discipline": "musculation",
+  "groupe_principal": "lombaires",
+  "groupes_secondaires": [
+   "fessiers",
+   "ischios"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_lombaire_machine",
+   "souleve_roumain_halteres"
+  ]
+ },
+ {
+  "code": "extension_lombaire_machine",
+  "libelle": "Extension lombaire machine",
+  "discipline": "musculation",
+  "groupe_principal": "lombaires",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "banc_lombaires_45"
+  ]
+ },
+ {
+  "code": "hip_thrust_barre",
+  "libelle": "Hip thrust barre",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "ischios"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_machine",
+   "pont_fessier"
+  ]
+ },
+ {
+  "code": "hip_thrust_machine",
+  "libelle": "Machine à hip thrust",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "ischios"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_barre",
+   "pont_fessier"
+  ]
+ },
+ {
+  "code": "pont_fessier",
+  "libelle": "Pont fessier",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "ischios"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_machine"
+  ]
+ },
+ {
+  "code": "kickback_poulie",
+  "libelle": "Extension de hanche à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_machine"
+  ]
+ },
+ {
+  "code": "abducteurs_machine",
+  "libelle": "Machine à abducteurs",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "kickback_poulie"
+  ]
+ },
+ {
+  "code": "tirage_entre_jambes",
+  "libelle": "Tirage entre les jambes à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "ischios"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_machine",
+   "souleve_roumain_halteres"
+  ]
+ },
+ {
+  "code": "adducteurs_machine",
+  "libelle": "Machine à adducteurs",
+  "discipline": "musculation",
+  "groupe_principal": "adducteurs",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "fente_laterale"
+  ]
+ },
+ {
+  "code": "fente_laterale",
+  "libelle": "Fente latérale",
+  "discipline": "musculation",
+  "groupe_principal": "adducteurs",
+  "groupes_secondaires": [
+   "quadriceps",
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "adducteurs_machine"
+  ]
+ },
+ {
+  "code": "mollets_debout",
+  "libelle": "Mollets debout",
+  "discipline": "musculation",
+  "groupe_principal": "mollets",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "mollets_presse",
+   "mollets_assis"
+  ]
+ },
+ {
+  "code": "mollets_presse",
+  "libelle": "Mollets à la presse, jambes tendues",
+  "discipline": "musculation",
+  "groupe_principal": "mollets",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "mollets_debout",
+   "mollets_assis"
+  ]
+ },
+ {
+  "code": "mollets_assis",
+  "libelle": "Mollets assis",
+  "discipline": "musculation",
+  "groupe_principal": "mollets",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "mollets_debout",
+   "mollets_presse"
+  ]
+ },
+ {
+  "code": "crunch_machine",
+  "libelle": "Machine à abdominaux",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "crunch_poulie",
+   "crunch_sol"
+  ]
+ },
+ {
+  "code": "crunch_poulie",
+  "libelle": "Crunch à genoux à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "crunch_machine",
+   "crunch_sol"
+  ]
+ },
+ {
+  "code": "crunch_sol",
+  "libelle": "Crunch au sol",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "crunch_machine",
+   "crunch_poulie"
+  ]
+ },
+ {
+  "code": "releve_jambes_chaise",
+  "libelle": "Relevé de jambes à la chaise romaine",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "releve_jambes_suspendu",
+   "crunch_machine"
+  ]
+ },
+ {
+  "code": "releve_jambes_suspendu",
+  "libelle": "Relevé de jambes suspendu",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [
+   "avant_bras"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "releve_jambes_chaise",
+   "crunch_machine"
+  ]
+ },
+ {
+  "code": "roulette_abdominaux",
+  "libelle": "Roulette abdominale",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "planche",
+   "crunch_poulie"
+  ]
+ },
+ {
+  "code": "planche",
+  "libelle": "Planche",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "insecte_mort"
+  ]
+ },
+ {
+  "code": "planche_laterale",
+  "libelle": "Planche latérale",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": true,
+  "mesure": "duree",
+  "alternatives": [
+   "pallof"
+  ]
+ },
+ {
+  "code": "insecte_mort",
+  "libelle": "Insecte mort",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "planche"
+  ]
+ },
+ {
+  "code": "pallof",
+  "libelle": "Rotation bloquée à la poulie (pallof)",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "planche_laterale"
+  ]
+ },
+ {
+  "code": "course_echauffement",
+  "libelle": "Échauffement en footing",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_endurance",
+  "libelle": "Footing en endurance fondamentale",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_endurance_distance",
+  "libelle": "Footing en endurance, à la distance",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_sortie_longue",
+  "libelle": "Sortie longue",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_sortie_longue_duree",
+  "libelle": "Sortie longue, à la durée",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_seuil",
+  "libelle": "Bloc au seuil",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_fractionne_duree",
+  "libelle": "Répétition de fractionné, à la durée",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_fractionne_distance",
+  "libelle": "Répétition de fractionné, à la distance",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_recuperation",
+  "libelle": "Récupération trottée ou marchée entre deux répétitions",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_allure_specifique",
+  "libelle": "Bloc à l'allure de la course objectif",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_cotes",
+  "libelle": "Répétition en côte",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_lignes_droites",
+  "libelle": "Lignes droites",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_retour_au_calme",
+  "libelle": "Retour au calme en footing",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "course_test",
+  "libelle": "Test de course chronométré",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "course_competition",
+  "libelle": "Course objectif",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "distance",
+  "alternatives": []
+ },
+ {
+  "code": "marche",
+  "libelle": "Marche",
+  "discipline": "course",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "aucun",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "cardio_echauffement",
+  "libelle": "Échauffement sur machine cardio",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "tapis_marche_inclinee",
+  "libelle": "Tapis en marche inclinée",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "escalier",
+   "elliptique",
+   "velo_droit"
+  ]
+ },
+ {
+  "code": "rameur",
+  "libelle": "Rameur, en continu",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "skierg",
+   "elliptique",
+   "velo_droit"
+  ]
+ },
+ {
+  "code": "rameur_intervalles",
+  "libelle": "Rameur, une répétition",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "skierg_intervalles",
+   "velo_intervalles"
+  ]
+ },
+ {
+  "code": "elliptique",
+  "libelle": "Elliptique",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "velo_droit",
+   "tapis_marche_inclinee",
+   "rameur"
+  ]
+ },
+ {
+  "code": "velo_droit",
+  "libelle": "Vélo droit ou spinning, en continu",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "velo_semi_allonge",
+   "elliptique",
+   "rameur"
+  ]
+ },
+ {
+  "code": "velo_intervalles",
+  "libelle": "Vélo, une répétition",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "rameur_intervalles",
+   "velo_air"
+  ]
+ },
+ {
+  "code": "velo_semi_allonge",
+  "libelle": "Vélo semi-allongé",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "velo_droit",
+   "elliptique"
+  ]
+ },
+ {
+  "code": "escalier",
+  "libelle": "Escalier ou stepper",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "tapis_marche_inclinee",
+   "elliptique"
+  ]
+ },
+ {
+  "code": "skierg",
+  "libelle": "SkiErg, en continu",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "rameur",
+   "velo_droit"
+  ]
+ },
+ {
+  "code": "skierg_intervalles",
+  "libelle": "SkiErg, une répétition",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "rameur_intervalles",
+   "velo_intervalles"
+  ]
+ },
+ {
+  "code": "velo_air",
+  "libelle": "Vélo à air, une répétition",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": [
+   "velo_intervalles",
+   "rameur_intervalles"
+  ]
+ },
+ {
+  "code": "cardio_recuperation",
+  "libelle": "Récupération facile entre deux répétitions",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ },
+ {
+  "code": "cardio_retour_au_calme",
+  "libelle": "Retour au calme sur machine cardio",
+  "discipline": "cardio",
+  "groupe_principal": "cardio",
+  "groupes_secondaires": [],
+  "materiel": "cardio",
+  "unilateral": false,
+  "mesure": "duree",
+  "alternatives": []
+ }
+]

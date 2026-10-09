@@ -103,7 +103,8 @@ CREATE OR REPLACE TRIGGER journal_tache
 CREATE OR REPLACE TRIGGER journal_utilisateur
     AFTER UPDATE ON utilisateur
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
-        'foyer', 'minimum_sport', 'actif', 'lieu_famille', 'gare_famille');
+        'foyer', 'minimum_sport', 'actif', 'lieu_famille', 'gare_famille',
+        'coach_actif');
 
 
 CREATE OR REPLACE TRIGGER journal_source
@@ -111,3 +112,58 @@ CREATE OR REPLACE TRIGGER journal_source
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'technique', 'libelle', 'etat', 'active', 'frequence_heures',
         'id_utilisateur');
+
+
+-- -----------------------------------------------------------------------------
+-- Le module coach
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER seance_etat
+    AFTER INSERT OR UPDATE OF etat, discipline, libre ON seance
+    FOR EACH ROW EXECUTE FUNCTION trg_seance_etat();
+
+
+CREATE OR REPLACE TRIGGER seance_exercice_actif
+    BEFORE INSERT OR UPDATE OF id_exercice ON seance_exercice
+    FOR EACH ROW EXECUTE FUNCTION trg_seance_exercice();
+
+
+CREATE OR REPLACE TRIGGER seance_exercice_groupes
+    AFTER INSERT OR UPDATE OF id_exercice OR DELETE ON seance_exercice
+    FOR EACH ROW EXECUTE FUNCTION trg_seance_exercice();
+
+
+CREATE OR REPLACE TRIGGER serie_saisie_controle
+    BEFORE INSERT OR UPDATE OR DELETE ON serie_saisie
+    FOR EACH ROW EXECUTE FUNCTION trg_serie_saisie();
+
+
+CREATE OR REPLACE TRIGGER exercice_conserve
+    BEFORE DELETE ON exercice
+    FOR EACH ROW EXECUTE FUNCTION trg_exercice_conserve();
+
+
+CREATE OR REPLACE TRIGGER objectif_clos
+    BEFORE UPDATE OF statut ON objectif
+    FOR EACH ROW EXECUTE FUNCTION trg_objectif_clos();
+
+
+CREATE OR REPLACE TRIGGER absence_seances
+    AFTER INSERT OR UPDATE OF periode ON absence
+    FOR EACH ROW EXECUTE FUNCTION trg_absence_seances();
+
+
+-- JRN-10 : les objectifs et le plan se lisent à deux, comme le reste du
+-- journal. Le profil, le dépistage, la santé, les mesures, les bilans, les
+-- limitations, la pause, le carnet, les échanges et les appels ne sont pas
+-- suivis ici : ce qui est privé ne doit pas pouvoir se lire depuis /pourquoi.
+CREATE OR REPLACE TRIGGER journal_objectif
+    AFTER INSERT OR UPDATE OR DELETE ON objectif
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'libelle', 'statut', 'principal', 'echeance',
+        'cible_valeur');
+
+
+CREATE OR REPLACE TRIGGER journal_plan
+    AFTER INSERT OR UPDATE OR DELETE ON plan
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_utilisateur', 'periode', 'statut');

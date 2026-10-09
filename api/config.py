@@ -136,6 +136,33 @@ class Configuration(BaseSettings):
     imap2_filtre_expediteur: str = "sncf"
     imap2_pseudo: str = ""
 
+    # --- Coach sportif -------------------------------------------------------
+    # Clé de l'API d'Anthropic. Sans elle, le coach répond par son message
+    # fixe : le reste de l'application tourne normalement.
+    anthropic_api_key: str = ""
+
+    # COA-8 : le nom du modèle est un réglage, pas du code. Il est noté dans
+    # chaque échange, pour savoir avec quoi une réponse a été produite.
+    coach_modele: str = "claude-sonnet-5-5"
+
+    # COA-16 : un appel à la demande se donne 90 secondes. Un appel planifié,
+    # que personne n'attend, en a davantage.
+    coach_delai_secondes: int = 90
+    coach_delai_planifie_secondes: int = 420
+
+    # Longueur maximale d'une réponse du modèle à chaque tour.
+    coach_max_tokens: int = 8000
+
+    # COA-7 : douze tours d'outils, trente pour le plan et la révision.
+    coach_tours: int = 12
+    coach_tours_plan: int = 30
+
+    # CAR-7 : les derniers échanges rendus au modèle à chaque appel.
+    coach_echanges_rendus: int = 10
+
+    # Où lire le dossier du coach. Vide : le dossier `coach/` du dépôt.
+    coach_dossier: str = ""
+
     # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
     # à la main pour ne pas dépendre de l'heure qu'il est.
     ordonnanceur_actif: bool = True

@@ -1,0 +1,36 @@
+{
+  "id": "A1",
+  "famille": "application",
+  "titre": "Construire le plan : une semaine détaillée, trois en esquisses",
+  "situation": [
+    "sans_plan"
+  ],
+  "moment": "plan",
+  "texte": null,
+  "outils_requis": [
+    "ecrire_trame",
+    "proposer_seance",
+    "lire_planning"
+  ],
+  "outils_interdits": [],
+  "base": [
+    {
+      "requete": "SELECT count(*) FROM plan WHERE id_utilisateur = %(u)s AND statut = 'en_cours'",
+      "egal": 1
+    },
+    {
+      "requete": "SELECT count(*) FROM v_seance_coach WHERE id_utilisateur = %(u)s AND situation = 'proposee'",
+      "au_moins": 2
+    },
+    {
+      "requete": "SELECT count(*) FROM v_seance_coach WHERE id_utilisateur = %(u)s AND situation = 'esquisse'",
+      "au_moins": 3
+    },
+    {
+      "requete": "SELECT count(*) FROM objectif WHERE id_utilisateur = %(u)s AND principal AND feuille_de_route IS NOT NULL",
+      "egal": 1
+    }
+  ],
+  "message_ne_contient_pas": [],
+  "a_lire": "Le plan est annoncé et la validation de la première semaine est demandée."
+}

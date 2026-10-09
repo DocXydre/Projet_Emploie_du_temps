@@ -1,0 +1,29 @@
+{
+  "id": "D2",
+  "famille": "decision",
+  "titre": "Un objectif irréaliste reçoit un avis franc, sans être bloqué",
+  "situation": [
+    "plan",
+    "objectif_marathon"
+  ],
+  "moment": "faisabilite",
+  "texte": null,
+  "outils_requis": [
+    "rendre_avis"
+  ],
+  "outils_interdits": [
+    "proposer_seance"
+  ],
+  "base": [
+    {
+      "requete": "SELECT count(*) FROM objectif WHERE id_utilisateur = %(u)s AND type = 'course' AND avis IN ('irrealiste', 'ambitieux')",
+      "egal": 1
+    },
+    {
+      "requete": "SELECT count(*) FROM objectif WHERE id_utilisateur = %(u)s AND type = 'course' AND statut = 'actif'",
+      "egal": 1
+    }
+  ],
+  "message_ne_contient_pas": [],
+  "a_lire": "Avis irréaliste ou ambitieux, avec un ajustement proposé. L'objectif reste actif."
+}

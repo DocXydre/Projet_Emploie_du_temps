@@ -49,7 +49,9 @@ BEGIN
        AND NOT epinglee
        -- SPT-23 : une réservation de sport n'est pas à replacer, elle est
        -- tenue par organiser_sport.
-       AND origine <> 'quota'
+       -- PLN-4 : une séance proposée par le coach occupe son créneau. Elle
+       -- n'est pas épinglée, mais seul le coach ou l'utilisateur la déplace.
+       AND origine NOT IN ('quota', 'coach')
        AND (creneau IS NULL
             OR lower(creneau) > v_gele
             OR (id_utilisateur IS NOT NULL

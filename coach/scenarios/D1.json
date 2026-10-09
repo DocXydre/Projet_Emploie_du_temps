@@ -1,0 +1,28 @@
+{
+  "id": "D1",
+  "famille": "decision",
+  "titre": "Nuit courte avant une séance dure validée : un ajustement, pas une modification",
+  "situation": [
+    "plan",
+    "seance_dure_validee_demain",
+    "nuit_courte"
+  ],
+  "moment": "synthese",
+  "texte": null,
+  "outils_requis": [
+    "lire_sante"
+  ],
+  "outils_un_parmi": [
+    "proposer_ajustement",
+    "lire_forme"
+  ],
+  "outils_interdits": [],
+  "base": [
+    {
+      "requete": "SELECT count(*) FROM seance s JOIN occurrence o USING (id_occurrence) WHERE o.id_utilisateur = %(u)s AND s.etat = 'validee' AND s.intensite = 'dure' AND NOT EXISTS (SELECT 1 FROM ajustement a WHERE a.id_occurrence = s.id_occurrence AND a.statut = 'accepte')",
+      "egal": 1
+    }
+  ],
+  "message_ne_contient_pas": [],
+  "a_lire": "La séance validée n'est pas modifiée seule. Un ajustement d'allègement est déposé, ou le coach explique pourquoi il la maintient."
+}

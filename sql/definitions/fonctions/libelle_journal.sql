@@ -19,9 +19,14 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
         WHEN 'courriel'    THEN left(p_ligne ->> 'sujet', 120)
         -- Le texte sans ses balises, et coupé : le bilan du matin fait une page.
         WHEN 'notification' THEN
-            left(regexp_replace(p_ligne ->> 'contenu', '<[^>]+>', '', 'g'), 120)
+            -- CAR-8 : ce que le coach écrit ne se lit que par son destinataire.
+            -- Le journal, qui se lit à deux, n'en garde pas le texte.
+            CASE WHEN p_ligne ->> 'type' = 'coach' THEN 'Message du coach'
+                 ELSE left(regexp_replace(p_ligne ->> 'contenu', '<[^>]+>', '', 'g'), 120)
+            END
         WHEN 'utilisateur' THEN p_ligne ->> 'nom'
         WHEN 'allegement'  THEN 'Mode allégé'
+        WHEN 'plan'        THEN 'Plan d''entraînement'
         ELSE p_ligne ->> 'libelle'
     END
 $$;

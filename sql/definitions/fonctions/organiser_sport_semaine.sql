@@ -27,6 +27,18 @@ BEGIN
         RETURN 0;
     END IF;
 
+    -- COA-1 : pour un compte qui a le coach, c'est lui qui propose les séances.
+    -- Rien n'est réservé « à déterminer », et ce qui l'était encore s'efface.
+    IF EXISTS (SELECT 1 FROM utilisateur u
+                WHERE u.id_utilisateur = p_utilisateur AND u.coach_actif) THEN
+        DELETE FROM occurrence o
+         WHERE o.id_utilisateur = p_utilisateur
+           AND o.id_tache = v_tache
+           AND o.origine = 'quota'
+           AND o.statut IN ('a_placer', 'planifiee', 'notifiee');
+        RETURN 0;
+    END IF;
+
     -- Les réservations devenues fausses : jamais posées, ou tombées depuis un
     -- jour d'absence, un jour désormais choisi, ou sous une obligation apparue.
     DELETE FROM occurrence o

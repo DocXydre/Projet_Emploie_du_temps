@@ -9,6 +9,9 @@
     07h20, le lundi     prévenir si le sport de la semaine n'est pas choisi
     toutes les 30 min   constater les séances à déterminer passées
     21h00               relance sur les tâches du jour non faites
+    23h00               coach : clôture du jour, synthèse du soir, révision le dimanche
+    06h55               coach : rattrapage de la synthèse si elle a échoué
+    toutes les 10 min   coach : ajustements restés sans réponse au début d'une séance
     00h05               report d'office de ce qui n'a pas été fait
 
 Les heures ci-dessus sont des heures de Paris. Le conteneur, lui, vit en UTC :
@@ -173,6 +176,12 @@ def bilan_du_matin() -> int:
     resultat = executer("SELECT bilan_du_matin() AS creees")
     creees = (resultat or {}).get("creees", 0)
     LOG.info("Bilan du matin : %s notification(s)", creees)
+    # NOT-12 : la semaine de sport qui attend d'être validée.
+    try:
+        from api.coach import planifie
+        planifie.matin()
+    except Exception:
+        LOG.exception("Échec du rappel de la semaine à valider")
     return creees
 
 
@@ -209,7 +218,77 @@ def report_de_minuit() -> dict:
         LOG.info("Journal : %s événement(s) purgé(s)", purges)
     bilan["journal_purge"] = purges
 
+    # MES-3, PAU-6 : les fenêtres de mesure expirées, les pauses arrivées à
+    # leur terme.
+    try:
+        from api.coach import planifie
+        bilan["coach"] = planifie.minuit()
+    except Exception:
+        LOG.exception("Échec du passage de minuit du coach")
+
     return bilan
+
+
+# ---------------------------------------------------------------------------
+# Le coach
+# ---------------------------------------------------------------------------
+
+def _programmer_essai(minutes: int, id_utilisateur: int, moment: str,
+                      operation_id: str, essai: int) -> None:
+    """COA-11 : un nouvel essai, à 5, 20 puis 50 minutes après 23 h."""
+    if _ordonnanceur is None:
+        return
+    from apscheduler.triggers.date import DateTrigger
+
+    conf = configuration()
+    quand = datetime.now(ZoneInfo(conf.fuseau)) + timedelta(minutes=minutes)
+    _ordonnanceur.add_job(
+        essai_du_coach, DateTrigger(run_date=quand, timezone=conf.fuseau),
+        args=[id_utilisateur, moment, operation_id, essai],
+        id=f"coach_essai_{id_utilisateur}_{essai}", name=f"Synthèse du coach, essai {essai}",
+        replace_existing=True)
+
+
+def soir_du_coach() -> dict:
+    """23 h : clôture du jour, puis synthèse du soir. Révision le dimanche."""
+    from api.coach import planifie
+    try:
+        bilan = planifie.soir(_programmer_essai)
+    except Exception:
+        LOG.exception("Échec du soir du coach")
+        return {}
+    if bilan:
+        LOG.info("Soir du coach : %s", bilan)
+    return bilan
+
+
+def essai_du_coach(id_utilisateur: int, moment: str, operation_id: str, essai: int) -> bool:
+    from api.coach import planifie
+    try:
+        return planifie.nouvel_essai(id_utilisateur, moment, operation_id, essai,
+                                     _programmer_essai)
+    except Exception:
+        LOG.exception("Échec d'un nouvel essai du coach")
+        return False
+
+
+def rattrapage_du_coach() -> dict:
+    """6h55 : la synthèse de la veille, si les trois essais ont échoué."""
+    from api.coach import planifie
+    try:
+        return planifie.rattrapage()
+    except Exception:
+        LOG.exception("Échec du rattrapage du coach")
+        return {}
+
+
+def ajustements_du_coach() -> int:
+    """PLN-19 : au début d'une séance, le silence ne peut qu'alléger."""
+    try:
+        return (executer("SELECT solder_ajustements() AS n") or {}).get("n", 0)
+    except Exception:
+        LOG.exception("Échec du solde des ajustements")
+        return 0
 
 
 class _Suivi(BackgroundScheduler):
@@ -296,11 +375,27 @@ def demarrer() -> BackgroundScheduler:
     ordonnanceur.add_job(relance_du_soir, a(21, 0),
                          id="relance", name="Relance du soir", coalesce=True)
 
+    # Le coach. La clôture du jour passe avant l'appel au modèle, dans la même
+    # tâche. Les nouveaux essais se programment d'eux-mêmes après un échec.
+    ordonnanceur.add_job(soir_du_coach, a(23, 0),
+                         id="coach_soir", name="Synthèse du coach", coalesce=True)
+    ordonnanceur.add_job(rattrapage_du_coach, a(6, 55),
+                         id="coach_rattrapage", name="Rattrapage de la synthèse du coach",
+                         coalesce=True)
+    ordonnanceur.add_job(ajustements_du_coach, IntervalTrigger(minutes=10),
+                         id="coach_ajustements", name="Ajustements sans réponse",
+                         max_instances=1, coalesce=True)
     ordonnanceur.add_job(report_de_minuit, a(0, 5),
                          id="report", name="Report d'office", coalesce=True)
 
     ordonnanceur.start()
     _ordonnanceur = ordonnanceur
+    # COA-22 : un appel resté en cours après un arrêt brutal bloquerait le compte.
+    try:
+        from api.coach import appel
+        appel.liberer_les_appels_bloques()
+    except Exception:
+        LOG.exception("Impossible de libérer les appels au coach restés en cours")
     LOG.info("Ordonnanceur démarré (%s)", conf.fuseau)
     return ordonnanceur
 

@@ -1,0 +1,31 @@
+# Développement local du coach.
+#
+#   ./outils/local.sh demarrer
+#
+# Ce fichier se superpose à docker-compose.yml. Il ne sert jamais sur le
+# serveur, qui ne lit que le premier.
+#
+# Trois différences avec la production :
+#
+#   - local/coach.env passe après .env et l'emporte. C'est là que vivent la clé
+#     d'Anthropic et le jeton du bot Telegram de développement : deux instances
+#     sur le même jeton se disputent les messages.
+#   - La relève des courriels est coupée : la boîte de production n'a pas à
+#     être lue deux fois.
+#   - Le dépôt est monté dans le conteneur. Un fichier modifié dans api/ ou
+#     dans coach/ est pris en compte sans reconstruire l'image, et les
+#     scénarios y trouvent sql/ pour bâtir leur base.
+
+services:
+  api:
+    env_file:
+      - .env
+      - local/coach.env
+    environment:
+      IMAP_HOTE: ""
+      IMAP2_HOTE: ""
+    volumes:
+      - .:/app
+    command: >
+      uvicorn api.main:app --host 0.0.0.0 --port 8000
+      --reload --reload-dir api --reload-dir coach --reload-include '*.md'

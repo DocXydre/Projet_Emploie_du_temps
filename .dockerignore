@@ -6,3 +6,4 @@ tests/
 sql/
 .git/
 .env
+local/

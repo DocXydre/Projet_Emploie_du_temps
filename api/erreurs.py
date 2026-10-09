@@ -26,6 +26,30 @@ CORRESPONDANCES = {
 }
 
 
+# COA-20 : les codes du coach qui ne sont pas un conflit.
+STATUTS_COACH = {
+    "introuvable": status.HTTP_404_NOT_FOUND,
+    "non_autorise": status.HTTP_403_FORBIDDEN,
+    "coach_inactif": status.HTTP_403_FORBIDDEN,
+    "requete_invalide": 422,
+}
+
+
+def refus_coach(erreur: Exception) -> dict | None:
+    """Un refus levé par `refus_coach()` en base : son code, son motif.
+
+    La base signe ces refus par la table « coach » et range le code stable
+    dans le nom de contrainte. Toute autre erreur rend None.
+    """
+    diag = getattr(erreur, "diag", None)
+    if diag is None or diag.table_name != "coach" or not diag.constraint_name:
+        return None
+    code = diag.constraint_name
+    return {"code": code,
+            "message": (diag.message_primary or "").strip(),
+            "statut": STATUTS_COACH.get(code, status.HTTP_409_CONFLICT)}
+
+
 def message_lisible(erreur: psycopg.Error) -> str:
     """Le message des RAISE EXCEPTION est déjà écrit pour être lu par un humain."""
     diag = erreur.diag
@@ -37,6 +61,14 @@ async def gerer_erreur_sql(requete: Request, erreur: Exception) -> JSONResponse:
     code_sql = erreur.sqlstate or ""
     inconnu = (status.HTTP_500_INTERNAL_SERVER_ERROR, "erreur_interne")
     statut, code = CORRESPONDANCES.get(code_sql, inconnu)
+
+    # COA-20 : un refus du module coach porte son propre code stable, et son
+    # message est le motif rendu par la base, affiché tel quel.
+    refus = refus_coach(erreur)
+    if refus is not None:
+        return JSONResponse(status_code=refus["statut"],
+                            content={"code": refus["code"], "message": refus["message"],
+                                     "motif": refus["message"]})
 
     if statut >= 500:
         LOG.exception("Erreur SQL inattendue (%s)", code_sql)

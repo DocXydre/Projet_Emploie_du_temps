@@ -66,3 +66,24 @@ def preciser(origine: str) -> None:
     operation = _courante.get()
     if operation is not None:
         operation.origine = origine
+
+
+@contextmanager
+def ouvrir_a_part(origine: str, acteur: str,
+                  identifiant: str | None = None) -> Iterator[Operation]:
+    """COA-6 : une action à elle, même si une autre est déjà ouverte.
+
+    Un appel au coach part souvent d'une route de l'API ou d'une commande du
+    bot, qui ont déjà leur action, au nom de l'utilisateur. Ce que le coach
+    écrit doit porter son propre numéro et son propre acteur : c'est ce qui
+    permet de relire ce que l'appel a fait, et à un nouvel essai de reprendre
+    le même numéro (COA-24).
+    """
+    nouvelle = Operation(origine=origine, acteur=acteur)
+    if identifiant:
+        nouvelle.identifiant = identifiant
+    jeton = _courante.set(nouvelle)
+    try:
+        yield nouvelle
+    finally:
+        _courante.reset(jeton)

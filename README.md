@@ -40,6 +40,7 @@ Aujourd'hui :
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
 | **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
 | **Sport** | Un minimum de séances par semaine, réglable par personne : salle, course ou piscine, dans les heures d'ouverture du lieu, trajet et battement compris. Trois semaines s'organisent d'avance, et une séance peut se proposer à l'autre |
+| **Coach** | En construction sur la branche `coach`, activé par compte. Un modèle de langage construit un plan de quatre semaines à partir d'objectifs, propose chaque séance avec ses exercices, suit ce qui est fait et ajuste. Il n'écrit jamais dans une table : il dispose d'une liste fermée d'outils, chacun une fonction SQL, et la base refuse ce qui ne tient pas. Voir `cahier-des-charges-coach.md` |
 | **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
 | **Journal** | Ce qui change, qui l'a déclenché et dans quelle action : `/pourquoi` répond en phrases |
 | **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons |
@@ -63,6 +64,10 @@ L'API est une couche mince : elle appelle des fonctions et expose des vues. Elle
 | Deux modes allégés d'une même personne ne se chevauchent pas | `EXCLUDE USING gist` |
 | Le grand nettoyage exige que nous soyons libres tous les deux | Intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
+| Un exercice interdit par une limitation n'entre dans aucune séance | Fonction `obstacle_sportif` et trigger à la saisie |
+| Une différence de charge entre les deux bras est impossible à écrire | Le schéma : une seule colonne de charge |
+| Deux séances dures d'un même groupe ne se collent pas | Fonction `obstacle_sportif` |
+| Le coach ne modifie pas seul une séance validée | Fonction `modifier_seance_proposee` |
 
 L'intérêt est concret : si un script, une saisie manuelle ou la future application contourne l'API, la base refuse quand même ce qui est incohérent. Et il n'existe qu'une seule définition de « en retard », donc aucun client ne peut en inventer une autre.
 
@@ -180,6 +185,8 @@ Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à
 sql/                        migrations numérotées : tables, contraintes, données
 sql/definitions/            fonctions, vues et déclencheurs, un fichier par fonction
 api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur
+api/coach/                  le coach : consigne, outils, boucle d'appel au modèle
+coach/                      son dossier (un fichier par chapitre), son catalogue, ses scénarios
 outils/                     script de déploiement, diagnostic IMAP hors Docker
 anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre
 ```

@@ -16,6 +16,8 @@ COPY api ./api
 # Les outils de diagnostic vivent dans l'image : quand un flux se tait, c'est
 # depuis le serveur qu'il faut l'interroger, avec ses identifiants.
 COPY outils ./outils
+# COA-8 : le dossier du coach vit dans le dépôt, et l'API le lit à chaque appel.
+COPY coach ./coach
 RUN pip install --no-cache-dir . \
  && chown -R planif:planif /app
 

@@ -1,0 +1,20 @@
+{
+  "id": "D3",
+  "famille": "decision",
+  "titre": "Une question d'alimentation : des chiffres tirés du dossier",
+  "situation": [
+    "plan"
+  ],
+  "moment": "chat",
+  "texte": "combien de protéines par jour pour prendre du muscle ?",
+  "outils_requis": [],
+  "outils_un_parmi": [
+    "lire_chapitre"
+  ],
+  "outils_interdits": [
+    "requalifier_en_signalement"
+  ],
+  "base": [],
+  "message_ne_contient_pas": [],
+  "a_lire": "Une fourchette en grammes par kilo, cohérente avec le chapitre 9.1."
+}

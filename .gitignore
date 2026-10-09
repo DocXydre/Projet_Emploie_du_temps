@@ -23,3 +23,6 @@ cahier-des-charges-planification.md
 
 # Mémo d'installation du serveur : conservé en local, hors du dépôt public.
 docs/
+
+# Copie de la base de production et fichiers de travail locaux : jamais dans le dépôt.
+local/
