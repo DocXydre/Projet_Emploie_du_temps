@@ -26,3 +26,8 @@ docs/
 
 # Copie de la base de production et fichiers de travail locaux : jamais dans le dépôt.
 local/
+
+# L'appli iOS : le projet Xcode se régénère avec xcodegen.
+ios/**/*.xcodeproj/
+ios/**/xcuserdata/
+ios/**/DerivedData/
