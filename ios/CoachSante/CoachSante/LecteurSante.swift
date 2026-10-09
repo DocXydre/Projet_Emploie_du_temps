@@ -89,6 +89,15 @@ final class LecteurSante {
         try await store.requestAuthorization(toShare: [], read: typesLus)
     }
 
+    /// La date de la plus ancienne donnée de pas : le début de l'historique.
+    func premiereDonnee() async throws -> Date? {
+        let descripteur = HKSampleQueryDescriptor(
+            predicates: [.quantitySample(type: HKQuantityType(.stepCount))],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .forward)],
+            limit: 1)
+        return try await descripteur.result(for: store).first?.startDate
+    }
+
     // MARK: - Les journées
 
     func jours(depuis debut: Date, jusqua fin: Date = Date()) async throws -> [JourSante] {

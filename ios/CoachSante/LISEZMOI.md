@@ -7,6 +7,8 @@ Une petite appli iPhone qui lit l'application Santé (donc l'Apple Watch) et env
 
 Elle ne porte aucune règle. Elle appelle `PUT /donnees-sante/jours/{jour}` et `PUT /donnees-sante/activites/{cle}`. Renvoyer un jour ou une séance les met à jour, sans doublon. Une valeur que la montre n'a pas donnée n'est pas envoyée : ce n'est pas un zéro.
 
+Au premier envoi, elle prend les 14 derniers jours (réglable). Le bouton « Envoyer tout l'historique », dans les réglages, envoie tout ce que Santé contient : à faire une fois, appli ouverte. Les séances de plus de 28 jours sont gardées pour le coach sans devenir des séances libres dans le planning (SAN-8).
+
 L'envoi part à chaque ouverture de l'appli, avec le bouton « Envoyer maintenant », parfois tout seul la nuit (iOS décide de l'heure), et par l'action « Envoyer ma santé au coach » de l'appli Raccourcis.
 
 ## Avec un compte Apple gratuit

@@ -17,7 +17,7 @@ from datetime import date, datetime, time, timedelta
 import psycopg
 
 from api.base import lister, un_seul
-from api.coach import appel, contexte, memoire, outils, planifie
+from api.coach import appel, contexte, demarrage, memoire, outils, planifie
 from api.coach.clair import aujourd_hui, fuseau, jour_en_clair, lundi_de, maintenant
 from api.ecran import Ecran
 from api.erreurs import refus_coach
@@ -202,6 +202,10 @@ def texte_libre(id_utilisateur: int, texte: str) -> Ecran | None:
     """
     if not a_le_coach(id_utilisateur) or not texte.strip():
         return None
+    # DEM-1 : tant que le démarrage n'est pas fini, un message est une réponse
+    # à sa question en cours.
+    if demarrage.requis(id_utilisateur):
+        return demarrage.repondre_texte(id_utilisateur, texte)
     return _demander(id_utilisateur, "chat", texte.strip())
 
 
@@ -805,6 +809,7 @@ def _memoire(id_utilisateur: int, args: list[str]) -> Ecran:
 
 
 COMMANDES = {
+    "initialiser": lambda u, a: demarrage.recommencer(u),
     "memoire": _memoire,
     "objectifs": _objectifs,
     "profil": _profil,
@@ -824,13 +829,17 @@ COMMANDES = {
 }
 
 # Ces commandes servent à démarrer : elles marchent avant que le coach soit activé.
-SANS_COACH = {"profil", "lieux", "coach", "objectifs"}
+SANS_COACH = {"profil", "lieux", "coach", "objectifs", "initialiser"}
 
 
 def commande(nom: str, id_utilisateur: int, args: list[str]) -> Ecran:
     if nom not in SANS_COACH and not a_le_coach(id_utilisateur):
         return Ecran("Le coach n'est pas activé pour ton compte.")
     try:
+        # DEM-1 : le coach ne fait rien tant que le démarrage n'est pas fini.
+        if nom not in SANS_COACH | {"initialiser"} and demarrage.requis(id_utilisateur):
+            return demarrage.ecran(id_utilisateur, "Avant ça, il faut finir ton démarrage : "
+                                                   "sans lui, le coach ne peut rien construire.")
         return COMMANDES[nom](id_utilisateur, args)
     except appel.CoachInactif:
         return Ecran("Le coach n'est pas activé pour ton compte.")
@@ -864,6 +873,10 @@ def repondre(id_utilisateur: int, action: str, argument: str) -> Ecran | None:
     try:
         if action == "rien":
             return None
+        if action == "dm":
+            return demarrage.repondre_bouton(id_utilisateur, argument)
+        if demarrage.requis(id_utilisateur):
+            return demarrage.ecran(id_utilisateur, "Finissons d'abord ton démarrage.")
         if action == "voir":
             return ecran_seance(id_utilisateur, int(argument))
         if action == "semv":

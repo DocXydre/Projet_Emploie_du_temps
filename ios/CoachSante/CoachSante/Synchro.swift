@@ -23,6 +23,7 @@ final class Synchro: ObservableObject {
     @Published private(set) var journal: [LigneJournal] = []
     @Published private(set) var dernierEnvoi: Date?
     @Published private(set) var dernierEssai: Date?
+    @Published private(set) var progression: String?
 
     let lecteur = LecteurSante()
     private let reglages = UserDefaults.standard
@@ -84,7 +85,7 @@ final class Synchro: ObservableObject {
 
     /// Lit Santé et envoie les jours et les séances. Rend une phrase de bilan.
     @discardableResult
-    func synchroniser(raison: String) async -> String {
+    func synchroniser(raison: String, depuis impose: Date? = nil) async -> String {
         guard !enCours else { return "Un envoi est déjà en cours." }
         guard LecteurSante.disponible else {
             noter("Santé n'est pas disponible sur cet appareil.", erreur: true)
@@ -98,15 +99,18 @@ final class Synchro: ObservableObject {
         dernierEssai = Date()
         defer { enCours = false }
 
-        let debut = debutDeLEnvoi()
+        let debut = impose.map { Calendar.current.startOfDay(for: $0) } ?? debutDeLEnvoi()
+        defer { progression = nil }
         var joursEnvoyes = 0
         var seancesEnvoyees = 0
         var echecs: [String] = []
         var injoignable = false
 
         do {
-            let lus = try await lecteur.jours(depuis: debut)
-            for jour in lus where !jour.estVide {
+            progression = "Lecture de Santé…"
+            let lus = try await lecteur.jours(depuis: debut).filter { !$0.estVide }
+            for (rang, jour) in lus.enumerated() {
+                if rang % 20 == 0 { progression = "Jours : \(rang) sur \(lus.count)" }
                 do {
                     try await client.appeler("PUT", "/donnees-sante/jours/\(Format.jour(jour.jour))",
                                              corps: jour.corps)
@@ -118,7 +122,9 @@ final class Synchro: ObservableObject {
                 }
             }
             if !injoignable {
-                for seance in try await lecteur.seances(depuis: debut) {
+                let toutes = try await lecteur.seances(depuis: debut)
+                for (rang, seance) in toutes.enumerated() {
+                    if rang % 10 == 0 { progression = "Séances : \(rang) sur \(toutes.count)" }
                     do {
                         try await client.appeler("PUT",
                                                  "/donnees-sante/activites/\(seance.id.uuidString)",
@@ -147,6 +153,20 @@ final class Synchro: ObservableObject {
         noter("\(bilan), \(echecs.count) échec(s) (\(raison)). Premier : \(echecs[0])",
               erreur: true)
         return "\(bilan). \(echecs.count) échec(s) : \(echecs[0])"
+    }
+
+    /// Envoie tout ce que Santé contient, depuis la première donnée de pas. Les
+    /// séances de plus de 28 jours sont gardées par le serveur sans devenir des
+    /// séances libres (SAN-8). Garde l'appli ouverte pendant l'envoi.
+    func envoyerTout() async -> String {
+        let premiere: Date?
+        do {
+            premiere = try await lecteur.premiereDonnee()
+        } catch {
+            return "Lecture de Santé impossible : \(error.localizedDescription)"
+        }
+        guard let premiere else { return "Santé ne contient aucune donnée de pas." }
+        return await synchroniser(raison: "tout l'historique", depuis: premiere)
     }
 
     /// Vérifie l'adresse et la clé, sans rien envoyer.

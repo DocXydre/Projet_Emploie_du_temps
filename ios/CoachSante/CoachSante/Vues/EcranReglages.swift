@@ -33,9 +33,32 @@ struct EcranReglages: View {
                 Section {
                     Stepper("Premier envoi : \(joursInitiaux) jours", value: $joursInitiaux,
                             in: 1...30)
+                    Button {
+                        enregistrer()
+                        occupe = true
+                        Task {
+                            resultat = await synchro.envoyerTout()
+                            occupe = false
+                        }
+                    } label: {
+                        HStack {
+                            Text("Envoyer tout l'historique")
+                            Spacer()
+                            if occupe, let progression = synchro.progression {
+                                Text(progression).font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .disabled(occupe || synchro.enCours)
+                } header: {
+                    Text("Historique")
                 } footer: {
                     Text("Ensuite, chaque envoi reprend deux jours avant le dernier réussi. "
-                         + "Renvoyer un jour le met à jour, sans doublon.")
+                         + "Renvoyer un jour le met à jour, sans doublon. « Tout l'historique » "
+                         + "envoie tout ce que Santé contient, une seule fois suffit : garde "
+                         + "l'appli ouverte, ça peut prendre une ou deux minutes. Les séances "
+                         + "de plus de 28 jours sont gardées pour le coach sans s'ajouter à "
+                         + "ton planning.")
                 }
 
                 Section {

@@ -40,6 +40,9 @@ struct EcranPrincipal: View {
             }
             .disabled(synchro.enCours)
 
+            if let progression = synchro.progression {
+                Text(progression).font(.footnote).foregroundStyle(.secondary)
+            }
             if let dernierBilan {
                 Text(dernierBilan).font(.footnote)
             }

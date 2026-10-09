@@ -20,6 +20,12 @@ BEGIN
     IF a.id_occurrence IS NOT NULL OR a.discipline = 'autre' THEN
         RETURN a.id_occurrence;
     END IF;
+    -- SAN-8 : une séance de plus de 28 jours arrive avec l'historique. Elle est
+    -- gardée telle quelle pour le coach, mais ne se rattache à rien et ne crée
+    -- aucune séance libre : le planning passé ne se remplit pas après coup.
+    IF a.jour < jour_de(now()) - 28 THEN
+        RETURN NULL;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM utilisateur u
                     WHERE u.id_utilisateur = a.id_utilisateur AND u.coach_actif) THEN
         RETURN NULL;
@@ -52,4 +58,5 @@ END $$;
 
 COMMENT ON FUNCTION rattacher_activite(BIGINT) IS
     'SAN-4, LIB-5 : rattache une séance de la montre à la séance prévue du même
-     jour et de la même discipline. À défaut, crée une séance libre.';
+     jour et de la même discipline. À défaut, crée une séance libre. Rien
+     pour une séance de plus de 28 jours (SAN-8).';
