@@ -97,14 +97,29 @@ def _precision(cloture: dict) -> str:
     return " ".join(morceaux)
 
 
+def journee_sans_seance(id_utilisateur: int, cloture: dict) -> bool:
+    """COA-31 : rien de prévu ni de fait aujourd'hui, et rien à décider de la clôture."""
+    if cloture.get("pas_faites"):
+        return False
+    return un_seul(
+        """SELECT 1 FROM v_seance_coach WHERE id_utilisateur = %(u)s AND jour = %(j)s
+            LIMIT 1""", {"u": id_utilisateur, "j": aujourd_hui()}) is None
+
+
 def synthese(id_utilisateur: int, moment: str = "synthese", cloture: dict | None = None,
              operation_id: str | None = None, essai: int = 1,
              declencheur: str = "ordonnanceur") -> dict:
     """Un appel de synthèse ou de révision. Lève EchecAppel s'il échoue."""
+    precision = _precision(cloture or {})
+    simple = moment == "synthese" and journee_sans_seance(id_utilisateur, cloture or {})
+    if simple:
+        precision = (precision + " " if precision else "") + (
+            "Journée sans séance : synthèse courte, deux à quatre phrases. Ce qui attend "
+            "demain, et ce que les données de la journée disent s'il y a quelque chose.")
     demande = appel.Demande(
         id_utilisateur=id_utilisateur, moment=moment, declencheur=declencheur,
-        precision=_precision(cloture or {}) or None,
-        operation_id=operation_id, essai=essai)
+        precision=precision or None, operation_id=operation_id, essai=essai,
+        extra={"simple": True} if simple else {})
     rendu = appel.appeler_coach(demande)
     figer(id_utilisateur)
     return rendu

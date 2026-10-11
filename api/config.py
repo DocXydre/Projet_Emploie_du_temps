@@ -167,6 +167,11 @@ class Configuration(BaseSettings):
     # Rapide et peu cher : il ne lit que la question. Vide : les mots-clés seuls.
     coach_modele_aiguillage: str = "claude-haiku-4-5-20251001"
 
+    # COA-31 : un modèle moins cher pour le chat et la synthèse d'un jour sans
+    # séance. Vide : le modèle du coach partout. À valider par les scénarios
+    # avant de le régler (COACH_MODELE_SIMPLE=claude-haiku-4-5-20251001).
+    coach_modele_simple: str = ""
+
     # MEM-7 : le modèle qui résume la mémoire. Vide : le même que le coach.
     coach_modele_memoire: str = ""
 

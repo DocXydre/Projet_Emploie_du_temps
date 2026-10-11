@@ -34,12 +34,12 @@ FAMILLES_DU_MOMENT = {
     "faisabilite": {"lecture", "avis", "memoire"},
     "plan":        {"lecture", "trame", "seances", "fenetre", "memoire"},
     "revision":    {"lecture", "trame", "seances", "fenetre", "memoire", "avis_libre"},
-    "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre"},
-    "bilan":       {"lecture", "seances", "memoire", "avis_libre"},
-    "signalement": {"lecture", "seances", "memoire", "avis_libre"},
+    "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre", "mesure"},
+    "bilan":       {"lecture", "seances", "memoire", "avis_libre", "mesure"},
+    "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure"},
     # Dans le chat, le coach lit et tient sa mémoire : il ne propose aucune séance.
     # S'il lit un signalement dans le texte, il le requalifie (COA-25).
-    "chat":        {"lecture", "memoire", "requalification"},
+    "chat":        {"lecture", "memoire", "requalification", "mesure"},
 }
 
 # PAU-2 : en pause, ces familles sont fermées pour tous les moments.
@@ -70,6 +70,9 @@ class Outil:
     description: str
     schema: dict
     fonction: Callable[[int, dict], object]
+    # Permis mais pas déclaré au modèle : un ancien nom qui reste accepté, sans
+    # que son schéma parte une deuxième fois (proposer_seances le remplace).
+    cache: bool = False
 
     def declaration(self) -> dict:
         return {"name": self.nom, "description": self.description,
@@ -569,6 +572,15 @@ def ouvrir_fenetre_mesure(u: int, a: dict) -> object:
     return {"fenetre_ouverte": ligne["id"]}
 
 
+def noter_mesure(u: int, a: dict) -> object:
+    """MES-9 : une mesure dite dans un message (« je pèse 70 kg ») est enregistrée."""
+    ligne = _sql("SELECT saisir_mesure(%(u)s, %(t)s, %(v)s, %(un)s, %(c)s, %(d)s) AS id",
+                 {"u": u, "t": a.get("type"), "v": a.get("valeur"), "un": a.get("unite"),
+                  "c": a.get("cote"),
+                  "d": _jour(a["date"], "date") if a.get("date") else None})
+    return {"fait": "mesure enregistrée", "id_mesure": ligne.get("id")}
+
+
 def ecrire_memoire(u: int, a: dict) -> object:
     niveau = a.get("niveau")
     if niveau not in ("semaine", "globale"):
@@ -576,6 +588,21 @@ def ecrire_memoire(u: int, a: dict) -> object:
     ligne = _sql("SELECT ecrire_memoire(%(u)s, %(n)s, %(t)s, 'coach') AS id",
                  {"u": u, "n": niveau, "t": a.get("texte")})
     return {"fait": f"mémoire {niveau} écrite", "version": ligne["id"]}
+
+
+def ajouter_memoire(u: int, a: dict) -> object:
+    """MEM-9 : une ligne ajoutée à la mémoire de la semaine, sans la réécrire."""
+    from api.coach import memoire
+    ligne = (a.get("ligne") or "").strip()
+    if not ligne:
+        raise RefusOutil("requete_invalide", "« ligne » est vide")
+    actuelle = memoire.en_vigueur(u, "semaine", lundi_de(aujourd_hui()))
+    texte = ((actuelle or {}).get("texte") or "").rstrip()
+    nouveau = (texte + "\n" if texte else "") + "- " + ligne.lstrip("- ")
+    rendu = _sql("SELECT ecrire_memoire(%(u)s, 'semaine', %(t)s, 'coach') AS id",
+                 {"u": u, "t": nouveau})
+    return {"fait": "ligne ajoutée à la mémoire de la semaine", "version": rendu["id"],
+            "longueur": len(nouveau)}
 
 
 def marquer_important(u: int, a: dict) -> object:
@@ -594,24 +621,20 @@ def requalifier_en_signalement(u: int, a: dict) -> object:
 
 _EXERCICES = {
     "type": "array",
-    "description": "Les exercices dans l'ordre, ou les blocs d'une séance de course "
-                   "(échauffement, répétitions, retour au calme). Codes du catalogue "
-                   "uniquement. Une seule charge, un seul nombre de séries et une seule "
-                   "fourchette de répétitions par exercice : ils valent pour les deux côtés.",
+    "description": "Exercices dans l'ordre, ou blocs d'une séance de course. Codes du "
+                   "catalogue. Charge, séries et répétitions valent pour les deux côtés.",
     "items": _objet({
         "code": {"type": "string", "description": "Code de l'exercice au catalogue"},
         "series": {"type": "integer", "minimum": 1},
         "repetitions_min": {"type": "integer", "minimum": 1},
         "repetitions_max": {"type": "integer", "minimum": 1},
         "charge_kg": {"type": "number", "minimum": 0,
-                      "description": "À ne pas fixer en semaine de calibrage, ni sur un "
-                                     "exercice jamais saisi : la base le refuse"},
+                      "description": "Pas en calibrage ni sur un exercice jamais saisi"},
         "duree_secondes": {"type": "integer", "minimum": 1},
         "distance_m": {"type": "integer", "minimum": 1},
         "repos_secondes": {"type": "integer", "minimum": 0},
-        "marge_repetitions": {"type": "integer", "minimum": 0, "maximum": 5,
-                              "description": "Répétitions à garder en réserve"},
-        "cible": {"type": "string", "description": "Allure ou zone visée, 60 caractères"},
+        "marge_repetitions": {"type": "integer", "minimum": 0, "maximum": 5},
+        "cible": {"type": "string", "description": "Allure ou zone, 60 caractères"},
         "consigne": {"type": "string"},
     }, ["code"]),
 }
@@ -731,12 +754,14 @@ OUTILS: tuple[Outil, ...] = (
           "et rend le motif si elle refuse. Sans exercices, c'est une esquisse : donner "
           "alors les groupes sollicités (musculation).",
           _SEANCE,
-          proposer_seance),
+          proposer_seance, cache=True),
     Outil("proposer_seances", "seances",
-          "Propose plusieurs séances d'un coup (une semaine, ou les esquisses de "
-          "plusieurs semaines) : chaque élément a les champs de proposer_seance. La base "
-          "les vérifie une par une et rend pour chacune la séance posée ou le motif du "
-          "refus. À préférer dès qu'il y a plus d'une séance.",
+          "Propose une ou plusieurs séances (une seule, une semaine, ou les esquisses de "
+          "plusieurs semaines) : une discipline, un jour, une plage d'heures et le "
+          "contenu de chacune. Sans exercices, c'est une esquisse : donner alors les "
+          "groupes sollicités (musculation). La base vérifie le lieu, le placement, les "
+          "exercices et la sécurité, une séance à la fois, et rend pour chacune la "
+          "séance posée ou le motif du refus.",
           _objet({"seances": {"type": "array", "minItems": 1, "maxItems": 14,
                               "items": _SEANCE}}, ["seances"]),
           proposer_seances),
@@ -794,18 +819,32 @@ OUTILS: tuple[Outil, ...] = (
                   "consigne": {"type": "string"}}, ["type", "du", "au"]),
           ouvrir_fenetre_mesure),
 
+    Outil("noter_mesure", "mesure",
+          "Enregistre une mesure que l'utilisateur te donne dans son message : poids, "
+          "tour de taille, de bras, temps d'un test. Sans date, aujourd'hui. Une "
+          "mesure de bras ou de cuisse se donne par côté.",
+          _objet({"type": {"type": "string", "enum": TYPES_MESURE},
+                  "valeur": {"type": "number"},
+                  "unite": {"type": "string", "description": "kg, cm, s"},
+                  "cote": {"type": "string", "enum": ["gauche", "droite"]},
+                  "date": {"type": "string", "description": "AAAA-MM-JJ"}},
+                 ["type", "valeur", "unite"]),
+          noter_mesure),
+
     Outil("ecrire_memoire", "memoire",
-          "Réécrit en entier un étage de ta mémoire (MEM-4). « semaine » : la semaine en "
-          "cours, 3 000 caractères, ce qui s'est passé et ce que tu en retiens ; tu la "
-          "tiens à jour chaque soir et dès qu'un fait compte. « globale » : ce qui est "
-          "durable sur la personne (préférences dites, ce qui marche, limites), 4 000 "
-          "caractères ; tu ne la touches que pour un fait durable ou quand l'utilisateur "
-          "te demande d'oublier quelque chose. Repars toujours du texte actuel, que tu "
-          "as dans ta mémoire, pour ne rien perdre. Écris « (déduit) » après une "
-          "déduction et « (à confirmer) » si elle n'est pas confirmée.",
+          "Réécrit en entier un étage de ta mémoire, en repartant du texte actuel. "
+          "« semaine » : 3 000 caractères, pour corriger ou condenser. « globale » : "
+          "4 000 caractères, ce qui est durable sur la personne, ou pour oublier ce "
+          "qu'elle demande. « (déduit) » après une déduction, « (à confirmer) » si elle "
+          "n'est pas confirmée.",
           _objet({"niveau": {"type": "string", "enum": ["semaine", "globale"]},
                   "texte": {"type": "string"}}, ["niveau", "texte"]),
           ecrire_memoire),
+    Outil("ajouter_memoire", "memoire",
+          "Ajoute une ligne à la mémoire de la semaine, sans la réécrire : un fait dit "
+          "par l'utilisateur, une décision et sa raison. À préférer à ecrire_memoire "
+          "dès qu'il n'y a rien à corriger dans le texte actuel.",
+          _objet({"ligne": {"type": "string"}}, ["ligne"]), ajouter_memoire),
     Outil("marquer_important", "memoire",
           "Marque l'échange en cours comme important : les résumés de la mémoire le "
           "garderont toujours. Un objectif, un plan ou un ajustement le sont déjà "

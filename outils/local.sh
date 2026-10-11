@@ -6,6 +6,7 @@
 #   ./outils/local.sh migrer        applique les migrations et recharge les définitions
 #   ./outils/local.sh compte        prépare le compte du coach avec local/demarrage.json
 #   ./outils/local.sh scenarios S   rejoue les scénarios avec le vrai modèle
+#   ./outils/local.sh scenarios-haiku   les mêmes, chat et synthèse simple avec Haiku
 #   ./outils/local.sh appels        les derniers appels au modèle, outil par outil
 #   ./outils/local.sh memoire       la mémoire du coach, étage par étage
 #   ./outils/local.sh couts         ce que coûtent les derniers appels, en dollars
@@ -101,6 +102,12 @@ case "$commande" in
         ;;
     scenarios)
         docker exec -i -e COACH_RAPPORT=/app/local/scenarios.md planif-api \
+            python -m outils.coach_scenarios "$@"
+        ;;
+    scenarios-haiku)
+        # COA-31 : les mêmes scénarios, le chat et la synthèse simple avec Haiku.
+        docker exec -i -e COACH_RAPPORT=/app/local/scenarios-haiku.md \
+            -e COACH_MODELE_SIMPLE=claude-haiku-4-5-20251001 planif-api \
             python -m outils.coach_scenarios "$@"
         ;;
     appels)

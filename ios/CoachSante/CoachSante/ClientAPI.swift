@@ -49,11 +49,11 @@ struct ClientAPI {
 
     @discardableResult
     func appeler(_ methode: String, _ chemin: String,
-                 corps: [String: Any]? = nil) async throws -> Any? {
+                 corps: [String: Any]? = nil, delai: TimeInterval = 20) async throws -> Any? {
         guard let url = URL(string: base.absoluteString + chemin) else {
             throw ErreurAPI(message: "Adresse invalide : \(chemin)")
         }
-        var requete = URLRequest(url: url, timeoutInterval: 20)
+        var requete = URLRequest(url: url, timeoutInterval: delai)
         requete.httpMethod = methode
         requete.setValue(cle, forHTTPHeaderField: "X-Cle-Api")
         requete.setValue("application/json", forHTTPHeaderField: "Accept")

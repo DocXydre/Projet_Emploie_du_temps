@@ -54,10 +54,10 @@ def _le_client():
 
 
 def appeler(systeme: list[dict], messages: list[dict], outils: list[dict],
-            delai: float) -> Tour:
+            delai: float, modele_nom: str | None = None) -> Tour:
     """Un tour : la consigne, la conversation, les outils permis, et la réponse."""
     conf = configuration()
-    return _creer(model=conf.coach_modele, max_tokens=conf.coach_max_tokens,
+    return _creer(model=modele_nom or conf.coach_modele, max_tokens=conf.coach_max_tokens,
                   system=systeme, messages=messages, tools=outils,
                   timeout=max(delai, 5.0))
 

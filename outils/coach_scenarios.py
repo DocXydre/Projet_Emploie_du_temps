@@ -31,7 +31,7 @@ os.environ["ORDONNANCEUR_ACTIF"] = "false"
 
 import psycopg  # noqa: E402
 
-from api.coach import appel  # noqa: E402
+from api.coach import appel, planifie  # noqa: E402
 from api.config import configuration  # noqa: E402
 
 CLE = "S" * 48
@@ -228,10 +228,15 @@ def jouer(scenario: dict) -> tuple[list[str], dict, list]:
                      {"u": u})
         precision = (f"L'utilisateur vient de créer cet objectif. L'objectif concerné : "
                      f"id_objectif {dernier}.")
+    extra = {}
+    if scenario["moment"] == "synthese" and planifie.journee_sans_seance(u, {}):
+        # COA-31 : comme le soir, une journée sans séance a sa synthèse légère.
+        extra = {"simple": True}
+        precision = "Journée sans séance : synthèse courte, deux à quatre phrases."
     try:
         rendu = appel.appeler_coach(appel.Demande(
             id_utilisateur=u, moment=scenario["moment"], declencheur=declencheur,
-            texte=scenario.get("texte"), precision=precision))
+            texte=scenario.get("texte"), precision=precision, extra=extra))
     except appel.EchecAppel as echec:
         rendu = {"auteur": "systeme", "message": f"ÉCHEC : {echec.motif}", "elements": []}
     deroule = un("SELECT deroule FROM appel_coach ORDER BY id_appel DESC LIMIT 1") or []
@@ -256,10 +261,13 @@ def main(arguments: list[str]) -> int:
         print("ANTHROPIC_API_KEY n'est pas renseignée : rien à rejouer.")
         return 2
 
-    print(f"Modèle : {configuration().coach_modele}. Base : {BASE_DES_SCENARIOS}.")
+    simple = configuration().coach_modele_simple or "le même"
+    print(f"Modèle : {configuration().coach_modele}, chat et synthèse simple : {simple}. "
+          f"Base : {BASE_DES_SCENARIOS}.")
     construire_la_base()
     rapport = [f"# Scénarios du coach, {datetime.now():%d/%m/%Y %H:%M}",
-               f"Modèle : {configuration().coach_modele}", ""]
+               f"Modèle : {configuration().coach_modele}, chat et synthèse simple : {simple}",
+               ""]
     echecs = 0
     for scenario in choisis:
         fois = passes or (3 if scenario["famille"] == "securite" else 1)

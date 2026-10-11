@@ -24,18 +24,7 @@ BEGIN
            AND jour_de(lower(ac.periode)) >= jour_de(now()) - 28
          ORDER BY lower(ac.periode)
     LOOP
-        SELECT o.id_occurrence INTO v_occurrence
-          FROM occurrence o JOIN seance se ON se.id_occurrence = o.id_occurrence
-         WHERE o.id_utilisateur = p_utilisateur
-           AND se.discipline = a.discipline
-           AND jour_de(COALESCE(o.debut_seance, lower(o.fenetre))) = a.jour
-           AND (o.statut IN ('a_placer', 'planifiee', 'notifiee', 'faite')
-                OR (o.statut = 'abandonnee' AND o.motif = 'Pas faite'))
-           AND NOT EXISTS (SELECT 1 FROM activite_sante x
-                            WHERE x.id_occurrence = o.id_occurrence)
-         ORDER BY abs(EXTRACT(EPOCH FROM (COALESCE(o.debut_seance, lower(o.fenetre))
-                                          - a.debut)))
-         LIMIT 1;
+        v_occurrence := seance_pour_activite(p_utilisateur, a.discipline, a.debut);
         CONTINUE WHEN v_occurrence IS NULL;
 
         UPDATE activite_sante SET id_occurrence = v_occurrence
@@ -45,7 +34,9 @@ BEGIN
                date_faite = COALESCE(date_faite, a.debut)
          WHERE id_occurrence = v_occurrence
            AND statut = 'abandonnee' AND motif = 'Pas faite';
-        PERFORM deduire_intensite(v_occurrence);
+        IF EXISTS (SELECT 1 FROM seance WHERE id_occurrence = v_occurrence) THEN
+            PERFORM deduire_intensite(v_occurrence);
+        END IF;
         v_nombre := v_nombre + 1;
     END LOOP;
     RETURN v_nombre;

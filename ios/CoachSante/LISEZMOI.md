@@ -1,6 +1,6 @@
 # Coach Santé
 
-Une petite appli iPhone qui lit l'application Santé (donc l'Apple Watch) et envoie au serveur, pour le coach :
+Une petite appli iPhone pour le coach. Elle saisit tes séances de musculation (plus bas), et elle lit l'application Santé (donc l'Apple Watch) pour envoyer au serveur :
 
 - chaque jour : les pas, la fréquence cardiaque de repos, la variabilité cardiaque, le sommeil ;
 - chaque séance de la montre : type, horaires, durée, distance, dénivelé, énergie, fréquence cardiaque moyenne et maximale, allure, cadence, et le reste dans `details`.
@@ -10,6 +10,19 @@ Elle ne porte aucune règle. Elle appelle `PUT /donnees-sante/jours/{jour}` et `
 Au premier envoi, elle prend les 14 derniers jours (réglable). Le bouton « Envoyer tout l'historique », dans les réglages, envoie tout ce que Santé contient : à faire une fois, appli ouverte. Les séances de plus de 28 jours sont gardées pour le coach sans devenir des séances libres dans le planning (SAN-8).
 
 L'envoi part à chaque ouverture de l'appli, avec le bouton « Envoyer maintenant », parfois tout seul la nuit (iOS décide de l'heure), et par l'action « Envoyer ma santé au coach » de l'appli Raccourcis.
+
+## Saisir une séance de musculation
+
+En haut de l'écran, « Lancer une séance de muscu » :
+
+- si le coach a prévu une séance de musculation aujourd'hui, c'est elle qui s'ouvre, avec ses exercices prévus ; sinon, une séance libre ;
+- « Ajouter un exercice » ouvre le catalogue (les exercices faits récemment en premier, ceux qu'une limitation interdit n'y sont pas) ;
+- pour chaque exercice : la charge et les répétitions, puis « Ajouter la série ». Les valeurs restent pour la série suivante, et la première est préremplie avec la dernière fois. Glisser une série vers la gauche la supprime ;
+- « Terminer la séance » : l'effort de 1 à 10, la durée, un mot, et si tu veux l'avis du coach tout de suite.
+
+La séance en cours survit à la fermeture de l'appli : « Reprendre ma séance ». Il faut le réseau pour enregistrer chaque série.
+
+Après une mise à jour qui ajoute des fichiers, relance `xcodegen` dans `ios/CoachSante` avant Cmd+R.
 
 ## Avec un compte Apple gratuit
 

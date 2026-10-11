@@ -31,18 +31,7 @@ BEGIN
         RETURN NULL;
     END IF;
 
-    SELECT o.id_occurrence INTO v_occurrence
-      FROM occurrence o JOIN seance se ON se.id_occurrence = o.id_occurrence
-     WHERE o.id_utilisateur = a.id_utilisateur
-       AND se.discipline = a.discipline
-       AND jour_de(COALESCE(o.debut_seance, lower(o.fenetre))) = a.jour
-       AND (o.statut IN ('a_placer', 'planifiee', 'notifiee', 'faite')
-            OR (o.statut = 'abandonnee' AND o.motif = 'Pas faite'))
-       AND NOT EXISTS (SELECT 1 FROM activite_sante x
-                        WHERE x.id_occurrence = o.id_occurrence)
-     ORDER BY abs(EXTRACT(EPOCH FROM (COALESCE(o.debut_seance, lower(o.fenetre))
-                                      - lower(a.periode))))
-     LIMIT 1;
+    v_occurrence := seance_pour_activite(a.id_utilisateur, a.discipline, lower(a.periode));
 
     IF v_occurrence IS NULL THEN
         v_occurrence := creer_seance_libre(

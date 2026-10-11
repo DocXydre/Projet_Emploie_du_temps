@@ -1132,13 +1132,40 @@ def catalogue(qui: Authentifie, discipline: str | None = None,
                   EXISTS (SELECT 1 FROM exercice_interdit ei
                             JOIN limitation l ON l.id_limitation = ei.id_limitation
                            WHERE l.id_utilisateur = %(u)s AND l.active
-                             AND ei.id_exercice = e.id_exercice) AS interdit
+                             AND ei.id_exercice = e.id_exercice) AS interdit,
+                  -- SAI-14 : pour ranger les exercices faits récemment en premier.
+                  (SELECT max(ss.saisie_le) FROM serie_saisie ss
+                     JOIN occurrence o ON o.id_occurrence = ss.id_occurrence
+                    WHERE o.id_utilisateur = %(u)s
+                      AND ss.id_exercice = e.id_exercice) AS derniere_saisie
              FROM exercice e
             WHERE e.actif
               AND (%(d)s::TEXT IS NULL OR e.discipline = %(d)s::TEXT)
               AND (%(g)s::TEXT IS NULL OR e.groupe_principal = %(g)s::TEXT)
             ORDER BY e.discipline, e.groupe_principal, e.libelle""",
         {"u": qui.id_utilisateur, "d": discipline, "g": groupe})
+
+
+@routeur.get("/exercices/{code}/derniere-fois", tags=["Coach : suivi"],
+             summary="Les séries de la dernière séance où l'exercice a été fait")
+def derniere_fois(qui: Authentifie, code: str, avant: int | None = None) -> dict:
+    """SAI-14 : pour préremplir la charge et les répétitions d'une nouvelle série.
+    `avant` : l'id de la séance en cours, pour ne pas se rendre elle-même."""
+    series = lister(
+        """WITH derniere AS (
+               SELECT ss.id_occurrence FROM serie_saisie ss
+                 JOIN occurrence o ON o.id_occurrence = ss.id_occurrence
+                 JOIN exercice e ON e.id_exercice = ss.id_exercice
+                WHERE o.id_utilisateur = %(u)s AND e.code = %(c)s
+                  AND ss.id_occurrence IS DISTINCT FROM %(avant)s
+                ORDER BY ss.saisie_le DESC LIMIT 1)
+           SELECT ss.numero, ss.charge_kg::FLOAT8 AS charge_kg, ss.repetitions, ss.duree_secondes,
+                  ss.distance_m, ss.saisie_le
+             FROM serie_saisie ss JOIN exercice e ON e.id_exercice = ss.id_exercice
+            WHERE ss.id_occurrence = (SELECT id_occurrence FROM derniere) AND e.code = %(c)s
+            ORDER BY ss.numero""", {"u": qui.id_utilisateur, "c": code, "avant": avant})
+    return {"code": code, "quand": series[0]["saisie_le"] if series else None,
+            "series": series}
 
 
 @routeur.get("/limitations", tags=["Coach : suivi"],

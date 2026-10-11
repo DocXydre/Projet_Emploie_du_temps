@@ -33,6 +33,9 @@ LOG = logging.getLogger(__name__)
 # Les moments qui construisent beaucoup : trente tours au lieu de douze (COA-7).
 MOMENTS_LONGS = ("plan", "revision")
 
+# MEM-10 : la longueur gardée d'un ancien message du coach dans les derniers échanges.
+LONGUEUR_ANCIEN_MESSAGE = 500
+
 
 class EchecAppel(Exception):
     """Un appel planifié qui n'a pas abouti : l'ordonnanceur réessaiera (COA-11)."""
@@ -114,8 +117,8 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "bilan. Pour chaque séance pas faite, décide : une séance clé est proposée à "
             "nouveau s'il reste un jour qui tient, une séance secondaire est abandonnée. "
             "Pour chaque séance libre du jour, rends un avis puis compense ou allège la "
-            "suite. Mets à jour la mémoire de la semaine avec ce que la journée a appris "
-            "(`ecrire_memoire`, niveau semaine, en repartant du texte actuel). Termine par "
+            "suite. Ajoute à la mémoire de la semaine ce que la journée a appris, s'il y a "
+            "quelque chose (`ajouter_memoire`). Termine par "
             "ce qui attend demain. Un jour sans rien à dire donne une synthèse courte, pas "
             "un silence.")
     elif m == "bilan":
@@ -132,11 +135,14 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "de la semaine, et marque l'échange important s'il change la suite.")
     elif m == "chat":
         lignes.append(
-            "L'utilisateur pose une question. Réponds-y, en lisant les chapitres et les "
-            "données utiles. Tu ne disposes pas des outils de séance : ce qui touche au plan "
-            "attend la synthèse du soir. MAIS si son texte est en fait un signalement (une "
-            "douleur, une fatigue, un contretemps) ou la réponse à une question que tu as "
-            "posée dans une synthèse, appelle d'abord `requalifier_en_signalement`.")
+            "L'utilisateur t'écrit. Une question : réponds-y. Tu n'as pas ici les outils "
+            "de séance. Appelle d'abord `requalifier_en_signalement` si son texte demande "
+            "un changement du plan (ajouter, déplacer, retirer ou changer une séance, "
+            "courir un autre jour), s'il signale une douleur, une fatigue ou un "
+            "contretemps, ou s'il répond à une question que tu as posée : tu auras alors "
+            "les outils pour agir. Une mesure qu'il te donne (poids, tour de bras, temps) "
+            "s'enregistre avec `noter_mesure`. N'écris jamais « c'est noté », « je vais "
+            "proposer » ou « je déplace » sans l'avoir fait par un outil dans cet appel.")
 
     if demande.precision:
         lignes.append(demande.precision)
@@ -172,11 +178,19 @@ def derniers_echanges(id_utilisateur: int) -> str:
     if not lignes:
         return "# Derniers échanges\n\nAucun échange pour l'instant : c'est le premier."
     morceaux = ["# Derniers échanges (du plus ancien au plus récent)"]
-    for ligne in lignes:
+    # MEM-10 : tes anciens messages sont raccourcis, le dernier reste entier. Ce
+    # qu'ils annonçaient est en base, et relu à jour ; ce que l'utilisateur a
+    # écrit reste toujours mot pour mot.
+    dernier_du_coach = max((i for i, x in enumerate(lignes) if x["auteur"] == "coach"),
+                           default=None)
+    for rang, ligne in enumerate(lignes):
         qui = {"utilisateur": "Utilisateur", "coach": "Toi",
                "systeme": "Message automatique"}[ligne["auteur"]]
-        morceaux.append(f"[{clair(ligne['quand'])}, {ligne['moment']}] {qui} : "
-                        f"{ligne['contenu']}")
+        contenu = ligne["contenu"]
+        if ligne["auteur"] != "utilisateur" and rang != dernier_du_coach \
+                and len(contenu) > LONGUEUR_ANCIEN_MESSAGE:
+            contenu = contenu[:LONGUEUR_ANCIEN_MESSAGE].rstrip() + " […]"
+        morceaux.append(f"[{clair(ligne['quand'])}, {ligne['moment']}] {qui} : {contenu}")
     return "\n\n".join(morceaux)
 
 
@@ -266,7 +280,7 @@ def _ouvrir_appel(demande: Demande, operation_id: str, delai: float) -> int | No
                    RETURNING id_appel""",
                 {"u": demande.id_utilisateur, "m": demande.moment,
                  "d": demande.declencheur, "o": operation_id, "e": demande.essai,
-                 "c": demande.cle_client, "mo": configuration().coach_modele})
+                 "c": demande.cle_client, "mo": modele_de(demande)})
             return ligne["id_appel"]
         except psycopg.errors.UniqueViolation:
             if time.monotonic() >= limite:
@@ -296,7 +310,6 @@ def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
     Écrits avant que la réponse soit rendue : une réponse perdue en route se
     relit dans les échanges et arrive aussi par le bot.
     """
-    conf = configuration()
     with connexion() as conn, conn.cursor() as cur:
         cur.execute(
             """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, id_occurrence,
@@ -305,7 +318,7 @@ def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
                RETURNING id_echange, moment, auteur, contenu, elements, quand""",
             {"u": demande.id_utilisateur, "a": auteur, "m": moment, "c": message,
              "o": demande.id_occurrence, "op": operation_id,
-             "mo": conf.coach_modele if auteur == "coach" else None,
+             "mo": modele_de(demande) if auteur == "coach" else None,
              "v": dossier.version() if auteur == "coach" else None,
              "e": Jsonb(elements), "ap": id_appel})
         echange = cur.fetchone()
@@ -336,6 +349,18 @@ def garder_le_texte(demande: Demande, moment: str | None = None) -> int | None:
 # La boucle
 # ---------------------------------------------------------------------------
 
+# COA-31 : les familles d'outils retirées à une synthèse de jour sans séance.
+FERMEES_SI_SIMPLE = {"seances", "fenetre", "avis_libre", "trame"}
+
+
+def modele_de(demande: Demande) -> str:
+    """Le modèle de cet appel : le moins cher pour le chat et la synthèse simple,
+    s'il est réglé (COA-31)."""
+    conf = configuration()
+    simple = demande.moment == "chat" or demande.extra.get("simple")
+    return (conf.coach_modele_simple if simple else "") or conf.coach_modele
+
+
 def appeler_coach(demande: Demande) -> dict:
     """Un appel complet. Rend la réponse dans sa forme fixe (section 9.3).
 
@@ -365,10 +390,14 @@ def appeler_coach(demande: Demande) -> dict:
     echanges = derniers_echanges(demande.id_utilisateur)
     # DOS-2 : les paquets du dossier, choisis avant que le texte soit gardé, pour
     # que « le dernier message du coach » soit bien celui auquel il répond.
-    choix = aiguillage.choisir(demande.id_utilisateur, demande.moment, demande.texte,
-                               demande.id_occurrence,
-                               dernier_message_du_coach(demande.id_utilisateur)
-                               if demande.texte else None)
+    if demande.extra.get("simple"):
+        # COA-31 : un jour sans séance, le socle suffit.
+        choix = aiguillage.Aiguillage()
+    else:
+        choix = aiguillage.choisir(demande.id_utilisateur, demande.moment, demande.texte,
+                                   demande.id_occurrence,
+                                   dernier_message_du_coach(demande.id_utilisateur)
+                                   if demande.texte else None)
     id_texte = garder_le_texte(demande) if demande.essai == 1 else None
 
     operation_id = demande.operation_id or uuid.uuid4().hex[:16]
@@ -437,6 +466,9 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
     # PAU-6 : à la reprise, la pause vient d'être levée et la révision a tout.
     en_pause = bool(compte["en_pause"]) and not demande.extra.get("reprise")
     permis = outils.outils_du_moment(moment, en_pause)
+    if demande.extra.get("simple"):
+        permis = [o for o in permis if o.famille not in FERMEES_SI_SIMPLE]
+    modele_nom = modele_de(demande)
     borne = conf.coach_tours_plan if moment in MOMENTS_LONGS else conf.coach_tours
 
     deja_ecrit = reponse.elements_de(suivi_operation()) if demande.essai > 1 else []
@@ -457,7 +489,9 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
             raise _Arret("Délai dépassé")
 
         _marquer_le_cache(messages)
-        tour = modele.appeler(systeme, messages, [o.declaration() for o in permis], restant)
+        tour = modele.appeler(systeme, messages,
+                             [o.declaration() for o in permis if not o.cache], restant,
+                             modele_nom)
         suivi["entree"] += tour.tokens_entree
         suivi["cache"] += tour.tokens_cache
         suivi["cache_ecrit"] += tour.tokens_cache_ecrit
@@ -472,19 +506,27 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
         if not tour.outils:
             if tour.arret == "max_tokens" and not tour.texte.strip():
                 raise _Arret("Réponse coupée avant d'être écrite")
-            # COA-30 : un plan dont une semaine n'a aucune séance clé posée lui est
-            # rendu une fois, avant que son message parte.
-            manques = controle_du_plan(id_utilisateur) \
-                if moment in MOMENTS_LONGS and not suivi.get("controle") else []
-            if not manques:
+            # COA-30 : quand l'appel a posé ou changé des séances d'un plan, le
+            # message est relu une fois contre ce qui est vraiment en base.
+            if suivi.get("controle") is not None:
+                if tour.texte.strip().strip(".").upper() == "OK":
+                    return suivi["controle"]
                 return tour.texte
-            suivi["controle"] = True
-            suivi["deroule"].append({"controle": manques})
+            a_pose = any(e.get("outil") in OUTILS_DE_SEANCE and not e.get("refus")
+                         for e in suivi["deroule"])
+            releve = controle_du_plan(id_utilisateur) \
+                if moment in MOMENTS_LONGS and a_pose else None
+            if not releve:
+                return tour.texte
+            suivi["controle"] = tour.texte
+            suivi["deroule"].append({"controle": releve[:400]})
             messages.append({"role": "assistant", "content": tour.brut})
             messages.append({"role": "user", "content": [{"type": "text", "text": (
-                "Contrôle avant envoi : " + " ".join(manques) + " Pose ce qui manque avec "
-                "tes outils, ou corrige ton message s'il annonce une séance qui n'existe "
-                "pas. Puis réécris ton message final en entier.")}]})
+                "Relecture avant envoi. Voici ce qui est réellement posé en base :\n"
+                + releve + "\nCompare avec ton message : chaque séance qu'il annonce "
+                "(jour, type, distance ou durée) doit y être. Si tout correspond, réponds "
+                "seulement OK. Sinon, pose ou corrige avec tes outils, puis réécris ton "
+                "message final en entier.")}]})
             continue
 
         # COA-7 : au-delà de la borne, l'appel est arrêté et rien de plus n'est écrit.
@@ -546,27 +588,46 @@ def _refus_coupe(nom: str) -> str:
                  "avec moins d'éléments à la fois."}, ensure_ascii=False)
 
 
-def controle_du_plan(id_utilisateur: int) -> list[str]:
-    """COA-30 : chaque semaine non validée du plan en cours a au moins une séance clé."""
-    semaines = lister(
-        """SELECT ps.lundi, ps.role,
-                  count(s.id_occurrence) AS seances,
-                  count(s.id_occurrence) FILTER (WHERE s.cle) AS cles
+OUTILS_DE_SEANCE = {"proposer_seance", "proposer_seances", "modifier_seance_proposee",
+                    "retirer_seance_proposee"}
+
+
+def controle_du_plan(id_utilisateur: int) -> str | None:
+    """COA-30 : les séances non validées du plan en cours, semaine par semaine, et
+    les semaines sans séance clé. None s'il n'y a pas de plan."""
+    seances = lister(
+        """SELECT ps.lundi, ps.role, s.jour, s.discipline, s.type_seance, s.duree_minutes,
+                  s.cle, s.situation, s.consigne
              FROM plan p JOIN plan_semaine ps ON ps.id_plan = p.id_plan
              LEFT JOIN v_seance_coach s ON s.id_utilisateur = p.id_utilisateur
                                        AND s.lundi = ps.lundi
                                        AND s.situation NOT IN ('retiree', 'remplacee')
             WHERE p.id_utilisateur = %(u)s AND p.statut = 'en_cours'
               AND ps.validee_le IS NULL AND ps.lundi + 6 >= jour_de(now())
-            GROUP BY ps.lundi, ps.role ORDER BY ps.lundi""", {"u": id_utilisateur})
-    manques = []
-    for s in semaines:
-        if s["seances"] == 0:
-            manques.append(f"La semaine du {jour_en_clair(s['lundi'])} n'a aucune séance.")
-        elif s["cles"] == 0 and s["role"] not in ("allegee", "affutage"):
-            manques.append(f"La semaine du {jour_en_clair(s['lundi'])} n'a aucune "
-                           "séance clé posée.")
-    return manques
+            ORDER BY ps.lundi, s.jour, s.debut NULLS LAST""", {"u": id_utilisateur})
+    if not seances:
+        return None
+    lignes, semaine, cles = [], None, 0
+
+    def fin_de_semaine():
+        if semaine and cles == 0 and semaine[1] not in ("allegee", "affutage"):
+            lignes.append("  ATTENTION : aucune séance clé cette semaine.")
+
+    for s in seances:
+        if semaine != (s["lundi"], s["role"]):
+            fin_de_semaine()
+            semaine, cles = (s["lundi"], s["role"]), 0
+            lignes.append(f"Semaine du {jour_en_clair(s['lundi'])} ({s['role']}) :")
+        if s["jour"] is None:
+            lignes.append("  aucune séance.")
+            continue
+        cles += 1 if s["cle"] else 0
+        detail = f" ({s['consigne'][:80]})" if s.get("consigne") else ""
+        lignes.append(f"  {jour_en_clair(s['jour'])} : {s['discipline'] or 'sport'}, "
+                      f"{s['type_seance'] or 'séance'}, {s['duree_minutes'] or '?'} min"
+                      f"{', clé' if s['cle'] else ''}{detail}")
+    fin_de_semaine()
+    return "\n".join(lignes)
 
 
 def suivi_operation() -> str:

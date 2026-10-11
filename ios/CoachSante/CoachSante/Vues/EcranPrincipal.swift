@@ -2,12 +2,15 @@ import SwiftUI
 
 struct EcranPrincipal: View {
     @EnvironmentObject private var synchro: Synchro
+    @EnvironmentObject private var seance: SeanceEnCours
     @State private var reglagesOuverts = false
     @State private var dernierBilan: String?
+    @State private var seanceOuverte = false
 
     var body: some View {
         NavigationStack {
             List {
+                sectionMuscu
                 sectionEnvoi
                 sectionJours
                 sectionSeances
@@ -24,6 +27,40 @@ struct EcranPrincipal: View {
                 EcranReglages().environmentObject(synchro)
             }
             .onAppear { if !synchro.estConfiguree { reglagesOuverts = true } }
+            .navigationDestination(isPresented: $seanceOuverte) {
+                EcranSeance().environmentObject(seance)
+            }
+        }
+    }
+
+    /// SAI-14 : lancer une séance de musculation, ou reprendre celle en cours.
+    private var sectionMuscu: some View {
+        Section {
+            Button {
+                Task {
+                    if !seance.enCours { await seance.demarrer() }
+                    if seance.enCours { seanceOuverte = true }
+                }
+            } label: {
+                HStack {
+                    Label(seance.enCours ? "Reprendre ma séance" : "Lancer une séance de muscu",
+                          systemImage: seance.enCours ? "play.circle.fill" : "dumbbell.fill")
+                        .font(.headline)
+                    Spacer()
+                    if seance.occupe { ProgressView() }
+                }
+            }
+            .disabled(seance.occupe || !synchro.estConfiguree)
+            if let erreur = seance.erreur, !seanceOuverte {
+                Text(erreur).font(.footnote).foregroundStyle(.red)
+            }
+        } header: {
+            Text("Musculation")
+        } footer: {
+            Text(seance.enCours
+                 ? "\(seance.series.count) séries enregistrées pour l'instant."
+                 : "Si le coach a prévu une séance de muscu aujourd'hui, c'est elle qui s'ouvre. "
+                   + "Sinon, une séance libre.")
         }
     }
 

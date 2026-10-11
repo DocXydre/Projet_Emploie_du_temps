@@ -22,8 +22,9 @@ TITRES_DES_BLOCS = ("Consigne, sommaire et socle du dossier",
 
 
 def _taille(texte: str) -> str:
-    # Environ 3,5 caractères par token en français : un ordre de grandeur.
-    return f"{len(texte)} caractères, environ {round(len(texte) / 3.5):,} tokens".replace(
+    # Environ 2,2 caractères par token : mesuré sur les appels du 11/10 (texte
+    # français, tableaux et JSON mêlés). Un ordre de grandeur.
+    return f"{len(texte)} caractères, environ {round(len(texte) / 2.2):,} tokens".replace(
         ",", " ")
 
 
