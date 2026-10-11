@@ -65,7 +65,13 @@ Après une mise à jour qui ajoute des fichiers, relance `xcodegen` dans `ios/Co
 - iOS demande aussi l'accès au réseau local : réponds oui.
 - Sur le Mac, `./outils/local.sh sante` montre ce qui est arrivé.
 
-**Plus tard, sur le serveur**
+**Sur le serveur, sans Tailscale sur l'iPhone**
+
+- Sur le serveur, `tailscale funnel` publie sur le port 8443 les seuls chemins dont l'appli a besoin : `/connexion`, `/donnees-sante`, `/seances`, `/exercices` (voir `docs/serveur.md`). Le reste de l'API reste privé.
+- Dans le bot, `/motdepasse ton-mot-de-passe` (au moins 10 caractères ; le message est effacé aussitôt).
+- Dans l'appli, roue dentée : l'adresse `https://planif.<tailnet>.ts.net:8443`, ton pseudo, ton mot de passe, « Se connecter ». La clé est ensuite gardée dans le trousseau.
+
+**Plus tard, sur le serveur, avec Tailscale**
 
 - Installe Tailscale sur l'iPhone.
 - Utilise l'adresse `https://…ts.net` du serveur (celle de `tailscale serve`).

@@ -508,6 +508,44 @@ async def absent(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+async def motdepasse(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
+    """CNX-2 : choisir le mot de passe de l'appli iPhone, en message privé.
+
+    Le message qui le contient est effacé aussitôt : il ne reste pas lisible
+    dans la conversation.
+    """
+    compte = await _appelant(update)
+    if compte is None:
+        return await _refuser(update)
+    message = update.effective_message
+    texte = " ".join(contexte.args or [])
+    try:
+        await message.delete()
+    except Exception:  # noqa: BLE001 - effacer est un confort, pas une condition
+        pass
+    if update.effective_chat is None or update.effective_chat.type != "private":
+        await contexte.bot.send_message(
+            update.effective_chat.id,
+            "Le mot de passe se choisit en message privé avec moi, jamais dans un groupe.")
+        return
+    if not texte:
+        await contexte.bot.send_message(
+            update.effective_chat.id,
+            "Écris : /motdepasse ton-mot-de-passe\nAu moins 10 caractères. Ton message "
+            "sera effacé aussitôt.")
+        return
+
+    from api import mot_de_passe
+
+    try:
+        await asyncio.to_thread(mot_de_passe.choisir, compte["id_utilisateur"], texte)
+        reponse = (f"Mot de passe enregistré (ton message est effacé). Dans l'appli, "
+                   f"connecte-toi avec le pseudo « {compte['pseudo']} ».")
+    except mot_de_passe.MotDePasseRefuse as refus:
+        reponse = f"Mot de passe refusé : {refus}"
+    await contexte.bot.send_message(update.effective_chat.id, reponse)
+
+
 async def calendrier(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
     """Les calendriers : les siens, et de quoi en composer un autre (NOT-5).
 
@@ -1486,6 +1524,9 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          "les trains pour Saint-Dié, et quand y aller", train),
         ("Absences et trajets", "billets", "",
          "relever les confirmations SNCF de la boîte", commande_billets),
+
+        ("Appli iPhone", "motdepasse", "ton-mot-de-passe",
+         "choisir le mot de passe de l'appli (message effacé aussitôt)", motdepasse),
 
         ("Emploi du temps", "calendrier", "",
          "tes calendriers : qui, quoi, et le lien à abonner", calendrier),
