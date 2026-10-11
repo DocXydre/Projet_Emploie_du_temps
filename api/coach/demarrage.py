@@ -1,13 +1,17 @@
 """Le démarrage du coach dans le bot, question par question     (DEM-1 à DEM-4)
 
-Tant que le profil, le dépistage, les lieux ou l'objectif principal manquent,
-le coach ne peut rien construire (PRO-4, LIE-6, OBJ-8). Le bot conduit donc le
-compte pas à pas, avec des boutons quand c'est possible, et refuse les
-commandes du coach tant que ce n'est pas fini (DEM-1).
+Tant que le profil, les lieux ou l'objectif principal manquent, le coach ne
+peut rien construire (PRO-4, LIE-6, OBJ-8). Le bot conduit donc le compte pas
+à pas, avec des boutons quand c'est possible, et refuse les commandes du coach
+tant que ce n'est pas fini (DEM-1). Il demande aussi, une fois, s'il y a une
+douleur ou une limitation qui dure (DEM-3).
 
-Rien ici ne porte une règle : chaque bloc fini passe par la route habituelle
-(profil, dépistage, lieux, objectif), et un refus de la base est montré tel
-quel, la question reposée. Les réponses en cours vivent dans `demarrage_coach`.
+Aucun questionnaire de santé ni avis médical : décision de l'utilisateur du 9
+octobre. Rien ici ne porte une règle : chaque bloc fini passe par la route
+habituelle (profil, limitation, lieux, objectif), et un refus de la base est
+montré tel quel, la question reposée. Les réponses en cours vivent dans
+`demarrage_coach`, qui garde aussi, une fois fini, que les limitations ont été
+demandées.
 """
 
 import html
@@ -21,9 +25,13 @@ from api.ecran import Ecran
 from api.routeurs import coach as routes
 from api.securite import Appelant
 
-BLOCS = ("profil", "depistage", "lieux", "objectif")
-TITRES = {"profil": "Ton profil", "depistage": "Le questionnaire de santé",
+BLOCS = ("profil", "limitations", "lieux", "objectif")
+TITRES = {"profil": "Ton profil", "limitations": "Douleurs et limitations",
           "lieux": "Tes lieux de sport", "objectif": "Ton objectif principal"}
+ZONES = [("Épaule", "épaule"), ("Coude", "coude"), ("Avant-bras", "avant-bras"),
+         ("Poignet", "poignet"), ("Dos", "dos"), ("Hanche", "hanche"),
+         ("Genou", "genou"), ("Cheville", "cheville"), ("Autre", "autre")]
+COTES = [("Gauche", "gauche"), ("Droite", "droite"), ("Les deux", "deux")]
 
 NIVEAUX = [("Débutant", "debutant"), ("Intermédiaire", "intermediaire"),
            ("Avancé", "avance")]
@@ -49,7 +57,6 @@ QUESTIONS_PROFIL = [
                "Écris-le, ou touche « Aucun ».", [("Aucun", "-")]),
 ]
 CLES_PROFIL = [q[0] for q in QUESTIONS_PROFIL]
-CLES_DEPISTAGE = list(routes.QUESTIONS_DEPISTAGE)
 
 
 def h(texte) -> str:
@@ -67,16 +74,11 @@ def _qui(id_utilisateur: int) -> Appelant:
 # ---------------------------------------------------------------------------
 
 def bloc_manquant(id_utilisateur: int) -> str | None:
-    """DEM-1 : le premier bloc qui manque, ou None si le démarrage est fini.
-
-    Un dépistage positif sans avis médical n'est pas un manque : le bot ne peut
-    pas le régler, il le dit, et le plan reste bloqué par la base (PRO-5).
-    """
+    """DEM-1 : le premier bloc qui manque, ou None si le démarrage est fini."""
     if contexte.profil(id_utilisateur) is None:
         return "profil"
-    etat = contexte.depistage(id_utilisateur)
-    if etat is None or (etat["bloque"] or "").startswith("Le dépistage a plus"):
-        return "depistage"
+    if not (_etat(id_utilisateur)["reponses"] or {}).get("_limitations_faites"):
+        return "limitations"
     if not contexte.lieux(id_utilisateur):
         return "lieux"
     if not any(o["principal"] and o["statut"] == "actif"
@@ -104,9 +106,9 @@ def _garder(id_utilisateur: int, etape: str, reponses: dict) -> None:
         {"u": id_utilisateur, "e": etape, "r": Jsonb(reponses)})
 
 
-def recommencer(id_utilisateur: int) -> Ecran:
+def recommencer(id_utilisateur: int, avant: str = "") -> Ecran:
     executer("DELETE FROM demarrage_coach WHERE id_utilisateur = %(u)s", {"u": id_utilisateur})
-    return ecran(id_utilisateur)
+    return ecran(id_utilisateur, avant)
 
 
 # ---------------------------------------------------------------------------
@@ -117,8 +119,11 @@ def _prochaine(id_utilisateur: int, reponses: dict) -> str | None:
     bloc = bloc_manquant(id_utilisateur)
     if bloc == "profil":
         return next(c for c in CLES_PROFIL + ["?"] if c not in reponses)
-    if bloc == "depistage":
-        return next(f"dep_{c}" for c in CLES_DEPISTAGE + ["?"] if f"dep_{c}" not in reponses)
+    if bloc == "limitations":
+        if "lim_question" not in reponses:
+            return "lim_question"
+        return next(c for c in ("lim_zone", "lim_cote", "lim_texte", "lim_autre")
+                    if c not in reponses)
     # Le bloc des lieux, une fois commencé, va au bout des trois disciplines :
     # un premier lieu choisi suffit à la base, pas au coach.
     if bloc == "lieux" or reponses.get("_bloc_lieux"):
@@ -131,7 +136,8 @@ def _prochaine(id_utilisateur: int, reponses: dict) -> str | None:
         if "objectif" not in reponses:
             return "objectif"
         if reponses["objectif"] == "course":
-            return "course_distance" if "course_distance" not in reponses else "course_date"
+            return next((c for c in ("course_distance", "course_temps", "course_date")
+                         if c not in reponses), "objectif")
         return "objectif"
     return None
 
@@ -148,8 +154,9 @@ def ecran(id_utilisateur: int, avant: str = "") -> Ecran:
     reponses = etat["reponses"] or {}
     etape = _prochaine(id_utilisateur, reponses)
     if etape is None:
-        executer("DELETE FROM demarrage_coach WHERE id_utilisateur = %(u)s",
-                 {"u": id_utilisateur})
+        # Le démarrage est fini. La ligne reste, pour se souvenir que les
+        # limitations ont été demandées : /initialiser ou /reinitialiser l'effacent.
+        _garder(id_utilisateur, "fini", {"_limitations_faites": True})
         return _fin(id_utilisateur, avant)
     _garder(id_utilisateur, etape, reponses)
     prefixe = (avant + "\n\n") if avant else ""
@@ -169,15 +176,33 @@ def ecran(id_utilisateur: int, avant: str = "") -> Ecran:
                                   for libelle, valeur in choix]])
         return Ecran(texte + "\n\n<i>Réponds par un message.</i>")
 
-    if etape.startswith("dep_"):
-        cle = etape[4:]
-        rang = CLES_DEPISTAGE.index(cle) + 1
-        texte = prefixe + _entete("depistage")
-        if rang == 1:
-            texte += ("Sept questions, oui ou non. Une seule réponse « oui » demande un avis "
-                      "médical avant de commencer : c'est une règle de sécurité.\n\n")
-        texte += f"Question {rang} sur 7. " + h(routes.QUESTIONS_DEPISTAGE[cle])
-        return Ecran(texte, [[("Non", f"co:dm:{etape}=0"), ("Oui", f"co:dm:{etape}=1")]])
+    if etape.startswith("lim_"):
+        texte = prefixe + _entete("limitations")
+        if etape == "lim_question":
+            deja = contexte.limitations(id_utilisateur)
+            if deja:
+                texte += "Déjà notées : " + h(", ".join(lim["libelle"] for lim in deja)) + \
+                    ".\n\n"
+            texte += ("As-tu une douleur ou une limitation qui dure ? Une articulation "
+                      "fragile, une ancienne blessure, un geste que tu ne peux pas faire. "
+                      "Le coach en tiendra compte dans chaque séance.")
+            return Ecran(texte, [[("Non", "co:dm:lim_question=0"),
+                                  ("Oui", "co:dm:lim_question=1")]])
+        if etape == "lim_zone":
+            texte += "Où ?"
+            return Ecran(texte, [[(n, f"co:dm:lim_zone={v}") for n, v in ZONES[i:i + 3]]
+                                 for i in range(0, len(ZONES), 3)])
+        if etape == "lim_cote":
+            texte += "De quel côté ?"
+            return Ecran(texte, [[(n, f"co:dm:lim_cote={v}") for n, v in COTES]])
+        if etape == "lim_texte":
+            texte += ("Décris-la en une ou deux phrases : ce qui fait mal, quand, et le geste "
+                      "que tu ne peux pas faire. Par exemple : « je ne peux pas tourner "
+                      "l'avant-bras paume vers le haut, les curls me font mal au coude ».")
+            return Ecran(texte + "\n\n<i>Réponds par un message.</i>")
+        texte += "Une autre ?"
+        return Ecran(texte, [[("Non, c'est tout", "co:dm:lim_autre=0"),
+                              ("Oui", "co:dm:lim_autre=1")]])
 
     if etape.startswith("lieux_"):
         discipline = etape[6:]
@@ -221,6 +246,11 @@ def ecran(id_utilisateur: int, avant: str = "") -> Ecran:
                               ("10 km", "co:dm:course_distance=10000")],
                              [("Semi", "co:dm:course_distance=21097"),
                               ("Marathon", "co:dm:course_distance=42195")]])
+    if etape == "course_temps":
+        return Ecran(prefixe + _entete("objectif") + (
+            "En combien de temps veux-tu la courir ? Écris ton objectif, même s'il est "
+            "ambitieux : par exemple <code>50 min</code> ou <code>1h45</code>."),
+            [[("Juste la finir", "co:dm:course_temps=-")]])
     if etape == "course_date":
         return Ecran(prefixe + _entete("objectif")
                      + "La date de la course ? Écris-la comme ceci : 12/04/2027.")
@@ -228,15 +258,8 @@ def ecran(id_utilisateur: int, avant: str = "") -> Ecran:
 
 
 def _fin(id_utilisateur: int, avant: str) -> Ecran:
-    etat = contexte.depistage(id_utilisateur) or {}
     lignes = [avant] if avant else []
     lignes.append("<b>Le démarrage est fini.</b> Le coach a tout ce qu'il lui faut.")
-    if etat.get("bloque"):
-        lignes.append("\n⚠️ " + h(etat["bloque"]) + " Quand tu l'as eu : "
-                      "<code>/profil avis JJ/MM/AAAA</code>.")
-        return Ecran("\n".join(lignes))
-    lignes.append("\nUne limitation permanente (une articulation fragile, une ancienne "
-                  "blessure) ? Dis-le au coach dans un message : il en tiendra compte.")
     return Ecran("\n".join(lignes), [[("📋 Construire mon plan", "co:dm:plan=1")]])
 
 
@@ -275,6 +298,26 @@ def repondre_texte(id_utilisateur: int, texte: str) -> Ecran:
         except ValueError:
             return ecran(id_utilisateur, "Donne la distance en kilomètres, par exemple 15.")
         reponses["course_distance"] = int(km * 1000)
+    elif etape == "lim_texte":
+        if len(texte) < 5:
+            return ecran(id_utilisateur, "Décris-la en une phrase, s'il te plaît.")
+        reponses["lim_texte"] = texte[:1000]
+        cote = "des deux côtés" if reponses["lim_cote"] == "deux" else reponses["lim_cote"]
+        try:
+            routes.declarer_limitation(_qui(id_utilisateur), routes.Limitation(
+                libelle=f"{reponses['lim_zone'].capitalize()} ({cote})",
+                zone=reponses["lim_zone"], cote=reponses["lim_cote"],
+                description=reponses["lim_texte"]))
+        except Exception as erreur:  # noqa: BLE001 - montré, la question reposée
+            return _refus(id_utilisateur, "limitations", reponses, erreur)
+        _garder(id_utilisateur, etape, reponses)
+        return ecran(id_utilisateur, "✅ Limitation notée.")
+    elif etape == "course_temps":
+        minutes = lire_duree(texte)
+        if minutes is None:
+            return ecran(id_utilisateur, "Je n'ai pas compris le temps. Exemple : 50 min, "
+                                         "ou 1h45.")
+        reponses["course_temps"] = minutes
     elif etape == "course_date":
         jour = _lire_date(texte)
         if jour is None:
@@ -322,6 +365,15 @@ def repondre_bouton(id_utilisateur: int, argument: str) -> Ecran:
                 return _refus(id_utilisateur, "lieux", reponses, erreur)
             return ecran(id_utilisateur, f"✅ Lieux de {etape[6:]} enregistrés.")
         return ecran(id_utilisateur)
+    elif cle == "lim_question" and etape == cle:
+        if valeur == "0":
+            return _limitations_finies(id_utilisateur, reponses)
+        reponses[cle] = valeur
+    elif cle == "lim_autre" and etape == cle:
+        if valeur == "0":
+            return _limitations_finies(id_utilisateur, reponses)
+        for c in ("lim_zone", "lim_cote", "lim_texte", "lim_autre"):
+            reponses.pop(c, None)
     elif cle == etape:
         reponses[cle] = valeur
     else:
@@ -347,17 +399,43 @@ def _apres(id_utilisateur: int, reponses: dict) -> Ecran:
                 accord_complements=reponses["accord_complements"] == "1",
                 regime=None if reponses["regime"] in ("-", "") else reponses["regime"]))
             return ecran(id_utilisateur, "✅ Profil enregistré.")
-        if bloc == "depistage" and all(f"dep_{c}" in reponses for c in CLES_DEPISTAGE):
-            routes.repondre_depistage(qui, routes.Depistage(
-                **{c: reponses[f"dep_{c}"] == "1" for c in CLES_DEPISTAGE}))
-            etat = contexte.depistage(id_utilisateur) or {}
-            return ecran(id_utilisateur, "✅ Questionnaire enregistré."
-                         + (f" ⚠️ {h(etat['bloque'])}" if etat.get("bloque") else ""))
         if bloc == "objectif":
             return _creer_objectif(id_utilisateur, qui, reponses)
     except Exception as erreur:  # noqa: BLE001 - le refus est montré, la question reposée
         return _refus(id_utilisateur, bloc, reponses, erreur)
     return ecran(id_utilisateur)
+
+
+def _limitations_finies(id_utilisateur: int, reponses: dict) -> Ecran:
+    for c in ("lim_question", "lim_zone", "lim_cote", "lim_texte", "lim_autre"):
+        reponses.pop(c, None)
+    reponses["_limitations_faites"] = True
+    _garder(id_utilisateur, "limitations", reponses)
+    return ecran(id_utilisateur)
+
+
+def lire_duree(texte: str) -> float | None:
+    """« 50 », « 50 min », « 1h45 », « 1:45:00 », « 52:30 » : des minutes."""
+    import re
+    t = texte.lower().replace(" ", "").replace("minutes", "").replace("min", "")
+    if m := re.fullmatch(r"(\d{1,2})h(\d{1,2})?", t):
+        return int(m[1]) * 60 + int(m[2] or 0)
+    if m := re.fullmatch(r"(\d{1,2}):(\d{2}):(\d{2})", t):
+        return int(m[1]) * 60 + int(m[2]) + int(m[3]) / 60
+    if m := re.fullmatch(r"(\d{1,3}):(\d{2})", t):
+        return int(m[1]) + int(m[2]) / 60
+    if m := re.fullmatch(r"\d{1,3}", t):
+        return int(m[0])
+    return None
+
+
+def duree_en_clair(minutes: float) -> str:
+    total = round(minutes * 60)
+    heures, reste = divmod(total, 3600)
+    mins, secs = divmod(reste, 60)
+    if heures:
+        return f"{heures}h{mins:02d}"
+    return f"{mins} min" + (f" {secs:02d}" if secs else "")
 
 
 def _creer_objectif(id_utilisateur: int, qui: Appelant, reponses: dict) -> Ecran:
@@ -366,22 +444,27 @@ def _creer_objectif(id_utilisateur: int, qui: Appelant, reponses: dict) -> Ecran
         if "course_date" not in reponses:
             return ecran(id_utilisateur)
         distance = int(reponses["course_distance"])
+        temps = reponses.get("course_temps")
+        vise = temps not in (None, "-")
         nouveau = routes.NouvelObjectif(
             type="course", distance_m=distance,
             echeance=date.fromisoformat(reponses["course_date"]),
-            libelle=f"Course de {distance / 1000:g} km", principal=True)
+            cible_valeur=round(float(temps), 2) if vise else None,
+            cible_unite="min" if vise else None,
+            libelle=f"{distance / 1000:g} km" + (f" en {duree_en_clair(float(temps))}"
+                                                  if vise else ", la finir"),
+            principal=True)
     else:
         libelles = {"force": "Prendre de la force", "physique": "Prendre du muscle",
                     "endurance": "Endurance et santé"}
         nouveau = routes.NouvelObjectif(type="pilier", pilier=genre,
                                         libelle=libelles[genre], principal=True)
     rendu = routes.creer_objectif(qui, nouveau)
-    fin = ecran(id_utilisateur, "✅ Objectif enregistré : " + h(nouveau.libelle) + ".")
-    if rendu.get("coach") and rendu["coach"].get("message"):
-        from api.coach.telegram import mise_en_forme
-        fin.texte = ("<b>L'avis du coach sur ton objectif</b>\n"
-                     + mise_en_forme(rendu["coach"]["message"]) + "\n\n" + fin.texte)
-    return fin
+    # L'avis du coach arrive par son propre message (la notification) : il
+    # n'est pas recopié ici, sinon il s'affiche deux fois.
+    suite = " L'avis du coach arrive juste après." if rendu.get("coach") else ""
+    return ecran(id_utilisateur, "✅ Objectif enregistré : " + h(nouveau.libelle) + "."
+                 + suite)
 
 
 def _refus(id_utilisateur: int, bloc: str | None, reponses: dict, erreur: Exception) -> Ecran:
@@ -393,8 +476,11 @@ def _refus(id_utilisateur: int, bloc: str | None, reponses: dict, erreur: Except
         # Le plus souvent la date (moins de 18 ans, PRO-7) ou la taille.
         for cle in ("naissance", "taille"):
             reponses.pop(cle, None)
+    elif bloc == "limitations":
+        for cle in ("lim_texte",):
+            reponses.pop(cle, None)
     elif bloc == "objectif":
-        for cle in ("objectif", "course_distance", "course_date"):
+        for cle in ("objectif", "course_distance", "course_temps", "course_date"):
             reponses.pop(cle, None)
     elif bloc == "lieux":
         for d in DISCIPLINES:

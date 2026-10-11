@@ -6,7 +6,7 @@ Un fichier par chapitre, nommé par son numéro (`4.5.md`). Les chapitres 1.1, 1
 ## Partie 1. Le cadre
 
 - 1.1 Rôle du coach, périmètre et limites
-- 1.2 Sécurité : dépistage, signaux d'alerte, publics particuliers
+- 1.2 Sécurité : douleur et signaux d'arrêt
 - 1.3 Cadre légal en France
 
 ## Partie 2. Connaître l'utilisateur

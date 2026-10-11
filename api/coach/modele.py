@@ -33,6 +33,7 @@ class Tour:
     arret: str = ""
     tokens_entree: int = 0
     tokens_cache: int = 0
+    tokens_cache_ecrit: int = 0
     tokens_sortie: int = 0
 
 
@@ -98,5 +99,6 @@ def _creer(**parametres) -> Tour:
     # part relue depuis le cache, facturée moins cher, est comptée à part.
     tour.tokens_entree = (usage.input_tokens or 0) + lus + ecrits
     tour.tokens_cache = lus
+    tour.tokens_cache_ecrit = ecrits
     tour.tokens_sortie = usage.output_tokens or 0
     return tour

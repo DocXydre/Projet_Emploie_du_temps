@@ -8,6 +8,8 @@
 #   ./outils/local.sh scenarios S   rejoue les scénarios avec le vrai modèle
 #   ./outils/local.sh appels        les derniers appels au modèle, outil par outil
 #   ./outils/local.sh memoire       la mémoire du coach, étage par étage
+#   ./outils/local.sh couts         ce que coûtent les derniers appels, en dollars
+#   ./outils/local.sh limitations   importe seulement les limitations de local/demarrage.json
 #   ./outils/local.sh rouler        le roulement de la mémoire de la nuit, tout de suite
 #   ./outils/local.sh iphone        ouvre l'API au Wi-Fi pour l'appli Coach Santé
 #   ./outils/local.sh sante         ce que l'appli a envoyé
@@ -141,6 +143,33 @@ SELECT u.pseudo, a.type, a.discipline,
   FROM activite_sante a JOIN utilisateur u USING (id_utilisateur)
  ORDER BY lower(a.periode) DESC LIMIT 10;
 SQL
+        ;;
+    couts)
+        # Ce que coûtent les derniers appels, et passage par passage pour le dernier.
+        psql_local "$BASE" -P pager=off <<'SQL'
+SELECT a.id_appel, to_char(a.debut AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS quand,
+       a.moment, a.tours,
+       a.tokens_entree - a.tokens_cache - a.tokens_cache_ecrit AS neufs,
+       a.tokens_cache_ecrit AS cache_ecrit, a.tokens_cache AS cache_lu,
+       a.tokens_sortie AS sortie,
+       cout_appel_usd(a.modele, a.tokens_entree, a.tokens_cache, a.tokens_cache_ecrit,
+                      a.tokens_sortie) AS dollars,
+       array_to_string(a.paquets, ' ') AS paquets
+  FROM appel_coach a ORDER BY a.id_appel DESC LIMIT 12;
+SELECT d ->> 'jetons' AS passage, d ->> 'neufs' AS neufs, d ->> 'cache_ecrit' AS cache_ecrit,
+       d ->> 'cache_lu' AS cache_lu, d ->> 'sortie' AS sortie
+  FROM (SELECT * FROM appel_coach ORDER BY id_appel DESC LIMIT 1) a,
+       jsonb_array_elements(a.deroule) d
+ WHERE d ? 'jetons';
+SELECT jour, round(sum(cout_usd), 3) AS dollars_du_jour, sum(appels) AS appels
+  FROM v_cout_coach GROUP BY jour ORDER BY jour DESC LIMIT 7;
+SQL
+        ;;
+    limitations)
+        # Seulement les limitations et leurs exercices interdits, depuis le fichier.
+        fichier="${1:-local/demarrage.json}"
+        [ -f "$fichier" ] || { echo "$fichier manque."; exit 1; }
+        docker exec -i planif-api python -m outils.coach_demarrer --limitations < "$fichier"
         ;;
     memoire)
         # La mémoire du coach, étage par étage, telle qu'il la lit ce soir.

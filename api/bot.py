@@ -377,12 +377,12 @@ async def _bouton_coach(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
                         compte: dict, action: str, arguments: str) -> None:
     from api.coach import telegram as coach
 
-    if action in ("bil", "dm"):
+    if action in ("bil", "dm", "rz"):
         await _ecrit(update, contexte)
     ecran = await asyncio.to_thread(coach.repondre, compte["id_utilisateur"], action, arguments)
     if ecran is None:
         return
-    if action == "dm":
+    if action in ("dm", "rz"):
         # Le démarrage se déroule dans le même message, question après question.
         await _afficher(update, ecran)
         return
@@ -1462,6 +1462,8 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          _commande_du_coach("lieux")),
         ("Coach", "pause", "JJ/MM motif", "mettre le coach en pause, ou la lever",
          _commande_du_coach("pause")),
+        ("Coach", "reinitialiser", "", "repartir de zéro : effacer tout ce que le coach "
+         "sait de toi", _commande_du_coach("reinitialiser")),
         ("Coach", "initialiser", "", "reprendre le démarrage du coach : profil, santé, "
          "lieux, objectif", _commande_du_coach("initialiser")),
         ("Coach", "memoire", "", "ce que le coach retient de toi, et le corriger",

@@ -22,6 +22,12 @@ from api.securite import Appelant
 
 def main() -> int:
     donnees = json.load(sys.stdin)
+    # --limitations : seulement les limitations et leurs interdits. Le profil,
+    # le dépistage, les lieux et les réglages du fichier ne sont pas touchés.
+    seulement_limitations = "--limitations" in sys.argv
+    if seulement_limitations:
+        donnees = {"pseudo": donnees.get("pseudo"),
+                   "limitations": donnees.get("limitations") or []}
     pseudo = donnees.get("pseudo")
     compte = un_seul("SELECT id_utilisateur, pseudo, role FROM utilisateur "
                      "WHERE pseudo = %(p)s AND actif", {"p": pseudo})
@@ -84,6 +90,16 @@ def main() -> int:
             executer("SELECT activer_coach(%(u)s, TRUE)", {"u": u})
             print("Coach activé.")
 
+    if seulement_limitations:
+        # DEM-3 : la question des limitations est réglée, le démarrage ne la
+        # reposera pas.
+        executer(
+            """INSERT INTO demarrage_coach (id_utilisateur, etape, reponses)
+               VALUES (%(u)s, 'limitations', '{"_limitations_faites": true}')
+               ON CONFLICT (id_utilisateur) DO UPDATE
+                  SET reponses = demarrage_coach.reponses
+                                 || '{"_limitations_faites": true}', maj = now()""",
+            {"u": u})
     manques = contexte.ce_qui_manque(u)
     print("Il manque encore : " + " ; ".join(manques) if manques
           else "Tout est prêt pour un premier plan.")

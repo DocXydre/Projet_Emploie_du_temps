@@ -77,12 +77,14 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
 
     if m == "faisabilite":
         lignes.append(
-            "Un objectif vient d'être créé ou modifié. Lis le niveau actuel, les mesures et "
-            "l'emploi du temps des semaines à venir, puis rends ton avis avec `rendre_avis` : "
-            "réaliste, ambitieux ou irréaliste, avec l'ajustement que tu proposes. Faute de "
-            "données pour juger, dis-le et propose un test. Si les objectifs sont trop "
-            "nombreux ou se contredisent, dis lequel tu mettrais en pause : tu ne le fais "
-            "jamais toi-même.")
+            "Un objectif vient d'être créé ou modifié. Lis les séances récentes (la meilleure, "
+            "pas seulement la dernière, et pas un footing pour juger d'un chrono), les "
+            "mesures et l'emploi du temps des semaines à venir, puis rends ton avis avec "
+            "`rendre_avis` : réaliste, ambitieux ou irréaliste. Ton message est court : ton "
+            "avis en deux ou trois phrases, les deux ou trois chiffres qui le fondent, et ce "
+            "qui va suivre. L'objectif reste celui de l'utilisateur : tu ne le remplaces pas. "
+            "S'il manque le temps visé pour une course, demande-le lui. Si les objectifs se "
+            "contredisent, dis lequel tu mettrais en pause : tu ne le fais jamais toi-même.")
     elif m == "plan":
         lignes.append(
             "Construis le plan de quatre semaines à partir de l'objectif principal. Dans "
@@ -268,11 +270,13 @@ def _clore_appel(id_appel: int, statut: str, compte: dict, motif: str | None = N
     executer(
         """UPDATE appel_coach
               SET statut = %(s)s, fin = now(), tours = %(t)s, tokens_entree = %(e)s,
-                  tokens_cache = %(c)s, tokens_sortie = %(so)s, motif_echec = %(m)s,
+                  tokens_cache = %(c)s, tokens_cache_ecrit = %(ce)s,
+                  tokens_sortie = %(so)s, motif_echec = %(m)s,
                   moment = %(mo)s, deroule = %(d)s
             WHERE id_appel = %(a)s""",
         {"s": statut, "a": id_appel, "t": compte["tours"], "e": compte["entree"],
-         "c": compte["cache"], "so": compte["sortie"], "m": motif, "mo": compte["moment"],
+         "c": compte["cache"], "ce": compte.get("cache_ecrit", 0), "so": compte["sortie"],
+         "m": motif, "mo": compte["moment"],
          "d": Jsonb(compte["deroule"])})
 
 
@@ -375,7 +379,8 @@ def appeler_coach(demande: Demande) -> dict:
         executer("UPDATE echange SET id_appel = %(a)s WHERE id_echange = %(e)s",
                  {"a": id_appel, "e": id_texte})
 
-    suivi = {"tours": 0, "entree": 0, "cache": 0, "sortie": 0, "moment": demande.moment,
+    suivi = {"tours": 0, "entree": 0, "cache": 0, "cache_ecrit": 0, "sortie": 0,
+             "moment": demande.moment,
              "deroule": [{"aiguillage": choix.en_liste(), "par": choix.par or "moment",
                           "tokens_entree": choix.tokens_entree,
                           "tokens_sortie": choix.tokens_sortie}],
@@ -435,7 +440,13 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
         tour = modele.appeler(systeme, messages, [o.declaration() for o in permis], restant)
         suivi["entree"] += tour.tokens_entree
         suivi["cache"] += tour.tokens_cache
+        suivi["cache_ecrit"] += tour.tokens_cache_ecrit
         suivi["sortie"] += tour.tokens_sortie
+        # Ce que chaque passage au modèle a coûté : pour voir où part l'argent.
+        suivi["deroule"].append({
+            "jetons": suivi["tours"], "neufs": tour.tokens_entree - tour.tokens_cache
+            - tour.tokens_cache_ecrit, "cache_ecrit": tour.tokens_cache_ecrit,
+            "cache_lu": tour.tokens_cache, "sortie": tour.tokens_sortie})
 
         if not tour.outils:
             if tour.arret == "max_tokens" and not tour.texte.strip():

@@ -32,11 +32,11 @@ Résumé des chapitres 5.1 à 5.8. Pour le détail (tableaux complets, plans, fo
 - Sécurité seul en forêt : téléphone chargé, itinéraire donné à un proche, météo, prudence en période de chasse, tiques.
 
 ## 5.4 Fixer une course et juger si c'est faisable
-- Verdict chiffré d'abord (faisable, ambitieux, pas faisable). Jamais de plan sur un objectif irréaliste : proposer l'objectif atteignable.
+- Le temps visé est celui de l'utilisateur ; s'il manque, le demander. Verdict chiffré (faisable, ambitieux, très ambitieux) en deux ou trois phrases, puis plan pour l'objectif de l'utilisateur, jamais remplacé.
 - Minimums (base, durée du plan, séances, sortie longue avant affûtage) : 5 km 20 à 30 min, 6 à 8 sem, 3, 6 à 8 km ; 10 km 5 km, 8 à 10 sem, 3, 10 à 14 km ; semi 10 km et 15 à 20 km/sem, 10 à 14 sem, 3 à 4, 17 à 20 km ; marathon un semi et 30 km/sem, 14 à 20 sem, 4 et plus, 28 à 32 km.
 - Semaines de montée = ln(visée ÷ actuelle) ÷ ln(1,10), plus semaines allégées et affûtage.
-- Gain plausible par cycle : débutant 5 à 10 %, intermédiaire 2 à 5 %, avancé 1 à 2 %. Bas de fourchette : faisable. Haut : ambitieux (repli et point à mi-parcours). Au-delà : pas faisable.
-- Refus ou report : douleur, signal d'alerte du 1.2, marathon sans semi, séances insuffisantes. Environ 1 semaine de récupération par 10 km de course.
+- Gain plausible par cycle : débutant 5 à 10 %, intermédiaire 2 à 5 %, avancé 1 à 2 %. Bas de fourchette : faisable. Haut : ambitieux (repli et point à mi-parcours). Au-delà : très ambitieux, plan quand même, avec repli et test à mi-parcours.
+- À signaler sans bloquer : douleur en cours, marathon sans semi, séances insuffisantes. Environ 1 semaine de récupération par 10 km de course.
 - Verdict recalculé après chaque test et à mi-plan.
 
 ## 5.5 Prédire un chrono

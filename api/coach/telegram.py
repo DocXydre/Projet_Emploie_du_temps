@@ -808,7 +808,34 @@ def _memoire(id_utilisateur: int, args: list[str]) -> Ecran:
     return ecran_memoire(id_utilisateur)
 
 
+def ecran_reinitialiser(id_utilisateur: int) -> Ecran:
+    """DEM-5 : repartir de zéro, après confirmation."""
+    return Ecran(
+        "<b>Repartir de zéro avec le coach</b>\n\n"
+        "Tout ce que le coach sait et a fait pour toi sera effacé : profil, questionnaire "
+        "de santé, limitations, lieux, objectifs, plans, séances du coach et tes séries, "
+        "mesures, mémoire, échanges. <b>C'est définitif.</b>\n\n"
+        "Ne bougent pas : ton emploi du temps, tes tâches, ton lien avec le bot.\n\n"
+        "Les données de la montre (pas, sommeil, séances de l'Apple Watch), tu les gardes ?",
+        [[("Effacer, garder la montre", "co:rz:sante")],
+         [("Tout effacer, montre comprise", "co:rz:tout")],
+         [("Annuler", "co:rz:non")]])
+
+
+def reinitialiser(id_utilisateur: int, choix: str) -> Ecran:
+    if choix not in ("sante", "tout"):
+        return Ecran("Rien n'a été effacé.")
+    bilan = routes.reinitialiser(_qui(id_utilisateur), garder_sante=choix == "sante")
+    texte = (f"🧹 C'est effacé : {bilan.get('seances', 0)} séance(s), "
+             f"{bilan.get('objectifs', 0)} objectif(s), {bilan.get('echanges', 0)} échange(s).")
+    if choix == "tout":
+        texte += (" Les données de la montre aussi : dans l'appli Coach Santé, touche "
+                  "« Envoyer tout l'historique » pour les renvoyer.")
+    return demarrage.recommencer(id_utilisateur, texte)
+
+
 COMMANDES = {
+    "reinitialiser": lambda u, a: ecran_reinitialiser(u),
     "initialiser": lambda u, a: demarrage.recommencer(u),
     "memoire": _memoire,
     "objectifs": _objectifs,
@@ -837,7 +864,8 @@ def commande(nom: str, id_utilisateur: int, args: list[str]) -> Ecran:
         return Ecran("Le coach n'est pas activé pour ton compte.")
     try:
         # DEM-1 : le coach ne fait rien tant que le démarrage n'est pas fini.
-        if nom not in SANS_COACH | {"initialiser"} and demarrage.requis(id_utilisateur):
+        if nom not in SANS_COACH | {"initialiser", "reinitialiser"} \
+                and demarrage.requis(id_utilisateur):
             return demarrage.ecran(id_utilisateur, "Avant ça, il faut finir ton démarrage : "
                                                    "sans lui, le coach ne peut rien construire.")
         return COMMANDES[nom](id_utilisateur, args)
@@ -875,6 +903,8 @@ def repondre(id_utilisateur: int, action: str, argument: str) -> Ecran | None:
             return None
         if action == "dm":
             return demarrage.repondre_bouton(id_utilisateur, argument)
+        if action == "rz":
+            return reinitialiser(id_utilisateur, argument)
         if demarrage.requis(id_utilisateur):
             return demarrage.ecran(id_utilisateur, "Finissons d'abord ton démarrage.")
         if action == "voir":

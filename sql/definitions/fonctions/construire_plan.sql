@@ -18,7 +18,6 @@ CREATE OR REPLACE FUNCTION construire_plan(
     p_intentions  TEXT[] DEFAULT NULL
 ) RETURNS JSONB LANGUAGE plpgsql AS $$
 DECLARE
-    d           RECORD;
     v_objectif  INTEGER;
     v_plan      INTEGER;
     v_sans_lieu TEXT[];
@@ -31,29 +30,10 @@ BEGIN
                             'Le coach est en pause : aucun plan ne se construit');
     END IF;
 
-    -- PRO-4 : le profil et le dépistage d'abord.
+    -- PRO-4 : le profil d'abord. Le dépistage ne bloque plus rien : décision de
+    -- l'utilisateur du 9 octobre, le coach n'exige aucun avis médical.
     IF NOT EXISTS (SELECT 1 FROM profil p WHERE p.id_utilisateur = p_utilisateur) THEN
         PERFORM refus_coach('profil_incomplet', 'Le profil n''est pas rempli');
-    END IF;
-
-    SELECT dp.positif, dp.avis_medical_le, dp.date_reponse INTO d
-      FROM depistage dp
-     WHERE dp.id_utilisateur = p_utilisateur
-     ORDER BY dp.date_reponse DESC, dp.id_depistage DESC
-     LIMIT 1;
-    IF NOT FOUND THEN
-        PERFORM refus_coach('depistage_requis',
-                            'Le questionnaire de dépistage n''a pas été rempli');
-    END IF;
-    -- PRO-6 : il se refait au bout de douze mois.
-    IF d.date_reponse < v_jour - INTERVAL '12 months' THEN
-        PERFORM refus_coach('depistage_requis',
-            'Le dépistage a plus de douze mois : il est à refaire avant un nouveau plan');
-    END IF;
-    -- PRO-5 : une seule réponse positive bloque, jusqu'à l'avis médical.
-    IF d.positif AND d.avis_medical_le IS NULL THEN
-        PERFORM refus_coach('avis_medical_requis',
-            'Le dépistage demande un avis médical avant de commencer');
     END IF;
 
     -- OBJ-8 : pas de plan sans objectif principal actif.

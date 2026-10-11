@@ -1035,6 +1035,16 @@ def rouler_memoire(qui: Administrateur) -> dict:
     return {"fait": memoire.rouler(qui.id_utilisateur)}
 
 
+@routeur.delete("/coach/donnees", tags=["Coach"],
+                summary="Repartir de zéro : effacer tout ce que le coach sait de moi")
+def reinitialiser(qui: Authentifie, garder_sante: bool = True) -> dict:
+    """DEM-5 : définitif. L'emploi du temps, les tâches et le compte ne bougent pas.
+    Le démarrage reprend au premier message au coach."""
+    ligne = executer("SELECT reinitialiser_coach(%(u)s, %(g)s) AS bilan",
+                     {"u": qui.id_utilisateur, "g": garder_sante})
+    return ligne["bilan"]
+
+
 @routeur.get("/coach/appels", tags=["Coach"],
              summary="Les appels au modèle et ce qu'ils ont consommé")
 def lire_appels(qui: Administrateur, depuis: date | None = None) -> dict:

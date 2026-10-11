@@ -124,11 +124,6 @@ def ce_qui_manque(id_utilisateur: int) -> list[str]:
     manques = []
     if profil(id_utilisateur) is None:
         manques.append("le profil n'est pas rempli")
-    etat = depistage(id_utilisateur)
-    if etat is None:
-        manques.append("le questionnaire de dépistage n'a pas été rempli")
-    elif etat["bloque"]:
-        manques.append(etat["bloque"])
     if not any(o["principal"] and o["statut"] == "actif" for o in objectifs(id_utilisateur)):
         manques.append("aucun objectif principal actif")
     if not lieux(id_utilisateur):
@@ -170,15 +165,6 @@ def texte(id_utilisateur: int) -> str:
             _ligne("Profil mis à jour le", clair(p["date_maj"])),
         ]
 
-    d = depistage(id_utilisateur)
-    morceaux.append("## Dépistage")
-    if d is None:
-        morceaux.append("Pas encore rempli (PRO-4 : aucun plan tant qu'il manque).")
-    else:
-        etat = d["bloque"] or "valide, il ne bloque rien"
-        morceaux.append(f"Rempli le {clair(d['date_reponse'])} : {etat}")
-        if d["avis_medical_le"]:
-            morceaux.append(f"Avis médical déclaré le {clair(d['avis_medical_le'])}.")
 
     morceaux.append("## Limitations permanentes")
     lims = limitations(id_utilisateur)

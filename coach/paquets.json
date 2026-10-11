@@ -254,7 +254,7 @@
       "sante": "resume"
     },
     "faisabilite": {
-      "objectifs": "complet",
+      "objectifs": "resume",
       "planification": "resume"
     },
     "bilan": {
@@ -275,7 +275,7 @@
     "_lisezmoi": "Comment part le paquet d'une discipline dont parle un objectif actif ou la séance, selon le moment. Pour un message libre (chat, signalement), c'est Haiku qui choisit.",
     "plan": "complet",
     "revision": "complet",
-    "faisabilite": "complet",
+    "faisabilite": "resume",
     "synthese": "resume",
     "bilan": "resume"
   }

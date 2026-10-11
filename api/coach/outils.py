@@ -252,6 +252,7 @@ def lire_seance(u: int, a: dict) -> object:
     detail = detail_seance(u, int(a.get("id_occurrence", 0)))
     if detail is None:
         raise RefusOutil("introuvable", "Séance introuvable")
+    detail["montre"] = [_allure_en_clair(dict(m)) for m in detail["montre"]]
     return detail
 
 
@@ -281,7 +282,20 @@ def lire_sante(u: int, a: dict) -> object:
         "jours_sans_donnees": [
             (du + timedelta(days=i)).isoformat() for i in range((au - du).days + 1)
             if (du + timedelta(days=i)) not in {j["jour"] for j in jours}],
-        "seances_de_la_montre": [sans_vides(clair(x)) for x in activites]}
+        "seances_de_la_montre": [_allure_en_clair(sans_vides(clair(x))) for x in activites]}
+
+
+def _allure_en_clair(seance: dict) -> dict:
+    """L'allure en minutes par kilomètre, comme on la dit en course (« 5:45 /km »)."""
+    secondes = seance.pop("allure_s_km", None)
+    if secondes:
+        seance["allure"] = f"{secondes // 60}:{secondes % 60:02d} /km"
+    duree = seance.get("duree_secondes")
+    if duree:
+        seance["duree"] = f"{duree // 3600} h {duree % 3600 // 60:02d}" if duree >= 3600 \
+            else f"{duree // 60} min {duree % 60:02d} s"
+        seance.pop("duree_secondes")
+    return seance
 
 
 def lire_forme(u: int, a: dict) -> object:
