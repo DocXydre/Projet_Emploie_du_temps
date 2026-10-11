@@ -4,10 +4,10 @@
 -- Efface tout ce que le coach sait et a fait pour un compte : profil,
 -- questionnaire, limitations, lieux, objectifs, plans, séances du coach et
 -- séances libres avec leurs séries et bilans, ajustements, pause, mesures,
--- mémoire, échanges, appels. Les données de la montre partent aussi, sauf si
+-- mémoire, échanges. Les données de la montre partent aussi, sauf si
 -- on demande à les garder.
 --
--- Restent : le compte, sa clé, son lien Telegram, le réglage coach_actif, et
+-- Restent : les appels au modèle (le suivi du coût), le compte, sa clé, son lien Telegram, le réglage coach_actif, et
 -- tout le reste du planning (cours, travail, ménage, séances posées à la main).
 -- Au message suivant, le bot repart sur le démarrage (DEM-1).
 -- -----------------------------------------------------------------------------
@@ -28,7 +28,8 @@ BEGIN
      WHERE id_utilisateur = p_utilisateur AND (type = 'coach' OR id_echange IS NOT NULL);
     DELETE FROM echange WHERE id_utilisateur = p_utilisateur;
     GET DIAGNOSTICS v_echanges = ROW_COUNT;
-    DELETE FROM appel_coach WHERE id_utilisateur = p_utilisateur;
+    -- Les appels au modèle restent : c'est le suivi du coût (COA-21). Ils ne
+    -- pointent plus vers aucun échange.
     DELETE FROM trace_coach WHERE id_utilisateur = p_utilisateur;
 
     IF NOT p_garder_sante THEN

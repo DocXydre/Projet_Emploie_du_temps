@@ -60,6 +60,31 @@ def limitations(id_utilisateur: int, actives: bool = True) -> list[dict]:
     return lignes
 
 
+MARQUE_COMPLET = "<!-- complet -->"
+
+
+def fiche_en_deux(description: str) -> tuple[str, str | None]:
+    """LIM-9 : une fiche peut avoir un résumé, puis « <!-- complet --> », puis le détail.
+
+    Le résumé part à chaque appel, le détail seulement quand il sert (COA-28).
+    Sans la marque, toute la fiche est le résumé.
+    """
+    if MARQUE_COMPLET not in (description or ""):
+        return (description or "").strip(), None
+    courte, complete = description.split(MARQUE_COMPLET, 1)
+    return courte.strip(), complete.strip()
+
+
+def fiches_completes(id_utilisateur: int) -> str | None:
+    """Le détail des fiches qui en ont un, pour les appels qui touchent à la musculation."""
+    morceaux = []
+    for lim in limitations(id_utilisateur):
+        _, complete = fiche_en_deux(lim["description"])
+        if complete:
+            morceaux.append(complete)
+    return "\n\n".join(morceaux) or None
+
+
 def lieux(id_utilisateur: int) -> list[dict]:
     return lister(
         """SELECT dl.discipline, dl.rang, l.id_lieu, l.libelle,
@@ -172,11 +197,14 @@ def texte(id_utilisateur: int) -> str:
         morceaux.append("Aucune limitation déclarée.")
     for lim in lims:
         morceaux.append(f"### {lim['libelle']} ({lim['zone']}, côté {lim['cote']})")
-        morceaux.append(lim["description"])
+        courte, complete = fiche_en_deux(lim["description"])
+        morceaux.append(courte)
+        if complete:
+            morceaux.append("Ceci est le résumé de la fiche. La fiche complète est jointe aux "
+                            "appels qui construisent ou commentent une séance de musculation.")
         if lim["interdits"]:
-            morceaux.append("Exercices interdits par cette limitation, refusés par la base :")
-            morceaux += [f"- {i['libelle']} (`{i['code']}`) : {i['motif']}"
-                         for i in lim["interdits"]]
+            morceaux.append("Exercices interdits, déjà refusés par la base : "
+                            + ", ".join(f"`{i['code']}`" for i in lim["interdits"]) + ".")
 
     morceaux.append("## Lieux par discipline")
     ls = lieux(id_utilisateur)

@@ -151,7 +151,7 @@ class Configuration(BaseSettings):
     coach_delai_planifie_secondes: int = 420
 
     # Longueur maximale d'une réponse du modèle à chaque tour.
-    coach_max_tokens: int = 8000
+    coach_max_tokens: int = 16000
 
     # COA-7 : douze tours d'outils, trente pour le plan et la révision.
     coach_tours: int = 12
@@ -169,6 +169,10 @@ class Configuration(BaseSettings):
 
     # MEM-7 : le modèle qui résume la mémoire. Vide : le même que le coach.
     coach_modele_memoire: str = ""
+
+    # Où écrire le texte exact de chaque appel au modèle, un fichier par appel.
+    # Vide : rien n'est écrit (le serveur). En local : /app/local/appels.
+    coach_trace_dossier: str = ""
 
     # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
     # à la main pour ne pas dépendre de l'heure qu'il est.

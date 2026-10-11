@@ -193,6 +193,18 @@ def _demander(id_utilisateur: int, moment: str, texte: str | None,
     return ecran_reponse(rendu)
 
 
+def message_d_attente(id_utilisateur: int, texte: str) -> str | None:
+    """Un message arrivé pendant un appel en cours : le dire tout de suite (COA-22)."""
+    if not texte.strip() or not a_le_coach(id_utilisateur) or demarrage.requis(id_utilisateur):
+        return None
+    moment = appel.appel_en_cours(id_utilisateur)
+    if moment is None:
+        return None
+    if moment in ("plan", "revision"):
+        return "Je finis de construire ton plan, je te réponds juste après."
+    return "Je termine ce que j'étais en train de faire, je te réponds juste après."
+
+
 def texte_libre(id_utilisateur: int, texte: str) -> Ecran | None:
     """Un texte sans commande est une question pour le coach (section 9.4).
 

@@ -9,6 +9,7 @@
 #   ./outils/local.sh appels        les derniers appels au modèle, outil par outil
 #   ./outils/local.sh memoire       la mémoire du coach, étage par étage
 #   ./outils/local.sh couts         ce que coûtent les derniers appels, en dollars
+#   ./outils/local.sh texte [N]     ouvre le texte exact envoyé au modèle (dernier appel, ou N)
 #   ./outils/local.sh limitations   importe seulement les limitations de local/demarrage.json
 #   ./outils/local.sh rouler        le roulement de la mémoire de la nuit, tout de suite
 #   ./outils/local.sh iphone        ouvre l'API au Wi-Fi pour l'appli Coach Santé
@@ -164,6 +165,19 @@ SELECT d ->> 'jetons' AS passage, d ->> 'neufs' AS neufs, d ->> 'cache_ecrit' AS
 SELECT jour, round(sum(cout_usd), 3) AS dollars_du_jour, sum(appels) AS appels
   FROM v_cout_coach GROUP BY jour ORDER BY jour DESC LIMIT 7;
 SQL
+        ;;
+    texte)
+        # Le texte exact du dernier appel au coach (ou de l'appel donné : texte 12).
+        if [ -n "${1:-}" ]; then
+            fichier="local/appels/appel_$(printf '%05d' "$1").md"
+        else
+            fichier="$(ls -t local/appels/appel_*.md 2>/dev/null | head -1)"
+        fi
+        [ -n "$fichier" ] && [ -f "$fichier" ] || {
+            echo "Aucun texte d'appel. Il s'écrit dans local/appels/ depuis le redémarrage"
+            echo "de l'API (./outils/local.sh demarrer), au prochain message au coach."; exit 1; }
+        echo "$fichier"
+        open "$fichier" 2>/dev/null || true
         ;;
     limitations)
         # Seulement les limitations et leurs exercices interdits, depuis le fichier.

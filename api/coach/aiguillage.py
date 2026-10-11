@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from api.base import lister, un_seul
 from api.coach import dossier, modele
+from api.coach.clair import aujourd_hui
 from api.config import configuration
 
 LOG = logging.getLogger(__name__)
@@ -136,6 +137,23 @@ def disciplines_en_jeu(id_utilisateur: int, id_occurrence: int | None) -> set[st
     return en_jeu
 
 
+def conditions_vraies(id_utilisateur: int) -> set[str]:
+    """DOS-7 : ce qui fait partir un chapitre conditionnel en complet."""
+    vraies = set()
+    objectifs = lister(
+        """SELECT o.type, o.libelle, o.echeance FROM objectif o
+            WHERE o.id_utilisateur = %(u)s AND o.statut = 'actif'""", {"u": id_utilisateur})
+    for o in objectifs:
+        if o["type"] == "course" and "trail" in sans_accents(o["libelle"] or ""):
+            vraies.add("trail")
+        if o["type"] == "course" and o["echeance"] and \
+                0 <= (o["echeance"] - aujourd_hui()).days <= 21:
+            vraies.add("course_proche")
+    if len(disciplines_en_jeu(id_utilisateur, None)) > 1:
+        vraies.add("plusieurs_disciplines")
+    return vraies
+
+
 def choisir(id_utilisateur: int, moment: str, texte: str | None = None,
             id_occurrence: int | None = None, avant: str | None = None) -> Aiguillage:
     reglage = dossier.reglage_des_paquets()
@@ -143,6 +161,10 @@ def choisir(id_utilisateur: int, moment: str, texte: str | None = None,
 
     for code, detail in (reglage.get("moments", {}).get(moment) or {}).items():
         resultat.ajouter(code, detail)
+
+    conditions = conditions_vraies(id_utilisateur)
+    if conditions:
+        resultat.choix["_conditions"] = ",".join(sorted(conditions))
 
     detail_discipline = reglage.get("detail_discipline", {}).get(moment)
     if detail_discipline:

@@ -12,7 +12,7 @@ Résumé des chapitres 2.2, 7.4, 8.1, 8.2, 8.3 et 8.4. Pour le détail, lis le c
 - Une nuit courte : séance dure maintenue seulement si le ressenti est bon, sinon échangée. Deux nuits courtes ou plus : séance dure reportée.
 - Examens, stress : mode maintien pour la durée annoncée.
 - Après un arrêt : moins de 2 semaines, une semaine à 70 à 80 % ; 2 à 4 semaines, 2 à 3 semaines de remontée ; plus de 4, cycle précédent et nouveaux tests.
-- Maladie : symptômes au-dessus du cou sans fièvre, séance facile à 50 % de la durée, arrêt si ça augmente. Fièvre, courbatures générales, toux profonde, troubles digestifs : repos complet. Douleur dans la poitrine, palpitations, essoufflement anormal pendant ou après une infection : arrêt et avis médical avant toute reprise.
+- Maladie : symptômes au-dessus du cou sans fièvre, séance facile à 50 % de la durée, arrêt si ça augmente. Fièvre, courbatures générales, toux profonde, troubles digestifs : repos complet. Douleur dans la poitrine, palpitations, essoufflement anormal pendant ou après une infection : arrêt, et appeler le 15 si c'est à l'effort.
 - Reprise après fièvre, au moins un jour par palier : repos jusqu'à disparition des symptômes au repos, marche 15 min, 30 min facile, 45 min modéré, 60 min sans séance dure, plan. Symptôme ou fatigue excessive : palier précédent après 24 h sans symptôme.
 - Alcool : rien juste après une séance dure ni la veille d'une séance clé ; lendemain de soirée, facile ou repos. Écart : aucun rattrapage par jeûne ou cardio.
 
@@ -31,7 +31,7 @@ Résumé des chapitres 2.2, 7.4, 8.1, 8.2, 8.3 et 8.4. Pour le détail, lis le c
 - « Épuisé » ou effort très haut sur une séance facile : orange au minimum. Fièvre ou maladie, douleur supérieure à 5, signal d'alerte du chapitre 1.2 : rouge, quel que soit le score.
 - Orange : séance dure réduite de 20 à 30 % ou échangée, modérée plafonnée. Rouge : dure reportée, modérée remplacée par 30 min faciles ou repos.
 - Deux jours rouges de suite : semaine allégée. Cinq jours orange ou rouges sur sept : semaine allégée, vérifier sommeil et alimentation avant de progresser.
-- Séance intense finie 2 à 3 h avant le coucher. Règles qui disparaissent : orienter vers un médecin.
+- Séance intense finie 2 à 3 h avant le coucher. Règles qui disparaissent : réduire la charge.
 
 ## 8.3 Récupération
 - Ordre : sommeil, apports, charge, stress. Le reste a un effet faible.
@@ -40,9 +40,9 @@ Résumé des chapitres 2.2, 7.4, 8.1, 8.2, 8.3 et 8.4. Pour le détail, lis le c
 - Courbatures légères : entraînement possible. Si elles gênent le geste : autre groupe ou endurance facile.
 
 ## 8.4 Blessures : conduite à tenir et reprise
-- Pas de diagnostic : adapter, orienter vers un professionnel, reprendre après feu vert.
-- Avis médical avant toute reprise si : douleur précise sur un os, à la pression ou au repos et la nuit ; gonflement, blocage, dérobement, craquement avec douleur vive ; impossible de poser le pied ou de faire quatre pas ; fourmillements, perte de force ou de sensibilité ; mal de dos avec troubles urinaires, engourdissement entre les jambes, fièvre, ou après un choc.
-- Tendon : continuer si la douleur reste sous 5 sur 10 à l'effort, retombée le lendemain matin, sans hausse d'une semaine à l'autre. Douleur osseuse : zéro douleur. Point précis au tibia ou au pied : aucune course, médecin et imagerie. Claquage arrière de cuisse : rien sur la jambe, avis médical. Bas du dos sans signe d'alerte : rester actif.
+- Pas de diagnostic : adapter tout de suite, puis reprendre par étapes.
+- Signes d'une blessure sérieuse, à prendre au sérieux sans attendre (arrêter la zone, ne pas forcer) : douleur précise sur un os, à la pression ou au repos et la nuit ; gonflement, blocage, dérobement, craquement avec douleur vive ; impossible de poser le pied ou de faire quatre pas ; fourmillements, perte de force ou de sensibilité ; mal de dos avec troubles urinaires, engourdissement entre les jambes, fièvre, ou après un choc.
+- Tendon : continuer si la douleur reste sous 5 sur 10 à l'effort, retombée le lendemain matin, sans hausse d'une semaine à l'autre. Douleur osseuse : zéro douleur. Point précis au tibia ou au pied : aucune course jusqu'à zéro douleur à la pression. Claquage arrière de cuisse : rien sur la jambe, reprise par étapes. Bas du dos sans signe d'alerte : rester actif.
 - Reprise de la course en 14 étapes (de la marche au plan, durée avant intensité), un jour de repos entre séances, étape suivante seulement sans douleur pendant, après et le lendemain. Symptôme : arrêt, un jour de repos, étape précédente.
 - Reprise en musculation : 50 % de la charge dans l'amplitude sans douleur, puis +10 à 20 % par séance si douleur à 3 ou moins et passagère ; amplitude complète avant charge complète.
 - Pendant l'arrêt : équivalent sans douleur. Même zone touchée deux fois en un an : revoir charge, technique et renforcement.

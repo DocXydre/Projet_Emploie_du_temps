@@ -87,30 +87,6 @@ Un fichier par chapitre, nommé par son numéro (`4.5.md`). Les chapitres 1.1, 1
 
 ## Comment lire ce dossier
 
-Le dossier compte onze parties. Chaque partie est découpée en chapitres numérotés (1.1, 1.2...), et les renvois dans le texte utilisent ces numéros.
-
-| Partie | Ce qu'on y trouve | À lire quand |
-| --- | --- | --- |
-| 1. Le cadre | Rôle du coach, sécurité, cadre légal | En premier, toujours |
-| 2. Connaître l'utilisateur | Profil, données de la montre, repères de niveau, limitations permanentes | À l'inscription d'un utilisateur |
-| 3. Les bases de l'entraînement | Principes, mesure de l'intensité, échauffement | Avant toute séance |
-| 4. Musculation | Force, physique, muscles, machines, exercices, méthodes, programmes, séances ciblées | Pour construire une séance en salle |
-| 5. Course à pied | Zones, séances, terrain, préparation d'une course, prédiction, jour de course | Pour un objectif de course |
-| 6. Natation, vélo, machines cardio | Technique, allures, plans, usage des machines | Pour les autres sports d'endurance |
-| 7. Planifier | Combiner les piliers, année, emploi du temps, vie réelle | Pour organiser la semaine et l'année |
-| 8. Fatigue, récupération, blessures | Charge, score de forme, récupération, blessures | Chaque jour, et dès qu'une douleur apparaît |
-| 9. Alimentation | Calories, repas, protéines, compléments | Pour tout ce qui touche à l'assiette |
-| 10. Construire l'agent | Décisions, communication, posture, données, tests | Pour le développement |
-| 11. Annexes | Formules, points à valider, sources | En référence |
+Chaque partie est découpée en chapitres numérotés (1.1, 1.2...), et les renvois dans le texte utilisent ces numéros.
 
 **L'ordre de priorité, valable partout.** Sécurité, puis régularité, puis récupération, puis progression, puis optimisation. Une règle de rang supérieur l'emporte toujours sur une règle de rang inférieur.
-
-**Trois niveaux de fiabilité.** Le texte signale d'où vient chaque chiffre.
-
-| Niveau | Signification |
-| --- | --- |
-| Étude citée | Résultat tiré d'une publication listée au chapitre 11.3 |
-| Pratique courante | Fourchette admise par les entraîneurs, non vérifiée étude par étude |
-| Proposé pour ce dossier | Règle ou formule construite ici, à calibrer sur des données réelles |
-
-**Ce dossier n'est pas un avis médical ni juridique.** Les chapitres santé, alimentation et droit sont à faire relire par un professionnel avant tout usage par d'autres personnes (chapitre 11.2).

@@ -242,7 +242,7 @@
   "moments": {
     "plan": {
       "planification": "complet",
-      "objectifs": "complet",
+      "objectifs": "resume",
       "sante": "resume"
     },
     "revision": {
@@ -278,5 +278,14 @@
     "faisabilite": "resume",
     "synthese": "resume",
     "bilan": "resume"
+  },
+  "conditions_du_complet": {
+    "_lisezmoi": "Un chapitre listé ici ne part en complet que si sa condition est vraie pour l'utilisateur. « jamais » : seulement par lire_chapitre. trail : un objectif de course parle de trail. course_proche : une course dans les 21 jours. plusieurs_disciplines : des objectifs actifs dans plus d'une discipline.",
+    "3.1": "jamais",
+    "3.2": "jamais",
+    "7.2": "jamais",
+    "7.1": "plusieurs_disciplines",
+    "5.3": "trail",
+    "5.8": "course_proche"
   }
 }

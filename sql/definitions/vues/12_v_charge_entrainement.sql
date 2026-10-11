@@ -15,8 +15,11 @@ SELECT u.id_utilisateur,
        x.seances_sans_bilan_28j
   FROM utilisateur u
  CROSS JOIN LATERAL (
-      SELECT COALESCE(sum(s.charge) FILTER (WHERE s.jour > jour_de(now()) - 7), 0)  AS charge_7j,
-             COALESCE(sum(s.charge) FILTER (WHERE s.jour > jour_de(now()) - 28), 0) AS charge_28j,
+      -- Sans aucune séance avec bilan, la charge est absente, pas nulle : NULL.
+      SELECT CASE WHEN count(s.charge) FILTER (WHERE s.jour > jour_de(now()) - 28) > 0
+                  THEN COALESCE(sum(s.charge) FILTER (WHERE s.jour > jour_de(now()) - 7), 0)
+             END                                                                   AS charge_7j,
+             sum(s.charge) FILTER (WHERE s.jour > jour_de(now()) - 28)            AS charge_28j,
              (SELECT min(s2.jour) FROM v_seance_coach s2
                WHERE s2.id_utilisateur = u.id_utilisateur AND s2.charge IS NOT NULL) AS premier_bilan,
              count(*) FILTER (WHERE s.jour > jour_de(now()) - 7

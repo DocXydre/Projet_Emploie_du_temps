@@ -76,6 +76,24 @@ def texte_des_paquets(choix: dict[str, str]) -> str:
     tous = paquets()
     retenus = [(code, choix[code]) for code in tous if choix.get(code) in DETAILS]
     deja = set(socle())
+    # DOS-7 : certains chapitres ne partent en complet que s'ils servent ici.
+    vraies = set(filter(None, (choix.get("_conditions") or "").split(",")))
+    conditions = {n: c for n, c in reglage_des_paquets().get("conditions_du_complet", {})
+                  .items() if not n.startswith("_")}
+    laisses: list[str] = []
+    textes: list[str] = []
+    for code, detail in retenus:
+        if detail == "resume" and resume(code):
+            textes.append(resume(code))
+            continue
+        for numero in tous[code].get("chapitres", []):
+            if numero in deja or numero not in chapitres():
+                continue
+            deja.add(numero)
+            if numero in conditions and conditions[numero] not in vraies:
+                laisses.append(numero)
+                continue
+            textes.append(chapitres()[numero])
     morceaux = []
     if retenus:
         lignes = ", ".join(f"{code} ({'résumé' if d == 'resume' else 'complet'})"
@@ -84,21 +102,15 @@ def texte_des_paquets(choix: dict[str, str]) -> str:
             "# Le dossier joint à cet appel\n\nPaquets joints : " + lignes + ". Un résumé "
             "garde les règles et les chiffres qui décident, pas le détail : quand il te "
             "faut un tableau, une liste d'exercices ou un plan complet, lis le chapitre "
-            "avec `lire_chapitre`. Les paquets absents se lisent de la même façon.")
+            "avec `lire_chapitre`. Les paquets absents se lisent de la même façon."
+            + (f" Chapitres de ces paquets laissés de côté ici, à lire au besoin : "
+               f"{', '.join(laisses)}." if laisses else ""))
     else:
         morceaux.append(
             "# Le dossier joint à cet appel\n\nSeul le socle est joint. Lis avec "
             "`lire_chapitre` le chapitre dont tu as besoin (les numéros sont dans le "
             "sommaire).")
-    for code, detail in retenus:
-        if detail == "resume" and resume(code):
-            morceaux.append(resume(code))
-            continue
-        for numero in tous[code].get("chapitres", []):
-            if numero in deja or numero not in chapitres():
-                continue
-            deja.add(numero)
-            morceaux.append(chapitres()[numero])
+    morceaux += textes
     return "\n\n---\n\n".join(m.strip() for m in morceaux if m)
 
 

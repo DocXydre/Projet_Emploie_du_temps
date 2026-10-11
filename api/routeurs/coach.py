@@ -254,12 +254,19 @@ def _avis_sur(id_utilisateur: int, id_objectif: int, cle_client: UUID | None,
                     {"u": id_utilisateur})
     if not ligne or not ligne["coach_actif"]:
         return None
+    objectif = _objectif(id_utilisateur, id_objectif)
+    plan_a_suivre = objectif["principal"] and objectif["statut"] == "actif" \
+        and contexte.plan(id_utilisateur) is None
+    if plan_a_suivre:
+        # Le plan part juste après, dans un autre appel : une question posée ici
+        # arriverait pendant qu'il se construit, sans pouvoir y répondre.
+        precision += (" Le plan sera construit juste après ton avis, dans un autre appel. "
+                      "Ne pose aucune question dans ce message : ce qui te manque, le "
+                      "plan le demandera. Termine en annonçant que le plan arrive.")
     rendu = demander_au_coach(
         id_utilisateur, "faisabilite", cle_client=cle_client,
         precision=f"{precision} L'objectif concerné : id_objectif {id_objectif}.")
-    objectif = _objectif(id_utilisateur, id_objectif)
-    if objectif["principal"] and objectif["statut"] == "actif" \
-            and contexte.plan(id_utilisateur) is None:
+    if plan_a_suivre:
         rendu["plan_en_construction"] = lancer_le_plan(id_utilisateur)
         manques = contexte.ce_qui_manque(id_utilisateur)
         if manques:
@@ -823,7 +830,7 @@ def relire_jours(qui: Authentifie, depuis: date | None = None) -> dict:
     a réellement envoyé."""
     return outils.lire_sante(qui.id_utilisateur, {
         "du": (depuis or aujourd_hui() - timedelta(days=13)).isoformat(),
-        "au": aujourd_hui().isoformat()})
+        "au": aujourd_hui().isoformat(), "detail": True})
 
 
 # ---------------------------------------------------------------------------

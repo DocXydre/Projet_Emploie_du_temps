@@ -10,8 +10,6 @@ Résumé des chapitres 1.3, 10.4, 11.1 et 11.2. Pour le détail (calculs, formul
 - Le coach ne se dit jamais diététicien ou nutritionniste et ne traite aucune pathologie.
 - Données de santé = sensibles : consentement explicite à part, minimisation, droits faciles, pas de publicité.
 - Pas de finalité médicale (sinon dispositif médical) : le coach ne diagnostique pas, ne dit pas détecter une maladie, reconnaît un tableau et oriente.
-- Depuis le 2 août 2026 : dire dès la première interaction que l'utilisateur parle à une IA.
-- Outil réservé aux adultes en bonne santé, ne remplace pas un avis médical, questionnaire de santé obligatoire.
 
 ## 10.4 Le coach dans l'application
 

@@ -346,6 +346,10 @@ async def _texte_pour_le_coach(update: Update, contexte: ContextTypes.DEFAULT_TY
     if not await asyncio.to_thread(coach.a_le_coach, compte["id_utilisateur"]):
         return
     operation.preciser("bot : message au coach")
+    attente = await asyncio.to_thread(coach.message_d_attente, compte["id_utilisateur"],
+                                      update.effective_message.text or "")
+    if attente:
+        await update.effective_message.reply_text(attente)
     await _ecrit(update, contexte)
     try:
         ecran = await asyncio.to_thread(
@@ -1564,8 +1568,10 @@ def construire() -> Application:
     application.add_handler(CommandHandler("help", aide))
     application.add_handler(CallbackQueryHandler(_suivie("bouton", bouton)))
     # TAC-20 : le nom d'une tâche, un nombre de jours ou une date s'écrivent.
+    # block=False : un message au coach peut attendre la fin d'un plan, plusieurs
+    # minutes. Le bot continue de répondre aux autres pendant ce temps.
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,
-                                           _suivie("message", texte_libre)))
+                                           _suivie("message", texte_libre), block=False))
 
     if application.job_queue is not None:
         application.job_queue.run_repeating(vider_la_file, interval=60, first=15)

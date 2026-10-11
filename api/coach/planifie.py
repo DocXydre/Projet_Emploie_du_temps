@@ -38,6 +38,8 @@ def comptes_avec_coach() -> list[dict]:
 def clore_le_jour(id_utilisateur: int) -> dict:
     """PLN-9 : faite ou pas faite, sans le modèle. Tous les soirs (PAU-5)."""
     executer("SELECT solder_ajustements()")
+    # SAN-9 : une séance posée à la main après l'envoi de la montre la retrouve.
+    executer("SELECT rattacher_activites_orphelines(%(u)s)", {"u": id_utilisateur})
     ligne = executer("SELECT clore_seances_du_jour(%(u)s) AS bilan", {"u": id_utilisateur})
     return (ligne or {}).get("bilan") or {}
 
@@ -59,14 +61,39 @@ def _moment_du_soir(compte: dict) -> str:
     return "revision" if dimanche and compte.get("jours_de_pause") is None else "synthese"
 
 
+def _jours_des(ids: list[int]) -> dict[int, object]:
+    if not ids:
+        return {}
+    return {x["id_occurrence"]: x["jour"] for x in lister(
+        """SELECT id_occurrence, jour FROM v_seance_coach
+            WHERE id_occurrence = ANY(%(ids)s)""", {"ids": list(ids)})}
+
+
 def _precision(cloture: dict) -> str:
+    """Ce que la clôture du soir a jugé. Une séance d'un jour passé, close en retard
+    (le serveur ne tournait pas ce soir-là), est notée sans être recommentée."""
+    aujourd = aujourd_hui()
+    jours = _jours_des((cloture.get("faites") or []) + (cloture.get("pas_faites") or []))
+
+    def du_jour(i):
+        return jours.get(i) in (None, aujourd)
+
+    faites = [i for i in cloture.get("faites") or [] if du_jour(i)]
+    pas_faites = [i for i in cloture.get("pas_faites") or [] if du_jour(i)]
+    en_retard = [i for i in (cloture.get("faites") or []) + (cloture.get("pas_faites") or [])
+                 if not du_jour(i)]
     morceaux = []
-    if cloture.get("faites"):
-        morceaux.append(f"Séances comptées comme faites à la clôture de ce soir : "
-                        f"{cloture['faites']}.")
-    if cloture.get("pas_faites"):
-        morceaux.append(f"Séances closes comme pas faites ce soir (id_occurrence) : "
-                        f"{cloture['pas_faites']}. Décide de leur sort (PLN-10).")
+    if faites:
+        morceaux.append(f"Séances du jour comptées comme faites à la clôture de ce soir : "
+                        f"{faites}.")
+    if pas_faites:
+        morceaux.append(f"Séances du jour closes comme pas faites ce soir (id_occurrence) : "
+                        f"{pas_faites}. Décide de leur sort (PLN-10).")
+    if en_retard:
+        morceaux.append(f"Séances de jours passés, closes en retard ce soir parce que la "
+                        f"clôture n'a pas tourné ces soirs-là : {en_retard}. Elles sont "
+                        "enregistrées. Ne les commente pas dans la synthèse, sauf une "
+                        "séance clé pas faite dont il faut décider du sort.")
     return " ".join(morceaux)
 
 

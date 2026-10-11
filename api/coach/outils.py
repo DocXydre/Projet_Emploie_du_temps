@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 from api.base import executer, lister, un_seul
 from api.coach import dossier
 from api.coach.clair import aujourd_hui, clair, lundi_de, sans_vides
+from api.config import configuration
 from api.erreurs import message_lisible, refus_coach
 
 # ---------------------------------------------------------------------------
@@ -113,14 +114,19 @@ def lire_echanges(u: int, a: dict) -> object:
              FROM echange
             WHERE id_utilisateur = %(u)s
               AND importance >= %(i)s
+              -- Les derniers échanges sont déjà sous ses yeux : pas deux fois.
+              AND id_echange NOT IN (SELECT r.id_echange FROM echange r
+                                      WHERE r.id_utilisateur = %(u)s
+                                      ORDER BY r.id_echange DESC LIMIT %(n)s)
               AND (%(du)s::DATE IS NULL OR jour_de(quand) >= %(du)s::DATE)
               AND (%(au)s::DATE IS NULL OR jour_de(quand) <= %(au)s::DATE)
               AND (%(c)s = '' OR contenu ILIKE '%%' || %(c)s || '%%')
             ORDER BY id_echange DESC LIMIT %(l)s""",
         {"u": u, "i": int(a.get("importance_min") or 1), "du": du, "au": au,
-         "c": cherche, "l": limite})
+         "c": cherche, "l": limite, "n": configuration().coach_echanges_rendus})
     if not lignes:
-        return {"echanges": [], "note": "Aucun échange ne correspond."}
+        return {"echanges": [], "note": "Aucun échange plus ancien que les derniers échanges "
+                                        "que tu as déjà ne correspond."}
     return {"echanges": list(reversed(lignes))}
 
 
@@ -256,9 +262,52 @@ def lire_seance(u: int, a: dict) -> object:
     return detail
 
 
+def _plages(jours: list[date]) -> list[str]:
+    """Des jours qui se suivent, regroupés : « 2026-10-10 au 2026-10-11 »."""
+    plages: list[list[date]] = []
+    for jour in sorted(jours):
+        if plages and (jour - plages[-1][-1]).days == 1:
+            plages[-1].append(jour)
+        else:
+            plages.append([jour])
+    return [p[0].isoformat() if len(p) == 1 else f"{p[0].isoformat()} au {p[-1].isoformat()}"
+            for p in plages]
+
+
+def _moyennes(jours: list[dict]) -> dict:
+    rendu = {}
+    for cle, nom in (("pas", "pas"), ("fc_repos", "fc_repos"), ("vfc_ms", "vfc_ms"),
+                     ("sommeil_minutes", "sommeil_minutes")):
+        valeurs = [float(j[cle]) for j in jours if j.get(cle) is not None]
+        if valeurs:
+            rendu[nom] = round(sum(valeurs) / len(valeurs), 1 if cle == "vfc_ms" else None)
+    rendu["jours_avec_donnees"] = len(jours)
+    return rendu
+
+
+def ligne_activite(x: dict) -> str:
+    """Une séance de la montre en une ligne : date, sport, distance, durée, allure, FC."""
+    morceaux = [clair(x["debut"]), x.get("discipline") or x.get("type") or "activité"]
+    if x.get("distance_m"):
+        morceaux.append(f"{float(x['distance_m']) / 1000:.1f} km".replace(".", ","))
+    duree = x.get("duree_secondes")
+    if duree:
+        morceaux.append(f"{duree // 3600} h {duree % 3600 // 60:02d}" if duree >= 3600
+                        else f"{duree // 60} min {duree % 60:02d} s")
+    if x.get("allure_s_km"):
+        morceaux.append(f"{x['allure_s_km'] // 60}:{x['allure_s_km'] % 60:02d} /km")
+    if x.get("denivele_m"):
+        morceaux.append(f"D+ {int(x['denivele_m'])} m")
+    if x.get("fc_moyenne"):
+        morceaux.append(f"FC {x['fc_moyenne']}" + (f"/{x['fc_max']}" if x.get("fc_max") else ""))
+    morceaux.append(f"séance {x['id_occurrence']}" if x.get("id_occurrence")
+                    else "non rattachée")
+    return " | ".join(str(m) for m in morceaux)
+
+
 def lire_sante(u: int, a: dict) -> object:
     au = _jour(a.get("au") or aujourd_hui().isoformat(), "au")
-    du = _jour(a.get("du") or (au - timedelta(days=6)).isoformat(), "du")
+    du = _jour(a.get("du") or (au - timedelta(days=27)).isoformat(), "du")
     if au < du or (au - du).days > 60:
         raise RefusOutil("requete_invalide", "La période va de 1 à 61 jours")
     jours = lister(
@@ -266,23 +315,32 @@ def lire_sante(u: int, a: dict) -> object:
              FROM sante_jour WHERE id_utilisateur = %(u)s AND jour BETWEEN %(du)s AND %(au)s
             ORDER BY jour""", {"u": u, "du": du, "au": au})
     activites = lister(
-        """SELECT a.type, a.discipline, a.periode, a.duree_secondes, a.distance_m,
-                  a.denivele_m, a.fc_moyenne, a.fc_max, a.allure_s_km, a.id_occurrence
+        """SELECT a.type, a.discipline, lower(a.periode) AS debut, a.duree_secondes,
+                  a.distance_m, a.denivele_m, a.fc_moyenne, a.fc_max, a.allure_s_km,
+                  a.id_occurrence
              FROM activite_sante a
             WHERE a.id_utilisateur = %(u)s
               AND jour_de(lower(a.periode)) BETWEEN %(du)s AND %(au)s
             ORDER BY lower(a.periode)""", {"u": u, "du": du, "au": au})
     fraicheur = un_seul("SELECT dernier_envoi, dernier_jour FROM v_sante_fraicheur "
                         "WHERE id_utilisateur = %(u)s", {"u": u}) or {}
-    return {
+    presents = {j["jour"] for j in jours}
+    rendu = {
         # SAN-5, SAN-6 : un jour sans ligne est un jour sans données, pas un zéro.
         "dernier_envoi_de_l_application": clair(fraicheur.get("dernier_envoi"))
         or "jamais : aucune donnée de santé n'a été reçue",
-        "jours": [sans_vides(clair(j)) for j in jours],
-        "jours_sans_donnees": [
-            (du + timedelta(days=i)).isoformat() for i in range((au - du).days + 1)
-            if (du + timedelta(days=i)) not in {j["jour"] for j in jours}],
-        "seances_de_la_montre": [_allure_en_clair(sans_vides(clair(x))) for x in activites]}
+        "periode": f"{du.isoformat()} au {au.isoformat()}",
+        "moyennes_7_derniers_jours": _moyennes([j for j in jours
+                                                if (au - j["jour"]).days < 7]),
+        "moyennes_de_la_periode": _moyennes(jours),
+        "jours_sans_donnees": _plages([du + timedelta(days=i)
+                                       for i in range((au - du).days + 1)
+                                       if du + timedelta(days=i) not in presents]),
+        "seances_de_la_montre": [ligne_activite(x) for x in activites],
+    }
+    if a.get("detail"):
+        rendu["jours"] = [sans_vides(clair(j)) for j in jours]
+    return rendu
 
 
 def _allure_en_clair(seance: dict) -> dict:
@@ -370,7 +428,30 @@ def lire_catalogue(u: int, a: dict) -> object:
                                  AND ei.id_exercice = e.id_exercice)
             ORDER BY e.discipline, e.groupe_principal, e.libelle""",
         {"u": u, "d": a.get("discipline"), "g": a.get("groupe")})
-    return [sans_vides(clair(x)) for x in lignes]
+    return texte_catalogue(lignes)
+
+
+def texte_catalogue(lignes: list[dict]) -> str:
+    """Le catalogue en lignes courtes : le JSON répétait les mêmes clés 98 fois."""
+    morceaux = ["Catalogue, une ligne par exercice : code | libellé | groupe principal | "
+                "secondaires | matériel | repères. « uni » : un côté à la fois. « saisi » : "
+                "déjà fait par l'utilisateur, une charge peut être fixée."]
+    discipline = None
+    for x in lignes:
+        if x["discipline"] != discipline:
+            discipline = x["discipline"]
+            morceaux.append(f"## {discipline}")
+        reperes = [m for m, oui in (("uni", x["unilateral"]), ("saisi", x["deja_saisi"]))
+                   if oui]
+        if x.get("mesure") and x["mesure"] != "charge_reps":
+            reperes.append(f"mesure {x['mesure']}")
+        morceaux.append(" | ".join([
+            x["code"], x["libelle"], x["groupe_principal"] or "",
+            ",".join(x["groupes_secondaires"] or []), x["materiel"] or "",
+            " ".join(reperes)]).rstrip(" |"))
+    if len(morceaux) == 1:
+        morceaux.append("Aucun exercice ne correspond.")
+    return "\n".join(morceaux)
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +512,25 @@ def proposer_seance(u: int, a: dict) -> object:
          "exercices": Jsonb(exercices) if exercices else None,
          "remplace": a.get("remplace_id_occurrence")})
     return {"seance_proposee": _seance_rendue(u, ligne["id"])}
+
+
+def proposer_seances(u: int, a: dict) -> object:
+    """COA-29 : plusieurs séances en un appel. Chacune est vérifiée seule, et garde
+    son résultat ou son refus : une séance refusée n'empêche pas les autres."""
+    seances = a.get("seances") or []
+    if not seances or len(seances) > 14:
+        raise RefusOutil("requete_invalide", "« seances » contient de 1 à 14 séances")
+    resultats = []
+    for rang, seance in enumerate(seances, start=1):
+        contenu, erreur = executer_outil("proposer_seance", u, seance, {"proposer_seance"})
+        rendu = json.loads(contenu)
+        resultats.append({"rang": rang, "jour": seance.get("jour"),
+                          "type_seance": seance.get("type_seance")}
+                         | (rendu if erreur else rendu["seance_proposee"] | {"fait": True}))
+    refusees = sum(1 for r in resultats if "refus" in r)
+    return {"resultats": resultats,
+            "bilan": f"{len(resultats) - refusees} posée(s), {refusees} refusée(s). "
+                     "Corrige seulement les refusées."}
 
 
 def modifier_seance_proposee(u: int, a: dict) -> object:
@@ -526,6 +626,24 @@ _PLAGE = {
                 "description": "Un lieu de la discipline. Sans lui, le premier du rang."},
 }
 
+_SEANCE = _objet(
+    {"discipline": {"type": "string", "enum": DISCIPLINES},
+     "type_seance": {"type": "string",
+                     "description": "Nom court, 40 caractères : « haut du corps », "
+                                    "« sortie longue », « seuil »"},
+     "intensite": {"type": "string", "enum": INTENSITES},
+     "duree_minutes": {"type": "integer", "minimum": 15, "maximum": 240},
+     **_PLAGE,
+     "cle": {"type": "boolean", "description": "Séance clé de la semaine"},
+     "est_test": {"type": "boolean"},
+     "groupes": {"type": "array", "items": {"type": "string", "enum": GROUPES}},
+     "consigne": {"type": "string"},
+     "exercices": _EXERCICES,
+     "remplace_id_occurrence": {"type": "integer",
+                                "description": "La séance pas faite que celle-ci remplace"}},
+    ["discipline", "type_seance", "intensite", "duree_minutes", "jour",
+     "heure_min", "heure_max"])
+
 OUTILS: tuple[Outil, ...] = (
     Outil("lire_chapitre", "lecture",
           "Rend le texte d'un chapitre du dossier, par son numéro (par exemple 4.7). "
@@ -557,10 +675,11 @@ OUTILS: tuple[Outil, ...] = (
           "montre rattachée.",
           _objet({"id_occurrence": {"type": "integer"}}, ["id_occurrence"]), lire_seance),
     Outil("lire_sante", "lecture",
-          "Pas, sommeil, fréquence cardiaque de repos et variabilité sur une période, "
-          "les séances de la montre, et la date du dernier envoi. Sans dates, les sept "
-          "derniers jours.",
-          _objet({"du": {"type": "string"}, "au": {"type": "string"}}), lire_sante),
+          "Moyennes de pas, sommeil, FC de repos et variabilité (7 jours et période), "
+          "jours sans données, séances de la montre une par ligne, dernier envoi. Sans "
+          "dates, les 28 derniers jours. detail à vrai : aussi chaque jour.",
+          _objet({"du": {"type": "string"}, "au": {"type": "string"},
+                  "detail": {"type": "boolean"}}), lire_sante),
     Outil("lire_forme", "lecture",
           "Charge d'entraînement sur 7 et 28 jours, leur rapport, score de forme et "
           "composantes manquantes.", _objet({}), lire_forme),
@@ -611,24 +730,16 @@ OUTILS: tuple[Outil, ...] = (
           "contenu. La base vérifie le lieu, le placement, les exercices et la sécurité, "
           "et rend le motif si elle refuse. Sans exercices, c'est une esquisse : donner "
           "alors les groupes sollicités (musculation).",
-          _objet({"discipline": {"type": "string", "enum": DISCIPLINES},
-                  "type_seance": {"type": "string",
-                                  "description": "Nom court, 40 caractères : « haut du "
-                                                 "corps », « sortie longue », « seuil »"},
-                  "intensite": {"type": "string", "enum": INTENSITES},
-                  "duree_minutes": {"type": "integer", "minimum": 15, "maximum": 240},
-                  **_PLAGE,
-                  "cle": {"type": "boolean", "description": "Séance clé de la semaine"},
-                  "est_test": {"type": "boolean"},
-                  "groupes": {"type": "array", "items": {"type": "string", "enum": GROUPES}},
-                  "consigne": {"type": "string"},
-                  "exercices": _EXERCICES,
-                  "remplace_id_occurrence": {
-                      "type": "integer",
-                      "description": "La séance pas faite que celle-ci remplace"}},
-                 ["discipline", "type_seance", "intensite", "duree_minutes", "jour",
-                  "heure_min", "heure_max"]),
+          _SEANCE,
           proposer_seance),
+    Outil("proposer_seances", "seances",
+          "Propose plusieurs séances d'un coup (une semaine, ou les esquisses de "
+          "plusieurs semaines) : chaque élément a les champs de proposer_seance. La base "
+          "les vérifie une par une et rend pour chacune la séance posée ou le motif du "
+          "refus. À préférer dès qu'il y a plus d'une séance.",
+          _objet({"seances": {"type": "array", "minItems": 1, "maxItems": 14,
+                              "items": _SEANCE}}, ["seances"]),
+          proposer_seances),
     Outil("modifier_seance_proposee", "seances",
           "Change une séance encore proposée : contenu, durée, lieu, jour ou plage "
           "d'heures. C'est aussi par là qu'une esquisse reçoit ses exercices. Ne donner "

@@ -78,5 +78,5 @@ Résumé des chapitres 4.1 à 4.8. Pour le détail (tableaux complets, listes d'
 - Dos et posture : 10 à 16 séries de tirage par semaine, environ 2 tirages pour 1 poussée.
 - Pectoraux : 6 à 10 séries par semaine, 8 à 15 répétitions, accent sur le haut.
 - Semaines types : chapitre 4.8. Progression du programme C.
-- Règles qui disparaissent : orienter vers un médecin. Fuites urinaires : orienter vers une sage-femme ou un kiné, réduire sauts et impact. Aucun complément en fer sans prise de sang. Contraception hormonale : aucune adaptation. Grossesse et suites de couches : hors périmètre, avis médical.
+- Règles qui disparaissent : réduire la charge. Fuites urinaires : réduire sauts et impact. Aucun complément en fer sans prise de sang. Contraception hormonale : aucune adaptation. Grossesse et suites de couches : hors périmètre, avis médical.
 - Ton : ne jamais commenter le corps, demander l'objectif au lieu de le supposer.

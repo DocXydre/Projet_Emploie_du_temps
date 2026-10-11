@@ -24,6 +24,8 @@ services:
     environment:
       IMAP_HOTE: ""
       IMAP2_HOTE: ""
+      # Le texte exact de chaque appel au coach, dans local/appels/ sur le Mac.
+      COACH_TRACE_DOSSIER: /app/local/appels
     volumes:
       - .:/app
     command: >
