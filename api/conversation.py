@@ -861,8 +861,14 @@ def trancher_conflit(id_conflit: int, garder: str, id_utilisateur: int) -> str:
 # File d'attente
 # ---------------------------------------------------------------------------
 
-def notifications_a_envoyer(limite: int = 20) -> list[dict]:
-    """Notifications en attente, pour les comptes reliés à Telegram."""
+def notifications_a_envoyer(limite: int = 20, pendant_le_silence: bool = False) -> list[dict]:
+    """Notifications en attente, pour les comptes reliés à Telegram.
+
+    NOT-13 : pendant le silence de la nuit, seuls partent les messages du coach
+    d'un compte en pleine conversation avec lui (un appel venu de l'utilisateur
+    il y a moins de 30 minutes). Retenus jusqu'à 7h30, ils arrivaient en retard,
+    après des réponses qui les avaient déjà rendus faux.
+    """
     return lister(
         """
         SELECT n.id_notification, n.id_utilisateur, u.id_telegram,
@@ -874,10 +880,16 @@ def notifications_a_envoyer(limite: int = 20) -> list[dict]:
           LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence
          WHERE n.statut = 'a_envoyer'
            AND u.id_telegram IS NOT NULL
+           AND (NOT %(silence)s
+                OR (n.type = 'coach'
+                    AND EXISTS (SELECT 1 FROM appel_coach a
+                                 WHERE a.id_utilisateur = n.id_utilisateur
+                                   AND a.declencheur = 'utilisateur'
+                                   AND a.debut > now() - INTERVAL '30 minutes')))
          ORDER BY n.date_creation
          LIMIT %(limite)s
         """,
-        {"limite": limite},
+        {"limite": limite, "silence": pendant_le_silence},
     )
 
 

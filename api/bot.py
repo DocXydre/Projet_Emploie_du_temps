@@ -1381,15 +1381,14 @@ def _message_lisible(erreur: Exception) -> str:
 # ---------------------------------------------------------------------------
 
 async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    if conv.en_silence():
-        return
-
+    # NOT-13 : la nuit, seul le coach d'une conversation en cours répond.
+    silence = conv.en_silence()
     with operation.ouvrir("envoi des messages", acteur="bot"):
-        await _envoyer_la_file(contexte)
+        await _envoyer_la_file(contexte, silence)
 
 
-async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    for notification in await asyncio.to_thread(conv.notifications_a_envoyer):
+async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE, silence: bool = False) -> None:
+    for notification in await asyncio.to_thread(conv.notifications_a_envoyer, 20, silence):
         boutons = None
         mise_en_forme = ParseMode.HTML if "<" in notification["contenu"] else None
         contenu = notification["contenu"]

@@ -16,7 +16,7 @@ from datetime import date, datetime, time, timedelta
 
 import psycopg
 
-from api.base import lister, un_seul
+from api.base import executer, lister, un_seul
 from api.coach import appel, contexte, demarrage, memoire, outils, planifie
 from api.coach.clair import aujourd_hui, fuseau, jour_en_clair, lundi_de, maintenant
 from api.ecran import Ecran
@@ -523,6 +523,13 @@ def _seance_du_jour(id_utilisateur: int, ouverte: bool | None = None) -> int | N
     return ligne["id_occurrence"] if ligne else None
 
 
+def deja_affiche(id_echange: int | None) -> None:
+    """Un message du coach affiché en réponse directe n'a pas à repartir par la file."""
+    if id_echange:
+        executer("""UPDATE notification SET statut = 'envoyee', date_envoi = now()
+                     WHERE id_echange = %(e)s AND statut = 'a_envoyer'""", {"e": id_echange})
+
+
 def _objectifs(id_utilisateur: int, args: list[str]) -> Ecran:
     if not args:
         return ecran_objectifs(id_utilisateur)
@@ -554,6 +561,8 @@ def _objectifs(id_utilisateur: int, args: list[str]) -> Ecran:
         return Ecran(f"Objectif refusé : {h(erreur)}")
     rendu = routes.creer_objectif(_qui(id_utilisateur), nouveau)
     if rendu["coach"]:
+        # L'avis s'affiche ici : sa notification ne doit pas le répéter plus tard.
+        deja_affiche(rendu["coach"].get("id_echange"))
         return ecran_reponse(rendu["coach"])
     return Ecran(f"Objectif créé : {h(rendu['objectif']['libelle'])}.")
 
