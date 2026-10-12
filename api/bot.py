@@ -1381,7 +1381,7 @@ def _message_lisible(erreur: Exception) -> str:
 # ---------------------------------------------------------------------------
 
 async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    # NOT-13 : la nuit, seul le coach d'une conversation en cours répond.
+    # NOT-14 : la nuit, seul le coach d'une conversation en cours répond.
     silence = conv.en_silence()
     with operation.ouvrir("envoi des messages", acteur="bot"):
         await _envoyer_la_file(contexte, silence)
@@ -1497,7 +1497,7 @@ def catalogue() -> list[tuple[str, str, str, str, object]]:
          _commande_du_coach("plan")),
         ("Coach", "objectifs", "", "mes objectifs : ajouter, mettre en pause, clore",
          _commande_du_coach("objectifs")),
-        ("Coach", "profil", "", "mon profil et le dépistage",
+        ("Coach", "profil", "", "mon profil",
          _commande_du_coach("profil")),
         ("Coach", "lieux", "", "mes lieux par discipline",
          _commande_du_coach("lieux")),

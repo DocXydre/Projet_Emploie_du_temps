@@ -141,44 +141,7 @@ END $$;
 
 
 \echo ''
-\echo '=== 4. Stock d''uniforme et lessive ==='
-
-\echo '--- stock initial ---'
-SELECT code, quantite_propre, quantite_utilisable, seuil_securite, jours_de_travail_couverts FROM v_stock ORDER BY code;
-
-\echo '--- on salit deux t-shirts : il ne reste plus qu''une unité au-dessus du seuil ---'
-INSERT INTO mouvement_stock (id_article, type, quantite)
-SELECT id_article, 'salissure', 2 FROM article_travail WHERE code='TSHIRT';
-
-SELECT code, quantite_propre, quantite_utilisable FROM v_stock ORDER BY code;
-
-\echo '--- projection : quand tombe la rupture, et quelle échéance pour la lessive ---'
-SELECT article, jour_rupture,
-       to_char(echeance_lessive AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS lessive_avant,
-       alerte
-  FROM projeter_stock((SELECT id_utilisateur FROM utilisateur WHERE pseudo='thomas'));
-
-SELECT declencher_lessive((SELECT id_utilisateur FROM utilisateur WHERE pseudo='thomas')) AS lessives_creees;
-
-\echo '--- UNI-11 : échéance déjà dépassée pour les t-shirts, une alerte doit exister ---'
-SELECT type, statut, contenu FROM notification;
-
-SELECT tache_code, statut, origine, motif,
-       to_char(echeance_max AT TIME ZONE 'Europe/Paris','DD/MM HH24:MI') AS avant_le
-  FROM v_occurrence WHERE tache_code='LESSIVE_TRAVAIL';
-
-\echo '--- validation de la lessive : le linge n''est pas portable tout de suite ---'
-SELECT placer_taches(21) AS replacement;
-
-SELECT valider_occurrence(
-           (SELECT id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
-             WHERE t.code='LESSIVE_TRAVAIL' AND o.statut <> 'faite' LIMIT 1),
-           (SELECT id_utilisateur FROM utilisateur WHERE pseudo='thomas')
-       ) AS lessive_validee;
-
-SELECT code, quantite_propre, quantite_utilisable, en_sechage,
-       to_char(disponible_le AT TIME ZONE 'Europe/Paris','DD/MM HH24:MI') AS portable_a_partir_de
-  FROM v_stock ORDER BY code;
+\echo '=== 4. (retiré : le stock d''uniforme est dans anciennes_fonctionnalites/) ==='
 
 
 \echo ''
@@ -208,9 +171,9 @@ SELECT to_char(lower(o.creneau) AT TIME ZONE 'Europe/Paris', 'TMDay DD/MM HH24:M
 SELECT u.pseudo,
        NOT EXISTS (SELECT 1 FROM occupation oc
                     WHERE oc.id_utilisateur = u.id_utilisateur
-                      AND oc.periode && (SELECT creneau FROM occurrence o
-                                          JOIN tache t USING (id_tache)
-                                         WHERE t.code='GRAND_NETTOYAGE')) AS libre
+                      AND EXISTS (SELECT 1 FROM occurrence o JOIN tache t USING (id_tache)
+                                   WHERE t.code = 'GRAND_NETTOYAGE'
+                                     AND o.creneau && oc.periode)) AS libre
   FROM utilisateur u ORDER BY u.pseudo;
 
 \echo '--- si Lorette n''est jamais libre, le système alerte au lieu de placer ---'

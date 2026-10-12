@@ -1,6 +1,6 @@
 """Ce que le coach sait de l'utilisateur à chaque appel   (COA-3, LIE-3, OBJ-12)
 
-Le profil, l'état du dépistage, les limitations avec leur fiche, les lieux de
+Le profil, les limitations avec leur fiche, les lieux de
 chaque discipline, les objectifs, la feuille de route, la trame du plan, le
 rôle de chaque semaine, la pause, la mémoire en quatre étages (MEM-1). Tout le
 reste se lit par un outil.
@@ -24,27 +24,6 @@ def profil(id_utilisateur: int) -> dict | None:
              FROM profil p WHERE p.id_utilisateur = %(u)s""", {"u": id_utilisateur})
 
 
-def depistage(id_utilisateur: int) -> dict | None:
-    """Le dernier dépistage, et s'il bloque le plan (PRO-4 à PRO-6)."""
-    ligne = un_seul(
-        """SELECT d.id_depistage, d.date_reponse, d.positif, d.avis_medical_le,
-                  d.coeur, d.vertiges, d.maladie_chronique, d.traitement,
-                  d.os_articulations, d.grossesse, d.sedentaire_age,
-                  d.date_reponse < jour_de(now()) - INTERVAL '12 months' AS perime
-             FROM depistage d WHERE d.id_utilisateur = %(u)s
-            ORDER BY d.date_reponse DESC, d.id_depistage DESC LIMIT 1""",
-        {"u": id_utilisateur})
-    if ligne is None:
-        return None
-    if ligne["perime"]:
-        ligne["bloque"] = "Le dépistage a plus de douze mois : il est à refaire."
-    elif ligne["positif"] and ligne["avis_medical_le"] is None:
-        ligne["bloque"] = "Une réponse positive : avis médical requis avant de commencer."
-    else:
-        ligne["bloque"] = None
-    return ligne
-
-
 def limitations(id_utilisateur: int, actives: bool = True) -> list[dict]:
     lignes = lister(
         """SELECT l.id_limitation, l.libelle, l.zone, l.cote, l.description, l.active,
@@ -64,7 +43,7 @@ MARQUE_COMPLET = "<!-- complet -->"
 
 
 def fiche_en_deux(description: str) -> tuple[str, str | None]:
-    """LIM-9 : une fiche peut avoir un résumé, puis « <!-- complet --> », puis le détail.
+    """EXO-10 : une fiche peut avoir un résumé, puis « <!-- complet --> », puis le détail.
 
     Le résumé part à chaque appel, le détail seulement quand il sert (COA-28).
     Sans la marque, toute la fiche est le résumé.

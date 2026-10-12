@@ -100,4 +100,4 @@ Le contrat avec le serveur est testé dans `tests/test_appli_sante.py`, avec les
 
 ## Ce qui n'y est pas encore
 
-Ce que prévoit la section 9.5 du cahier des charges au-delà de la santé (la séance du jour, la saisie des séries hors réseau, la semaine à valider, les réponses du coach) passe pour l'instant par le bot Telegram.
+La saisie de musculation est là. Ce que la section 9.5 du cahier des charges du coach liste encore à faire (les séries gardées sans réseau, la semaine à valider, les ajustements et leurs boutons, la séance libre, la mesure, le signalement) passe pour l'instant par le bot Telegram.

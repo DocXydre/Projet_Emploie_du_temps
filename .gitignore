@@ -3,6 +3,7 @@
 
 # Python
 __pycache__/
+*.egg-info/
 *.py[cod]
 .venv/
 .pytest_cache/
@@ -31,3 +32,9 @@ local/
 ios/**/*.xcodeproj/
 ios/**/xcuserdata/
 ios/**/DerivedData/
+
+# Fichiers déposés par l'assistant pendant le travail : jamais dans le dépôt.
+Claude outputs/
+
+# Copies faites par iCloud ou le Finder (« fichier 2.sql ») : jamais dans le dépôt.
+* [0-9].*

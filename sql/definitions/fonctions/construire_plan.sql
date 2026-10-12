@@ -1,6 +1,6 @@
 -- -----------------------------------------------------------------------------
 -- Le coach crée le plan : sa trame et le rôle de ses quatre semaines
---                                  (opération C3 : PLN-1, PLN-2, OBJ-8, PRO-4 à 6)
+--                                  (opération C3 : PLN-1, PLN-2, OBJ-8, PRO-4)
 --
 -- Refuse sans profil, sans dépistage valide, sans objectif principal actif,
 -- sans aucun lieu, ou pendant une pause. Le plan précédent est clos, et ses
@@ -98,4 +98,4 @@ END $$;
 COMMENT ON FUNCTION construire_plan(INTEGER, DATE, TEXT, TEXT[], TEXT[]) IS
     'Opération C3 : crée le plan de quatre semaines, sa trame et ses rôles.
      Refuse sans profil, dépistage valide, objectif principal ou lieu, et en
-     pause (PLN-1, PLN-2, OBJ-8, PRO-4 à PRO-6, LIE-6).';
+     pause (PLN-1, PLN-2, OBJ-8, PRO-4, LIE-6).';

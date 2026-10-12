@@ -6,6 +6,8 @@ Auteur : Thomas Mathis
 
 Ce document décrit le système tel qu'il tourne aujourd'hui. Chaque règle porte un code, que le code source cite en commentaire : on passe de l'un à l'autre dans les deux sens.
 
+Le module coach sportif a son propre cahier des charges, [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md). Il cite celui-ci sans le recopier.
+
 ## Sommaire
 
 1. Rappel du sujet et choix effectués
@@ -33,7 +35,9 @@ Le projet consiste à concevoir et implanter le système d'information d'un assi
 
 À partir de ces moments libres, le système place automatiquement des tâches récurrentes : ménage, litière du chat, lessives, vaisselle, séances de sport. Ces tâches n'ont pas de date fixe mais une périodicité, « passer l'aspirateur tous les 2 à 3 jours », ce qui laisse au système une marge pour choisir le bon jour. Il les répartit entre les deux personnes, en tenant compte de qui est là.
 
-Le résultat est consultable de deux façons : un flux iCalendar que n'importe quelle application de calendrier peut afficher, et un bot Telegram qui envoie les rappels et permet de valider une tâche d'un bouton. Une application iPhone viendra ensuite et consommera la même API.
+Le résultat est consultable de deux façons : un flux iCalendar que n'importe quelle application de calendrier peut afficher, et un bot Telegram qui envoie les rappels et permet de valider une tâche d'un bouton.
+
+Depuis octobre 2026, un module coach construit le contenu des séances de sport, et une application iPhone envoie les données de l'application Santé et sert à saisir les séances de musculation. Les deux sont décrits dans le cahier du coach.
 
 Le système gère deux utilisateurs : Thomas, administrateur, et Lorette, utilisatrice standard.
 
@@ -48,8 +52,8 @@ Voici les choix effectués pour compléter le sujet.
 - **Deux natures de tâches.** La plupart des tâches ménagères n'ont pas d'heure : ce sont des rappels dans la journée. Elles sont exposées en événement journée entière dans le flux iCalendar. Seules les tâches réellement contraintes par une heure, comme les machines qui doivent tourner en heures creuses, reçoivent un créneau horaire.
 - **Une tâche du jour non validée le soir est reportée d'office au lendemain**, et re-notifiée, autant de fois qu'il le faut. Le nombre de relances est conservé : c'est ce qui permet de dire « en retard depuis trois jours » plutôt que de laisser la tâche disparaître.
 - **Une tâche non plaçable n'est jamais supprimée silencieusement.** Elle reste visible avec son motif d'échec. Un planning faux sans le dire est pire qu'un planning incomplet.
-- **L'authentification est une clé d'API par utilisateur**, transmise dans un en-tête. Pour deux personnes sur un réseau privé, les jetons à durée de vie et les mécanismes de rafraîchissement sont du décor.
-- **Le sport et les déplacements en train étaient hors périmètre de la première version.** Ils ont été ajoutés ensuite, sur le même socle et sans le remettre en cause. La section 10 dit ce que chacun a apporté.
+- **L'authentification est une clé d'API par utilisateur**, transmise dans un en-tête. Pour deux personnes, les jetons à durée de vie et les mécanismes de rafraîchissement sont du décor. L'application iPhone obtient cette clé une fois, avec le pseudo et un mot de passe (CNX), puis la garde dans le trousseau.
+- **Le sport, les déplacements en train et le coach étaient hors périmètre de la première version.** Ils ont été ajoutés ensuite, sur le même socle et sans le remettre en cause. La section 10 dit ce que chacun a apporté.
 - **Le système tourne sur un serveur allumé en permanence.** Un ordonnanceur qui déclenche à 7 h et à minuit n'a aucun intérêt sur une machine qui dort. Le déploiement fait donc partie du sujet, et non de la mise en production.
 
 ---
@@ -72,7 +76,8 @@ Voici les choix effectués pour compléter le sujet.
 | python-telegram-bot | Notifications et validation | Boutons intégrés dans le message : valider une tâche sans ouvrir d'application |
 | APScheduler | Déclenchement périodique | Collectes et traitement quotidien, dans le même processus que l'API |
 | Docker Compose | Exécution | Deux conteneurs : `db` et `api` |
-| Tailscale | Accès distant et HTTPS | Aucun port ouvert sur Internet, certificat fourni par `tailscale serve` |
+| Tailscale | Accès distant et HTTPS | Aucun port ouvert sur la box. `tailscale serve` fournit le HTTPS sur le réseau privé, `tailscale funnel` publie les seuls chemins de l'application iPhone |
+| API d'Anthropic | Le coach | Décrite dans le cahier du coach, section 2.1 |
 | systemd | Déploiement automatique | Un minuteur interroge GitHub et déploie ce qui a été poussé |
 | pytest | Tests | Surtout sur les fonctions SQL et le placement |
 
@@ -97,12 +102,14 @@ Sont volontairement écartés : les ORM, les files de messages, les frameworks d
                                ┌────────▼─────────┐
                                │   PostgreSQL     │──────────►  JSON
                                │  tables          │             (application
-                               │  contraintes     │              iPhone, plus tard)
+                               │  contraintes     │              iPhone)
                                │  vues            │
                                │  fonctions       │
                                │  triggers        │
                                └──────────────────┘
 ```
+
+Le module coach et l'application iPhone se branchent sur ce schéma sans le changer : le cahier du coach donne le sien, section 2.2.
 
 L'API est mince : elle reçoit une requête, appelle une fonction SQL ou lit une vue, et renvoie le résultat. Le calcul des disponibilités, le placement des tâches, la génération des occurrences et le contrôle des transitions se font dans la base.
 
@@ -112,7 +119,9 @@ Le système tourne sur un serveur dédié : un portable de récupération sous D
 
 Deux conteneurs Docker, `planif-db` et `planif-api`, avec `restart: unless-stopped` : ils repartent seuls après une coupure, sans service systemd à écrire.
 
-**Accès distant.** Tout passe par Tailscale, y compris depuis le téléphone. Aucun port n'est ouvert sur la box, et `tailscale serve` fournit le HTTPS et son certificat. L'abonnement au calendrier utilise le nom du tailnet, qui reste le même d'un réseau Wi-Fi à l'autre. Une adresse IP locale, elle, cesse de fonctionner dès qu'on change de réseau.
+**Accès distant.** Aucun port n'est ouvert sur la box. L'API passe par Tailscale : `tailscale serve` fournit le HTTPS et son certificat sur le réseau privé, et l'abonnement au calendrier utilise le nom du tailnet, qui reste le même d'un réseau Wi-Fi à l'autre. Une adresse IP locale, elle, cesse de fonctionner dès qu'on change de réseau.
+
+L'application iPhone ne demande pas le client Tailscale. `tailscale funnel` publie sur le port 8443 les quatre chemins dont elle a besoin, et eux seuls : `/connexion`, `/donnees-sante`, `/seances`, `/exercices`. Tout le reste de l'API reste privé. Chacun de ces chemins exige la clé d'API, sauf `/connexion`, qui la rend contre le mot de passe et se bloque après cinq échecs (CNX-3).
 
 **Fuseau horaire.** Les conteneurs vivent en UTC et tous les horodatages sont stockés en UTC. La conversion vers `Europe/Paris` se fait à l'affichage et au déclenchement des tâches planifiées, ce qui évite d'avoir à traiter le changement d'heure dans les comparaisons de dates.
 
@@ -136,6 +145,10 @@ L'ordonnanceur vit dans le même processus que l'API. Les heures sont celles de 
 
 Chaque passage ouvre une opération au journal : ce qu'il change se retrouve sous son nom dans « /pourquoi » (JRN-4).
 
+Le coach ajoute ses propres tâches : la synthèse du soir à 23 h, la révision du dimanche, le roulement de sa mémoire la nuit. Elles sont dans le cahier du coach, section 2.4.
+
+De 23h30 à 7h30, le bot n'envoie rien : les notifications attendent le matin (NOT-14).
+
 ---
 
 ## 3. Règles de gestion
@@ -148,7 +161,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 | Code | Type | Règle |
 |---|---|---|
-| UTI-1 | D | Le système gère deux utilisateurs, un administrateur et un standard. Chacun possède une clé d'API et, éventuellement, un identifiant Telegram |
+| UTI-1 | D | Le système gère deux utilisateurs, un administrateur et un standard. Chacun possède une clé d'API et, éventuellement, un identifiant Telegram et un mot de passe (CNX-1) |
 | UTI-2 | D | L'abonnement au calendrier s'authentifie par un jeton distinct de la clé d'API. Cette adresse vit en clair dans le téléphone : elle ne doit ouvrir que la lecture du planning |
 | UTI-3 | T | Renouveler le jeton de calendrier invalide les abonnements en place, sans toucher à la clé d'API ni à l'appairage du bot |
 
@@ -374,6 +387,9 @@ Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald
 | NOT-8 | D | Deux sortes de jetons ouvrent le flux : celui d'un compte, qui donne tout son planning et se restreint dans l'URL par `qui` et `quoi`, et celui d'un calendrier composé, qui donne exactement ce qu'il déclare. Un jeton composé ne s'élargit jamais par l'URL, sans quoi donner les cours de quelqu'un reviendrait à donner tout son planning |
 | NOT-9 | M | Chacun peut composer le calendrier de l'autre : on vit à deux, et un planning que l'autre ne peut pas consulter oblige à le redemander tous les jours. Dans un calendrier à plusieurs, chaque événement porte le nom de la personne |
 | NOT-10 | T | Un événement personnel garde le titre qu'on lui a donné. Le préfixe de catégorie ne s'applique qu'aux familles qui en ont un : « autre : baby-sitting » n'apprend rien à personne |
+| NOT-14 | T | De 23h30 à 7h30, aucune notification ne part : elles attendent le matin. Une seule exception, le message du coach d'un compte en pleine conversation avec lui, c'est-à-dire qui lui a écrit il y a moins de trente minutes. Retenue jusqu'au matin, sa réponse arrivait après d'autres qui l'avaient déjà rendue fausse |
+
+NOT-11 à NOT-13 sont dans le cahier du coach, section 3.12.
 
 ### 3.13 Journal des événements : `JRN`
 
@@ -391,6 +407,17 @@ Presque toutes les questions posées au système ont la même forme : « pourquo
 | JRN-8 | T | Le journal garde 90 jours. Il dit quand l'appartement était vide et qui a fait quoi : rien ne justifie de le conserver au-delà. La purge passe chaque nuit avec le report d'office |
 | JRN-9 | M | « /pourquoi » rend les dernières actions avec ce que chacune a changé. Suivi d'un mot, il ne garde que les actions qui en parlent, sans tenir compte des accents, et montre à côté ce qui s'est passé d'autre dans la même action |
 
+### 3.14 Connexion de l'application : `CNX`
+
+Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonnable. Le mot de passe ne sert qu'à une chose : rendre la clé d'API à l'application, qui la garde ensuite dans le trousseau et l'envoie comme avant.
+
+| Code | Type | Règle |
+|---|---|---|
+| CNX-1 | D | Un compte peut avoir un mot de passe. Il n'est jamais stocké, seulement son empreinte scrypt. Sans mot de passe, la connexion par mot de passe est fermée pour ce compte |
+| CNX-2 | M | L'utilisateur choisit son mot de passe par « /motdepasse » dans le bot, en message privé, ou par l'API avec sa clé. Dix caractères au moins. Le bot efface aussitôt le message qui le contient |
+| CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe et rend la clé d'API. Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
+| CNX-4 | D | `/connexion` est la seule route ouverte sans clé. Rien d'autre ne change dans l'authentification : chaque autre route exige toujours la clé d'API |
+
 ---
 
 ## 4. Acteurs du système
@@ -407,13 +434,14 @@ Presque toutes les questions posées au système ont la même forme : « pourquo
 | SNCF | Secondaire | Fournit les horaires de train par son API, et les confirmations d'achat par courriel |
 | Site du SUAPS | Secondaire | Publie les créneaux de sport, relevés chaque matin |
 | Telegram | Secondaire | Transporte les notifications et renvoie les actions de l'utilisateur |
+| Application iPhone | Secondaire | Se connecte par mot de passe (CNX), envoie les données de Santé et les séances de musculation saisies. Ses rôles sont détaillés dans le cahier du coach |
 | Portail McDonald's | Secondaire | Fournissait les shifts prévisionnels. Plus suivi depuis septembre 2026 (COL-21) ; l'historique reste |
 
 ---
 
 ## 5. Diagramme des données
 
-Les 23 tables et leurs 40 clés étrangères. `EVENEMENT` n'est relié à rien, et c'est voulu : un événement du journal doit survivre à la suppression de ce qu'il décrit.
+Les 23 tables et leurs 40 clés étrangères. `EVENEMENT` n'est relié à rien, et c'est voulu : un événement du journal doit survivre à la suppression de ce qu'il décrit. Les tables du coach sont dans son cahier, section 5.
 
 ```mermaid
 erDiagram
@@ -465,6 +493,7 @@ erDiagram
         varchar cle_api UK
         varchar jeton_calendrier UK
         bigint  id_telegram UK
+        text    mot_de_passe
     }
     SOURCE {
         serial  id_source PK
@@ -666,6 +695,11 @@ Les tables sont rangées par domaine. Dans chaque table, les colonnes suivent l'
 | minimum_sport | SMALLINT | oui | entre 0 et 7 | | | | |
 | lieu_famille | VARCHAR(60) | oui | | | | | |
 | gare_famille | VARCHAR(40) | oui | | | | | |
+| mot_de_passe | TEXT | oui | empreinte scrypt, jamais le mot de passe | | | | |
+| echecs_connexion | INTEGER | non | | | 0 | | |
+| bloque_jusqu_a | TIMESTAMPTZ | oui | | | | | |
+
+Le coach ajoute ses propres colonnes à cette table : cahier du coach, section 6.1.
 
 #### Table : Calendrier
 
@@ -1298,6 +1332,15 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | JRN-5 | `trg_journal()` rattrape toute erreur et la rend en avertissement | Dynamique forte |
 | JRN-8 | `purger_journal()` supprime les événements de plus de 90 jours | Dynamique forte |
 
+### 7.14 Connexion de l'application
+
+| Règle visée | Description | Type |
+|---|---|---|
+| CNX-1 | `mot_de_passe` ne contient qu'une empreinte de la forme `scrypt$n$r$p$sel$empreinte`, comparée en temps constant | Statique forte |
+| CNX-2 | Un mot de passe de moins de dix caractères est refusé avant d'être haché | Dynamique forte |
+| CNX-3 | `echecs_connexion` compte les échecs d'affilée et revient à zéro à la première réussite. Au cinquième, `bloque_jusqu_a` reçoit quinze minutes plus tard, et toute connexion est refusée d'ici là | Dynamique forte |
+| CNX-4 | Toute route autre que `POST /connexion` exige l'en-tête `X-Cle-Api` | Dynamique forte |
+
 ---
 
 ## 8. Description des opérations
@@ -1448,7 +1491,7 @@ Les modules venus après la première version ont leurs propres opérations. Ell
 
 ### 9.1 Endpoints
 
-Les 55 routes de l'API, telles que la documentation interactive les liste sur `/documentation`.
+Les 57 routes du planning, telles que la documentation interactive les liste sur `/documentation`. Le coach en ajoute 63, listées dans son cahier, section 9.1.
 
 ```
 Planning
@@ -1518,12 +1561,16 @@ Notifications
 Journal
   GET    /journal?mot=&actions=                            Ce qui a changé, et ce qui l'a déclenché
 
+Connexion
+  POST   /connexion                                        Pseudo et mot de passe : rend la clé d'API
+  PUT    /mot-de-passe                                     Choisir ou changer son mot de passe
+
 Système
   GET    /moi                                              Profil de l'appelant
   GET    /sante                                            Sonde d'infrastructure
 ```
 
-L'authentification se fait par un en-tête `X-Cle-Api`. Le flux iCalendar fait exception : il s'ouvre avec un jeton de calendrier passé dans l'URL, parce que les applications de calendrier ne savent pas envoyer d'en-tête personnalisé. Ce jeton n'ouvre que la lecture du planning (UTI-2, NOT-8).
+L'authentification se fait par un en-tête `X-Cle-Api`. `POST /connexion` est la seule route ouverte sans clé : elle la rend contre le mot de passe (CNX-3). Le flux iCalendar fait aussi exception : il s'ouvre avec un jeton de calendrier passé dans l'URL, parce que les applications de calendrier ne savent pas envoyer d'en-tête personnalisé. Ce jeton n'ouvre que la lecture du planning (UTI-2, NOT-8).
 
 Sont réservées à l'administrateur : la création, la modification et la désactivation d'une tâche, le déclenchement du bilan, de la relance et du report, le tour des propositions de week-end, la relève et la relecture des courriels.
 
@@ -1545,7 +1592,7 @@ La solution retenue est donc l'**événement journée entière** : un `VEVENT` a
 | Tâche en retard | `VEVENT` journée entière | Titre marqué d'un avertissement et du nombre de jours de retard |
 | Proposition de week-end | `VEVENT` journée entière | « Week-end libre ? » tant qu'elle n'est pas confirmée, « Week-end à ... » ensuite (WKD-6) |
 
-La validation ne passe donc jamais par le calendrier. Elle se fait dans Telegram, par bouton, ou par l'API. Le calendrier sert à voir, le bot sert à agir. C'est aussi ce qui rendra l'application iPhone utile : elle réunira les deux.
+La validation ne passe donc jamais par le calendrier. Elle se fait dans Telegram, par bouton, ou par l'API. Le calendrier sert à voir, le bot sert à agir.
 
 Un calendrier composé ne montre que les personnes et les familles de contenu qu'il déclare : cours, travail, perso, tâches, sport, week-ends (NOT-5, NOT-6).
 
@@ -1555,7 +1602,7 @@ Le bot n'est pas une interface graphique, c'est un client du système. Il doit s
 
 Chaque rappel arrive avec trois boutons : fait, reporter, refuser. Le rappel du soir revient sur les tâches du jour non validées, puis le report d'office passe après minuit. « /menu » ouvre en boutons les mêmes écrans que les commandes.
 
-Les 28 commandes viennent d'un catalogue unique dans le code, qui sert à la fois à les enregistrer, à écrire « /aide » et à remplir le menu de Telegram.
+Les 45 commandes viennent d'un catalogue unique dans le code, qui sert à la fois à les enregistrer, à écrire « /aide » et à remplir le menu de Telegram. Les seize commandes du coach sont dans son cahier, section 9.4 ; les autres sont ici.
 
 **Au quotidien**
 
@@ -1602,6 +1649,12 @@ Les 28 commandes viennent d'un catalogue unique dans le code, qui sert à la foi
 | `/lien` | `CODE URL` | Donner l'URL d'un flux |
 | `/arreter` | `CODE` | Ne plus suivre un flux, le passé reste |
 
+**Application iPhone**
+
+| Commande | Exemple d'argument | Ce qu'elle fait |
+|---|---|---|
+| `/motdepasse` | `ton-mot-de-passe` | Choisir le mot de passe de l'application. Le message est effacé aussitôt (CNX-2) |
+
 **Ce compte**
 
 | Commande | Exemple d'argument | Ce qu'elle fait |
@@ -1629,6 +1682,8 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 | Journal | `JRN` | 048 | Ce qui change, qui l'a déclenché, dans quelle action. Table `evenement` |
 | Tâches qui vont ensemble | TAC-14 à TAC-19 | 049 | L'aspirateur avec le récurage ou la poussière, le bloc « Nettoyage », le vidage qui vaut ramassage dès le planning. Table `accompagnement` |
 | Mode allégé, tâches ajoutées | PLA-16, TAC-20 | 050 | En faire moins pendant quelques jours ; ajouter une tâche depuis le bot. Table `allegement` |
+| Coach sportif | Cahier du coach | 051 à 058 | Un modèle de langage construit le contenu des séances, suit ce qui est fait et ajuste. Une application iPhone envoie les données de Santé et sert à saisir les séances de musculation. Tout est dans son cahier |
+| Connexion de l'application | `CNX`, NOT-14 | 059 | Le pseudo et un mot de passe rendent la clé d'API à l'application, qui passe par `tailscale funnel` sans le client Tailscale. La nuit, seul le coach d'une conversation en cours répond |
 
 Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests sont rangés dans `anciennes_fonctionnalites/stock_uniforme/`, avec de quoi le remettre en service.
 
@@ -1670,18 +1725,20 @@ Les points qui ont demandé le plus de réflexion, et ce que j'en ai tiré. Le R
 
 **Les tâches de nuit tournaient deux heures trop tard.** Le conteneur vit en UTC, et l'ordonnanceur était bien configuré en `Europe/Paris`, mais un `CronTrigger` construit à la main fige son fuseau à la construction, et celui du scheduler ne s'applique qu'aux déclencheurs qu'il crée lui-même. Le « report de minuit » se déclenchait donc à 2 h, une fois la date déjà changée. Le fuseau est maintenant passé explicitement à chaque déclencheur.
 
+**Le coach répondait à 7h30 à des questions déjà réglées.** Le silence de la nuit retenait toutes les notifications jusqu'au matin, y compris les réponses du coach à une conversation menée après 23h30. Elles partaient toutes à 7h30, dans le désordre de la veille : un avis sur un objectif déjà changé, une question à laquelle on avait déjà répondu. On aurait dit que le coach avait refait le plan. Le silence laisse maintenant passer le coach d'une conversation en cours (NOT-14), et une réponse déjà affichée par le bot n'est plus renvoyée en notification.
+
 **Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « Thomas a déclaré une absence » et « l'aspirateur passe à Lorette » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
 
 ---
 
 ## 12. Ce qui est volontairement exclu
 
-- Toute interface graphique. L'application iPhone viendra dans un projet séparé et consommera cette API.
+- Une interface graphique complète. L'application iPhone ne fait que la santé et la saisie des séances de musculation ; le reste passe par le bot et le calendrier.
 - L'achat des billets de train. Le système propose des horaires et en tire les conséquences sur le planning ; la transaction reste manuelle.
 - L'ouverture à d'autres utilisateurs que Thomas et Lorette.
-- L'exposition sur le web public : l'accès passe par Tailscale, ce qui suppose le client installé sur chaque appareil.
+- L'exposition de l'API sur le web public. Seuls les quatre chemins de l'application iPhone passent par `tailscale funnel` ; le reste suppose le client Tailscale.
 - La gestion budgétaire et les courses.
-- Tout apprentissage automatique ou prédiction de préférences.
+- Tout apprentissage automatique ou prédiction de préférences pour le planning domestique. Le coach utilise un modèle de langage, et seulement pour le sport.
 - Le suivi des heures travaillées et l'estimation de salaire.
 - Le stock d'uniforme, retiré en septembre 2026 (section 10).
 

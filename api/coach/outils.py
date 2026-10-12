@@ -573,7 +573,7 @@ def ouvrir_fenetre_mesure(u: int, a: dict) -> object:
 
 
 def noter_mesure(u: int, a: dict) -> object:
-    """MES-9 : une mesure dite dans un message (« je pèse 70 kg ») est enregistrée."""
+    """MES-7 : une mesure dite dans un message (« je pèse 70 kg ») est enregistrée."""
     ligne = _sql("SELECT saisir_mesure(%(u)s, %(t)s, %(v)s, %(un)s, %(c)s, %(d)s) AS id",
                  {"u": u, "t": a.get("type"), "v": a.get("valeur"), "un": a.get("unite"),
                   "c": a.get("cote"),

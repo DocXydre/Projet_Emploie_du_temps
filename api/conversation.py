@@ -864,7 +864,7 @@ def trancher_conflit(id_conflit: int, garder: str, id_utilisateur: int) -> str:
 def notifications_a_envoyer(limite: int = 20, pendant_le_silence: bool = False) -> list[dict]:
     """Notifications en attente, pour les comptes reliés à Telegram.
 
-    NOT-13 : pendant le silence de la nuit, seuls partent les messages du coach
+    NOT-14 : pendant le silence de la nuit, seuls partent les messages du coach
     d'un compte en pleine conversation avec lui (un appel venu de l'utilisateur
     il y a moins de 30 minutes). Retenus jusqu'à 7h30, ils arrivaient en retard,
     après des réponses qui les avaient déjà rendus faux.

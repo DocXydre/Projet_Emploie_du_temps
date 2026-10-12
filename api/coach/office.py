@@ -58,7 +58,7 @@ def _seances_du_jour(id_utilisateur: int) -> str | None:
 
 def _musculation_en_jeu(id_utilisateur: int, moment: str, id_occurrence: int | None) -> bool:
     """La fiche complète d'une limitation sert quand une séance de musculation se
-    construit ou se commente (LIM-9)."""
+    construit ou se commente (EXO-10)."""
     if moment in ("plan", "revision"):
         return True
     if "musculation" in aiguillage.disciplines_en_jeu(id_utilisateur, id_occurrence):

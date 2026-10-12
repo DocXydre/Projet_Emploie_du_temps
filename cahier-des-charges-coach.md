@@ -4,11 +4,11 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Ce document décrit le module coach tel qu'il doit être construit. Il complète le cahier des charges du système de planification personnelle, qu'il cite sans le recopier : quand une règle porte un préfixe déjà connu (`SPT`, `NOT`, `JRN`, `EXE`, `ABS`, `UTI`), elle se lit là-bas. Les règles sportives elles-mêmes sont dans le dossier du coach, cité par numéro de chapitre.
+Ce document décrit le module coach tel qu'il tourne depuis octobre 2026. Il complète le cahier des charges du système de planification personnelle, [`cahier-des-charges.md`](cahier-des-charges.md), qu'il cite sans le recopier : quand une règle porte un préfixe déjà connu (`SPT`, `NOT`, `JRN`, `EXE`, `ABS`, `UTI`), elle se lit là-bas. Les règles sportives elles-mêmes sont dans le dossier du coach, cité par numéro de chapitre.
 
-Chaque règle porte un code, que le code source citera en commentaire. Quand le module tournera, ce document sera fusionné dans le premier.
+Chaque règle porte un code, que le code source cite en commentaire. Les deux cahiers restent séparés : chacun se lit seul, et le coach s'éteint par compte sans toucher au reste.
 
-Ce document sert de base à l'écriture du code, y compris par un outil de génération. Une règle écrite ici est une obligation. Ce qui n'est pas écrit se décide en suivant les choix de la section 1.2 et les conventions du système existant : règles dans la base, API mince, SQL sans ORM, un fichier par fonction.
+Ce document a servi de base à l'écriture du code. Une règle écrite ici est une obligation. Ce qui n'est pas écrit se décide en suivant les choix de la section 1.2 et les conventions du système existant : règles dans la base, API mince, SQL sans ORM, un fichier par fonction. Quand l'usage a fait changer une règle, elle est réécrite ici, et l'ancienne version passe en annexe C.
 
 ## Sommaire
 
@@ -27,6 +27,7 @@ Ce document sert de base à l'écriture du code, y compris par un outil de gén�
 
 Annexe A : règles `SPT` remplacées ou retirées
 Annexe B : valeurs par défaut à calibrer
+Annexe C : règles du coach remplacées ou retirées
 
 ---
 
@@ -53,9 +54,11 @@ La première version sert un seul compte, celui de Thomas. Elle couvre la muscul
 - **Le modèle est appelé à des moments précis, pas en permanence.** Pendant la séance, tout se fait avec des boutons. Sept situations déclenchent un appel (COA-2). Chaque appel est enregistré avec ce qu'il a consommé (COA-21).
 - **Une séance du coach est proposée, puis validée.** L'utilisateur valide la semaine en une fois. Une séance validée est épinglée, et le coach ne peut plus ni la modifier ni la retirer seul : il dépose un ajustement, que l'utilisateur accepte ou refuse. Sans réponse, seul un allègement s'applique.
 - **Le dossier du coach est versionné dans le dépôt**, en Markdown, un fichier par chapitre. Changer une règle sportive change le comportement du coach : c'est du code.
-- **Le dossier ne contient rien de personnel.** Il décrit des méthodes, valables pour n'importe qui. Ce qui concerne une personne, sa limitation, ses exercices interdits, son historique, vit en base : dans sa limitation et dans son carnet. Le dépôt est public, une donnée de santé n'a rien à y faire, et le coach d'un autre compte ne doit pas recevoir le cas du premier.
-- **Six chapitres partent à chaque appel** : rôle, sécurité, limitations permanentes, décision, communication, posture. Les autres se lisent à la demande, par un outil. Envoyer tout le dossier à chaque appel coûterait environ cinq fois plus cher.
-- **La mémoire du coach est en base.** Un carnet de notes courtes, et tous les échanges. Le carnet et les dix derniers échanges sont rendus au modèle à chaque appel.
+- **Le dossier ne contient rien de personnel.** Il décrit des méthodes, valables pour n'importe qui. Ce qui concerne une personne, sa limitation, ses exercices interdits, son historique, vit en base : dans sa limitation et dans sa mémoire. Le dépôt est public, une donnée de santé n'a rien à y faire, et le coach d'un autre compte ne doit pas recevoir le cas du premier.
+- **Le dossier part en paquets.** Un socle de cinq chapitres part à chaque appel : rôle, sécurité, décision, communication, posture. Le reste est découpé en paquets par sujet, envoyés en résumé ou en entier selon le moment et ce dont on parle (DOS). Un chapitre qui manque se lit à la demande, par un outil. Envoyer tout le dossier à chaque appel coûterait environ cinq fois plus cher.
+- **La mémoire du coach est en base, en quatre étages.** Plus on remonte loin, moins il y a de détail : la semaine, le mois, les trois derniers mois, puis tout le reste. Les résumés se font seuls la nuit (MEM). Tous les échanges sont gardés, et les dix derniers sont rendus au modèle à chaque appel.
+- **Pas de questionnaire médical.** Le coach ne demande ni dépistage ni avis médical avant de commencer, et ne parle de médecin que dans deux cas : une douleur dans la poitrine ou un malaise, et un complément ou une carence qui le justifient. C'est une décision de l'utilisateur, du 9 octobre 2026 (annexe C).
+- **Ce que chaque moment lit à coup sûr lui est donné d'office.** La semaine, la santé, la forme, l'emploi du temps : les demander par un outil coûtait un passage entier au modèle (COA-28).
 - **Il n'y a pas de filtre de mots dans le code pour les signaux graves.** Le chapitre de sécurité part à chaque appel et le modèle l'applique seul. C'est un choix assumé, dont la section 11 dit la contrepartie.
 - **Il n'y a pas de plafond de dépense dans le système.** Le suivi se fait sur la console du fournisseur.
 - **L'utilisateur peut faire autre chose que le plan.** Une séance libre, avec un ami ou selon l'envie, n'est ni refusée ni comptée comme manquée. Le coach l'analyse, donne son avis et refait la suite de la semaine autour.
@@ -68,7 +71,7 @@ La première version sert un seul compte, celui de Thomas. Elle couvre la muscul
 - **Le soir, une séance est faite ou pas faite.** À 23 h, toute séance du jour restée sans nouvelle se juge sur ce qui a été fait, qu'elle ait été validée ou seulement proposée.
 - **Le coach peut être mis en pause.** Maladie, vacances, examens : il ne propose plus rien, et la synthèse ne passe plus qu'un soir sur trois.
 - **Une course objectif est une séance comme les autres.** Elle n'a ni type ni règle à part : le coach la met au plan à sa date et adapte ce qui l'entoure.
-- **Les données de santé arrivent par une application Swift de test**, qui lit l'application Santé et permet de saisir les séances. Elle consomme l'API décrite ici et fait l'objet d'un projet séparé.
+- **Les données de santé arrivent par une application iPhone**, qui lit l'application Santé et permet de saisir les séances de musculation. Elle consomme l'API décrite ici et vit dans le même dépôt, sous `ios/CoachSante/`. Elle se connecte par mot de passe (CNX, premier cahier) et passe par `tailscale funnel` : le client Tailscale n'est pas nécessaire sur le téléphone.
 
 Ce module lève une exclusion du premier cahier des charges, qui écartait « tout apprentissage automatique ou prédiction de préférences ». Elle reste vraie pour le planning domestique.
 
@@ -83,9 +86,11 @@ Tout ce que le système utilise déjà est repris. S'y ajoutent :
 | Outil | Rôle | Pourquoi celui-là |
 |---|---|---|
 | API d'Anthropic, SDK Python `anthropic` | Appels au modèle, avec outils | Un seul fournisseur, des outils déclarés en JSON, un cache pour la partie fixe de la consigne |
-| Claude Sonnet 5.5 | Modèle de départ | Tient un long jeu de règles simultanées pour un coût de quelques dollars par mois. Le nom du modèle est un réglage, pas du code |
+| Claude Sonnet 5.5 | Modèle du coach | Tient un long jeu de règles simultanées pour un coût de quelques dollars par mois. Le nom du modèle est un réglage, pas du code |
+| Claude Haiku 4.5 | Petits travaux | Choisit les paquets du dossier pour un message libre (DOS-4). Un réglage permet de lui confier aussi le chat et la synthèse d'un jour sans séance (COA-31) |
 | Dossier du coach en Markdown | Savoir sportif | Lisible, versionné, découpé par chapitre |
-| HealthKit, par l'application Swift de test | Données de l'Apple Watch | Seule voie d'accès aux données de santé d'un iPhone |
+| HealthKit, par l'application iPhone | Données de l'Apple Watch | Seule voie d'accès aux données de santé d'un iPhone |
+| SwiftUI, XcodeGen | Application iPhone | Le projet Xcode se régénère depuis `project.yml` : rien de généré n'entre dans le dépôt |
 
 Sont volontairement écartés : les bases vectorielles et la recherche sémantique, les cadres d'agents, un deuxième fournisseur de secours. Le dossier a un sommaire de quarante-neuf chapitres : le modèle choisit le chapitre à lire, il n'y a rien à chercher par similarité.
 
@@ -95,7 +100,7 @@ Sont volontairement écartés : les bases vectorielles et la recherche sémantiq
    ENTRÉES                          LE SYSTÈME                        SORTIES
    ───────                          ──────────                        ───────
 
-   Application Swift ──┐       ┌───────────────────────┐
+   Application iPhone ─┐       ┌───────────────────────┐
    (Santé, saisies)    │       │      API FastAPI      │────────►  Bot Telegram
                        ├──────►│  endpoints            │           (synthèse, réponses,
    Bot Telegram ───────┤       │  ordonnanceur         │            semaine à valider)
@@ -107,7 +112,7 @@ Sont volontairement écartés : les bases vectorielles et la recherche sémantiq
                                  │  planning existant  │  └───────►│   Modèle     │
                                  │  objectifs, plan    │           │  (Anthropic) │
                                  │  séances, saisies   │◄──────────│              │
-   Dossier du coach ────────────►│  santé, carnet      │  fonctions└──────────────┘
+   Dossier du coach ────────────►│  santé, mémoire     │  fonctions└──────────────┘
    (Markdown, dépôt)             │  règles de sécurité │  appelées
                                  └─────────────────────┘
 ```
@@ -131,10 +136,11 @@ Le modèle ne touche jamais la base. Il demande un outil, par exemple « propose
 
 | Rang | Contenu | Change quand |
 |---|---|---|
-| 1 | Les six chapitres de base du dossier et son sommaire (COA-3) | Le dossier est modifié |
-| 2 | Le contexte de l'utilisateur : profil, limitations, objectifs, trame du plan, rôle de la semaine, carnet | Un de ces éléments change |
-| 3 | Les dix derniers échanges | À chaque appel |
-| 4 | Le message du moment : ce qui déclenche l'appel, et le texte de l'utilisateur s'il y en a un | À chaque appel |
+| 1 | Le socle du dossier et son sommaire (COA-3, DOS-1) | Le dossier est modifié |
+| 2 | Les paquets du dossier choisis pour cet appel, en résumé ou en entier (DOS-2 à DOS-7) | Le sujet change |
+| 3 | Le contexte de l'utilisateur : profil, limitations, objectifs, trame du plan, rôle de la semaine, et la mémoire en quatre étages (MEM-1) | Un de ces éléments change |
+| 4 | Les dix derniers échanges. Les anciens messages du coach y sont raccourcis (MEM-10) | À chaque appel |
+| 5 | Le message du moment : ce qui déclenche l'appel, le texte de l'utilisateur s'il y en a un, et ce que le moment lit à coup sûr (COA-28) | À chaque appel |
 
 L'ordre va du plus stable au plus changeant. Le fournisseur facture moins cher une partie de consigne déjà vue : la partie fixe doit donc venir en premier et rester identique d'un appel à l'autre, au caractère près.
 
@@ -154,15 +160,11 @@ L'ordre va du plus stable au plus changeant. Le fournisseur facture moins cher u
 
 | Tour | Qui parle | Ce qui se passe |
 |---|---|---|
-| 1 | Module vers modèle | La consigne, puis le message du moment : « synthèse du mardi » |
-| 2 | Modèle | Demande `lire_semaine` et `lire_sante` |
-| 3 | Module | Rend la semaine (séance du jour faite, effort 8) et la santé (5 h 40 de sommeil, dernier envoi à 22 h 10) |
-| 4 | Modèle | Demande `lire_forme` |
-| 5 | Module | Rend le score et la charge sur 7 et 28 jours |
-| 6 | Modèle | Demande `proposer_ajustement` : alléger la course de mercredi, motif « nuit courte après une séance dure » |
-| 7 | Module | La base vérifie et accepte. L'ajustement est en attente |
-| 8 | Modèle | Rend son texte : la séance du jour, la nuit courte, l'ajustement proposé, ce qui attend demain |
-| 9 | Module | Construit la réponse : le message, plus un élément « ajustement » avec ses deux actions, accepter et refuser |
+| 1 | Module vers modèle | La consigne, puis le message du moment : « synthèse du mardi ». Il porte déjà la semaine (séance du jour faite, effort 8), la santé (5 h 40 de sommeil, dernier envoi à 22 h 10), la forme et l'emploi du temps des deux jours suivants (COA-28) |
+| 2 | Modèle | Demande `proposer_ajustement` : alléger la course de mercredi, motif « nuit courte après une séance dure ». Dans le même passage, `ajouter_memoire` : « nuit courte mardi » |
+| 3 | Module | La base vérifie et accepte. L'ajustement est en attente, la ligne est ajoutée à la mémoire de la semaine |
+| 4 | Modèle | Rend son texte : la séance du jour, la nuit courte, l'ajustement proposé, ce qui attend demain |
+| 5 | Module | Construit la réponse : le message, plus un élément « ajustement » avec ses deux actions, accepter et refuser |
 
 L'utilisateur reçoit le message et les deux boutons, dans l'application comme sur Telegram. Le modèle n'a écrit que le texte : le bouton existe parce que la base contient un ajustement en attente, pas parce que le modèle l'a annoncé.
 
@@ -179,20 +181,24 @@ Les heures sont celles de Paris. Le fuseau est passé explicitement à chaque d�
 
 | Quand | Tâche planifiée | Ce qu'elle fait |
 |---|---|---|
-| 23h00 | Clôture du jour | Sans le modèle : juge faite ou pas faite chaque séance du jour restée ouverte (PLN-9) |
-| 23h00 | Synthèse du soir | Lit la journée, répond à l'utilisateur, décide du sort d'une séance pas faite (COA-9, PLN-10). En pause, un soir sur trois (PAU-3) |
-| Dimanche, 23h00 | Révision de la semaine | Dans le même appel que la synthèse : revoit les semaines suivantes, détaille et propose la semaine à valider, relit le carnet (PLN-8, PLN-23, CAR-5). Suspendue en pause |
+| 23h00 | Clôture du jour | Sans le modèle : rattache les séances de la montre restées seules (SAN-9), puis juge faite ou pas faite chaque séance du jour restée ouverte (PLN-9) |
+| 23h00 | Synthèse du soir | Lit la journée, répond à l'utilisateur, décide du sort d'une séance pas faite (COA-9, PLN-10). Un jour sans séance, une synthèse courte (COA-31). En pause, un soir sur trois (PAU-3) |
+| Dimanche, 23h00 | Révision de la semaine | Dans le même appel que la synthèse : revoit les semaines suivantes, détaille et propose la semaine à valider (PLN-8, PLN-23). Suspendue en pause |
 | 23h05, 23h20, 23h50 | Nouveaux essais | Si l'appel de 23 h a échoué. L'essai reprend là où l'appel s'est arrêté (COA-11, COA-24) |
 | 6h55 | Rattrapage de la synthèse | Si les trois essais ont échoué, un dernier passage avant le bilan du matin (COA-11) |
-| 0h05 | Report d'office, déjà en place | Clôt aussi les fenêtres de mesure expirées et lève une pause arrivée à son terme (MES-3, PAU-6) |
+| 0h05 | Report d'office, déjà en place | Clôt aussi les fenêtres de mesure expirées, lève une pause arrivée à son terme, puis fait le roulement de la mémoire (MES-3, PAU-6, MEM-6) |
 
-Deux tâches du système existant disparaissent : l'alerte de sport du lundi à 7h20 (SPT-27) et le constat des séances à déterminer toutes les trente minutes (SPT-25).
+Pour un compte qui a le coach, l'alerte de sport du lundi (SPT-27) et le constat des séances à déterminer (SPT-25) n'ont plus rien à faire : il n'a plus de réservation. Elles tournent encore pour un compte sans coach (annexe A).
+
+Un message du coach suit le silence de la nuit, de 23h30 à 7h30, sauf pendant une conversation en cours (NOT-14, premier cahier).
 
 ### 2.5 Développement et mise en production
 
-Le module se développe sur une branche `coach` du dépôt existant, sur un Docker local avec une copie de la base de production. Un deuxième bot Telegram sert au développement : deux instances sur le même jeton se disputent les messages. La relève des courriels et les envois planifiés sont coupés en local.
+Le module s'est développé sur une branche `coach`, fusionnée dans `main` en octobre 2026. Tout se fait maintenant sur `main` : chaque `git push` est déployé par le serveur (premier cahier, 2.3). On teste donc en local avant de pousser.
 
-Le serveur ne déploie que `main`. La fusion se fait quand le coach passe les scénarios de test du chapitre 10.5 du dossier. Le coach s'active ensuite pour un compte par `coach_actif`, ce qui laisse un retour en arrière d'une ligne.
+En local, `outils/local.sh` lance un Docker avec une copie de la base de production, rejoue les scénarios du chapitre 10.5 du dossier (`./outils/local.sh scenarios`) et ouvre l'API au Wi-Fi pour l'application. Un deuxième bot Telegram sert au développement : deux instances sur le même jeton se disputent les messages. La relève des courriels et les envois planifiés sont coupés en local.
+
+Le coach s'active pour un compte par `coach_actif`, ce qui laisse un retour en arrière d'une ligne.
 
 ---
 
@@ -267,8 +273,8 @@ Une séance libre est une séance que le coach n'a pas écrite : on suit le prog
 | LIB-10 | T | Après une séance libre, le coach refait la suite de la semaine : il compense ce qui a manqué, ou il allège si l'utilisateur en a fait plus. Les séances proposées se modifient directement, les séances validées par un ajustement (PLN-18) |
 | LIB-11 | D | Une séance libre laisse le choix des exercices, pas celui d'enfreindre une limitation : un exercice interdit y est refusé à la saisie (SEC-1). La règle des séances dures s'y applique en mode souple : elle avertit sans empêcher (SEC-4) |
 | LIB-12 | D | L'intensité d'une séance libre se déduit de la note d'effort : 7 ou plus en fait une séance dure. Sans note, elle se déduit de la séance de la montre, par la fréquence cardiaque. Sans note ni montre, la séance est tenue pour dure, par prudence. Ses groupes sont ceux des exercices saisis. C'est ce que SEC-3 compare pour les séances qui suivent |
-| LIB-13 | T | Quand les séances libres reviennent au même moment, tous les jeudis avec le même ami par exemple, le coach le note au carnet et construit le plan autour |
-| LIB-14 | D | Pour un compte qui a le coach, une séance posée à la main sans contenu est une séance libre annoncée. Le coach n'y met rien : il la contourne dans son plan et l'analyse une fois faite |
+| LIB-13 | T | Quand les séances libres reviennent au même moment, tous les jeudis avec le même ami par exemple, le coach le note en mémoire et construit le plan autour |
+| LIB-14 | D | Pour un compte qui a le coach, une séance posée à la main reste une séance sans contenu : le lieu ne dit pas la discipline, la salle en sert trois. Le coach la voit dans sa semaine et la contourne. « /libre » crée une vraie séance libre, avec sa discipline |
 
 ### 3.4 Catalogue d'exercices et limitations : `EXO`
 
@@ -283,6 +289,7 @@ Une séance libre est une séance que le coach n'a pas écrite : on suit le prog
 | EXO-7 | T | Les alternatives présentées pendant une séance excluent les exercices interdits à cet utilisateur |
 | EXO-8 | M | L'utilisateur déclare ses limitations et les exercices qu'elles interdisent. Le coach peut proposer d'en ajouter un, il ne l'ajoute pas lui-même |
 | EXO-9 | D | Une limitation et ses exercices interdits sont les données d'un compte. Elles s'enregistrent par l'API, jamais par une migration ni dans le dossier : le dépôt est public |
+| EXO-10 | T | La fiche d'une limitation peut avoir un résumé, puis la marque `<!-- complet -->`, puis le détail. Le résumé part à chaque appel ; le détail seulement quand une séance de musculation se construit ou se commente |
 
 ### 3.5 Règles de sécurité tenues par la base : `SEC`
 
@@ -322,10 +329,12 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAN-1 | D | Chaque jour porte au plus une ligne par utilisateur : pas, fréquence cardiaque de repos, variabilité cardiaque, durée de sommeil |
 | SAN-2 | D | Chaque séance enregistrée par la montre est gardée avec tout son détail : type, début et fin, durée, distance, dénivelé, énergie, fréquence cardiaque moyenne et maximale, allure, cadence. Ce que le schéma ne nomme pas est gardé tel quel : temps par kilomètre, temps par zone, intervalles. Rien de ce que la montre donne n'est jeté |
 | SAN-3 | D | Une séance de la montre porte la clé que lui donne l'application Santé, unique par utilisateur. La renvoyer la met à jour sans la dupliquer |
-| SAN-4 | T | Une séance de la montre se rattache à la séance prévue du même jour et de la même discipline, proposée ou validée, et la fait compter comme faite à 23 h (PLN-9). Faute de séance prévue, elle devient une séance libre |
+| SAN-4 | T | Une séance de la montre se rattache à la séance prévue du même jour et de la même discipline, proposée ou validée, ou posée à la main dans un lieu de cette discipline. Elle la fait compter comme faite à 23 h (PLN-9). Faute de séance prévue, elle devient une séance libre, si elle a moins de 28 jours (SAN-8) |
 | SAN-5 | D | Une donnée absente n'est pas un zéro. Un jour sans envoi n'a pas de ligne, et le coach lit « pas de données », pas « aucun pas » |
 | SAN-6 | T | La synthèse raisonne sur ce qui est arrivé. La date du dernier envoi lui est donnée, pour qu'elle dise quand ses données sont vieilles |
-| SAN-7 | D | Les données de santé ne sortent du serveur que dans le contenu d'un appel au modèle, et seulement ce que rend l'outil demandé. Elles ne figurent ni dans le flux iCalendar, ni dans ce que l'autre personne peut lire |
+| SAN-7 | D | Les données de santé ne sortent du serveur que dans le contenu d'un appel au modèle, et seulement ce que rend l'outil demandé ou la lecture faite d'office (COA-28). Elles ne figurent ni dans le flux iCalendar, ni dans ce que l'autre personne peut lire |
+| SAN-8 | T | Une séance de la montre de plus de 28 jours est gardée telle quelle pour le coach, mais ne se rattache à rien et ne crée aucune séance libre. On peut ainsi envoyer tout l'historique de Santé sans remplir le planning passé |
+| SAN-9 | T | Chaque soir, avant la clôture, une séance de la montre restée seule rejoint la séance du même jour et de la même discipline. Elle couvre la séance posée à la main après l'envoi de la montre |
 
 ### 3.8 Mesures et tests : `MES`
 
@@ -337,20 +346,17 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | MES-4 | M | Une mesure se saisit aussi hors de toute fenêtre |
 | MES-5 | D | Un utilisateur n'a qu'une fenêtre ouverte à la fois pour un même type de mesure |
 | MES-6 | T | Un test de course ou de force est une séance du plan, de type test. Son résultat est enregistré comme une mesure |
+| MES-7 | T | Une mesure dite dans un message, « je pèse 70 kg », est enregistrée par le coach comme une mesure, dans le chat, la synthèse, le bilan et le signalement. La noter seulement en mémoire la perdait pour les courbes |
 
-### 3.9 Carnet et échanges : `CAR`
+### 3.9 Échanges : `CAR`
 
 | Code | Type | Règle |
 |---|---|---|
-| CAR-1 | D | Une note du carnet est courte, datée et classée : préférence, ce qui marche ou non, historique du corps, engagement, contexte. Elle dit si elle vient de l'utilisateur ou d'une déduction du coach |
-| CAR-2 | T | Le coach ne fonde pas une décision sur une déduction non confirmée. Il la fait confirmer par l'utilisateur, et la note le garde |
-| CAR-3 | T | Le carnet ne passe jamais devant le dossier, ni devant une règle de sécurité |
-| CAR-4 | D | Le carnet compte au plus soixante notes actives. Au-delà, la fonction refuse et le coach doit en fusionner ou en retirer |
-| CAR-5 | T | Le dimanche, pendant la révision, le coach relit le carnet, fusionne les doublons et retire ce qui est périmé |
+Le carnet de notes a été remplacé par la mémoire en quatre étages (section 3.17). Ses règles CAR-1 à CAR-5 et CAR-9 sont en annexe C. Restent celles des échanges.
+
 | CAR-6 | D | Tous les échanges sont gardés : synthèses, réponses, questions, signalements. Chacun porte son moment, son numéro d'opération, le modèle utilisé et la version du dossier |
 | CAR-7 | T | Les dix derniers échanges sont rendus au modèle à chaque appel. Les autres restent en base et ne coûtent rien |
-| CAR-8 | D | Le carnet et les échanges sont privés : seul leur propriétaire les lit. Ils n'entrent pas dans ce que le journal montre à l'autre personne |
-| CAR-9 | T | Quand l'utilisateur demande au coach d'oublier quelque chose, le coach retire la note. Le carnet n'a pas d'écran dans cette version |
+| CAR-8 | D | La mémoire et les échanges sont privés : seul leur propriétaire les lit. Ils n'entrent pas dans ce que le journal montre à l'autre personne |
 
 ### 3.10 Le coach : `COA`
 
@@ -358,9 +364,9 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 |---|---|---|
 | COA-1 | D | Le coach s'active par compte. Un compte sans coach n'a ni plan ni synthèse, et pose ses séances à la main |
 | COA-2 | T | Sept situations déclenchent un appel : un objectif créé ou modifié, un plan à construire, la révision du dimanche, la synthèse du soir, un bilan demandé, un signalement ou l'annonce d'une séance libre, une question dans le chat |
-| COA-3 | T | Chaque appel reçoit les chapitres 1.1, 1.2, 2.4, 10.1, 10.2 et 10.3 du dossier, son sommaire, le contexte de l'utilisateur et les dix derniers échanges |
+| COA-3 | T | Chaque appel reçoit le socle du dossier (chapitres 1.1, 1.2, 2.4, 10.2 et 10.3), son sommaire, les paquets choisis pour lui (DOS), le contexte de l'utilisateur, sa mémoire et les dix derniers échanges |
 | COA-4 | T | Le coach n'agit que par une liste fermée d'outils. Un outil d'écriture appelle une fonction SQL et rien d'autre |
-| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, le coach lit, note et oublie : il ne propose aucune séance. S'il lit un signalement dans le texte, il le requalifie (COA-25) |
+| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, le coach lit, tient sa mémoire et note une mesure : il ne propose aucune séance. S'il lit un signalement ou une demande de changer le plan, il le requalifie (COA-25) |
 | COA-6 | T | Un appel est une opération du journal, sous l'acteur « coach ». Tout ce qu'il change partage son numéro, et `/pourquoi` le rend en phrases |
 | COA-7 | T | Un appel est borné à douze tours d'outils, trente pour la construction du plan et la révision du dimanche. Au-delà, il est arrêté, rien de plus n'est écrit, et l'échec est annoncé |
 | COA-8 | D | Le dossier vit dans le dépôt, un fichier par chapitre. Il ne nomme personne et ne décrit aucun cas personnel. Le nom du modèle est un réglage. Les deux sont notés dans chaque échange, pour savoir avec quoi une réponse a été produite |
@@ -382,6 +388,11 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | COA-24 | T | Un nouvel essai ne repart pas de zéro. Il garde le numéro d'opération de l'appel échoué, et le message du moment dit au modèle ce qui est déjà écrit : il termine, il ne recommence pas |
 | COA-25 | T | Dans le chat, le coach dispose d'un outil pour requalifier un texte en signalement : une douleur, une fatigue, un contretemps, ou la réponse à une question qu'il a lui-même posée dans une synthèse. Le module relance alors l'appel avec le moment signalement et ses outils, dans la même opération. L'utilisateur ne reçoit qu'une réponse |
 | COA-26 | D | La clé de l'appareil d'une demande est gardée avec l'appel. La même clé renvoyée rend l'échange déjà produit, ou fait attendre l'appel encore en cours, sans rappeler le modèle |
+| COA-27 | T | Une réponse coupée par la limite de sortie a son dernier appel d'outil tronqué. Il n'est pas exécuté : le modèle est prévenu et le renvoie en entier. La limite de sortie est de 16 000 tokens |
+| COA-28 | T | Ce que chaque moment lit à coup sûr est joint d'office à son premier message, lu avec les mêmes outils : la semaine, la santé, la forme, les mesures, l'emploi du temps, le catalogue pour un plan. Une lecture qui échoue est sautée, le modèle peut la refaire. Ses outils de lecture restent pour une autre période |
+| COA-29 | T | Plusieurs séances se proposent en un seul appel d'outil. Chacune est vérifiée seule et garde son résultat ou son refus : une séance refusée n'empêche pas les autres |
+| COA-30 | T | Quand un appel a posé ou changé des séances d'un plan, son message est relu une fois contre ce qui est vraiment en base : les séances non validées, semaine par semaine, et les semaines sans séance clé. Le modèle corrige son message, ou répond « OK » pour le garder |
+| COA-31 | T | Un jour sans séance prévue ni faite, et sans rien à décider de la clôture, la synthèse est courte : le socle seul, sans outils de séance. Un réglage peut lui donner un modèle moins cher, comme au chat. Vide par défaut |
 
 ### 3.11 Séances de sport : `SPT`, règles ajoutées
 
@@ -402,21 +413,20 @@ Les règles `SPT` du premier cahier des charges restent, sauf celles de l'annexe
 | NOT-11 | D | Un type de notification « coach » porte les synthèses et les réponses. Il suit NOT-2 : écrit avant d'être envoyé |
 | NOT-12 | T | Le bilan du matin dit quand une semaine attend d'être validée |
 | NOT-13 | D | Dans le flux iCalendar, une séance proposée s'affiche avec la mention « à valider ». Le contenu de la séance n'y figure pas |
-| JRN-10 | D | Les tables du coach sont suivies au journal. Les objectifs, le plan, les séances, leurs exercices et les séries saisies se lisent à deux, comme le reste du journal (JRN-6). Les lieux d'une discipline aussi. Le profil, le dépistage, la santé, les mesures, le bilan d'une séance, les limitations, la pause, le carnet, les échanges et les appels font des événements que seul leur propriétaire lit |
+| JRN-10 | D | Les objectifs et le plan sont suivis au journal et se lisent à deux, comme le reste (JRN-6). Une séance du coach est une occurrence : elle y est déjà, à deux. Le reste n'est pas suivi : contenu des séances, séries, lieux, profil, santé, mesures, bilans, limitations, pause, mémoire, échanges et appels. Le journal n'a pas de notion de propriétaire, et rien de privé ne doit pouvoir y passer. « /pourquoi » ne montre donc pas ces changements ; les appels se lisent par « /coach » |
 
-### 3.13 Profil et dépistage : `PRO`
+### 3.13 Profil : `PRO`
 
 | Code | Type | Règle |
 |---|---|---|
 | PRO-1 | D | Un compte qui a le coach a un profil : date de naissance, sexe, taille, niveau en musculation et en course, moment préféré pour s'entraîner, jours sans sport, accord ou non pour parler de compléments alimentaires, régime alimentaire. Le poids n'y est pas : c'est une mesure |
-| PRO-2 | M | Le profil se remplit par un formulaire à champs fixes, au démarrage, et se modifie ensuite quand on veut. Le coach ne le recueille pas en discutant |
-| PRO-3 | D | Le dépistage est un questionnaire de sept questions fermées, celles du chapitre 1.2 du dossier. Il est daté, et on garde les anciennes réponses |
-| PRO-4 | T | Aucun plan n'est construit tant que le profil et le dépistage ne sont pas remplis. La base refuse, et le coach dit ce qui manque |
-| PRO-5 | T | Une seule réponse positive au dépistage bloque le plan. Le coach demande un avis médical avant de commencer. Le plan se débloque quand l'utilisateur déclare avoir eu cet avis, avec sa date |
-| PRO-6 | T | Le dépistage se refait au bout de douze mois. Le coach le rappelle à la révision du dimanche. Passé ce délai, les séances en place restent, mais aucun nouveau plan n'est construit |
+| PRO-2 | M | Le profil se remplit par des questions fermées, au démarrage (DEM), et se modifie ensuite quand on veut. Le coach ne le recueille pas en discutant |
+| PRO-4 | T | Aucun plan n'est construit tant que le profil n'est pas rempli. La base refuse, et le coach dit ce qui manque |
 | PRO-7 | D | Le coach ne s'active pas pour une personne de moins de 18 ans. La base le refuse d'après la date de naissance |
-| PRO-8 | D | Le profil et le dépistage sont privés : seul leur propriétaire les lit (JRN-10) |
-| PRO-9 | T | Toutes les huit semaines, à la révision, le coach propose de revoir le profil : niveau, disponibilités, préférences |
+| PRO-8 | D | Le profil est privé : seul son propriétaire le lit (JRN-10) |
+| PRO-9 | T | Toutes les huit semaines, à la révision, le coach propose de revoir le profil : niveau, disponibilités, préférences. Le contexte lui donne les dates, rien en base ne compte les semaines |
+
+Le dépistage (PRO-3, PRO-5, PRO-6) est retiré : annexe C. Sa table reste en base, vide pour un nouveau compte, et plus rien ne la lit.
 
 ### 3.14 Lieux d'une discipline : `LIE`
 
@@ -446,6 +456,54 @@ Une maladie, des vacances, une semaine d'examens. Le coach n'a rien à proposer,
 | PAU-7 | D | Une pause n'est pas une absence. Une absence dit où l'on est (ABS), une pause dit qu'on ne suit pas le plan. L'une ne déclenche pas l'autre |
 | PAU-8 | D | La pause ne clôt pas le plan : ses semaines continuent de courir. Au retour, le coach le reprend, ou en construit un autre s'il n'a plus de sens |
 
+### 3.16 Le dossier en paquets : `DOS`
+
+Envoyer tout le dossier à chaque appel coûte cher, et noie la règle utile. Le socle part toujours ; le reste est découpé en paquets par sujet (santé, musculation, course, cardio, alimentation, planification, objectifs, cadre), réglés dans `coach/paquets.json`.
+
+| Code | Type | Règle |
+|---|---|---|
+| DOS-1 | D | Le socle part à chaque appel, en entier : chapitres 1.1, 1.2, 2.4, 10.2 et 10.3 |
+| DOS-2 | T | Pour chaque appel, chaque paquet part en résumé, en entier, ou pas du tout. Le choix est noté avec l'appel, pour savoir après coup ce que le coach avait sous les yeux |
+| DOS-3 | D | Un paquet en résumé part avec le texte de `coach/dossier/resumes/<code>.md`, environ 15 % du texte complet. Un paquet en entier part avec ses chapitres. Pour un même choix, le texte est identique au caractère près, ce qui le garde en cache |
+| DOS-4 | T | Pour un message libre, un petit modèle rapide lit le texte, et la question du coach à laquelle il répond, puis choisit les paquets |
+| DOS-5 | T | Si le petit modèle ne répond pas à temps, les mots-clés de chaque paquet décident : un mot-clé dans le texte, et le paquet part en résumé |
+| DOS-6 | T | Le moment et les disciplines en jeu décident aussi : un plan prend la planification en entier, une synthèse son résumé ; les disciplines des objectifs actifs et de la séance dont on parle partent. Entre les sources, la plus généreuse l'emporte. Le socle n'est jamais retiré, et un chapitre manquant se lit avec `lire_chapitre` : un mauvais choix coûte un tour, pas une erreur |
+| DOS-7 | T | Certains chapitres ne partent en entier que s'ils servent : 3.1, 3.2 et 7.2 jamais, 7.1 avec plusieurs disciplines, 5.3 pour un trail, 5.8 à moins de 21 jours d'une course. Ils restent lisibles par l'outil |
+
+### 3.17 La mémoire du coach : `MEM`
+
+Un carnet de notes à plat ne dit pas ce qui a changé au fil des mois. La mémoire garde le fil, avec moins de détail à mesure qu'on remonte.
+
+| Étage | Ce qu'il couvre | Taille | Qui l'écrit |
+|---|---|---|---|
+| Globale | Tout ce qui précède les trois derniers mois | 4 000 caractères | Le résumé de la nuit, le coach pour un fait durable, l'utilisateur |
+| Trois mois | Un résumé par mois fini | 3 × 1 500 | Le résumé de la nuit |
+| Mois | Le mois en cours, nourri par les semaines finies | 3 000 | Le résumé de la nuit |
+| Semaine | La semaine en cours | 3 000 | Le coach |
+
+| Code | Type | Règle |
+|---|---|---|
+| MEM-1 | T | Les quatre étages sont rendus au modèle à chaque appel, avec le contexte. « /memoire » les montre à l'utilisateur, en bref |
+| MEM-2 | D | Chaque écriture ajoute une version, elle n'écrase rien. Un texte identique au précédent n'en crée pas |
+| MEM-3 | D | Chaque étage a sa longueur maximale. La fonction refuse un texte trop long : c'est la limite qui oblige à résumer |
+| MEM-4 | D | Chaque version dit qui l'a écrite : le coach, l'utilisateur, le résumé de la nuit, ou la reprise des anciennes notes. Le coach n'écrit que la semaine et la globale ; le mois et les archives se font par résumé |
+| MEM-5 | M | L'utilisateur corrige n'importe quel étage, et peut remettre en vigueur une ancienne version. Rien n'est effacé |
+| MEM-6 | T | À 0h05, chaque étage absorbe ce qui est fini en dessous de lui : la semaine finie va dans le mois, le mois fini est résumé et archivé, l'archive qui sort des trois mois va dans la globale. Le roulement lit l'état de la base, pas l'heure : une nuit manquée se rattrape la suivante, et rien n'est versé deux fois |
+| MEM-7 | T | Un résumé tient sous la limite de son étage. S'il déborde, un seul nouvel essai. Les consignes de résumé sont dans `coach/memoire.md` |
+| MEM-8 | D | Chaque échange a une importance de 1 à 3, calculée en base : un objectif, un plan ou un ajustement donnent 3, des séances proposées ou un signalement 2, le reste 1. Un résumé garde toujours le 3 et ne fait que compter le 1. `lire_echanges` cherche dans tout l'historique |
+| MEM-9 | T | Le coach ajoute une ligne à la semaine sans la réécrire : un fait dit par l'utilisateur, une décision. La mémoire ne recopie pas l'état de la base, qu'il relit à jour à chaque appel |
+| MEM-10 | T | Dans les derniers échanges, les anciens messages du coach sont coupés à 500 caractères ; le dernier reste entier. Ce qu'ils annonçaient est en base. Ce que l'utilisateur a écrit reste toujours mot pour mot |
+
+### 3.18 Démarrage d'un compte : `DEM`
+
+| Code | Type | Règle |
+|---|---|---|
+| DEM-1 | T | Tant que le profil, les lieux ou l'objectif principal manquent, le bot conduit le compte question par question, avec des boutons quand c'est possible. Un message libre est pris comme réponse à la question en cours, et les commandes du coach y renvoient |
+| DEM-2 | D | Les réponses en cours sont gardées en base, et ne deviennent un profil, un lieu ou un objectif qu'à la fin de leur bloc, par les routes habituelles : rien ne contourne une règle. Un refus de la base est montré tel quel, et la question reposée |
+| DEM-3 | T | Le démarrage demande une fois s'il y a une douleur ou une limitation qui dure : zone, côté, description. Les exercices qu'elle interdit se règlent ensuite. La réponse est gardée, et la question n'est pas reposée |
+| DEM-4 | M | « /initialiser » reprend le démarrage depuis le début. Ce qui est déjà rempli est sauté. Pour une course, le temps visé est demandé |
+| DEM-5 | M | « /reinitialiser » repart de zéro, après confirmation. Tout ce que le coach sait et a fait pour le compte est effacé : profil, limitations, lieux, objectifs, plans, séances du coach et séances libres, mesures, mémoire, échanges, et les données de la montre sauf si on demande à les garder. Restent le compte, les appels au modèle (le suivi du coût) et tout le reste du planning. Au message suivant, le démarrage reprend |
+
 ---
 
 ## 4. Acteurs du système
@@ -458,15 +516,16 @@ Une maladie, des vacances, une semaine d'examens. Le coach n'a rien à proposer,
 | Modèle de langage | Secondaire | Reçoit la consigne et le contexte, demande des outils, rend un texte. Ne voit que ce qu'on lui envoie et n'écrit que par les outils |
 | Système | Secondaire | Vérifie le placement et la sécurité, calcule les charges et le score de forme, tient les états, le journal et les notifications |
 | Ordonnanceur | Principal | Déclenche la synthèse du soir, la révision du dimanche, les nouveaux essais et le rattrapage |
-| Application Swift de test | Secondaire | Envoie les données de l'application Santé et les saisies de séance. Affiche la séance du jour et ses alternatives |
-| Application Santé d'Apple | Secondaire | Fournit les données de l'Apple Watch à l'application Swift |
+| Application iPhone | Secondaire | Se connecte par mot de passe. Envoie les données de l'application Santé et les séries de musculation saisies, montre la dernière fois de chaque exercice et la réponse du coach à la clôture |
+| Application Santé d'Apple | Secondaire | Fournit les données de l'Apple Watch à l'application iPhone |
+| Petit modèle de langage | Secondaire | Choisit les paquets du dossier pour un message libre (DOS-4) |
 | Telegram | Secondaire | Transporte les messages du coach et renvoie les textes et les boutons de l'utilisateur |
 
 ---
 
 ## 5. Diagramme des données
 
-Le module ajoute 23 tables. `UTILISATEUR`, `OCCURRENCE` et `LIEU_SPORT` existent déjà : elles sont le point d'attache. `SEANCE` prolonge une occurrence de sport sans la remplacer, ce qui laisse le placement, la validation et l'invitation fonctionner comme avant.
+Le module ajoute 25 tables. Deux ne servent plus : `DEPISTAGE`, depuis le retrait du questionnaire, et `NOTE_COACH`, recopiée dans la mémoire. Elles restent pour l'historique. `UTILISATEUR`, `OCCURRENCE` et `LIEU_SPORT` existent déjà : elles sont le point d'attache. `SEANCE` prolonge une occurrence de sport sans la remplacer, ce qui laisse le placement, la validation et l'invitation fonctionner comme avant.
 
 ```mermaid
 erDiagram
@@ -497,6 +556,8 @@ erDiagram
     UTILISATEUR      ||--o{  MESURE : "relève"
     FENETRE_MESURE   |o--o{  MESURE : "recueille"
     UTILISATEUR      ||--o{  NOTE_COACH : "est décrit par"
+    UTILISATEUR      ||--o{  MEMOIRE_COACH : "est retenu par"
+    UTILISATEUR      ||--o|  DEMARRAGE_COACH : "démarre par"
     UTILISATEUR      ||--o{  ECHANGE : "échange"
     ECHANGE          |o--o{  NOTIFICATION : "est porté par"
     UTILISATEUR      ||--o{  APPEL_COACH : "déclenche"
@@ -525,7 +586,7 @@ Les tables sont rangées par domaine. Dans chaque table, les colonnes suivent l'
 
 `minimum_sport` est retirée avec les réservations (annexe A). `seances_max_semaine` vide laisse le coach décider (PLN-14) ; quatorze est le plafond, puisqu'un jour porte au plus deux séances (SPT-37). `besoin_sommeil_minutes` sert au score de forme.
 
-### 6.2 Profil et dépistage
+### 6.2 Profil
 
 #### Table : Profil
 
@@ -546,6 +607,8 @@ Les tables sont rangées par domaine. Dans chaque table, les colonnes suivent l'
 Les niveaux suivent les repères du chapitre 2.1 du dossier. `accord_complements` à faux interdit au coach d'aborder les compléments, même si on lui pose la question de la prise de muscle (chapitre 9.5). `jours_sans_sport` est une préférence rendue au coach, pas une contrainte tenue par la base : l'utilisateur peut toujours y poser une séance.
 
 #### Table : Depistage
+
+Plus utilisée depuis le retrait du questionnaire (annexe C). Elle reste pour l'historique ; `/reinitialiser` la vide.
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
@@ -885,7 +948,36 @@ Les types de mesure : poids, tour de taille, tour de bras, tour d'avant-bras, to
 | confirmee | BOOLEAN | non | vrai si source = 'utilisateur' | | | | |
 | date_creation | DATE | non | | | CURRENT_DATE | | |
 
-Une note oubliée est supprimée, pas masquée (CAR-9). Le journal en garde la trace pendant ses 90 jours, pour son seul propriétaire.
+Plus utilisée depuis la migration 056 : ses notes ont été recopiées dans la mémoire globale, avec l'auteur « reprise ».
+
+#### Table : MemoireCoach
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_memoire | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| niveau | VARCHAR(12) | non | 'globale', 'archive_mois', 'mois', 'semaine' | | | | |
+| periode | DATE | oui | vide pour la globale seule ; un lundi pour une semaine, un premier du mois pour un mois | | | | |
+| texte | TEXT | non | sous la limite de son étage (MEM-3) | | | | |
+| auteur | VARCHAR(12) | non | 'coach', 'utilisateur', 'resume', 'reprise' | | | | |
+| couvre_jusqu_au | DATE | oui | | | | | |
+| quand | TIMESTAMPTZ | non | | | now() | | |
+| modele | VARCHAR(60) | oui | | | | | |
+| tokens_entree | INTEGER | oui | | | | | |
+| tokens_sortie | INTEGER | oui | | | | | |
+
+Une ligne par version (MEM-2). La version en vigueur d'un étage est la dernière écrite, lue par `v_memoire_coach`. `couvre_jusqu_au` dit jusqu'où un résumé a absorbé l'étage du dessous : c'est ce qui rend le roulement rejouable (MEM-6).
+
+#### Table : DemarrageCoach
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_utilisateur | INTEGER | non | | oui | | oui | Utilisateur |
+| etape | VARCHAR(30) | non | la question posée | | | | |
+| reponses | JSONB | non | | | '{}' | | |
+| maj | TIMESTAMPTZ | non | | | now() | | |
+
+Les réponses en cours du démarrage (DEM-2). Une fois fini, la ligne garde que les limitations ont été demandées (DEM-3).
 
 #### Table : Echange
 
@@ -903,6 +995,7 @@ Une note oubliée est supprimée, pas masquée (CAR-9). Le journal en garde la t
 | version_dossier | VARCHAR(40) | oui | renseignée si auteur = 'coach' | | | | |
 | elements | JSONB | non | | | '[]' | | |
 | id_appel | BIGINT | oui | | | | | AppelCoach (mise à nul) |
+| importance | SMALLINT | non | entre 1 et 3 | | 1 | | |
 
 L'auteur « systeme » est celui du message fixe envoyé quand le modèle ne répond pas (COA-12). `elements` garde la liste d'éléments rendue avec le message (COA-17) : relire un échange rend exactement ce que l'utilisateur avait reçu. `version_dossier` est l'empreinte du commit du dépôt au moment de l'appel.
 
@@ -924,14 +1017,17 @@ L'auteur « systeme » est celui du message fixe envoyé quand le modèle ne ré
 | tokens_entree | INTEGER | non | >= 0 | | 0 | | |
 | tokens_cache | INTEGER | non | >= 0 | | 0 | | |
 | tokens_sortie | INTEGER | non | >= 0 | | 0 | | |
+| tokens_cache_ecrit | INTEGER | non | >= 0 | | 0 | | |
 | modele | VARCHAR(60) | non | | | | | |
 | motif_echec | TEXT | oui | | | | | |
+| paquets | TEXT[] | oui | les paquets du dossier joints, et leur détail (DOS-2) | | | | |
+| deroule | JSONB | non | les outils demandés et le début de leur résultat | | '[]' | | |
 
 Une ligne par appel au modèle, essais compris (COA-21). Un nouvel essai crée une ligne de plus, avec la même `operation` et un numéro d'`essai` supérieur (COA-24). Un moment requalifié garde sa ligne : son `moment` passe de chat à signalement (COA-25).
 
 L'unicité sur `statut` en_cours est le verrou du compte (COA-22). Un appel resté en cours après un arrêt brutal de l'API bloquerait tout : au démarrage, tout appel en cours plus vieux que son délai passe à échoué.
 
-Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `tokens_cache` compte la part de l'entrée relue depuis le cache, facturée moins cher.
+Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `tokens_cache` compte la part de l'entrée relue depuis le cache, facturée moins cher ; `tokens_cache_ecrit` celle qui y a été écrite, facturée plus cher. C'est souvent elle qui fait le coût d'un appel. `deroule` sert à régler la consigne : on y lit ce que le modèle a demandé, dans l'ordre.
 
 ### 6.10 Tables existantes : ce qui change
 
@@ -950,12 +1046,13 @@ Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `
 | `v_charge_journee` | Pour chaque jour et chaque utilisateur : heures de cours et de travail, heure de début et de fin, niveau de charge | PLN-16 |
 | `v_charge_entrainement` | Charge par jour, sur 7 jours, sur 28 jours, et leur rapport. Vide tant qu'il n'y a pas quatre semaines d'historique. Rend aussi le nombre de séances faites sans bilan, donc sans charge | chapitre 8.1, SAI-13 |
 | `v_score_forme` | Le score du jour et ses composantes, avec celles qui manquent | chapitre 8.2 |
-| `v_semaine_coach` | Les séances d'une semaine, avec leur état, leur contenu résumé et ce qui a été fait | PLN-4, PLN-6 |
-| `v_seance_detail` | Une séance, ses exercices prévus, leurs alternatives permises et ses séries saisies | SAI-3, EXO-7 |
+| `v_seance_coach` | Chaque séance de sport d'un compte qui a le coach : occurrence, contenu, état, lieu, discipline. C'est la base de la semaine et du détail d'une séance, assemblés en Python (`api/coach/contexte.py`, `api/coach/outils.py`) | PLN-4, PLN-6, SAI-3, EXO-7 |
 | `v_progression` | Par exercice et par semaine : meilleure charge, volume. Par objectif : la mesure suivie et sa cible | OBJ-1 |
 | `v_sante_fraicheur` | La date du dernier envoi de l'application, par utilisateur | SAN-6 |
-| `v_contexte_coach` | Ce que le coach reçoit à chaque appel : profil, état du dépistage, limitations, lieux de chaque discipline, objectifs, feuille de route, trame, rôle de la semaine, pause en cours, carnet | COA-3, LIE-3, OBJ-12 |
+| `v_memoire_coach` | La version en vigueur de chaque étage de la mémoire | MEM-2 |
 | `v_cout_coach` | Par jour et par moment : nombre d'appels, d'échecs, de tours, et tokens | COA-21 |
+
+Le cahier prévoyait aussi `v_contexte_coach`, `v_semaine_coach` et `v_seance_detail`. Ce sont des fonctions Python au-dessus de `v_seance_coach` : plusieurs requêtes simples plutôt qu'une vue à tout faire. Le contexte (profil, limitations, lieux, objectifs, feuille de route, trame, rôle de la semaine, pause, mémoire) est assemblé par `api/coach/contexte.py`.
 
 ---
 
@@ -963,17 +1060,14 @@ Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `
 
 Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et triggers. Elles sont rangées par domaine, puis par règle visée. Les règles tenues par le modèle n'ont pas de contrainte : elles ont des scénarios de test (section 11.3).
 
-### 7.0 Profil et dépistage
+### 7.0 Profil
 
 | Règle visée | Description | Type |
 |---|---|---|
 | PRO-1 | Une ligne de profil au plus par utilisateur ; `sexe`, niveaux et `moment_prefere` dans leurs listes | Statique forte |
-| PRO-3 | Les sept réponses sont obligatoires ; `positif` est une colonne calculée | Statique forte |
-| PRO-4 | `construire_plan()` refuse sans profil, ou sans dépistage | Dynamique forte |
-| PRO-5 | `construire_plan()` refuse quand le dernier dépistage est positif et que `avis_medical_le` est vide | Dynamique forte |
-| PRO-6 | `construire_plan()` refuse quand le dernier dépistage a plus de douze mois | Dynamique forte |
+| PRO-4 | `construire_plan()` refuse sans profil | Dynamique forte |
 | PRO-7 | `CHECK` sur `date_naissance` à l'insertion ; passer `coach_actif` à vrai exige un profil | Dynamique forte |
-| PRO-8 | `profil` et `depistage` sont déclarées privées au journal | Dynamique forte |
+| PRO-8 | `profil` n'est pas suivie au journal : rien ne peut en fuir vers l'autre personne | Dynamique forte |
 
 ### 7.1 Objectifs
 
@@ -1065,11 +1159,13 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 | Règle visée | Description | Type |
 |---|---|---|
-| CAR-1 | `categorie` et `source` dans leurs listes ; `texte` non vide, 300 caractères au plus | Statique forte |
-| CAR-2 | `confirmee` est vrai quand `source` vaut utilisateur | Statique forte |
-| CAR-4 | `noter()` refuse la soixante et unième note | Dynamique forte |
+| MEM-2 | `ecrire_memoire()` ajoute une version et ne réécrit rien ; un texte identique au dernier n'en crée pas | Dynamique forte |
+| MEM-3 | `ecrire_memoire()` refuse un texte plus long que `limite_memoire()` pour son étage | Dynamique forte |
+| MEM-4 | `auteur` dans sa liste ; `ecrire_memoire()` refuse au coach les étages qui se font par résumé | Dynamique forte |
+| MEM-5 | `restaurer_memoire()` remet une ancienne version en vigueur en en écrivant une nouvelle | Dynamique forte |
+| MEM-8 | `importance_operation()` calcule l'importance d'un échange d'après ce que son opération a écrit | Dynamique forte |
 | CAR-6 | `modele` et `version_dossier` renseignés quand l'auteur est le coach | Statique forte |
-| JRN-10 | Chaque table suivie déclare si elle est privée. Les événements d'une table privée ne sont rendus qu'à leur propriétaire ; ceux des objectifs, du plan, des séances et des séries sont rendus aux deux | Dynamique forte |
+| JRN-10 | Seuls `objectif` et `plan` ont un déclencheur `journal_<table>`. Une séance est une occurrence, déjà suivie. Les autres tables du coach n'en ont pas | Dynamique forte |
 | COA-1 | Toute fonction du coach refuse un utilisateur dont `coach_actif` est faux | Dynamique forte |
 | COA-5 | La liste des outils par moment est une donnée du module, vérifiée par un test | Dynamique faible |
 | COA-7 | Le module compte les tours et s'arrête quand la borne du moment est dépassée : douze, ou trente pour le plan et la révision | Dynamique forte |
@@ -1111,11 +1207,11 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 |---|---|
 | **Objectif** | Réunir ce qu'il faut pour construire un premier plan sans risque |
 | **Acteurs** | Utilisateur (principal), système et coach (secondaires) |
-| **Événement déclencheur** | L'administrateur active le coach pour un compte |
+| **Événement déclencheur** | L'administrateur active le coach pour un compte ; le premier message de l'utilisateur au bot ouvre le démarrage (DEM-1) |
 | **Pré-conditions** | Le compte existe et est actif |
-| **Actions** | 1. Remplir le profil (PRO-1, PRO-2)<br>2. Répondre au dépistage (PRO-3)<br>3. Déclarer les limitations permanentes et les exercices qu'elles interdisent (EXO-8)<br>4. Choisir ses lieux, discipline par discipline, et leur ordre (LIE-4)<br>5. Autoriser l'application à lire l'application Santé, et envoyer l'historique disponible<br>6. Créer un objectif principal : l'opération C2 rend son avis, puis l'opération C3 construit le plan<br>7. La première semaine est une semaine de calibrage (PLN-20) |
-| **Actions alternatives** | Si le dépistage est positif, le coach explique pourquoi il attend un avis médical, et rien n'est construit tant que cet avis n'est pas déclaré (PRO-5).<br>Si le profil ou le dépistage manque, l'objectif est enregistré mais le plan attend, et le coach dit ce qui manque (PRO-4).<br>Sans application Santé, le coach démarre sur les saisies seules et le dit |
-| **Post-conditions** | Un profil, un dépistage daté, un objectif principal, un plan dont la première semaine sert à connaître les charges |
+| **Actions** | 1. Remplir le profil, question par question dans le bot (PRO-1, PRO-2, DEM-1)<br>2. Dire s'il y a une douleur ou une limitation qui dure (DEM-3), puis régler les exercices qu'elle interdit (EXO-8)<br>3. Choisir ses lieux, discipline par discipline, et leur ordre (LIE-4)<br>4. Créer un objectif principal ; pour une course, donner le temps visé. L'opération C2 rend son avis, puis l'opération C3 construit le plan<br>5. Se connecter dans l'application iPhone, l'autoriser à lire l'application Santé, et envoyer l'historique disponible (SAN-8)<br>6. La première semaine est une semaine de calibrage (PLN-20) |
+| **Actions alternatives** | Si le profil manque, l'objectif est enregistré mais le plan attend, et le coach dit ce qui manque (PRO-4).<br>Sans application Santé, le coach démarre sur les saisies seules et le dit.<br>`outils/coach_demarrer.py` remplit le profil, les lieux et les limitations depuis un fichier gardé hors du dépôt |
+| **Post-conditions** | Un profil, des lieux, un objectif principal, un plan dont la première semaine sert à connaître les charges |
 
 ### Opération C1 : Appel au coach
 
@@ -1125,7 +1221,7 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 | **Acteurs** | Coach (principal), modèle de langage et système (secondaires) |
 | **Événement déclencheur** | L'une des sept situations de COA-2 |
 | **Pré-conditions** | Le compte a `coach_actif` vrai |
-| **Actions** | 1. Vérifier qu'aucun appel n'est en cours pour ce compte, enregistrer l'appel, ouvrir une opération au journal, acteur « coach » (COA-21, COA-22)<br>2. Lire `v_contexte_coach` et les dix derniers échanges<br>3. Assembler la consigne : six chapitres de base, sommaire, contexte<br>4. Envoyer la consigne, le message du moment et les outils permis pour ce moment<br>5. Tant que le modèle demande un outil : l'exécuter, lui rendre le résultat ou le motif du refus<br>6. Construire la liste des éléments à partir de ce que l'opération a écrit (COA-18)<br>7. Enregistrer le message et ses éléments dans `echange`, avec le modèle et la version du dossier<br>8. Créer la notification de type coach<br>9. Clore l'appel avec ses tours, ses tokens et sa durée, clore l'opération et rendre la réponse à l'appelant, s'il attend |
+| **Actions** | 1. Vérifier qu'aucun appel n'est en cours pour ce compte, enregistrer l'appel, ouvrir une opération au journal, acteur « coach » (COA-21, COA-22)<br>2. Lire le contexte, la mémoire et les dix derniers échanges ; choisir les paquets du dossier (DOS-2)<br>3. Assembler la consigne : socle, sommaire, paquets, contexte, mémoire<br>4. Envoyer la consigne, le message du moment avec les lectures faites d'office (COA-28), et les outils permis pour ce moment<br>5. Tant que le modèle demande un outil : l'exécuter, lui rendre le résultat ou le motif du refus<br>6. Construire la liste des éléments à partir de ce que l'opération a écrit (COA-18)<br>7. Enregistrer le message et ses éléments dans `echange`, avec le modèle et la version du dossier<br>8. Créer la notification de type coach<br>9. Clore l'appel avec ses tours, ses tokens et sa durée, clore l'opération et rendre la réponse à l'appelant, s'il attend |
 | **Actions alternatives** | Quand la borne de tours du moment est dépassée, arrêter : ce qui est écrit reste, l'échec est annoncé (COA-7).<br>Si un autre appel est en cours pour ce compte, attendre sa fin (COA-22).<br>Si le modèle requalifie un texte du chat en signalement, relancer la boucle avec le moment signalement et ses outils (COA-25).<br>Si le modèle ne répond pas : pour un appel planifié, réessayer en lui disant ce qui est déjà écrit (COA-11, COA-24) ; pour un signalement ou un bilan, envoyer le message fixe (COA-12).<br>Si un outil demandé n'est pas permis pour ce moment, le refuser et le dire au modèle |
 | **Post-conditions** | L'échange est enregistré. Tout ce que le coach a changé porte le même numéro d'opération |
 
@@ -1148,8 +1244,8 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 | **Objectif** | Produire quatre semaines de séances proposées, à partir de l'objectif principal |
 | **Acteurs** | Coach (principal), système (secondaire) |
 | **Événement déclencheur** | Un objectif principal sans plan en cours ; un plan arrivé à son terme ; un changement de principal |
-| **Pré-conditions** | Un objectif principal actif existe (OBJ-8). Le profil est rempli et le dépistage est valide (PRO-4 à PRO-6). Chaque discipline visée a au moins un lieu (LIE-6). Le compte n'est pas en pause |
-| **Actions** | 1. Clore le plan précédent, s'il existe<br>2. Le coach écrit ou révise la feuille de route de l'objectif (OBJ-12)<br>3. Il écrit la trame et le rôle de chaque semaine<br>4. Il lit la charge de chaque journée sur quatre semaines<br>5. Pour chaque séance, exécuter l'opération C4 : détaillée pour la première semaine, en esquisse pour les trois autres (PLN-23)<br>6. Il ouvre les fenêtres de mesure utiles à l'objectif<br>7. Il annonce le plan et demande la validation de la première semaine |
+| **Pré-conditions** | Un objectif principal actif existe (OBJ-8). Le profil est rempli (PRO-4). Chaque discipline visée a au moins un lieu (LIE-6). Le compte n'est pas en pause |
+| **Actions** | 1. Clore le plan précédent, s'il existe<br>2. Le coach écrit ou révise la feuille de route de l'objectif (OBJ-12)<br>3. Il écrit la trame et le rôle de chaque semaine<br>4. Il lit la charge de chaque journée sur quatre semaines<br>5. Pour chaque séance, exécuter l'opération C4 : détaillée pour la première semaine, en esquisse pour les trois autres (PLN-23)<br>6. Il ouvre les fenêtres de mesure utiles à l'objectif<br>7. Son message est relu contre ce qui est en base (COA-30)<br>8. Il annonce le plan et demande la validation de la première semaine. La construction tourne en tâche de fond : elle dépasse les 90 secondes d'un appel à la demande, et le plan arrive par message |
 | **Actions alternatives** | Si l'emploi du temps n'est pas connu au-delà de deux semaines, le coach ne place que ce qu'il sait et laisse le reste à la révision du dimanche.<br>Les séances déjà validées ne sont pas touchées : le plan se construit autour (PLN-7) |
 | **Post-conditions** | Un plan en cours, quatre semaines décrites, des séances proposées |
 
@@ -1221,7 +1317,7 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 | **Acteurs** | Ordonnanceur (principal), coach et système (secondaires) |
 | **Événement déclencheur** | 23 h |
 | **Pré-conditions** | Le compte a le coach actif |
-| **Actions** | 1. Clore les séances du jour restées ouvertes, validées ou proposées : faites s'il y a une saisie ou une activité, pas faites sinon (PLN-9)<br>2. Exécuter l'opération C1 avec le moment « synthese », ou « revision » le dimanche<br>3. Le coach lit la journée : séances et bilans, données de santé et leur fraîcheur, mesures attendues, avertissements de déplacement, séances closes d'office, séances faites sans bilan (SAI-13)<br>4. Pour chaque séance pas faite, décider : la proposer à nouveau ou l'abandonner (PLN-10)<br>5. Ajuster les séances encore proposées si la forme ou l'emploi du temps le demande<br>6. Le dimanche : réviser les esquisses des semaines suivantes, détailler la semaine à venir et la proposer, relire le carnet (PLN-8, PLN-23, CAR-5)<br>7. Pour chaque séance libre du jour : rendre un avis, puis compenser ou alléger la suite (LIB-8, LIB-10)<br>8. Noter au carnet ce qui est durable<br>9. Rendre la synthèse<br>10. Figer les séries du jour (SAI-8) |
+| **Actions** | 1. Rattacher les séances de la montre restées seules (SAN-9), puis clore les séances du jour restées ouvertes, validées ou proposées : faites s'il y a une saisie ou une activité, pas faites sinon (PLN-9)<br>2. Exécuter l'opération C1 avec le moment « synthese », ou « revision » le dimanche<br>3. Le coach lit la journée : séances et bilans, données de santé et leur fraîcheur, mesures attendues, avertissements de déplacement, séances closes d'office, séances faites sans bilan (SAI-13)<br>4. Pour chaque séance pas faite, décider : la proposer à nouveau ou l'abandonner (PLN-10)<br>5. Ajuster les séances encore proposées si la forme ou l'emploi du temps le demande<br>6. Le dimanche : réviser les esquisses des semaines suivantes, détailler la semaine à venir et la proposer (PLN-8, PLN-23)<br>7. Pour chaque séance libre du jour : rendre un avis, puis compenser ou alléger la suite (LIB-8, LIB-10)<br>8. Ajouter à la mémoire de la semaine ce qui compte (MEM-9)<br>9. Rendre la synthèse<br>10. Figer les séries du jour (SAI-8) |
 | **Actions alternatives** | Un jour sans rien à dire donne une synthèse courte, pas un silence.<br>En pause, les étapes 1 et 10 se font chaque soir, les autres un soir sur trois, et la révision du dimanche est suspendue (PAU-3, PAU-5).<br>En cas d'échec, les essais et le rattrapage de COA-11.<br>Si le plan est arrivé à son terme, déclencher l'opération C3 dans le même appel |
 | **Post-conditions** | L'utilisateur a sa synthèse. Les séances proposées reflètent la décision du coach. Le dimanche, une semaine attend d'être validée |
 
@@ -1233,9 +1329,9 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 | **Acteurs** | Utilisateur (principal), coach (secondaire) |
 | **Événement déclencheur** | L'utilisateur envoie un texte de signalement, ou le coach requalifie un texte du chat (COA-25) |
 | **Pré-conditions** | Aucune |
-| **Actions** | 1. Enregistrer le texte dans les échanges, avant tout appel<br>2. Exécuter l'opération C1 avec le moment « signalement »<br>3. Le coach applique d'abord le chapitre 1.2, puis le chapitre 8.4 ou 7.4 selon le cas<br>4. Il peut retirer ou modifier des séances proposées, et dire quoi faire des séances validées<br>5. Il note au carnet ce qui doit être retenu |
+| **Actions** | 1. Enregistrer le texte dans les échanges, avant tout appel<br>2. Exécuter l'opération C1 avec le moment « signalement »<br>3. Le coach applique d'abord le chapitre 1.2, puis le chapitre 8.4 ou 7.4 selon le cas<br>4. Il peut retirer ou modifier des séances proposées, et dire quoi faire des séances validées<br>5. Il ajoute à sa mémoire ce qui doit être retenu (MEM-9) |
 | **Actions alternatives** | Si le modèle ne répond pas, envoyer le message fixe de COA-12. Le texte est gardé et repris à l'appel suivant.<br>Le coach ne retire pas seul une séance validée : il dépose un ajustement de retrait, que l'utilisateur accepte d'un bouton (PLN-18) |
-| **Post-conditions** | L'utilisateur a une réponse. Le signalement est dans les échanges et, s'il y a lieu, au carnet |
+| **Post-conditions** | L'utilisateur a une réponse. Le signalement est dans les échanges et, s'il y a lieu, dans la mémoire |
 
 ### Opération C11 : Question dans le chat
 
@@ -1303,14 +1399,12 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation du
 
 ### 9.1 Endpoints
 
-Les 51 routes ajoutées. L'authentification reste l'en-tête `X-Cle-Api`. Chaque route ne rend que ce qui appartient à l'appelant.
+Les 63 routes ajoutées, telles que la documentation interactive les liste sur `/documentation`. L'authentification reste l'en-tête `X-Cle-Api`, que l'application obtient par `POST /connexion` (premier cahier, CNX). Chaque route ne rend que ce qui appartient à l'appelant.
 
 ```
 Profil
   GET    /profil                                          Mon profil
   PUT    /profil                                          Créer ou modifier mon profil
-  GET    /depistage                                       Mon dernier dépistage, et s'il bloque le plan
-  POST   /depistage                                       Répondre au questionnaire, ou déclarer un avis médical
 
 Objectifs
   GET    /objectifs?statut=                               Mes objectifs, par rang
@@ -1325,21 +1419,23 @@ Plan
   GET    /plan                                            Le plan en cours : trame et quatre semaines
   GET    /plan/semaine?lundi=                             Les séances d'une semaine, avec leur état
   POST   /plan/semaine/valider?lundi=                     Valider la semaine
-  POST   /plan/reconstruire                               Demander un nouveau plan
+  POST   /plan/reconstruire?pseudo=                       Demander un nouveau plan
 
-Séances
-  GET    /seances/{id_occurrence}                         Contenu, alternatives permises, séries saisies
+Séances et ajustements
+  GET    /seances/aujourd-hui                             Les séances du jour, à charger d'avance
   POST   /seances/libre                                   Saisir une séance libre, faite ou en cours
   POST   /seances/libre/annoncer                          Annoncer une séance libre à venir
+  GET    /seances/{id_occurrence}                         Contenu, alternatives permises, séries saisies
+  DELETE /seances/{id_occurrence}                         Supprimer une séance
   POST   /seances/{id_occurrence}/liberer                 Faire autre chose à la place de la séance prévue
+  POST   /seances/{id_occurrence}/valider                 Valider une séance proposée, seule
+  POST   /seances/{id_occurrence}/deplacer                Déplacer une séance, ou en changer le lieu
   POST   /seances/{id_occurrence}/series                  Enregistrer une ou plusieurs séries
   PATCH  /seances/{id_occurrence}/series/{id_serie}       Corriger une série
   DELETE /seances/{id_occurrence}/series/{id_serie}       Supprimer une série
   POST   /seances/{id_occurrence}/remplacer               Remplacer un exercice par une alternative
   POST   /seances/{id_occurrence}/bilan?appeler_coach=    Clore la séance : effort, durée, commentaire
   POST   /seances/{id_occurrence}/pas-faite               Déclarer la séance pas faite
-
-Ajustements
   GET    /ajustements                                     Les ajustements en attente de réponse
   POST   /ajustements/{id_ajustement}/accepter            Accepter la version du coach
   POST   /ajustements/{id_ajustement}/refuser             Garder la séance telle que validée
@@ -1348,6 +1444,7 @@ Données de santé
   PUT    /donnees-sante/jours/{jour}                      Données du jour, insérées ou mises à jour
   PUT    /donnees-sante/activites/{cle_externe}           Séance de la montre, insérée ou mise à jour
   GET    /donnees-sante/fraicheur                         Date du dernier envoi
+  GET    /donnees-sante/jours?depuis=                     Ce qui a été reçu, pour vérifier un envoi
 
 Mesures
   GET    /mesures?type=                                   Historique d'une mesure
@@ -1359,30 +1456,42 @@ Coach
   POST   /coach/signalement                               Signaler une douleur, une fatigue, un contretemps
   POST   /coach/question                                  Poser une question
   GET    /coach/echanges?limite=&moment=                  Relire les échanges
-  POST   /coach/synthese                                  Déclencher la synthèse du soir
+  POST   /coach/synthese?revision=&pseudo=                Déclencher la synthèse du soir
   GET    /coach/pause                                     La pause en cours, s'il y en a une
   POST   /coach/pause                                     Mettre le coach en pause : motif, date de fin facultative
   DELETE /coach/pause                                     Lever la pause
+  DELETE /coach/donnees?garder_sante=                     Repartir de zéro : effacer tout ce que le coach sait de moi
   GET    /coach/appels?depuis=                            Les appels au modèle et ce qu'ils ont consommé
+  POST   /coach/activer?pseudo=&actif=                    Activer ou couper le coach
 
-Suivi
+Mémoire
+  GET    /coach/memoire                                   La mémoire du coach, étage par étage
+  GET    /coach/memoire.md                                La mémoire en Markdown, telle que le coach la lit
+  PUT    /coach/memoire/{niveau}                          Corriger un étage de la mémoire
+  GET    /coach/memoire/{niveau}/versions?periode=        Les versions d'un étage, de la plus récente à la plus ancienne
+  POST   /coach/memoire/versions/{id_memoire}/restaurer   Remettre une ancienne version en vigueur
+  POST   /coach/memoire/rouler                            Faire tout de suite le roulement de la nuit
+
+Suivi et lieux
   GET    /progression?objectif=&exercice=                 Les courbes d'un objectif ou d'un exercice
   GET    /exercices?discipline=&groupe=                   Le catalogue
+  GET    /exercices/{code}/derniere-fois?avant=           Les séries de la dernière séance où l'exercice a été fait
   GET    /limitations                                     Mes limitations et les exercices qu'elles interdisent
   POST   /limitations                                     Déclarer une limitation
   PATCH  /limitations/{id_limitation}                     La modifier, la désactiver
   PUT    /limitations/{id_limitation}/interdits           Remplacer la liste de ses exercices interdits
-
-Lieux
   GET    /disciplines/lieux                               Mes lieux par discipline, et ceux qu'on peut ajouter
   PUT    /disciplines/{discipline}/lieux                  Choisir les lieux d'une discipline et leur ordre
+63
 ```
 
 La sonde d'infrastructure existante répond sur `/sante`, sans clé. Les données de santé sont donc sous `/donnees-sante` : deux choses qui n'ont rien à voir ne partagent pas un préfixe, et la route la plus ouverte du système ne voisine pas avec ses données les plus sensibles.
 
-Déplacer, modifier l'heure ou le lieu, ou supprimer une séance passe par les routes existantes des occurrences, qui appellent désormais la vérification de sécurité en mode souple.
+Déplacer une séance, en changer le lieu ou la supprimer passe par `/seances/{id_occurrence}/deplacer` et `DELETE /seances/{id_occurrence}`, qui appellent la vérification de sécurité en mode souple (SEC-4).
 
-Sont réservées à l'administrateur : le déclenchement de la synthèse, la lecture des appels, la reconstruction du plan d'un autre compte, et l'écriture dans le catalogue d'exercices, qui se fait par migration.
+Sont réservées à l'administrateur : le déclenchement de la synthèse, le roulement de la mémoire à la demande, la lecture des appels, l'activation du coach, la reconstruction du plan d'un autre compte, et l'écriture dans le catalogue d'exercices, qui se fait par migration.
+
+L'application iPhone n'utilise que quatre préfixes, les seuls que `tailscale funnel` publie : `/connexion`, `/donnees-sante`, `/seances` et `/exercices`. Les autres routes ne sont joignables que par le réseau privé.
 
 ### 9.2 Outils du coach
 
@@ -1390,43 +1499,48 @@ C'est l'interface que voit le modèle. Chaque outil appelle une fonction SQL ou 
 
 | Outil | Ce qu'il fait | Ce qu'il appelle |
 |---|---|---|
-| `lire_chapitre` | Rend le texte d'un chapitre du dossier | Fichier du dépôt |
+| `lire_chapitre` | Rend le texte d'un chapitre du dossier, au-delà du socle et des paquets joints | Fichier du dépôt |
+| `lire_echanges` | Cherche dans tout l'historique des échanges, par mot ou par période, sans les derniers déjà joints (MEM-8) | `echange` |
 | `lire_planning` | Emploi du temps, absences et charge de chaque journée sur une période | `v_planning`, `v_charge_journee` |
-| `lire_semaine` | Les séances d'une semaine, leur état, ce qui a été fait | `v_semaine_coach` |
-| `lire_seance` | Une séance : prévu, saisi, bilan, séance de la montre rattachée | `v_seance_detail` |
-| `lire_sante` | Pas, sommeil, fréquence de repos, variabilité sur une période, et leur fraîcheur | `sante_jour`, `v_sante_fraicheur` |
+| `lire_semaine` | Les séances d'une semaine, leur état, ce qui a été fait | `v_seance_coach` |
+| `lire_seance` | Une séance : prévu, saisi, bilan, séance de la montre rattachée | `v_seance_coach`, `serie_saisie`, `activite_sante` |
+| `lire_sante` | Moyennes de pas, sommeil, fréquence de repos et variabilité, jours sans données, une ligne par séance de la montre. Le jour par jour sur demande | `sante_jour`, `activite_sante`, `v_sante_fraicheur` |
 | `lire_forme` | Charge sur 7 et 28 jours, leur rapport, score de forme et composantes manquantes | `v_charge_entrainement`, `v_score_forme` |
-| `lire_mesures` | L'historique d'une mesure et les fenêtres en cours | `mesure`, `fenetre_mesure` |
+| `lire_mesures` | L'historique des mesures et les fenêtres en cours | `mesure`, `fenetre_mesure` |
 | `lire_progression` | La courbe d'un exercice ou d'un objectif | `v_progression` |
-| `lire_catalogue` | Les exercices actifs d'un groupe ou d'une discipline, sans ceux qui sont interdits à l'utilisateur | `exercice`, `exercice_interdit` |
+| `lire_catalogue` | Les exercices actifs, une ligne chacun, sans ceux qui sont interdits à l'utilisateur | `exercice`, `exercice_interdit` |
 | `rendre_avis` | Enregistre l'avis sur un objectif | `rendre_avis()` |
 | `ecrire_feuille_de_route` | Écrit ou révise le chemin jusqu'à l'échéance de l'objectif principal | `ecrire_feuille_de_route()` |
 | `ecrire_trame` | Crée le plan : sa trame et le rôle de ses quatre semaines | `construire_plan()` |
-| `proposer_seance` | Propose une séance : un lieu, un jour, une plage d'heures et son contenu. Sans exercices, c'est une esquisse | `proposer_seance()` |
+| `proposer_seances` | Propose une ou plusieurs séances : un lieu, un jour, une plage d'heures et leur contenu. Sans exercices, c'est une esquisse. Chacune garde son résultat ou son refus (COA-29) | `proposer_seance()` |
 | `modifier_seance_proposee` | Change le contenu, le lieu, le jour ou l'heure d'une séance encore proposée. C'est aussi par là qu'une esquisse reçoit ses exercices | `modifier_seance_proposee()` |
 | `retirer_seance_proposee` | Retire une séance encore proposée | `retirer_seance_proposee()` |
 | `proposer_ajustement` | Dépose un ajustement sur une séance validée | `proposer_ajustement()` |
 | `rendre_avis_libre` | Enregistre l'avis sur une séance libre | `rendre_avis_libre()` |
 | `ouvrir_fenetre_mesure` | Ouvre une fenêtre de mesure | `ouvrir_fenetre_mesure()` |
-| `noter` | Écrit une note au carnet | `noter()` |
-| `oublier` | Retire une note du carnet | `oublier()` |
+| `noter_mesure` | Enregistre une mesure dite dans un message (MES-7) | `saisir_mesure()` |
+| `ecrire_memoire` | Réécrit un étage de la mémoire, la semaine ou la globale (MEM-4) | `ecrire_memoire()` |
+| `ajouter_memoire` | Ajoute une ligne à la mémoire de la semaine sans la réécrire (MEM-9) | `ecrire_memoire()` |
+| `marquer_important` | Marque l'échange en cours comme important : les résumés le garderont (MEM-8) | `echange` |
 | `requalifier_en_signalement` | Dans le chat seulement : dit que le texte reçu est un signalement. Le module relance l'appel avec les outils du signalement | Module coach |
+
+`proposer_seance`, pour une seule séance, reste accepté mais n'est plus déclaré au modèle : `proposer_seances` le remplace.
 
 Le message à l'utilisateur n'est pas un outil : c'est le texte que le modèle rend à la fin.
 
 Les outils permis selon le moment (COA-5) :
 
-| Moment | Lecture | Avis | Trame | Séances proposées et ajustements | Fenêtre de mesure | Carnet |
-|---|---|---|---|---|---|---|
-| faisabilite | oui | oui | | | | oui |
-| plan | oui | | oui | oui | oui | oui |
-| revision | oui | | oui | oui | oui | oui |
-| synthese | oui | | | oui | oui | oui |
-| bilan | oui | | | oui | | oui |
-| signalement | oui | | | oui | | oui |
-| chat | oui | | | | | oui |
+| Moment | Lecture | Avis | Trame | Séances proposées et ajustements | Fenêtre de mesure | Mesure dite | Mémoire |
+|---|---|---|---|---|---|---|---|
+| faisabilite | oui | oui | | | | | oui |
+| plan | oui | | oui | oui | oui | | oui |
+| revision | oui | | oui | oui | oui | | oui |
+| synthese | oui | | | oui | oui | oui | oui |
+| bilan | oui | | | oui | | oui | oui |
+| signalement | oui | | | oui | | oui | oui |
+| chat | oui | | | | | oui | oui |
 
-La colonne « Trame » couvre aussi la feuille de route. Le moment chat a en plus l'outil de requalification, et lui seul (COA-25). En pause, les colonnes « Trame » et « Séances proposées et ajustements » sont fermées pour tous les moments, sauf à la reprise (PAU-2, PAU-6).
+La colonne « Trame » couvre aussi la feuille de route. Le moment chat a en plus l'outil de requalification, et lui seul (COA-25). La synthèse d'un jour sans séance n'a ni séances, ni fenêtre, ni avis, ni trame (COA-31). En pause, les colonnes « Trame » et « Séances proposées et ajustements » sont fermées pour tous les moments, sauf à la reprise (PAU-2, PAU-6).
 
 La colonne « Avis » couvre l'avis sur un objectif dans le moment faisabilite. L'avis sur une séance libre se rend dans les moments synthese, revision, bilan et signalement.
 
@@ -1467,7 +1581,7 @@ Les formes sont fixées ici une fois pour toutes. L'application et le bot n'ont 
 
 Une action est décrite par son libellé et par la route à appeler. L'application n'a aucune adresse en dur pour les boutons d'un message : elle appelle ce que l'élément lui donne.
 
-Les notes du carnet n'ont pas d'élément : le carnet n'a pas d'écran dans cette version (CAR-9).
+La mémoire n'a pas d'élément : elle se lit et se corrige par « /memoire » et par les routes `/coach/memoire`.
 
 **Un refus.** Toute route rend la même forme quand elle refuse (COA-20).
 
@@ -1487,32 +1601,43 @@ Un texte envoyé au bot sans commande est une question pour le coach. Si c'est e
 
 | Commande | Argument | Ce qu'elle fait |
 |---|---|---|
-| `/objectifs` | | Mes objectifs : ajouter, mettre en pause, reclasser, clore |
-| `/profil` | | Voir et modifier mon profil, refaire le dépistage |
-| `/semaine` | | La semaine à valider, avec ses boutons : valider, déplacer, supprimer |
+| `/semaine` | | La semaine du coach, avec ses boutons : valider, déplacer, supprimer |
 | `/seance` | | La séance du jour et son contenu |
-| `/bilan` | `texte` | Clore la séance du jour et en parler au coach tout de suite |
+| `/serie` | `code 40 10` | Saisir une série de la séance du jour |
+| `/bilan` | `7 texte` | Clore la séance du jour et en parler au coach tout de suite |
 | `/signaler` | `texte` | Signaler une douleur, une fatigue, un contretemps |
-| `/libre` | `jour discipline` | Annoncer une séance libre, ou en ouvrir une maintenant |
+| `/libre` | `08/10 18h course` | Annoncer une séance libre, ou en ouvrir une maintenant |
 | `/mesure` | `type valeur` | Saisir une mesure |
 | `/plan` | | La feuille de route, la trame du mois et le rôle de chaque semaine |
+| `/objectifs` | | Mes objectifs : ajouter, mettre en pause, reclasser, clore |
+| `/profil` | | Voir et modifier mon profil |
 | `/lieux` | | Mes lieux par discipline : en ajouter, en retirer, les ranger |
-| `/pause` | `date de fin, motif` | Mettre le coach en pause. Sans argument pendant une pause : la lever |
+| `/pause` | `JJ/MM motif` | Mettre le coach en pause. Sans argument pendant une pause : la lever |
+| `/memoire` | | Ce que le coach retient, étage par étage, et le corriger (MEM-1, MEM-5) |
+| `/initialiser` | | Reprendre le démarrage : profil, limitations, lieux, objectif (DEM-4) |
+| `/reinitialiser` | | Repartir de zéro, après confirmation (DEM-5) |
+| `/coach` | | L'état du coach et ce qu'il a consommé |
 
-`/sport` et `/organiser` restent pour poser une séance à la main et pour les comptes sans coach. Ils n'affichent plus de réservations ni d'habitudes, et ouvrent quatre semaines.
+Seize commandes. `/serie` et `/coach` n'étaient pas prévues : sans l'application, il fallait saisir ses charges pendant la semaine de calibrage. Pendant que le coach construit un plan, un message reçoit tout de suite une réponse d'attente, puis est traité.
 
-### 9.5 Ce que l'application Swift de test doit savoir faire
+`/sport` et `/organiser` restent pour poser une séance à la main et pour les comptes sans coach. Ils ouvrent toujours trois semaines : leur passage à quatre attend le retrait des réservations (section 10.3).
 
-Elle est hors de ce document, mais l'API est écrite pour elle :
+### 9.5 L'application iPhone
 
-- lire l'application Santé et envoyer les jours et les séances (opération C7) ;
-- charger d'avance la séance du jour et ses alternatives, saisir les séries sans réseau, les envoyer quand il revient (SAI-9 à SAI-12) ;
-- afficher une réponse du coach : le message, puis un bloc par élément avec ses boutons (section 9.3) ;
-- afficher la séance du jour, saisir les séries, changer d'exercice, clore avec un bilan (opération C6) ;
-- ouvrir une séance libre et y saisir les exercices voulus (opération C13) ;
-- montrer un ajustement et ses deux boutons (opération C14) ;
-- afficher la semaine et la valider (opération C5) ;
-- saisir une mesure, envoyer un signalement.
+Elle vit dans `ios/CoachSante/`, avec son mode d'emploi dans `LISEZMOI.md`. Le projet Xcode se régénère par `xcodegen` ; elle tourne avec un compte Apple gratuit, à réinstaller depuis Xcode tous les sept jours.
+
+Ce qu'elle fait :
+
+- se connecter avec le pseudo et le mot de passe, et garder la clé d'API dans le trousseau (CNX) ;
+- lire l'application Santé et envoyer les jours et les séances de la montre, historique compris (opération C7, SAN-8) ;
+- démarrer une séance de musculation, choisir un exercice dans le catalogue, les plus récents d'abord, et y ajouter des séries : charge et répétitions, ou durée, ou distance. La dernière fois de chaque exercice est affichée, et la série suivante se préremplit (opération C6) ;
+- clore la séance avec l'effort, la durée et un mot, et afficher la réponse du coach (SAI-4, SAI-7).
+
+Ce qui reste à faire, et que le bot couvre en attendant :
+
+- garder les séries sans réseau et les envoyer quand il revient (SAI-10). Aujourd'hui, une série se perd si le réseau coupe à l'envoi ;
+- afficher une réponse du coach avec ses boutons, un ajustement, la semaine à valider (opérations C5, C14) ;
+- ouvrir une séance libre, saisir une mesure, envoyer un signalement.
 
 Elle ne porte aucune règle. Si elle disparaît, le bot fait la même chose, moins les données de la montre.
 
@@ -1546,16 +1671,17 @@ Elle ne porte aucune règle. Si elle disparaît, le bot fait la même chose, moi
 | Lieu d'une séance | Rangé par tâche, le même ordre pour tous | Rangé par discipline et par compte, pour un compte qui a le coach | LIE-1 |
 | Placement du ménage | Contourne les réservations | Contourne les séances proposées et validées | PLN-4 |
 | Routes de déplacement d'une séance | Vérifient le placement | Vérifient aussi la sécurité, en mode souple | SEC-4 |
-| Report de 0h05 | Reporte, abandonne, purge | Expire aussi les fenêtres de mesure | MES-3 |
+| Report de 0h05 | Reporte, abandonne, purge | Expire aussi les fenêtres de mesure, puis roule la mémoire | MES-3, MEM-6 |
+| Silence de la nuit | Rien ne part de 23h30 à 7h30 | Le coach d'une conversation en cours répond quand même | NOT-14 |
 | Bilan du matin | La journée | La journée, et la semaine à valider | NOT-12 |
-| Journal | Tout se lit à deux | Objectifs, plan, séances et séries se lisent à deux. Santé, mesures, bilans, limitations, carnet et échanges ne se lisent que par leur propriétaire | JRN-10 |
+| Journal | Tout se lit à deux | Objectifs, plan et séances se lisent à deux. Le reste du coach n'est pas journalisé | JRN-10 |
 | Séance du jour | Faite ou pas faite | Faite, pas faite, ou remplacée par une séance libre | LIB-6 |
 
 ### 10.3 Ce qui est retiré
 
-Le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe A. Le code, les règles et les tests sont rangés dans `anciennes_fonctionnalites/reservations_sport/`, avec de quoi les remettre en service, comme pour le stock d'uniforme.
+Prévus au retrait : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe A.
 
-Conséquence pour le compte sans coach : il n'a plus de réservations ni de rappel le lundi. Il pose ses séances à la main.
+**Ce retrait n'est pas encore fait.** Pour un compte qui a le coach, les réservations ne se créent plus et s'effacent ; le compte sans coach garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : le coach a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de `/sport` à quatre semaines (SPT-33) se feront dans un lot à part. Le code retiré ira dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme.
 
 ### 10.4 Ordre de construction
 
@@ -1572,15 +1698,17 @@ Les migrations partent de 051. Les fonctions, les vues et les déclencheurs vont
 | 7. Coach complet | Tous les outils, les sept moments, la requalification, l'ordonnanceur, un appel à la fois, les essais qui reprennent, le journal privé | Une semaine entière jouée sur le Docker local, de l'objectif à la révision du dimanche |
 | 8. Mise en production | Fusion dans `main`, puis `coach_actif` pour un compte | Le planning domestique tourne comme avant ; la première synthèse arrive à 23 h |
 
+Les lots 1 à 3 et 5 à 8 sont faits ; le lot 4 l'est en partie (section 10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
+
 ---
 
 ## 11. Risques et points à vérifier
 
-Le module n'est pas construit : cette section ne raconte pas des problèmes rencontrés, elle dit ceux qu'on attend. Elle deviendra la section « Problèmes rencontrés » au fil du développement.
+Cette section disait d'abord les problèmes qu'on attendait. Ceux qu'on a rencontrés sont en 11.5.
 
 ### 11.1 La sécurité repose sur le modèle
 
-Aucun mot n'est filtré par le code (COA-13). Si le modèle lit mal un signalement grave, rien d'autre ne le rattrape. Trois choses limitent le risque sans le supprimer : le chapitre 1.2 part à chaque appel, les scénarios de sécurité sont rejoués avant chaque changement (COA-14), et le message fixe de COA-12 dit au moins que le texte n'a pas été lu. Ce message ne donne aucune consigne d'urgence : c'est une décision de l'utilisateur. Le coach ne remplace pas un avis médical, et le dossier le lui fait dire.
+Aucun mot n'est filtré par le code (COA-13). Si le modèle lit mal un signalement grave, rien d'autre ne le rattrape. Trois choses limitent le risque sans le supprimer : le chapitre 1.2 part à chaque appel, les scénarios de sécurité sont rejoués avant chaque changement (COA-14), et le message fixe de COA-12 dit au moins que le texte n'a pas été lu. Ce message ne donne aucune consigne d'urgence : c'est une décision de l'utilisateur. Le coach ne pose pas de diagnostic ; une douleur dans la poitrine ou un malaise est le seul cas où il dit d'appeler le 15.
 
 ### 11.2 Ce que la base ne vérifie pas
 
@@ -1595,34 +1723,49 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 | Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
 |---|---|---|
 | Ressenti du matin | Le score de forme du chapitre 8.2 lui donne 35 % du poids. Il est volontairement non recueilli dans cette version | Le score repose sur le sommeil, la fréquence de repos, la variabilité et la charge, avec des poids ramenés à 100 %. À recalibrer : ce n'est plus la formule du dossier |
-| Journée très lourde | Le chapitre 7.3 distingue un jour d'examen. L'emploi du temps ne dit pas ce qu'est un examen | La vue rend trois niveaux. Le coach apprend un examen par un signalement ou par le carnet |
+| Journée très lourde | Le chapitre 7.3 distingue un jour d'examen. L'emploi du temps ne dit pas ce qu'est un examen | La vue rend trois niveaux. Le coach apprend un examen par un signalement ou par sa mémoire |
 | Emploi du temps à quatre semaines | L'université ne publie pas toujours si loin | Les semaines lointaines sont placées sur ce qu'on sait, et la révision du dimanche les corrige |
 | Données de la montre à 23 h | iOS ne garantit pas l'heure d'une tâche de fond | La synthèse peut raisonner sur des données de la veille. Elle le dit (SAN-6) |
-| Appel à la demande | L'application attend jusqu'à 90 secondes (COA-16). À la salle, le réseau peut couper pendant l'attente | La réponse n'est pas perdue : elle est dans les échanges et sur Telegram. L'application doit la relire au retour du réseau au lieu de renvoyer la demande à l'aveugle |
+| Appel à la demande | L'application attend jusqu'à 90 secondes (COA-16). À la salle, le réseau peut couper pendant l'attente | La réponse n'est pas perdue : elle est dans les échanges et sur Telegram |
+| Séries sans réseau | L'application n'a pas encore de file d'attente (SAI-10) | Une série envoyée sans réseau est perdue et se ressaisit |
 | Coût | Aucun plafond (section 1.2) | Rien n'arrête une dépense, mais elle se lit : chaque appel garde ses tours et ses tokens (COA-21). La borne de tours limite chaque appel |
 | Requalification | C'est le modèle qui décide qu'un texte du chat est un signalement (COA-25) | S'il se trompe, une douleur dite dans le chat attend la synthèse. À couvrir par des scénarios de sécurité |
 | Esquisses | Le ménage se place autour de séances qui bougeront encore à la révision | Un peu de replacement chaque dimanche. Le créneau reste pris, c'est le but |
 | Clôture de 23 h | Une séance faite sans montre et sans saisie est close comme pas faite | Elle se corrige par un bilan donné après coup (SAI-14), que le coach lit à la synthèse suivante |
 | Dépôt public | Le dossier et ce document y sont lisibles par tous | Rien de personnel n'y entre (EXO-9, COA-8). À vérifier à chaque ajout de chapitre |
-| Journal à 90 jours | Les décisions du coach s'y lisent, puis sont purgées | Ce qui doit durer va au carnet ou reste dans les échanges, qui ne sont pas purgés |
+| Journal à 90 jours | Les décisions du coach s'y lisent, puis sont purgées | Ce qui doit durer va en mémoire ou reste dans les échanges, qui ne sont pas purgés |
 | Catalogue initial | Il se remplit à la main d'après le dossier | Tant qu'un exercice manque, le coach ne peut pas le prescrire (EXO-5) |
-| Carnet sans écran | Seul le coach le lit et l'écrit | Suffisant pour un compte. À revoir avant tout autre utilisateur |
+| Modèle moins cher | `COACH_MODELE_SIMPLE` peut confier le chat et la synthèse d'un jour sans séance à Haiku (COA-31). Vide par défaut | À valider sur les scénarios (`./outils/local.sh scenarios-haiku`) avant de le régler |
+| Résumés de la mémoire | Ils n'ont pas encore tourné longtemps avec le vrai modèle | À relire à la fin du premier mois |
+
+### 11.5 Problèmes rencontrés
+
+**Un appel coûtait surtout en écriture de cache.** La consigne fixe est mise en cache, et chaque passage du modèle la relit : c'est bon marché. Mais chaque appel commençait par plusieurs passages de lecture (la semaine, la santé, la forme), et chaque nouveau contenu écrit dans le cache se paie plus cher qu'une lecture. Les lectures sûres sont maintenant jointes d'office (COA-28), plusieurs séances se posent en un appel d'outil (COA-29), et les sorties des outils ont été raccourcies : une ligne par exercice, des moyennes plutôt que le jour par jour.
+
+**Une réponse coupée laissait un plan à moitié posé.** Au-delà de la limite de sortie, le dernier appel d'outil arrive tronqué. Exécuté tel quel, il posait une séance incomplète, ou rien. Il n'est plus exécuté, le modèle le renvoie en entier (COA-27), et la limite est passée à 16 000 tokens.
+
+**Le message annonçait un plan que la base n'avait pas.** Le modèle écrivait « tes quatre semaines sont prêtes » alors que deux séances avaient été refusées. Son message est maintenant relu une fois contre ce qui est en base (COA-30).
+
+**La mémoire recopiait la base.** Le coach notait en mémoire les séances posées, les charges, les dates : un double qui vieillissait mal et se contredisait avec ce qu'il relit à chaque appel. Il n'y ajoute plus qu'une ligne pour un fait dit ou une décision (MEM-9).
+
+**Une séance de la montre restait seule.** Envoyée avant que la séance soit posée à la main, elle ne trouvait rien à remplir, et la séance était close comme pas faite. Les séances restées seules sont rattachées chaque soir avant la clôture (SAN-9).
+
+**Le questionnaire médical bloquait le démarrage.** Une réponse positive arrêtait tout jusqu'à un avis médical. Il a été retiré à la demande de l'utilisateur (annexe C).
 
 ---
 
 ## 12. Ce qui est volontairement exclu
 
-- L'interface graphique. L'application Swift de test est un projet séparé, et l'application complète viendra après.
+- Une interface graphique complète. L'application iPhone fait la santé et la saisie de musculation ; le reste passe par le bot.
 - Le vélo et la natation. Le dossier les couvre, le module non. La piscine reste un lieu où poser une séance à la main.
 - Le suivi de l'alimentation. Le coach répond aux questions dans le chat, rien n'est saisi ni calculé.
-- La modification du plan depuis le chat.
-- L'écran du carnet.
+- La modification du plan depuis le chat. Une demande de changement y est requalifiée en signalement (COA-25).
 - Le coach pour un deuxième compte, et l'ouverture à d'autres personnes : authentification, limites d'usage et cadre légal seraient à revoir.
 - Un filtre de mots pour les signaux graves, et un plafond de dépense.
 - Le ressenti du matin. Le score de forme se calcule sans lui.
 - Un deuxième fournisseur de modèle en secours.
 - Les notifications de l'application iPhone : le bot Telegram les porte.
-- Tout diagnostic. Le coach oriente vers un professionnel de santé, il ne nomme pas une blessure.
+- Tout diagnostic, tout questionnaire médical. Le coach ne nomme pas une blessure et ne demande pas d'avis médical pour commencer.
 - Un type de séance à part pour une course objectif. C'est une séance du plan (OBJ-13).
 - L'export et la suppression en bloc des données d'un compte. À prévoir avant tout autre utilisateur.
 
@@ -1630,7 +1773,7 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 
 ## Annexe A : règles `SPT` remplacées ou retirées
 
-Un code n'est jamais réattribué. Ces lignes s'ajouteront à l'annexe du premier cahier des charges à la fusion.
+Un code n'est jamais réattribué. Ces règles ne sont retirées que pour un compte qui a le coach : le retrait complet attend son lot (section 10.3).
 
 | Code | Ce qu'elle devient | Ce qu'elle disait |
 |---|---|---|
@@ -1664,11 +1807,30 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Intensité d'une séance libre, par l'effort | Dure à partir de 7, modérée de 4 à 6, légère en dessous | Choix de conception | LIB-12 |
 | Intensité d'une séance libre, par la montre | Dure si la fréquence cardiaque moyenne atteint 80 % de la fréquence maximale, modérée à partir de 65 % | Choix de conception, à calibrer | LIB-12 |
 | Fenêtre de mesure | Deux ou trois jours, sept au plus | Décision de l'utilisateur | MES-1 |
-| Notes actives au carnet | 60 | Choix de conception, environ 2 000 tokens par appel | CAR-4 |
+| Taille de la mémoire | Globale 4 000, trois mois 3 × 1 500, mois 3 000, semaine 3 000 caractères | Choix de conception | MEM-3 |
+| Ancien message du coach dans les derniers échanges | 500 caractères | Mesure du coût | MEM-10 |
+| Limite de sortie d'un appel | 16 000 tokens | Mesure | COA-27 |
 | Échanges rendus au modèle | 10 | Décision de l'utilisateur | CAR-7 |
+| Connexion de l'application | Blocage de 15 minutes après 5 échecs ; 10 caractères au moins | Choix de conception | CNX-2, CNX-3 |
 | Tours d'outils par appel | 12, et 30 pour le plan et la révision | Choix de conception | COA-7 |
 | Synthèse en pause | Un soir sur trois | Décision de l'utilisateur | PAU-3 |
 | Semaines détaillées d'avance | Une : la première qui n'est pas validée | Décision de l'utilisateur | PLN-23 |
 | Nouveaux essais | À 5, 20 et 50 minutes, puis 6h55 | Choix de conception | COA-11 |
 | Besoin de sommeil | 8 heures | Chapitre 8.2 du dossier | score de forme |
 | Historique minimal pour le rapport de charge | 4 semaines | Chapitre 8.1 du dossier | `v_charge_entrainement` |
+
+## Annexe C : règles du coach remplacées ou retirées
+
+| Code | Ce qu'elle est devenue | Ce qu'elle disait |
+|---|---|---|
+| CAR-1 | Remplacée par la mémoire en quatre étages, MEM-1 à MEM-4 (migration 056) | Une note du carnet était courte, datée et classée, avec sa source : l'utilisateur ou une déduction du coach |
+| CAR-2 | Remplacée par MEM-4 : chaque version dit qui l'a écrite | Le coach ne fondait pas une décision sur une déduction non confirmée |
+| CAR-3 | Tenue par le socle du dossier | Le carnet ne passait jamais devant le dossier ni devant une règle de sécurité |
+| CAR-4 | Remplacée par MEM-3 | Le carnet comptait au plus soixante notes actives |
+| CAR-5 | Remplacée par MEM-6 : le roulement de la nuit | Le dimanche, le coach relisait le carnet, fusionnait les doublons et retirait le périmé |
+| CAR-9 | Remplacée par MEM-5 : l'utilisateur corrige un étage, et « /memoire » le montre | Le coach retirait une note sur demande ; le carnet n'avait pas d'écran |
+| PRO-3 | Retirée le 9 octobre 2026, à la demande de l'utilisateur | Le dépistage était un questionnaire de sept questions fermées, daté |
+| PRO-5 | Retirée avec PRO-3 | Une réponse positive bloquait le plan jusqu'à un avis médical déclaré |
+| PRO-6 | Retirée avec PRO-3 | Le dépistage se refaisait au bout de douze mois, sans quoi aucun nouveau plan |
+| COA-3, première version | Réécrite : un socle de cinq chapitres, puis des paquets (DOS) | Six chapitres de base à chaque appel, dont 10.1 |
+| Chapitre 5.4, première version | Réécrit : le coach donne son avis une fois, puis planifie pour l'objectif de l'utilisateur, avec un repli et un test à mi-parcours | Pas de plan sur un objectif jugé irréaliste ; un objectif atteignable était proposé à la place |

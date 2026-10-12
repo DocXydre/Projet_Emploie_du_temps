@@ -441,7 +441,6 @@ def ecran_objectifs(id_utilisateur: int) -> Ecran:
 
 def ecran_profil(id_utilisateur: int) -> Ecran:
     p = contexte.profil(id_utilisateur)
-    d = contexte.depistage(id_utilisateur)
     lignes = ["<b>Mon profil</b>"]
     if p is None:
         lignes.append("Pas encore rempli.")
@@ -453,18 +452,6 @@ def ecran_profil(id_utilisateur: int) -> Ecran:
                   "<code>/profil AAAA-MM-JJ homme|femme taille_cm niveau_muscu niveau_course "
                   "matin|soir|indifferent</code>\n"
                   "Les niveaux : debutant, intermediaire, avance.")
-    lignes.append("\n<b>Dépistage</b>")
-    if d is None:
-        lignes.append("Pas encore rempli.")
-    else:
-        lignes.append(f"Rempli le {d['date_reponse']:%d/%m/%Y}. "
-                      + h(d["bloque"] or "Il ne bloque rien."))
-    lignes.append("Sept questions, à répondre par oui ou non, dans l'ordre :")
-    for rang, question in enumerate(routes.QUESTIONS_DEPISTAGE.values(), 1):
-        lignes.append(f"{rang}. {h(question)}")
-    lignes.append("\nRéponds par sept lettres, o pour oui et n pour non :\n"
-                  "<code>/profil depistage nnnnnnn</code>\n"
-                  "Après un avis médical : <code>/profil avis AAAA-MM-JJ</code>")
     manques = contexte.ce_qui_manque(id_utilisateur)
     if manques:
         lignes.append("\n<b>Avant un premier plan, il manque</b> : " + h(" ; ".join(manques)))
@@ -569,21 +556,6 @@ def _objectifs(id_utilisateur: int, args: list[str]) -> Ecran:
 
 def _profil(id_utilisateur: int, args: list[str]) -> Ecran:
     qui = _qui(id_utilisateur)
-    if args and args[0].lower() == "depistage" and len(args) >= 2:
-        lettres = args[1].lower()
-        if len(lettres) != 7 or set(lettres) - set("on"):
-            return Ecran("Il faut sept lettres, o pour oui et n pour non. "
-                         "Exemple : /profil depistage nnnnnnn")
-        reponses = dict(zip(routes.QUESTIONS_DEPISTAGE, (c == "o" for c in lettres),
-                            strict=True))
-        etat = routes.repondre_depistage(qui, routes.Depistage(**reponses))["dernier"]
-        return Ecran("Dépistage enregistré. " + h(etat["bloque"] or "Il ne bloque rien."))
-    if args and args[0].lower() == "avis" and len(args) >= 2:
-        jour = lire_jour(args[1])
-        if jour is None:
-            return Ecran("Je n'ai pas compris la date de l'avis médical.")
-        routes.repondre_depistage(qui, routes.Depistage(avis_medical_le=jour))
-        return Ecran("Avis médical noté. Le plan n'est plus bloqué par le dépistage.")
     if len(args) >= 5:
         naissance = lire_jour(args[0])
         if naissance is None:

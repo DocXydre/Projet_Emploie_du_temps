@@ -94,7 +94,7 @@ def lancer_le_plan(id_utilisateur: int, precision: str | None = None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Profil et dépistage                                                    (PRO)
+# Profil                                                                 (PRO)
 # ---------------------------------------------------------------------------
 
 class Profil(BaseModel):
@@ -108,35 +108,6 @@ class Profil(BaseModel):
                                         description="De 1 (lundi) à 7 (dimanche)")
     accord_complements: bool = False
     regime: str | None = None
-
-
-# PRO-3 : les sept questions du chapitre 1.2 du dossier, dans l'ordre. Leur
-# texte exact est affiché à l'utilisateur.
-QUESTIONS_DEPISTAGE = {
-    "coeur": "Maladie cardiaque, hypertension, ou douleur dans la poitrine au repos "
-             "ou à l'effort ?",
-    "vertiges": "Vertiges, pertes d'équilibre ou pertes de connaissance ?",
-    "maladie_chronique": "Maladie chronique (diabète, asthme sévère, épilepsie, maladie "
-                         "rénale...) ?",
-    "traitement": "Traitement médical en cours pour une maladie chronique ?",
-    "os_articulations": "Problème osseux, articulaire ou musculaire qui pourrait "
-                        "s'aggraver avec l'effort ?",
-    "grossesse": "Grossesse ou accouchement récent ?",
-    "sedentaire_age": "Sédentaire depuis longtemps et âgé de plus de 45 ans (homme) ou "
-                      "55 ans (femme) ?",
-}
-
-
-class Depistage(BaseModel):
-    """Soit les sept réponses, soit la date d'un avis médical (PRO-5)."""
-    coeur: bool | None = None
-    vertiges: bool | None = None
-    maladie_chronique: bool | None = None
-    traitement: bool | None = None
-    os_articulations: bool | None = None
-    grossesse: bool | None = None
-    sedentaire_age: bool | None = None
-    avis_medical_le: date | None = None
 
 
 @routeur.get("/profil", tags=["Coach : profil"], summary="Mon profil")
@@ -167,49 +138,6 @@ def ecrire_profil(qui: Authentifie, profil: Profil) -> dict:
                   regime = EXCLUDED.regime, date_maj = CURRENT_DATE""",
         {"u": qui.id_utilisateur, **profil.model_dump()})
     return contexte.profil(qui.id_utilisateur) or {}
-
-
-@routeur.get("/depistage", tags=["Coach : profil"],
-             summary="Mon dernier dépistage, et s'il bloque le plan")
-def lire_depistage(qui: Authentifie) -> dict:
-    return {"questions": QUESTIONS_DEPISTAGE,
-            "dernier": contexte.depistage(qui.id_utilisateur)}
-
-
-@routeur.post("/depistage", tags=["Coach : profil"],
-              summary="Répondre au questionnaire, ou déclarer un avis médical")
-def repondre_depistage(qui: Authentifie, reponses: Depistage) -> dict:
-    sept = [getattr(reponses, question) for question in QUESTIONS_DEPISTAGE]
-    if all(r is None for r in sept):
-        if reponses.avis_medical_le is None:
-            raise _refuser("requete_invalide",
-                           "Donne les sept réponses, ou la date d'un avis médical", 422)
-        # PRO-5 : le plan se débloque quand l'utilisateur déclare avoir eu cet avis.
-        ligne = executer(
-            """UPDATE depistage SET avis_medical_le = %(d)s
-                WHERE id_depistage = (SELECT id_depistage FROM depistage
-                                       WHERE id_utilisateur = %(u)s
-                                       ORDER BY date_reponse DESC, id_depistage DESC LIMIT 1)
-                  AND positif
-               RETURNING id_depistage""",
-            {"u": qui.id_utilisateur, "d": reponses.avis_medical_le})
-        if ligne is None:
-            raise _refuser("introuvable",
-                           "Aucun dépistage positif n'attend d'avis médical", 404)
-    elif any(r is None for r in sept):
-        raise _refuser("requete_invalide", "Les sept réponses sont obligatoires", 422)
-    else:
-        executer(
-            """INSERT INTO depistage (id_utilisateur, coeur, vertiges, maladie_chronique,
-                                      traitement, os_articulations, grossesse,
-                                      sedentaire_age, avis_medical_le)
-               VALUES (%(u)s, %(coeur)s, %(vertiges)s, %(maladie_chronique)s,
-                       %(traitement)s, %(os_articulations)s, %(grossesse)s,
-                       %(sedentaire_age)s, %(avis)s)""",
-            {"u": qui.id_utilisateur,
-             **{q: getattr(reponses, q) for q in QUESTIONS_DEPISTAGE},
-             "avis": reponses.avis_medical_le if any(sept) else None})
-    return {"dernier": contexte.depistage(qui.id_utilisateur)}
 
 
 # ---------------------------------------------------------------------------
@@ -441,9 +369,7 @@ def reconstruire_plan(qui: Authentifie, pseudo: str | None = None) -> dict:
     _exiger_coach(cible)
     manques = contexte.ce_qui_manque(cible)
     if manques:
-        code = "profil_incomplet" if "profil" in manques[0] else (
-            "depistage_requis" if "dépistage" in manques[0] or "épistage" in manques[0]
-            else "regle_metier")
+        code = "profil_incomplet" if "profil" in manques[0] else "regle_metier"
         raise _refuser(code, "Le plan ne peut pas être construit : " + " ; ".join(manques))
     if contexte.pause(cible):
         raise _refuser("coach_en_pause", "Le coach est en pause : lève-la d'abord")

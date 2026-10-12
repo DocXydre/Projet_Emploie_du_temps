@@ -2,12 +2,12 @@
 
     docker exec -i planif-api python -m outils.coach_demarrer < local/demarrage.json
 
-Le profil, le dépistage, les lieux, les limitations et les exercices qu'elles
+Le profil, les lieux, les limitations et les exercices qu'elles
 interdisent. Ce fichier contient des données de santé : il vit dans `local/`,
 qui n'est pas versionné, et jamais dans le dépôt (EXO-9).
 
 Rejouable : le profil et les lieux sont remplacés, une limitation de même
-libellé est mise à jour, un dépistage identique au dernier n'est pas réinscrit.
+libellé est mise à jour. Une clé « depistage » dans le fichier est ignorée.
 """
 
 import json
@@ -23,7 +23,7 @@ from api.securite import Appelant
 def main() -> int:
     donnees = json.load(sys.stdin)
     # --limitations : seulement les limitations et leurs interdits. Le profil,
-    # le dépistage, les lieux et les réglages du fichier ne sont pas touchés.
+    # les lieux et les réglages du fichier ne sont pas touchés.
     seulement_limitations = "--limitations" in sys.argv
     if seulement_limitations:
         donnees = {"pseudo": donnees.get("pseudo"),
@@ -44,14 +44,6 @@ def main() -> int:
                 return 2
             routes.ecrire_profil(qui, routes.Profil(**donnees["profil"]))
             print("Profil enregistré.")
-
-        if donnees.get("depistage"):
-            dernier = contexte.depistage(u) or {}
-            if any(dernier.get(q) != v for q, v in donnees["depistage"].items()
-                   if q in routes.QUESTIONS_DEPISTAGE) or not dernier:
-                routes.repondre_depistage(qui, routes.Depistage(**donnees["depistage"]))
-            etat = contexte.depistage(u)
-            print("Dépistage : " + (etat["bloque"] or "il ne bloque rien."))
 
         codes = {ligne["code"]: ligne["id_lieu"]
                  for ligne in lister("SELECT code, id_lieu FROM lieu_sport")}

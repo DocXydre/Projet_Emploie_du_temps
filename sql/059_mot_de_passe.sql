@@ -1,14 +1,14 @@
 -- -----------------------------------------------------------------------------
 -- 059 : se connecter avec un mot de passe                          (CNX-1 à CNX-4)
 --
+-- Rejouable.
+--
 -- L'appli iPhone joint le serveur par Internet (tailscale funnel), sans le
 -- client Tailscale. Taper une clé de 48 caractères sur un téléphone n'est pas
 -- raisonnable : le pseudo et un mot de passe rendent la clé, gardée ensuite
 -- dans le trousseau. Le mot de passe n'est jamais stocké, seulement son
 -- empreinte scrypt. Après cinq échecs, le compte refuse les essais quinze
 -- minutes : la route est publique.
---
--- Rejouable.
 -- -----------------------------------------------------------------------------
 
 ALTER TABLE utilisateur ADD COLUMN IF NOT EXISTS mot_de_passe      TEXT;
