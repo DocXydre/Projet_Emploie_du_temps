@@ -57,6 +57,15 @@ class Configuration(BaseSettings):
     # arrivée par là ne sert jamais une route d'administration du serveur.
     port_funnel: int = 8443
 
+    # NOT-16 : le service de notifications d'Apple. La clé `.p8` du compte
+    # développeur, en base64 sur une ligne (`base64 -w0 AuthKey_XXXX.p8`), son
+    # identifiant, celui de l'équipe, et l'identifiant de l'appli. Sans clé,
+    # rien ne part par Apple ; le bot continue comme avant.
+    apns_cle: str = ""
+    apns_id_cle: str = ""
+    apns_equipe: str = ""
+    apns_sujet: str = "fr.docxydre.hal"
+
     # URL des flux. Jamais versionnées : celle du planning de travail contient
     # un jeton d'accès personnel. Elles peuvent aussi être données depuis le bot.
     idmc_url_ics: str = ""

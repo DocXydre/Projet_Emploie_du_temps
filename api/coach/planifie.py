@@ -125,15 +125,18 @@ def synthese(id_utilisateur: int, moment: str = "synthese", cloture: dict | None
     return rendu
 
 
-def soir(programmer_essai=None) -> dict:
-    """23 h : pour chaque compte qui a le coach.
+def soir(programmer_essai=None, seulement: set[int] | None = None) -> dict:
+    """À l'heure du récap : pour chaque compte qui a le coach.
 
     `programmer_essai(minutes, compte, moment, operation_id, essai)` est donné
     par l'ordonnanceur : c'est lui qui sait poser un rendez-vous.
+    `seulement` : les comptes dont c'est l'heure (NOT-15). Sans, tous.
     """
     bilan = {}
     for compte in comptes_avec_coach():
         u = compte["id_utilisateur"]
+        if seulement is not None and u not in seulement:
+            continue
         try:
             cloture = clore_le_jour(u)
             if not synthese_due(compte):

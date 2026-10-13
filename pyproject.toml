@@ -12,7 +12,10 @@ dependencies = [
     # Développe les récurrences d'un flux iCalendar. Un calendrier personnel
     # écrit « tous les lundis » en une ligne ; l'ADE, lui, publie chaque séance.
     "recurring-ical-events>=3.0",
-    "httpx>=0.27",
+    # NOT-16 : Apple n'accepte les notifications qu'en HTTP/2, avec un jeton
+    # signé en ES256.
+    "httpx[http2]>=0.27",
+    "cryptography>=42",
     "apscheduler>=3.10",
     "python-telegram-bot[job-queue]>=21.0",
     # Le coach : appels au modèle, avec outils (COA-4).

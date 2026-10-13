@@ -4,12 +4,14 @@
     toutes les 2 h      relever les confirmations SNCF
     toutes les 6 h      calendriers personnels
     06h50               relevé des horaires publiés par le SUAPS
-    07h00               bilan du matin, puis placement
+    07h00               placement du matin, semaine de sport à valider
+    toutes les 5 min    à l'heure de chacun (NOT-15) : bilan du matin (7h par
+                        défaut), relance du soir (21h), récap de HAL (23h) avec
+                        la clôture du jour et la révision du dimanche
+    chaque minute       changements à raconter (NOT-17), envoi par Apple (NOT-16)
     07h10               propositions de week-end
     07h20, le lundi     prévenir si le sport de la semaine n'est pas choisi
     toutes les 30 min   constater les séances à déterminer passées
-    21h00               relance sur les tâches du jour non faites
-    23h00               coach : clôture du jour, synthèse du soir, révision le dimanche
     06h55               coach : rattrapage de la synthèse si elle a échoué
     toutes les 10 min   coach : ajustements restés sans réponse au début d'une séance
     00h05               report d'office de ce qui n'a pas été fait
@@ -32,7 +34,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from api import operation
-from api.base import executer
+from api.base import executer, lister
 from api.collecteurs.service import CollecteImpossible, collecter_source, sources_a_collecter
 from api.config import configuration
 
@@ -171,17 +173,27 @@ def placer() -> int:
     return placees
 
 
-def bilan_du_matin() -> int:
-    placer()
-    resultat = executer("SELECT bilan_du_matin() AS creees")
-    creees = (resultat or {}).get("creees", 0)
-    LOG.info("Bilan du matin : %s notification(s)", creees)
+def placement_du_matin() -> int:
+    """7h, pour tout le foyer : le placement, et la semaine de sport à valider.
+
+    NOT-15 : le placement reste commun. Le bilan, lui, part à l'heure de chacun.
+    """
+    placees = placer()
     # NOT-12 : la semaine de sport qui attend d'être validée.
     try:
         from api.coach import planifie
         planifie.matin()
     except Exception:
         LOG.exception("Échec du rappel de la semaine à valider")
+    return placees
+
+
+def bilan_du_matin() -> int:
+    """Le bilan de tous, d'un coup : ce que fait la route d'administration."""
+    placer()
+    resultat = executer("SELECT bilan_du_matin() AS creees")
+    creees = (resultat or {}).get("creees", 0)
+    LOG.info("Bilan du matin : %s notification(s)", creees)
     return creees
 
 
@@ -190,6 +202,64 @@ def relance_du_soir() -> int:
     creees = (resultat or {}).get("creees", 0)
     LOG.info("Relance du soir : %s rappel(s)", creees)
     return creees
+
+
+def servir(id_utilisateur: int, moment: str, jour) -> bool:
+    """Un rendez-vous d'un compte, une seule fois par jour (NOT-15).
+
+    Le passage est noté avant d'agir : deux passages simultanés ne servent pas
+    deux fois. Un récap qui échoue a ses propres nouveaux essais (COA-11).
+    """
+    pris = executer(
+        """INSERT INTO passage (id_utilisateur, moment, jour) VALUES (%(u)s, %(m)s, %(j)s)
+           ON CONFLICT DO NOTHING RETURNING moment""",
+        {"u": id_utilisateur, "m": moment, "j": jour})
+    if pris is None:
+        return False
+    if moment == "bilan":
+        executer("SELECT bilan_du_matin_de(%(u)s)", {"u": id_utilisateur})
+    elif moment == "relance":
+        executer("SELECT relance_du_soir_de(%(u)s)", {"u": id_utilisateur})
+    elif moment == "recap":
+        from api.coach import planifie
+        planifie.soir(_programmer_essai, seulement={id_utilisateur})
+    return True
+
+
+def heures_de_chacun() -> int:
+    """Toutes les cinq minutes : le bilan, la relance et le récap dus (NOT-15)."""
+    servis = 0
+    dus = lister("SELECT id_utilisateur, moment, jour FROM rendez_vous_dus()")
+    if any(du["moment"] == "bilan" for du in dus):
+        # Le bilan lit le planning du jour : il doit être posé. À 7h, le
+        # placement du matin et ce passage tombent ensemble, dans un ordre
+        # que rien ne garantit.
+        placer()
+    for du in dus:
+        try:
+            if servir(du["id_utilisateur"], du["moment"], du["jour"]):
+                servis += 1
+        except Exception:  # noqa: BLE001 - un compte ne prive pas l'autre
+            LOG.exception("Rendez-vous %s impossible pour le compte %s",
+                          du["moment"], du["id_utilisateur"])
+    if servis:
+        LOG.info("Heures de chacun : %s rendez-vous servi(s)", servis)
+    return servis
+
+
+def notifications_de_l_appli() -> dict:
+    """Chaque minute : les changements à raconter (NOT-17), puis l'envoi par Apple."""
+    from api import apple, changements
+    bilan: dict = {}
+    try:
+        bilan["changements"] = changements.annoncer()
+    except Exception:
+        LOG.exception("Échec de l'annonce des changements")
+    try:
+        bilan.update(apple.envoyer_la_file())
+    except Exception:
+        LOG.exception("Échec de l'envoi par Apple")
+    return bilan
 
 
 def report_de_minuit() -> dict:
@@ -349,8 +419,16 @@ def demarrer() -> BackgroundScheduler:
                          id="horaires", name="Relevé des horaires de sport",
                          coalesce=True)
 
-    ordonnanceur.add_job(bilan_du_matin, a(7, 0),
-                         id="bilan", name="Bilan du matin", coalesce=True)
+    # NOT-15 : le placement reste commun, à 7h. Le bilan, la relance et le
+    # récap partent à l'heure de chacun : un passage toutes les cinq minutes.
+    ordonnanceur.add_job(placement_du_matin, a(7, 0),
+                         id="placement", name="Placement du matin", coalesce=True)
+    ordonnanceur.add_job(heures_de_chacun, CronTrigger(minute="*/5", timezone=conf.fuseau),
+                         id="heures", name="Heures de chacun",
+                         max_instances=1, coalesce=True)
+    ordonnanceur.add_job(notifications_de_l_appli, IntervalTrigger(minutes=1),
+                         id="appli", name="Notifications de l'appli",
+                         max_instances=1, coalesce=True)
 
     # Après le bilan du matin : on lit ses messages une fois, et la
     # proposition arrive dans la même fournée que le reste.
@@ -372,13 +450,9 @@ def demarrer() -> BackgroundScheduler:
                          id="sport_manque", name="Séances à déterminer passées",
                          max_instances=1, coalesce=True)
 
-    ordonnanceur.add_job(relance_du_soir, a(21, 0),
-                         id="relance", name="Relance du soir", coalesce=True)
-
-    # Le coach. La clôture du jour passe avant l'appel au modèle, dans la même
-    # tâche. Les nouveaux essais se programment d'eux-mêmes après un échec.
-    ordonnanceur.add_job(soir_du_coach, a(23, 0),
-                         id="coach_soir", name="Synthèse du coach", coalesce=True)
+    # Le coach. La synthèse part à l'heure du récap de chacun (heures_de_chacun),
+    # clôture du jour comprise. Les nouveaux essais se programment d'eux-mêmes
+    # après un échec.
     ordonnanceur.add_job(rattrapage_du_coach, a(6, 55),
                          id="coach_rattrapage", name="Rattrapage de la synthèse du coach",
                          coalesce=True)

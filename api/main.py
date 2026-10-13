@@ -32,6 +32,7 @@ from api.routeurs.coach import routeur as routeur_du_coach
 from api.routeurs.connexion import routeur as routeur_de_connexion
 from api.routeurs.foyer import routeur as routeur_du_foyer
 from api.routeurs.journal import routeur as routeur_du_journal
+from api.routeurs.moi import routeur as routeur_de_moi
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
 
 conf = configuration()
@@ -108,6 +109,7 @@ app.include_router(routeur_du_journal)
 app.include_router(routeur_du_coach)
 app.include_router(routeur_de_connexion)
 app.include_router(routeur_du_foyer)
+app.include_router(routeur_de_moi)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")

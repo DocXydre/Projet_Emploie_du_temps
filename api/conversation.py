@@ -880,6 +880,9 @@ def notifications_a_envoyer(limite: int = 20, pendant_le_silence: bool = False) 
           LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence
          WHERE n.statut = 'a_envoyer'
            AND u.id_telegram IS NOT NULL
+           -- NOT-17 : les changements racontés ne vont qu'à l'appli. Le bot a
+           -- « /pourquoi » pour ça.
+           AND n.type <> 'changement'
            AND (NOT %(silence)s
                 OR (n.type = 'coach'
                     AND EXISTS (SELECT 1 FROM appel_coach a
