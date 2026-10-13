@@ -24,7 +24,7 @@ struct EcranConnexion: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            FormulaireVerre {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("HAL").texte(.grandTitre).foregroundStyle(Palette.textePrincipal)
@@ -109,7 +109,6 @@ struct EcranConnexion: View {
                     Text("Des données fictives, pour voir l'appli. Tu pourras te connecter ensuite depuis les Réglages.")
                 }
             }
-            .scrollContentBackground(.hidden)
             .background { Fond() }
             .scrollDismissesKeyboard(.interactively)
         }

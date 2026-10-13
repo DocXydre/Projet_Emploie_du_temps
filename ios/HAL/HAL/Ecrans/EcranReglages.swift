@@ -226,7 +226,7 @@ struct EcranCompte: View {
     @State private var confirmer = false
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             if let pseudo = session.pseudo {
                 Section("Connecté") {
                     LabeledContent("Pseudo", value: pseudo)
@@ -249,7 +249,8 @@ struct EcranCompte: View {
                     Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
                 }
                 Section {
-                    Button("Se déconnecter", role: .destructive) { confirmer = true }
+                    Button("Se déconnecter") { confirmer = true }
+                        .foregroundStyle(Palette.texteSecondaire)
                         .frame(maxWidth: .infinity)
                 } footer: {
                     if !file.enAttente.isEmpty {
@@ -263,10 +264,8 @@ struct EcranCompte: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
         .navigationTitle("Serveur et mot de passe")
         .navigationBarTitleDisplayMode(.inline)
-        .containerBackground(.clear, for: .navigation)
         .confirmationDialog("Se déconnecter ?", isPresented: $confirmer, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) {
                 file.vider(sansEnvoyer: true)

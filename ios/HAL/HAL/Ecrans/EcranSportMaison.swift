@@ -152,6 +152,7 @@ struct AjoutRapide: View {
             }
         }
         .environment(\.fermerFeuille, ActionFermer { fermer() })
+        .feuilleEnVerre()
         // Pas de fond à nous : la feuille d'iOS est en Liquid Glass, l'écran reste visible dessous.
     }
 }

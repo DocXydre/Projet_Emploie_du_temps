@@ -17,6 +17,31 @@ private struct LigneErreur: View {
     }
 }
 
+/// Un formulaire d'iOS en Liquid Glass : pas de fond opaque, des groupes en
+/// voile clair posés sur le verre de la feuille ou sur la photo de fond.
+struct FormulaireVerre<Contenu: View>: View {
+    @ViewBuilder var contenu: Contenu
+
+    var body: some View {
+        FormulaireVerre {
+            Group { contenu }
+                .listRowBackground(Palette.verreTeinte)
+        }
+        .scrollContentBackground(.hidden)
+        .containerBackground(.clear, for: .navigation)
+    }
+}
+
+extension View {
+    /// Une feuille en Liquid Glass même déployée en entier : iOS la rend
+    /// opaque à pleine hauteur, on lui redonne son verre.
+    func feuilleEnVerre() -> some View {
+        presentationBackground {
+            Rectangle().fill(.clear).glassEffect(.regular, in: .rect)
+        }
+    }
+}
+
 extension EnvironmentValues {
     /// Ferme toute la feuille du « + », pas seulement le formulaire ouvert dedans.
     @Entry var fermerFeuille: ActionFermer? = nil
@@ -74,7 +99,7 @@ struct FormulaireTache: View {
     @State private var erreur: String?
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             if !foyer.droits.ajouter {
                 Section {
                     Label("L'administrateur du foyer garde l'ajout des tâches pour lui.",
@@ -106,8 +131,6 @@ struct FormulaireTache: View {
             BoutonEnvoi(titre: "Ajouter", actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty
                         && foyer.droits.ajouter, enCours: enCours) { Task { await envoyer() } }
         }
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Ajouter une tâche")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -162,7 +185,7 @@ struct FormulaireFaite: View {
     @State private var erreur: String?
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             Section {
                 DatePicker("Quand", selection: $quand, in: ...Date.now)
             } footer: {
@@ -187,8 +210,6 @@ struct FormulaireFaite: View {
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
         .navigationTitle("C'est fait")
         .navigationBarTitleDisplayMode(.inline)
         .task { await lire() }
@@ -238,7 +259,7 @@ struct FormulaireCreneau: View {
     @State private var erreur: String?
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             Section {
                 TextField("Rendez-vous chez le dentiste", text: $libelle)
                 TextField("Lieu (facultatif)", text: $lieu)
@@ -254,8 +275,6 @@ struct FormulaireCreneau: View {
                         actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty && fin > debut,
                         enCours: enCours) { Task { await envoyer() } }
         }
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Poser un créneau")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: debut) { _, nouveau in
@@ -301,7 +320,7 @@ struct FormulaireAbsence: View {
     @State private var erreur: String?
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             if !foyer.mesAbsences.isEmpty {
                 Section("Déjà prévues") {
                     ForEach(foyer.mesAbsences) { absence in
@@ -332,8 +351,6 @@ struct FormulaireAbsence: View {
                 Task { await envoyer() }
             }
         }
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Une absence")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -386,7 +403,7 @@ struct FormulaireAllege: View {
     @State private var erreur: String?
 
     var body: some View {
-        Form {
+        FormulaireVerre {
             Section {
                 if let etat {
                     Text(etat.texte).foregroundStyle(Palette.textePrincipal)
@@ -406,13 +423,12 @@ struct FormulaireAllege: View {
                         actif: etat != nil, enCours: enCours) { Task { await activer() } }
             if etat?.enCours == true {
                 Section {
-                    Button("Arrêter le mode allégé", role: .destructive) { Task { await arreter() } }
+                    Button("Arrêter le mode allégé") { Task { await arreter() } }
+                        .foregroundStyle(Palette.texteSecondaire)
                         .frame(maxWidth: .infinity)
                 }
             }
         }
-        .scrollContentBackground(.hidden)
-        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Mode allégé")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -467,9 +483,9 @@ struct EcranTrains: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            FormulaireVerre {
                 Section {
-                    Text("Un week-end à \(proposition.lieu), du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin)).")
+                    Text("Un week-end à \(proposition.lieu), du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin))")
                         .foregroundStyle(Palette.textePrincipal)
                 }
                 LigneErreur(texte: erreur)
@@ -504,11 +520,11 @@ struct EcranTrains: View {
                     }
                 }
                 Section {
-                    Button("Non merci", role: .destructive) { Task { await decliner() } }
+                    Button("Pas ce week-end") { Task { await decliner() } }
+                        .foregroundStyle(Palette.texteSecondaire)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .scrollContentBackground(.hidden)
             .navigationTitle("Partir")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -517,6 +533,7 @@ struct EcranTrains: View {
             .task(id: rang) { await chercherAllers() }
         }
         .disabled(enCours)
+        .feuilleEnVerre()
     }
 
     private func ligne(_ train: Train, choisi: Bool) -> some View {
