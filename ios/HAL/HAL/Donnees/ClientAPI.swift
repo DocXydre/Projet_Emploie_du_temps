@@ -45,7 +45,7 @@ struct ClientAPI: Sendable {
     }()
 
     /// Une requête, et sa réponse décodée.
-    func requete<Reponse: Decodable>(_ methode: String, _ chemin: String,
+    func requete<Reponse: Decodable & Sendable>(_ methode: String, _ chemin: String,
                                      corps: Data? = nil,
                                      cleAppareil: UUID? = nil,
                                      en type: Reponse.Type = Reponse.self) async throws -> Reponse {

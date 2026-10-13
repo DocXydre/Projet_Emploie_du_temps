@@ -327,7 +327,7 @@ final class Foyer {
         await charger()
     }
 
-    func demander<Reponse: Decodable>(_ methode: String, _ chemin: String,
+    func demander<Reponse: Decodable & Sendable>(_ methode: String, _ chemin: String,
                                       corps: Data? = nil) async throws -> Reponse {
         guard let client else {
             throw ErreurAPI(code: "demonstration", message: "Pas de serveur en démonstration")

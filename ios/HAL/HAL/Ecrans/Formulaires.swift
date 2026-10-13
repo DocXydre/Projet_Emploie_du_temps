@@ -19,7 +19,13 @@ private struct LigneErreur: View {
 
 extension EnvironmentValues {
     /// Ferme toute la feuille du « + », pas seulement le formulaire ouvert dedans.
-    @Entry var fermerFeuille: (() -> Void)? = nil
+    @Entry var fermerFeuille: ActionFermer? = nil
+}
+
+/// Une fermeture rangée dans une structure : SwiftUI ne compare pas les
+/// fermetures, et en garder une nue dans l'environnement redessinerait tout.
+struct ActionFermer {
+    let fermer: () -> Void
 }
 
 private func motif(_ erreur: Error) -> String {
@@ -136,7 +142,7 @@ struct FormulaireTache: View {
                 periodiciteMaxJours: tousLes + (tousLes > 2 ? 1 : 0),
                 idUtilisateurDefaut: pourQui)))
             annoncer("« \(propre) » ajoutée")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -210,7 +216,7 @@ struct FormulaireFaite: View {
             try await foyer.agir("POST", "occurrences/faite",
                                  corps: ClientAPI.corps(Demande(codeTache: tache.code, quand: quand)))
             annoncer("« \(tache.libelle) » faite")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -274,7 +280,7 @@ struct FormulaireCreneau: View {
                 type: "autre", libelle: libelle.trimmingCharacters(in: .whitespaces),
                 debut: debut, fin: fin, lieu: lieu.isEmpty ? nil : lieu)))
             annoncer("Créneau posé")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -351,7 +357,7 @@ struct FormulaireAbsence: View {
             try await foyer.agir("POST", "absences?replacer=true", corps: ClientAPI.corps(Demande(
                 debut: debut, fin: fin, lieu: lieu.isEmpty ? nil : lieu)))
             annoncer("Absence déclarée")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -426,7 +432,7 @@ struct FormulaireAllege: View {
             etat = reponse
             await foyer.charger()
             annoncer("Mode allégé pour \(jours == 1 ? "aujourd'hui" : "\(jours) jours")")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -436,7 +442,7 @@ struct FormulaireAllege: View {
         do {
             try await foyer.agir("DELETE", "allegement")
             annoncer("Mode allégé arrêté")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -571,7 +577,7 @@ struct EcranTrains: View {
             try await foyer.agir("POST", "trajets/retenir",
                                  corps: ClientAPI.corps(Retenue(idAller: aller.id, idRetour: retour?.id)))
             annoncer("Trains retenus : ton absence est posée")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
@@ -581,7 +587,7 @@ struct EcranTrains: View {
         do {
             try await foyer.agir("DELETE", "trajets/propositions/\(proposition.id)")
             annoncer("Week-end écarté")
-            (fermerFeuille ?? { fermer() })()
+            (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = motif(error)
         }
