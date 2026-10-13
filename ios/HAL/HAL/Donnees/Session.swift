@@ -62,15 +62,18 @@ final class Session {
     private static let cleDemo = "serveur.demonstration"
 
     init() {
+        // Calculés d'abord, rangés ensuite : @Observable n'accepte pas qu'on lise
+        // une propriété avant que toutes soient posées.
         let reglages = UserDefaults.standard
-        adresse = reglages.string(forKey: Self.cleAdresse).flatMap(URL.init(string:))
-        if let pseudo = reglages.string(forKey: Self.clePseudo), adresse != nil, Trousseau.lire() != nil {
+        let lue = reglages.string(forKey: Self.cleAdresse).flatMap(URL.init(string:))
+        if let pseudo = reglages.string(forKey: Self.clePseudo), lue != nil, Trousseau.lire() != nil {
             etat = .connecte(pseudo: pseudo)
         } else if reglages.bool(forKey: Self.cleDemo) {
             etat = .demonstration
         } else {
             etat = .aChoisir
         }
+        adresse = lue
     }
 
     /// Le client de l'API, quand un compte est connecté.
