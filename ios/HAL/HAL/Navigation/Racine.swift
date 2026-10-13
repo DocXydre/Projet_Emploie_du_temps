@@ -13,6 +13,7 @@ struct Annonce: Identifiable, Equatable {
 /// Le panneau vit hors des onglets : il garde la conversation quand on en change (ORB-2).
 struct Racine: View {
     @Environment(ConversationHAL.self) private var conversation
+    @Environment(SeanceEnCours.self) private var seance
     @State private var onglet: Onglet = .aujourdhui
     @State private var annonce: Annonce?
 
@@ -55,6 +56,8 @@ struct Racine: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        // La séance en cours passe par-dessus tout, d'où qu'on l'ait lancée.
+        .fullScreenCover(isPresented: Bindable(seance).affichee) { EcranSeanceEnCours() }
         .environment(\.annoncer, AnnonceurAction { nouvelle in
             withAnimation(.snappy) { annonce = nouvelle }
         })

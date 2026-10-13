@@ -13,19 +13,34 @@ struct WidgetFixe: View {
     }
 }
 
-/// L'onglet Sport, dans l'ordre fixe de la maquette (3.1, WID-4).
+/// L'onglet Sport, dans l'ordre fixe de la maquette (3.1, WID-4). Ce qui attend
+/// une réponse passe devant : la séance en cours, celle du jour, une mesure, un
+/// ajustement de HAL.
 struct EcranSport: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(SeanceEnCours.self) private var seance
+    @Environment(EnvoiSante.self) private var sante
+    @State private var prevue: DetailSeance?
 
     var body: some View {
         PageDefilante {
-            EnTeteOnglet(surTitre: foyer.essais.pause ? "Pause jusqu'au 25 oct." : "Cette semaine", titre: "Sport") {}
+            EnTeteOnglet(surTitre: enPause ? "En pause" : "Cette semaine", titre: "Sport") {}
                 .padding(.bottom, 4)
-            if foyer.essais.pause {
-                BandeauEtat(icone: "pause", titre: "HAL est en pause · examens",
-                            detail: "jusqu'au dim. 25 oct. · récap un soir sur trois",
-                            categorie: .ia, bouton: "Reprendre") { foyer.essais.pause = false }
+            if enPause {
+                BandeauEtat(icone: "pause", titre: "HAL est en pause",
+                            detail: "Les séances se posent à la main ; le récap passe un soir sur trois",
+                            categorie: .ia)
             }
+            if seance.enCours {
+                BandeauEtat(icone: "dumbbell", titre: "Séance en cours",
+                            detail: "\(seance.seance?.series.count ?? 0) séries · \(seance.minutesEcoulees) min",
+                            categorie: .sport, bouton: "Reprendre") { seance.affichee = true }
+            } else if let detail = foyer.seanceDuJour {
+                WidgetFixe(module: .lancerSeance)
+                    .onTapGesture { prevue = detail }
+            }
+            if foyer.ajustement != nil { WidgetFixe(module: .ajustement) }
+            if foyer.mesureDemandee != nil { WidgetFixe(module: .mesureDemandee) }
             WidgetFixe(module: .forme)
             HStack(spacing: Espace.gouttiere) {
                 WidgetFixe(module: .sport, taille: .petit)
@@ -36,7 +51,20 @@ struct EcranSport: View {
                 Color.clear.aspectRatio(1, contentMode: .fit)
                 WidgetFixe(module: .seanceLibre)
             }
+            if let bilan = sante.dernierBilan {
+                Text("Santé : \(bilan)").texte(.legende).foregroundStyle(Palette.texteTertiaire)
+            }
         }
+        .refreshable {
+            await foyer.charger()
+            await sante.envoyer(raison: "à la demande")
+            foyer.poserLaFrequence(sante.frequenceDuJour)
+        }
+        .sheet(item: $prevue) { detail in EcranSeancePrevue(detail: detail) }
+    }
+
+    private var enPause: Bool {
+        foyer.connecte ? foyer.sportDuServeur?.pause != nil : foyer.essais.pause
     }
 }
 

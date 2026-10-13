@@ -111,6 +111,9 @@ struct MesureDemandee: Hashable {
     let titre: String
     let consigne: String
     let jusquA: String
+    /// La fenêtre ouverte par HAL, et le type de mesure (MES).
+    var id: Int = 0
+    var type: String = "poids"
 }
 
 struct Objectif: Hashable {

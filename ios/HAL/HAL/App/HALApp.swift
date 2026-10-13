@@ -8,6 +8,8 @@ struct HALApp: App {
     @State private var file: FileAttente
     @State private var conversation = ConversationHAL()
     @State private var disposition = Disposition()
+    @State private var seance = SeanceEnCours()
+    @State private var sante = EnvoiSante()
     @Environment(\.scenePhase) private var phase
 
     init() {
@@ -31,6 +33,8 @@ struct HALApp: App {
             .environment(file)
             .environment(conversation)
             .environment(disposition)
+            .environment(seance)
+            .environment(sante)
             .environment(\.theme, apparence.theme)
             .tint(apparence.theme.principal)
             .preferredColorScheme(.dark)
@@ -39,21 +43,38 @@ struct HALApp: App {
                 await rafraichirEnContinu()
             }
             .onChange(of: phase) { _, nouvelle in
-                if nouvelle == .active { Task { await foyer.charger() } }
+                guard nouvelle == .active else { return }
+                Task {
+                    await foyer.charger()
+                    await lireSante()
+                }
             }
         }
+        // SAN-10 : iOS réveille l'appli de temps en temps pour envoyer Santé.
+        .backgroundTask(.appRefresh(EnvoiSante.idTache)) {
+            await sante.envoyerEnFond()
+        }
+    }
+
+    /// Santé : l'envoi au serveur, et la fréquence du jour pour le widget.
+    private func lireSante() async {
+        await sante.aLOuverture()
+        foyer.poserLaFrequence(sante.frequenceDuJour)
     }
 
     /// La session choisit la source des données et l'expéditeur de la file.
     private func brancher() {
         if let client = session.client {
             foyer.brancher(client)
+            sante.client = client
+            Task { await lireSante() }
             file.expediteur = ExpediteurAPI(client: client)
             let foyer = foyer
             file.apresEnvoi = { await foyer.charger() }
             Task { await file.vider() }
         } else {
             foyer.debrancher()
+            sante.client = nil
             file.expediteur = ExpediteurFictif(foyer: foyer)
             file.apresEnvoi = nil
         }

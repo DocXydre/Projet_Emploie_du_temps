@@ -45,6 +45,8 @@ final class Foyer {
     private(set) var droits = Droits(ajouter: true, modifier: true)
     private(set) var orbeADire = false
     private(set) var chat: EtatChat
+    /// L'onglet Sport tel que le serveur l'a rendu (lot 6).
+    private(set) var sportDuServeur: EtatSport?
 
     private(set) var semaine: SemaineSport
     private(set) var forme: Forme
@@ -102,6 +104,7 @@ final class Foyer {
     func brancher(_ client: ClientAPI) {
         source = .serveur(client)
         if let garde = Self.lireLeCache() { appliquer(garde) }
+        if let garde: EtatSport = Self.lire("etat-du-sport.json") { appliquer(garde) }
         Task { await charger() }
     }
 
@@ -116,6 +119,12 @@ final class Foyer {
         taches = apercu.taches
         chat = apercu.chat
         conflitDuServeur = nil
+        sportDuServeur = nil
+        semaine = apercu.semaine
+        forme = apercu.forme
+        frequenceDuJour = apercu.frequence
+        objectif = apercu.objectif
+        try? FileManager.default.removeItem(at: Self.fichier("etat-du-sport.json"))
         absences = []
         allegements = []
         propositions = []
@@ -139,6 +148,48 @@ final class Foyer {
         } catch {
             erreur = "Chargement impossible"
         }
+        // Le sport à part : son échec n'empêche pas la maison de s'afficher.
+        if let sport: EtatSport = try? await client.requete("GET", "appli/sport") {
+            appliquer(sport)
+            Self.ecrire(sport, "etat-du-sport.json")
+        }
+    }
+
+    /// La fréquence cardiaque du jour, lue dans Santé par l'appareil (3.15).
+    func poserLaFrequence(_ points: [PointSerie]) {
+        guard connecte, !points.isEmpty else { return }
+        frequenceDuJour = points
+    }
+
+    private func appliquer(_ sport: EtatSport) {
+        sportDuServeur = sport
+        let prochaine = sport.semaine.prochaine.map { seance in
+            let jour = seance.debut.formatted(.dateTime.weekday(.abbreviated).locale(Locale(identifier: "fr_FR")))
+            let heure = seance.debut.formatted(date: .omitted, time: .shortened)
+            let quoi = (seance.typeSeance ?? "").isEmpty || seance.typeSeance == "libre"
+                ? Discipline.nom(seance.discipline) : (seance.typeSeance ?? "")
+            return "\(jour.capitalized) \(heure) · \(quoi)"
+        }
+        semaine = SemaineSport(faites: sport.semaine.faites, prevues: sport.semaine.prevues,
+                               prochaine: prochaine)
+        let jour = sport.forme.first
+        forme = Forme(sommeilMinutes: jour?.sommeilMinutes, fcRepos: jour?.fcRepos,
+                      vfc: jour?.vfcMs.map { Int($0.rounded()) }, pas: jour?.pas, tendanceFC: nil)
+        if let lu = sport.objectif {
+            let total = lu.echeance.flatMap { fin in lu.dateCreation.map { fin.timeIntervalSince($0) } } ?? 0
+            let ecoule = lu.dateCreation.map { Date.now.timeIntervalSince($0) } ?? 0
+            objectif = Objectif(titre: lu.libelle, joursRestants: lu.joursRestants ?? 0,
+                                avancee: total > 0 ? min(1, max(0, ecoule / total)) : 0)
+        }
+    }
+
+    /// La séance de musculation du jour qui reste à faire, prête sans réseau (SAI-10).
+    var seanceDuJour: DetailSeance? {
+        sportDuServeur?.seancesDuJour.first { !$0.close && $0.seance.discipline == "musculation" }
+    }
+
+    var objectifEnCours: Objectif? {
+        connecte ? (sportDuServeur?.objectif == nil ? nil : objectif) : objectif
     }
 
     private func membre(_ id: Int?, parmi liste: [Membre]) -> Membre {
@@ -233,9 +284,44 @@ final class Foyer {
         return essais.conflit && !essais.foyerVide ? conflitEnCours : nil
     }
 
-    var ajustement: Ajustement? { essais.ajustement ? ajustementEnCours : nil }
-    var mesureDemandee: MesureDemandee? { essais.mesure ? mesureEnCours : nil }
-    var seanceAPrevoir: SeanceDuJour? { essais.jourDeMuscu ? seance : nil }
+    var ajustement: Ajustement? {
+        guard connecte else { return essais.ajustement ? ajustementEnCours : nil }
+        return sportDuServeur?.ajustements.first.map {
+            Ajustement(id: $0.idAjustement, titre: Self.nature($0.nature, $0.typeSeance), motif: $0.motif)
+        }
+    }
+
+    var mesureDemandee: MesureDemandee? {
+        guard connecte else { return essais.mesure ? mesureEnCours : nil }
+        return sportDuServeur?.mesures.first.map { fenetre in
+            MesureDemandee(titre: TypeMesure.nom(fenetre.typeMesure),
+                           consigne: fenetre.consigne ?? "Quand tu peux, d'ici la fin de la fenêtre.",
+                           jusquA: "jusqu'au " + fenetre.au.formatted(
+                               .dateTime.weekday(.abbreviated).day().locale(Locale(identifier: "fr_FR"))),
+                           id: fenetre.idFenetre, type: fenetre.typeMesure)
+        }
+    }
+
+    var seanceAPrevoir: SeanceDuJour? {
+        guard connecte else { return essais.jourDeMuscu ? seance : nil }
+        return seanceDuJour.map { detail in
+            SeanceDuJour(titre: detail.titre,
+                         heure: detail.seance.debut?.formatted(date: .omitted, time: .shortened) ?? "",
+                         duree: detail.seance.dureeMinutes.map { "\($0 / 60) h \(String(format: "%02d", $0 % 60))" } ?? "",
+                         exercices: detail.prevu.map(\.libelle),
+                         consigne: detail.seance.consigne ?? "")
+        }
+    }
+
+    private static func nature(_ nature: String, _ seance: String?) -> String {
+        let quoi = seance.map { " · \($0)" } ?? ""
+        switch nature {
+        case "alleger": return "Alléger la séance" + quoi
+        case "deplacer": return "Déplacer la séance" + quoi
+        case "retirer": return "Retirer la séance" + quoi
+        default: return "Modifier la séance" + quoi
+        }
+    }
 
     /// Mon mode allégé en cours, s'il y en a un.
     var monAllegement: Allegement? {
@@ -315,8 +401,13 @@ final class Foyer {
         if connecte { conflitDuServeur = nil } else { essais.conflit = false }
     }
 
-    func repondreAjustement(accepte: Bool) {
-        essais.ajustement = false
+    /// PLN-18 : accepter ou refuser l'ajustement proposé par HAL.
+    func repondreAjustement(accepte: Bool) async throws {
+        guard connecte, let premier = sportDuServeur?.ajustements.first else {
+            essais.ajustement = false
+            return
+        }
+        try await agir("POST", "ajustements/\(premier.idAjustement)/\(accepte ? "accepter" : "refuser")")
     }
 
     /// Une action qui demande une réponse du serveur : elle n'attend pas dans la
@@ -351,6 +442,22 @@ final class Foyer {
     private static func lireLeCache() -> EtatDuJour? {
         guard let donnees = try? Data(contentsOf: fichierCache) else { return nil }
         return try? ClientAPI.decodeur.decode(EtatDuJour.self, from: donnees)
+    }
+
+    static func fichier(_ nom: String) -> URL {
+        let dossier = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
+        return dossier.appendingPathComponent(nom)
+    }
+
+    private static func ecrire<Valeur: Encodable>(_ valeur: Valeur, _ nom: String) {
+        guard let donnees = try? ClientAPI.encodeur.encode(valeur) else { return }
+        try? donnees.write(to: fichier(nom), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    private static func lire<Valeur: Decodable>(_ nom: String) -> Valeur? {
+        guard let donnees = try? Data(contentsOf: fichier(nom)) else { return nil }
+        return try? ClientAPI.decodeur.decode(Valeur.self, from: donnees)
     }
 
     private static func effacerLeCache() {

@@ -2,7 +2,7 @@
 
 L'application du projet : le planning du foyer, la maison, le sport, la santé et HAL. Elle est décrite en partie C de [`cahier-des-charges-hal.md`](../../cahier-des-charges-hal.md), et dessinée dans la maquette Figma (fichier « Appli », page « V2 · Liquid Glass »).
 
-Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur. Sans compte, l'appli tourne sur des données fictives.
+Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur, le **lot 6a** le sport et la séance. Sans compte, l'appli tourne sur des données fictives.
 
 ## Lancer l'appli
 
@@ -37,7 +37,16 @@ Réglages, Essais, **États à forcer** permet de voir les cas sans serveur : co
 - Le conflit de cours se tranche dans son widget. Un week-end proposé ouvre les trains : l'aller, le retour, et l'absence se pose toute seule.
 - Réglages, Serveur et mot de passe : changer de mot de passe, se déconnecter.
 
-Le sport, la santé et HAL restent fictifs jusqu'aux lots 6 et 7.
+HAL reste fictif jusqu'au lot 7.
+
+## Ce que fait le lot 6a
+
+- Santé est lue toute seule, à l'ouverture de l'appli et quand iOS la réveille, puis envoyée au serveur (SAN-10). Le code vient de la bêta Coach Santé. La fréquence cardiaque du jour nourrit son widget.
+- L'onglet Sport lit `GET /appli/sport` : la semaine, la forme, l'objectif, la séance du jour avec ses exercices et leurs alternatives, les mesures demandées, les ajustements de HAL, la pause. Gardé sur le téléphone.
+- La séance de musculation, prévue ou libre, se fait entièrement sans réseau : séries, « J'ai bloqué avant » et sa série intermédiaire (SAI-17, calculée sur le téléphone), changement d'exercice parmi les alternatives, repos avec retour haptique et notification, les quatre façons de terminer, le bilan. Chaque saisie porte sa clé d'appareil et part par la file : renvoyée après une coupure, elle ne crée rien de plus (SAI-9). Une séance libre ouverte sans réseau est désignée par sa clé tant que le serveur ne lui a pas donné de numéro.
+- Mesure demandée : saisir ou « pas possible ». Ajustement de HAL : accepter ou refuser.
+
+Le 6b ajoute la semaine à valider, les courses et la montre, les courbes, les objectifs et la séance à deux.
 
 ## Ajouter une fonction
 
@@ -59,8 +68,10 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 | `HAL` | L'orbe, le panneau, la conversation |
 | `Modules` | Le système de modules, la grille, la galerie, et le catalogue des modules |
 | `Donnees` | Les modèles, les données fictives, la file d'attente |
-| `Ecrans` | Les onglets et les réglages |
+| `Ecrans` | Les onglets, les réglages et les formulaires |
+| `Sport` | La séance en cours, gardée sur le téléphone, et ses écrans |
+| `Sante` | La lecture de Santé et son envoi |
 
 ## La suite
 
-Le lot 6 : le sport et la séance de musculation, hors réseau compris. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
+Le lot 6b, puis le lot 7 : HAL dans l'appli. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.

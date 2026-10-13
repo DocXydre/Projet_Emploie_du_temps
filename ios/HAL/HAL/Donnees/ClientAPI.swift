@@ -59,8 +59,8 @@ struct ClientAPI: Sendable {
 
     /// Une requête dont on n'attend que le succès.
     func envoyer(_ methode: String, _ chemin: String, corps: Data? = nil,
-                 cleAppareil: UUID? = nil) async throws {
-        _ = try await brut(methode, chemin, corps: corps, cleAppareil: cleAppareil)
+                 cleAppareil: UUID? = nil, delai: TimeInterval = 20) async throws {
+        _ = try await brut(methode, chemin, corps: corps, cleAppareil: cleAppareil, delai: delai)
     }
 
     /// Encode un corps de requête.
@@ -69,11 +69,11 @@ struct ClientAPI: Sendable {
     }
 
     private func brut(_ methode: String, _ chemin: String, corps: Data?,
-                      cleAppareil: UUID?) async throws -> Data {
+                      cleAppareil: UUID?, delai: TimeInterval = 20) async throws -> Data {
         guard let url = URL(string: chemin, relativeTo: adresse) else {
             throw ErreurAPI(code: "adresse", message: "Adresse invalide", statut: 0)
         }
-        var demande = URLRequest(url: url, timeoutInterval: 20)
+        var demande = URLRequest(url: url, timeoutInterval: delai)
         demande.httpMethod = methode
         demande.setValue("application/json", forHTTPHeaderField: "Accept")
         if let cle { demande.setValue(cle, forHTTPHeaderField: "X-Cle-Api") }
@@ -123,8 +123,19 @@ enum Dates {
         return format
     }()
 
+    /// « 2026-10-13 18:30 » : l'heure de Paris, telle que les routes de HAL l'écrivent.
+    private static let local: DateFormatter = {
+        let format = DateFormatter()
+        format.calendar = Calendar(identifier: .gregorian)
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.timeZone = TimeZone(identifier: "Europe/Paris")
+        format.dateFormat = "yyyy-MM-dd HH:mm"
+        return format
+    }()
+
     static func lire(_ texte: String) -> Date? {
-        complete.date(from: texte) ?? simple.date(from: texte) ?? jour.date(from: texte)
+        complete.date(from: texte) ?? simple.date(from: texte) ?? local.date(from: texte)
+            ?? jour.date(from: texte)
     }
 
     /// « aujourd'hui », « demain », « dans 4 jours » : ce que dit le widget du chat.

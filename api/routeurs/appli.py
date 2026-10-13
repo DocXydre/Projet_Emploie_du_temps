@@ -11,11 +11,14 @@ vocabulaire de l'appli, et les dates en ISO 8601.
 Le mode allégé a ses routes ici : jusque-là, seul le bot savait l'allumer.
 """
 
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from api import allegement
 from api.base import lister, un_seul
+from api.routeurs.coach import Bilan, Serie
 from api.securite import Authentifie
 
 routeur = APIRouter(tags=["Appli"])
@@ -245,3 +248,123 @@ def arreter_allegement(qui: Authentifie) -> dict:
             detail={"code": "pas_allege", "message": "Tu n'es pas en mode allégé."})
     ecran = allegement.arreter(qui.id_utilisateur)
     return _etat_allegement(qui.id_utilisateur, ecran.texte)
+
+
+# -----------------------------------------------------------------------------
+# L'onglet Sport                                                       (lot 6)
+# -----------------------------------------------------------------------------
+@routeur.get("/appli/sport", summary="Tout ce que l'onglet Sport affiche")
+def sport(qui: Authentifie) -> dict:
+    """La semaine, les séances du jour avec leurs exercices et leurs alternatives
+    (SAI-10 : de quoi faire la séance sans réseau), la forme des sept derniers
+    jours, l'objectif principal, les mesures demandées, les ajustements en
+    attente et la pause."""
+    from api.coach import contexte, outils
+
+    moi = qui.id_utilisateur
+    params = {"moi": moi}
+    semaine = un_seul(
+        """
+        SELECT count(*) FILTER (WHERE situation = 'faite')::INTEGER AS faites,
+               count(*) FILTER (WHERE situation NOT IN ('retiree', 'remplacee', 'esquisse')
+                                )::INTEGER AS prevues
+          FROM v_seance_coach
+         WHERE id_utilisateur = %(moi)s AND lundi = date_trunc('week', jour_de(now()))::DATE
+        """,
+        params,
+    )
+    prochaine = un_seul(
+        """
+        SELECT id_occurrence, debut, discipline, type_seance, duree_minutes, situation
+          FROM v_seance_coach
+         WHERE id_utilisateur = %(moi)s AND debut > now()
+           AND situation NOT IN ('faite', 'pas_faite', 'retiree', 'remplacee')
+         ORDER BY debut LIMIT 1
+        """,
+        params,
+    )
+    du_jour = [outils.detail_seance(moi, ligne["id_occurrence"]) for ligne in lister(
+        """SELECT id_occurrence FROM v_seance_coach
+            WHERE id_utilisateur = %(moi)s AND jour = jour_de(now()) AND discipline IS NOT NULL
+            ORDER BY debut NULLS LAST""", params)]
+    forme = lister(
+        """
+        SELECT jour, pas, fc_repos, vfc_ms::FLOAT AS vfc_ms, sommeil_minutes
+          FROM sante_jour
+         WHERE id_utilisateur = %(moi)s AND jour > jour_de(now()) - 7
+         ORDER BY jour DESC
+        """,
+        params,
+    )
+    objectif = un_seul(
+        """
+        SELECT id_objectif, libelle, echeance, date_creation,
+               (echeance - jour_de(now()))::INTEGER AS jours_restants
+          FROM objectif
+         WHERE id_utilisateur = %(moi)s AND statut = 'actif'
+         ORDER BY principal DESC, rang, id_objectif LIMIT 1
+        """,
+        params,
+    )
+    mesures = lister(
+        """SELECT id_fenetre, type_mesure, lower(periode) AS du, upper(periode) - 1 AS au,
+                  consigne FROM fenetre_mesure
+            WHERE id_utilisateur = %(moi)s AND statut = 'ouverte' ORDER BY lower(periode)""",
+        params,
+    )
+    ajustements = lister(
+        """SELECT a.id_ajustement, a.id_occurrence, a.nature, a.motif,
+                  s.jour, s.type_seance, s.discipline
+             FROM ajustement a JOIN v_seance_coach s ON s.id_occurrence = a.id_occurrence
+            WHERE s.id_utilisateur = %(moi)s AND a.statut = 'propose'
+            ORDER BY s.debut""",
+        params,
+    )
+    compte = un_seul("SELECT coach_actif FROM utilisateur WHERE id_utilisateur = %(moi)s",
+                     params)
+    return {
+        "coach_actif": bool(compte and compte["coach_actif"]),
+        "semaine": {**(semaine or {"faites": 0, "prevues": 0}), "prochaine": prochaine},
+        "seances_du_jour": [d for d in du_jour if d is not None],
+        "forme": forme,
+        "objectif": objectif,
+        "mesures": mesures,
+        "ajustements": ajustements,
+        "pause": contexte.pause(moi),
+    }
+
+
+# -----------------------------------------------------------------------------
+# Une séance libre ouverte hors réseau                          (SAI-9, SAI-10)
+#
+# Sans réseau, l'appli ne connaît pas encore le numéro de la séance libre
+# qu'elle vient d'ouvrir : elle ne connaît que la clé qu'elle lui a donnée. Ses
+# séries et son bilan la désignent par cette clé. La file d'attente envoie dans
+# l'ordre : la séance arrive toujours avant ses séries.
+# -----------------------------------------------------------------------------
+def _par_cle(moi: int, cle: UUID) -> int:
+    ligne = un_seul(
+        """SELECT s.id_occurrence FROM seance s
+             JOIN occurrence o ON o.id_occurrence = s.id_occurrence
+            WHERE s.cle_client = %(c)s AND o.id_utilisateur = %(moi)s""",
+        {"c": cle, "moi": moi})
+    if ligne is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "introuvable", "message": "Séance inconnue pour cette clé"})
+    return ligne["id_occurrence"]
+
+
+@routeur.post("/seances/par-cle/{cle}/series", tags=["Coach : séances"],
+              summary="Les séries d'une séance désignée par la clé de l'appareil")
+def series_par_cle(cle: UUID, series: list[Serie] | Serie, qui: Authentifie) -> dict:
+    from api.routeurs.coach import enregistrer_series
+    return enregistrer_series(qui, _par_cle(qui.id_utilisateur, cle), series)
+
+
+@routeur.post("/seances/par-cle/{cle}/bilan", tags=["Coach : séances"],
+              summary="Le bilan d'une séance désignée par la clé de l'appareil")
+def bilan_par_cle(cle: UUID, bilan: Bilan, qui: Authentifie,
+                  appeler_coach: bool = False) -> dict:
+    from api.routeurs.coach import enregistrer_bilan
+    return enregistrer_bilan(qui, _par_cle(qui.id_utilisateur, cle), bilan, appeler_coach)

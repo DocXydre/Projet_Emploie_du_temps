@@ -41,19 +41,32 @@ struct WidgetHAL: View {
 struct WidgetAjustement: View {
     @Environment(Foyer.self) private var foyer
     @Environment(ConversationHAL.self) private var conversation
+    @Environment(\.annoncer) private var annoncer
 
     var body: some View {
+        let ajustement = foyer.ajustement ?? foyer.ajustementEnCours
         CoquilleWidget(.ajustement) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(foyer.ajustementEnCours.titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
-                Text(foyer.ajustementEnCours.motif).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                Text(ajustement.titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                Text(ajustement.motif).texte(.corps).foregroundStyle(Palette.texteSecondaire).lineLimit(2)
                 Spacer(minLength: 0)
                 HStack {
-                    Button("Accepter") { foyer.repondreAjustement(accepte: true) }.buttonStyle(.hal(.accent))
-                    Button("Refuser") { foyer.repondreAjustement(accepte: false) }.buttonStyle(.hal(.verre))
+                    Button("Accepter") { repondre(true) }.buttonStyle(.hal(.accent))
+                    Button("Refuser") { repondre(false) }.buttonStyle(.hal(.verre))
                     Spacer()
                     Button("En parler") { conversation.ouvrir() }.buttonStyle(.hal(.verre))
                 }
+            }
+        }
+    }
+
+    private func repondre(_ accepte: Bool) {
+        Task {
+            do {
+                try await foyer.repondreAjustement(accepte: accepte)
+                annoncer(accepte ? "Ajustement accepté" : "Ajustement refusé")
+            } catch {
+                annoncer((error as? ErreurAPI)?.message ?? "Réponse impossible")
             }
         }
     }

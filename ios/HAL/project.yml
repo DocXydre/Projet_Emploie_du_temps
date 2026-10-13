@@ -45,3 +45,15 @@ targets:
         UIUserInterfaceStyle: Dark
         NSPhotoLibraryUsageDescription: >-
           HAL utilise la photo que tu choisis comme fond de l'appli.
+        # SAN-10 : Santé est lue toute seule, rien n'y est écrit.
+        NSHealthShareUsageDescription: >-
+          HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ton
+          sommeil et tes séances pour adapter ton plan.
+        NSHealthUpdateUsageDescription: HAL n'écrit rien dans Santé.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante]
+    entitlements:
+      path: HAL/HAL.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []

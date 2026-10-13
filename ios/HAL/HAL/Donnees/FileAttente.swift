@@ -134,7 +134,10 @@ struct ExpediteurAPI: Expediteur {
 
     func envoyer(_ envoi: Envoi) async -> ResultatEnvoi {
         do {
-            try await client.envoyer(envoi.methode, envoi.chemin, corps: envoi.corps, cleAppareil: envoi.id)
+            // SAI-7 : un bilan qui demande l'avis de HAL attend sa réponse, une minute parfois.
+            let delai: TimeInterval = envoi.chemin.contains("appeler_coach=true") ? 150 : 20
+            try await client.envoyer(envoi.methode, envoi.chemin, corps: envoi.corps,
+                                     cleAppareil: envoi.id, delai: delai)
             return .envoye
         } catch let erreur as ErreurAPI {
             return erreur.injoignable ? .injoignable : .refuse(erreur.message)

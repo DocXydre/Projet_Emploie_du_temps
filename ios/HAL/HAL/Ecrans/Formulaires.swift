@@ -23,7 +23,7 @@ struct FormulaireVerre<Contenu: View>: View {
     @ViewBuilder var contenu: Contenu
 
     var body: some View {
-        FormulaireVerre {
+        Form {
             Group { contenu }
                 .listRowBackground(Palette.verreTeinte)
         }
