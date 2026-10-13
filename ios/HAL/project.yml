@@ -1,0 +1,47 @@
+# Le projet Xcode de l'appli HAL, décrit pour XcodeGen.
+#
+#   brew install xcodegen
+#   cd ios/HAL && xcodegen
+#   open HAL.xcodeproj
+#
+# Le .xcodeproj se régénère à partir de ce fichier : c'est lui qu'on modifie.
+
+name: HAL
+options:
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  HAL:
+    type: application
+    platform: iOS
+    sources:
+      - HAL
+    settings:
+      base:
+        # Unique chez Apple. Si Xcode dit qu'il est déjà pris, change la fin.
+        PRODUCT_BUNDLE_IDENTIFIER: fr.docxydre.hal
+        PRODUCT_NAME: HAL
+        CODE_SIGN_STYLE: Automatic
+        # L'équipe se choisit dans Xcode, onglet Signing & Capabilities.
+        DEVELOPMENT_TEAM: ""
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: HAL/Info.plist
+      properties:
+        CFBundleDisplayName: HAL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: FondLancement
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIUserInterfaceStyle: Dark
+        NSPhotoLibraryUsageDescription: >-
+          HAL utilise la photo que tu choisis comme fond de l'appli.

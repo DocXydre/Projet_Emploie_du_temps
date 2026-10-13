@@ -1,0 +1,126 @@
+import SwiftUI
+
+extension Module {
+    static let aCocher = Module(
+        id: "aCocher", nom: "À cocher", icone: "checklist", categorie: .menage,
+        tailles: [.petit, .moyen],
+        widget: { taille in AnyView(WidgetACocher(taille: taille)) },
+        agrandi: { AnyView(WidgetACocher(taille: .grand).frame(height: 360)) },
+        pourHAL: { foyer in "\(foyer.tachesDuJour.filter { !$0.faite }.count) tâches à faire" }
+    )
+
+    static let enRetard = Module(
+        id: "enRetard", nom: "En retard", icone: "exclamationmark.circle", categorie: .alerte,
+        tailles: [.petit],
+        widget: { _ in AnyView(WidgetEnRetard()) }
+    )
+
+    static let chat = Module(
+        id: "chat", nom: "Chat", icone: "pawprint", categorie: .chat,
+        tailles: [.petit],
+        widget: { _ in AnyView(WidgetChat()) }
+    )
+
+    static let equilibre = Module(
+        id: "equilibre", nom: "Équilibre", icone: "person.2", categorie: .linge,
+        tailles: [.petit],
+        widget: { _ in AnyView(WidgetEquilibre()) }
+    )
+}
+
+/// Les tâches du jour des deux. On coche aussi celle de l'autre (EXE-14).
+struct WidgetACocher: View {
+    let taille: TailleWidget
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+
+    var body: some View {
+        CoquilleWidget(.aCocher) {
+            let taches = foyer.tachesDuJour
+            if taches.isEmpty {
+                VideWidget(texte: "Aucune tâche aujourd'hui.")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(taches.prefix(limite)) { tache in
+                        LigneTache(titre: tache.titre,
+                                   pourQui: taille == .petit ? nil : tache.pourQui.nom,
+                                   faite: tache.faite) {
+                            withAnimation(.snappy) { foyer.basculer(tache, file: file) }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    Text("\(taches.filter(\.faite).count) sur \(taches.count)")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                }
+            }
+        }
+    }
+
+    private var limite: Int {
+        switch taille {
+        case .petit: 3
+        case .moyen: 3
+        case .grand: 10
+        }
+    }
+}
+
+/// La tâche la plus en retard, et le geste pour la prendre.
+struct WidgetEnRetard: View {
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+
+    var body: some View {
+        CoquilleWidget(.enRetard) {
+            if let tache = foyer.tachesEnRetard.first {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(tache.titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                    Text("reportée \(tache.reports) fois").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    Spacer(minLength: 0)
+                    Button("Je m'en charge") { foyer.basculer(tache, file: file) }
+                        .buttonStyle(.hal(.verreAccent, pleineLargeur: true))
+                }
+            } else {
+                VideWidget(texte: "Rien ne traîne.")
+            }
+        }
+    }
+}
+
+struct WidgetChat: View {
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.chat) {
+            VStack(alignment: .leading, spacing: 6) {
+                ligne("Litière", foyer.chat.litiere)
+                ligne("Eau", foyer.chat.eau)
+                ligne("Fontaine", foyer.chat.fontaine)
+            }
+        }
+    }
+
+    private func ligne(_ titre: String, _ quand: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+            Text(quand).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+        }
+    }
+}
+
+/// La part des tâches faite par chacun.
+struct WidgetEquilibre: View {
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.equilibre) {
+            VStack(alignment: .leading, spacing: 10) {
+                Anneau(valeur: foyer.partDeMoi, couleur: Categorie.linge.couleur, epaisseur: 8,
+                       texte: "\(Int((foyer.partDeMoi * 100).rounded())) %")
+                    .frame(width: 72, height: 72)
+                Text("\(foyer.moi.nom) · \(foyer.autre?.nom ?? "seul")")
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+            }
+        }
+    }
+}

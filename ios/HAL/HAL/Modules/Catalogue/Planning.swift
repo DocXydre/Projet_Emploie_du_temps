@@ -1,0 +1,155 @@
+import SwiftUI
+
+extension Module {
+    static let maintenant = Module(
+        id: "maintenant", nom: "Maintenant", icone: "calendar", categorie: .cours,
+        tailles: [.moyen],
+        widget: { _ in AnyView(WidgetMaintenant()) },
+        agrandi: { AnyView(WidgetTaJournee(taille: .grand).frame(height: 360)) },
+        pourHAL: { foyer in foyer.maintenant.map { "Maintenant : \($0.titre)" } ?? "Rien en cours" }
+    )
+
+    static let taJournee = Module(
+        id: "taJournee", nom: "Ta journée", icone: "clock", categorie: .travail,
+        tailles: [.moyen, .grand],
+        widget: { taille in AnyView(WidgetTaJournee(taille: taille)) },
+        agrandi: { AnyView(WidgetTaJournee(taille: .grand).frame(height: 360)) },
+        pourHAL: { foyer in "Journée : " + foyer.evenementsDuJour.map(\.titre).joined(separator: ", ") }
+    )
+
+    static let conflit = Module(
+        id: "conflit", nom: "À choisir", icone: "exclamationmark.circle", categorie: .alerte,
+        tailles: [.moyen],
+        widget: { _ in AnyView(WidgetConflit(agrandi: false)) },
+        agrandi: { AnyView(WidgetConflit(agrandi: true)) }
+    )
+}
+
+/// L'événement en cours ou le prochain, et ce qui suit.
+struct WidgetMaintenant: View {
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.maintenant) {
+            if let evenement = foyer.maintenant {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(evenement.titre).texte(.titre).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                    Text(horaire(evenement)).texte(.corps).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+                    Spacer(minLength: 0)
+                    HStack(spacing: 8) {
+                        Puce(texte: delai(evenement), couleur: Categorie.travail.couleur, fond: Categorie.travail.voile)
+                        if let ensuite = foyer.ensuite {
+                            Text("Ensuite : \(ensuite.titre) · \(ensuite.debut.formatted(date: .omitted, time: .shortened))")
+                                .texte(.legende).foregroundStyle(Palette.texteTertiaire).lineLimit(1)
+                        }
+                    }
+                }
+            } else {
+                VideWidget(texte: "Rien de prévu pour le reste de la journée.")
+            }
+        }
+    }
+
+    private func horaire(_ evenement: Evenement) -> String {
+        var texte = evenement.debut.formatted(date: .omitted, time: .shortened)
+        if let fin = evenement.fin { texte += " – " + fin.formatted(date: .omitted, time: .shortened) }
+        if let lieu = evenement.lieu { texte += " · " + lieu }
+        return texte
+    }
+
+    private func delai(_ evenement: Evenement) -> String {
+        let minutes = Int(evenement.debut.timeIntervalSinceNow / 60)
+        if minutes <= 0 { return "en cours" }
+        if minutes < 60 { return "dans \(minutes) min" }
+        return "dans \(minutes / 60) h \(String(format: "%02d", minutes % 60))"
+    }
+}
+
+/// La journée heure par heure, toutes familles.
+struct WidgetTaJournee: View {
+    let taille: TailleWidget
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.taJournee) {
+            let evenements = foyer.evenementsDuJour
+            if evenements.isEmpty {
+                VideWidget(texte: "Ajoute un calendrier pour voir ta journée.")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(evenements.prefix(taille == .grand ? 10 : 4)) { evenement in
+                        LigneEvenement(heure: evenement.debut.formatted(date: .omitted, time: .shortened),
+                                       titre: evenement.titre, lieu: evenement.lieu,
+                                       categorie: evenement.categorie,
+                                       passe: (evenement.fin ?? evenement.debut) < .now)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Deux cours qui se chevauchent : on touche celui à garder (COL-12, COL-23).
+struct WidgetConflit: View {
+    let agrandi: Bool
+    @Environment(Foyer.self) private var foyer
+    @State private var choix: Conflit.Cours?
+
+    var body: some View {
+        CoquilleWidget(titre: "À choisir · \(foyer.conflitEnCours.jour)", icone: "exclamationmark.circle",
+                       couleur: Categorie.alerte.couleur) {
+            let conflit = foyer.conflitEnCours
+            VStack(alignment: .leading, spacing: 8) {
+                if agrandi {
+                    Text("Deux cours à \(conflit.premier.horaire.prefix(5))").texte(.titre).foregroundStyle(Palette.textePrincipal)
+                    Text("Le flux de la fac a deux cours en même temps. Garde celui où tu vas : le choix est retenu pour les prochaines fois.")
+                        .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                }
+                ForEach([conflit.premier, conflit.second], id: \.self) { cours in
+                    Button { choix = cours } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: choix == cours ? "largecircle.fill.circle" : "circle")
+                                .foregroundStyle(choix == cours ? Categorie.sport.couleur : Palette.texteSecondaire)
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(cours.titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                                if agrandi {
+                                    Text("\(cours.horaire) · \(cours.salle)").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, agrandi ? 10 : 2)
+                        .padding(.horizontal, agrandi ? 12 : 0)
+                        .background(agrandi ? Palette.verreTeinte : .clear, in: RoundedRectangle(cornerRadius: Rayon.ligne))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if agrandi {
+                    HStack {
+                        Button("Garder ce cours") { if let choix { foyer.choisir(choix) } }
+                            .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                            .disabled(choix == nil)
+                        Button("Voir plus tard") { foyer.essais.conflit = false }
+                            .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                    }
+                    Text("« Voir plus tard » le cache ; s'il n'est pas réglé, il revient une semaine avant.")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                }
+            }
+        }
+    }
+}
+
+/// Ce qu'un widget dit quand il n'a rien à montrer : ce qui manque (WID-8).
+struct VideWidget: View {
+    let texte: String
+
+    var body: some View {
+        Text(texte)
+            .texte(.corps)
+            .foregroundStyle(Palette.texteSecondaire)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .multilineTextAlignment(.center)
+    }
+}

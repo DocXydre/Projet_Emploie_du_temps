@@ -6,7 +6,7 @@ Auteur : Thomas Mathis
 
 Version d'octobre 2026
 
-Ce document réunit tout le projet en un seul endroit : le planning du foyer, HAL le coach sportif, l'application iPhone et le foyer. Il reprend le texte de [`cahier-des-charges.md`](cahier-des-charges.md) et de [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), mis à jour, et y ajoute ce qui a été décidé avec la maquette de l'application. Les deux anciens fichiers restent dans le dépôt tels quels, pour l'historique, jusqu'à ce qu'on les retire.
+Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone et le foyer. Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont conservés pour l'historique.
 
 ## Comment lire ce document
 
@@ -16,11 +16,11 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 Les renvois s'écrivent avec la lettre de la partie : « section A.2.3 », « section B.9.1 ». Les numéros entre crochets, [3.8], renvoient aux écrans de la maquette Figma (fichier « Appli », page « V2 · Liquid Glass »).
 
-Ce document a servi et servira de base à l'écriture du code. Une règle écrite ici est une obligation. Ce qui n'est pas écrit se décide en suivant les choix effectués de chaque partie et les conventions du système : règles dans la base, API mince, SQL sans ORM, un fichier par fonction.
+Ce document sert de base à l'écriture du code. Une règle écrite ici est une obligation. Ce qui n'est pas écrit se décide en suivant les choix effectués de chaque partie et les conventions du système : règles dans la base, API mince, SQL sans ORM, un fichier par fonction.
 
 ## Sommaire
 
-0. Ce que cette version change
+0. Présentation
 - Partie A. Le planning du foyer
 - Partie B. HAL, le coach sportif
 - Partie C. L'application HAL
@@ -30,15 +30,15 @@ Ce document a servi et servira de base à l'écriture du code. Une règle écrit
 
 ---
 
-## 0. Ce que cette version change
+## 0. Présentation
 
 ### 0.1 Le projet en une page
 
 HAL est un assistant pour un foyer. Il croise les emplois du temps de chacun (cours, calendriers personnels, saisies à la main), place tout seul les tâches de la maison en les répartissant entre les deux, organise les départs en train, et construit avec une IA, HAL, le contenu des séances de sport à partir des objectifs de chacun et des données de l'Apple Watch.
 
-Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. Le serveur tourne chez Thomas, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
+Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. Le serveur est auto-hébergé, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
 
-### 0.2 Décisions d'octobre 2026
+### 0.2 Principaux choix
 
 | Sujet | Décision | Règles |
 |---|---|---|
@@ -46,8 +46,8 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | Nom | L'IA et l'appli s'appellent HAL. « Coach » ne reste que dans les noms techniques | Partie B |
 | Bot Telegram | Administration seulement : alertes du serveur, erreurs, quelques commandes | ADM |
 | Foyer | Un administrateur ouvre le foyer, invite par lien ou code, règle les droits sur les tâches, retire un membre, passe son rôle. Un seul foyer pour l'instant, deux personnes au plus, prévu pour en accueillir d'autres | FOY |
-| HAL et le foyer | HAL est personnel. Lorette a le sien, comme Thomas | COA-1, FOY-8 |
-| Ancien sport | Réservations « à déterminer », minimum, habitudes, alerte du lundi, `/sport` et `/organiser` retirés pour tous | Annexe 2, SPT |
+| HAL et le foyer | HAL est personnel : chaque membre a le sien | COA-1, FOY-8 |
+| Ancien sport | Réservations « à déterminer », minimum, habitudes, alerte du lundi, `/sport` et `/organiser` retirés pour tous les comptes | Annexe 2, SPT |
 | Changer une séance | Le jour même, l'heure se décale à la main, et le lieu se change à la main. Changer de jour, de durée, de contenu, ou supprimer, passe par HAL | PLN-11, LIE-5, COA-32 |
 | Tâches | Pas d'échange : on fait la tâche de l'autre, il est prévenu. Une tâche se modifie dans l'appli, une tâche faite en plus se déclare | EXE-16, TAC-21, EXE-17 |
 | Conflits | En widget, en tête d'Aujourd'hui. « Voir plus tard » revient une semaine avant | COL-12, COL-23 |
@@ -62,24 +62,24 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | Réglages | Profil, limitations, lieux, mémoire et pause y sont ; pas d'écran du coût de HAL | C.12 |
 | Compte Apple | Le compte développeur payant devient un prérequis | E.1 |
 
-### 0.3 Points à confirmer
+### 0.3 Valeurs retenues
 
-J'ai tranché ces points pour pouvoir écrire. Ils sont faciles à changer : dis-moi si l'un ne te va pas.
+Ces choix sont fixés pour la première version de l'application et se revoient à l'usage. Les valeurs chiffrées sont aussi en annexe 3.
 
-| Point | Ce que j'ai écrit | Règle |
+| Point | Valeur retenue | Règle |
 |---|---|---|
-| Série intermédiaire | −10 % s'il manquait une ou deux répétitions, −20 % au-delà, arrondi à 2,5 kg | SAI-17 |
-| Heure du récap | Si tu la changes, la clôture des séances du jour suit la même heure | NOT-15, PLN-9 |
+| Série intermédiaire | −10 % s'il manque une ou deux répétitions, −20 % au-delà, arrondi à 2,5 kg | SAI-17 |
+| Heure du récap | Quand elle change, la clôture des séances du jour suit la même heure | NOT-15, PLN-9 |
 | Silence de la nuit | Réglable comme les autres heures | NOT-15 |
-| Accueil modifiable | Seulement Aujourd'hui ; Sport et Maison gardent un ordre fixe | WID-4 |
-| Ordre des widgets prioritaires | Bandeaux d'état, conflit, ajustement, mesure demandée, puis « Lancer la séance » | WID-6 |
-| Séance libre annoncée | Elle reste à toi : tu la déplaces ou la supprimes sans HAL | PLN-11 |
-| Taille du foyer | Deux personnes au plus tant que les règles du ménage sont écrites pour deux | FOY-4 |
-| Droits par défaut | Tout le monde ajoute, modifie et arrête les tâches, jusqu'à ce que l'administrateur restreigne | FOY-6 |
-| Membre retiré | Ses tâches repassent aux autres, il garde son compte et son HAL | FOY-5 |
-| Annuler une action de HAL | Cinq secondes, puis c'est fait | ORB-6 |
-| Couleurs tirées de la photo | Gardées en option, comme dans la maquette | THM-4 |
-| Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/` à la bascule, pas avant | Partie E, lot 10 |
+| Accueil modifiable | Aujourd'hui seulement ; Sport et Maison gardent un ordre fixe | WID-4 |
+| Widgets prioritaires | Bandeaux d'état, conflit, ajustement, mesure demandée, puis « Lancer la séance » | WID-6 |
+| Séance libre annoncée | Elle reste à son auteur, qui la déplace ou la supprime sans HAL | PLN-11 |
+| Taille du foyer | Deux personnes au plus, tant que les règles du ménage sont écrites pour deux | FOY-4 |
+| Droits par défaut | Tous les membres ajoutent, modifient et arrêtent les tâches, jusqu'à restriction par l'administrateur | FOY-6 |
+| Membre retiré | Ses tâches repassent aux autres ; il garde son compte et son HAL | FOY-5 |
+| Annulation d'une action de HAL | Cinq secondes | ORB-6 |
+| Couleurs tirées de la photo | Disponibles en option | THM-4 |
+| Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/` à la bascule | Partie E, lot 10 |
 
 ---
 
@@ -99,7 +99,7 @@ Le résultat se consulte et se règle dans l'application iPhone HAL, et s'affich
 
 Depuis octobre 2026, HAL construit le contenu des séances de sport (partie B), et l'application HAL réunit tout : planning, maison, sport et santé (partie C).
 
-Le système sert un foyer de deux personnes, Thomas et Lorette. Thomas est l'administrateur du foyer et celui du serveur. Il est prévu pour accueillir d'autres foyers plus tard, sans les ouvrir encore (partie D).
+Le système sert un foyer de deux personnes. L'une d'elles administre le foyer et le serveur. Il est prévu pour accueillir d'autres foyers plus tard, sans les ouvrir encore (partie D).
 
 #### A.1.2 Choix effectués
 
@@ -139,11 +139,11 @@ Voici les choix effectués pour compléter le sujet.
 | APScheduler | Déclenchement périodique | Collectes et traitement quotidien, dans le même processus que l'API |
 | Docker Compose | Exécution | Deux conteneurs : `db` et `api` |
 | Tailscale | Accès distant et HTTPS | Aucun port ouvert sur la box. `tailscale serve` fournit le HTTPS sur le réseau privé, `tailscale funnel` publie les seuls chemins de l'application iPhone |
-| API d'Anthropic | HAL | Décrite dans le section B.2.1 |
+| API d'Anthropic | HAL | Décrite en section B.2.1 |
 | systemd | Déploiement automatique | Un minuteur interroge GitHub et déploie ce qui a été poussé |
 | pytest | Tests | Surtout sur les fonctions SQL et le placement |
 
-**Un scraper était initialement prévu** pour le planning McDonald's, avec Playwright. Il s'est avéré inutile : Easy at Work publiait un flux iCalendar personnel, qui se collectait comme celui de l'université. Ce flux n'est plus suivi depuis septembre 2026 (COL-21). La valeur `'scraping'` reste acceptée par la colonne `mode_collecte` mais n'est utilisée par aucune source.
+**Un scraper était initialement prévu** pour le planning de travail, avec Playwright. Il s'est avéré inutile : le portail de l'employeur publiait un flux iCalendar personnel, qui se collectait comme celui de l'université. Ce flux n'est plus suivi depuis septembre 2026 (COL-21). La valeur `'scraping'` reste acceptée par la colonne `mode_collecte` mais n'est utilisée par aucune source.
 
 Sont volontairement écartés : les ORM, les files de messages, les frameworks de migration, les reverse proxies et les systèmes d'authentification à jetons. À l'échelle de deux utilisateurs et de quelques dizaines d'événements par jour, ils ajoutent de la configuration sans rien résoudre.
 
@@ -205,7 +205,7 @@ L'ordonnanceur vit dans le même processus que l'API. Les heures sont celles de 
 
 Chaque passage ouvre une opération au journal : ce qu'il change se retrouve sous son nom dans l'Historique (JRN-4, JRN-9).
 
-HAL ajoute ses propres tâches : la synthèse du soir à 23 h, la révision du dimanche, le roulement de sa mémoire la nuit. Elles sont dans le section B.2.4.
+HAL ajoute ses propres tâches : la synthèse du soir à 23 h, la révision du dimanche, le roulement de sa mémoire la nuit. Elles sont en section B.2.4.
 
 Pendant les heures de silence, de 23h30 à 7h30 par défaut, rien ne part : les notifications attendent le matin (NOT-14, NOT-15).
 
@@ -274,7 +274,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | TAC-15 | T | Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée |
 | TAC-16 | T | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) », « Nettoyage 2/3 : Passer l'aspirateur ». Les titres se refont à chaque placement |
 | TAC-17 | T | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
-| TAC-18 | T | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse de Sassy changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
+| TAC-18 | T | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse du chat changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
 | TAC-19 | T | Ce qu'une tâche couvre disparaît du planning sans attendre qu'on la coche : pas de ramassage le jour d'un vidage, et un ramassage oublié s'efface quand le vidage est dû. Un ramassage en retard reste tant que le vidage est à venir. Même règle pour l'eau et la fontaine |
 | TAC-20 | M | Une tâche s'ajoute depuis le « + » d'Aujourd'hui ou de Maison, question par question : son nom, une fois ou régulière, tous les combien ou avant quelle date, pour qui (soi, l'autre, à tour de rôle), sa durée. Un foyer sans tâche se voit proposer les tâches courantes, à ajouter d'un geste. Une tâche ponctuelle ne s'abandonne pas toute seule : elle reste en retard jusqu'à être faite ou refusée |
 | TAC-21 | M | Toute tâche du foyer se modifie dans l'appli : son nom, sa durée, sa fréquence, pour qui. Elle s'arrête aussi : désactivée, elle garde son historique. Qui peut ajouter, modifier et arrêter se règle par le foyer (FOY-6). L'autre est prévenu du changement (NOT-17) |
@@ -333,7 +333,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | ABS-5 | T | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan tenable, pas un plan devenu impossible |
 | ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu |
 | ABS-7 | M | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue |
-| ABS-8 | T | Quand l'appartement est resté vide plus de deux jours, l'eau de Sassy se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
+| ABS-8 | T | Quand l'appartement est resté vide plus de deux jours, l'eau du chat se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
 
 #### A.3.7 Trajets en train : `TRJ`
 
@@ -347,7 +347,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | TRJ-6 | T | Les autres horaires proposés sont écartés, non supprimés : relire ce qui avait été proposé aide à comprendre un choix |
 | TRJ-7 | T | Un aller retenu sans retour gèle jusqu'à la prochaine obligation connue |
 | TRJ-8 | M | L'achat du billet reste manuel. Une proposition retenue est une intention, pas une réservation |
-| TRJ-9 | D | La destination est celle de la personne : le lieu tel qu'elle le nomme, et la gare où elle descend. Sans réglage sur le compte, celle du serveur. Proposer Lusse à qui va à Saint-Dié sonne faux et n'apprend rien |
+| TRJ-9 | D | La destination est celle de la personne : le lieu tel qu'elle le nomme, et la gare où elle descend. Sans réglage sur le compte, celle du serveur. Proposer à quelqu'un la destination d'un autre sonne faux et n'apprend rien |
 | TRJ-10 | T | Un voyage ne déclare une absence que s'il passe une nuit dehors. Parti et rentré le même jour, on dort chez soi : les tâches du soir restent dues, et le voyage se signale quand même |
 | TRJ-11 | T | Un trajet retenu s'affiche au planning en occupation ordinaire, qui peut recouvrir un cours ou un service : partir pendant un cours est un choix, pas une erreur à empêcher. Annuler le voyage retire les trains avec l'absence |
 
@@ -358,7 +358,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | BIL-1 | D | Un courriel n'est lu qu'une fois. Son en-tête `Message-ID` lui tient lieu d'identité |
 | BIL-2 | D | Seuls les courriels des domaines officiels de SNCF Connect sont analysés. Les faux courriels au nom de la SNCF sont répandus |
 | BIL-3 | D | Quand le corps ne porte aucun trajet, le sujet est lu : il nomme les deux gares, le sens et la date, jamais l'heure |
-| BIL-4 | T | Le sens d'un trajet se juge sur ses deux gares : rentrer au domicile est un retour, en partir est un aller, et pour les trajets qui ne le touchent pas, la gare famille tranche. On part tantôt de Nancy, tantôt de Lunéville |
+| BIL-4 | T | Le sens d'un trajet se juge sur ses deux gares : rentrer au domicile est un retour, en partir est un aller, et pour les trajets qui ne le touchent pas, la gare famille tranche. On ne part pas toujours de la même gare |
 | BIL-5 | T | Un billet lu crée l'aller, le retour s'il figure, puis l'absence, par le même chemin qu'un trajet retenu dans l'appli |
 | BIL-6 | T | Un billet sans horaire vers la gare famille ouvre l'absence au lendemain, et un billet qui en revient la ferme au matin. Seules les journées certaines sont gelées |
 | BIL-7 | T | Un retour acheté seul ferme l'absence en cours, à son heure d'arrivée |
@@ -368,7 +368,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | BIL-11 | T | Tout voyage lu est annoncé, quelle que soit sa destination, avec son lieu, ses dates, et ce qu'il gèle ou non. Un billet pour ailleurs que la famille compte autant que les autres |
 | BIL-12 | T | Une confirmation actuelle ne décrit qu'un trajet : les deux gares dans le sujet, l'heure de départ sur une ligne du corps, et rien sur l'arrivée. Celle-ci est estimée d'après la liaison, et signalée comme telle : assez pour afficher le train et geler les bonnes journées, pas assez pour être annoncée comme un horaire |
 | BIL-13 | T | Le mot « Aller » figure sur les deux courriels d'un aller-retour : chaque trajet est un voyage pour la SNCF. Le sens se déduit des gares, jamais de ce mot |
-| BIL-14 | T | Une gare inconnue nommée par le sujet est acceptée sous son nom : un billet pour Metz doit se dire même si l'on n'y cherchera jamais d'horaire |
+| BIL-14 | T | Une gare inconnue nommée par le sujet est acceptée sous son nom : un billet pour une autre ville doit se dire même si l'on n'y cherchera jamais d'horaire |
 | BIL-15 | T | Un retour acheté à part raccorde l'absence ouverte par l'aller sur son heure réelle, qu'il faille l'allonger ou la raccourcir. Un retour le jour du départ l'efface : les trains restent au planning, les tâches du soir restent dues |
 | BIL-16 | T | Une confirmation est envoyée en deux versions : un texte brut muet et un HTML qui porte le récapitulatif. Les deux sont lues, dans l'ordre de préférence. S'arrêter à la première, c'est ne jamais voir l'heure de départ |
 | BIL-17 | T | Un billet dont le voyage est terminé est classé sans rien déclarer ni annoncer. La relève regarde un mois en arrière : rejouer ces billets créerait des absences dans le passé et annoncerait des voyages dont on est revenu |
@@ -418,7 +418,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 #### A.3.11 Machine à laver : `UNI`
 
-Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald's qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) sont conservées dans `anciennes_fonctionnalites/stock_uniforme/`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
+Le stock d'uniforme a été retiré en septembre 2026, avec le planning de travail qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) sont conservées dans `anciennes_fonctionnalites/stock_uniforme/`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
 
 | Code | Type | Règle |
 |---|---|---|
@@ -433,15 +433,15 @@ Le stock d'uniforme a été retiré en septembre 2026, avec le planning McDonald
 | NOT-3 | T | Le flux iCalendar expose les occupations et les occurrences placées. Une tâche sans heure devient un événement journée entière, une tâche à heure imposée un événement horaire |
 | NOT-4 | T | Le bilan du matin annonce la journée entière : cours, services, tâches et propositions, avec horaires et lieu. Il ne lisait que les tâches, et une journée de cours n'y apparaissait pas alors qu'elle figurait dans le planning et sur le téléphone |
 | NOT-5 | M | Un calendrier se compose : une ou plusieurs personnes, une ou plusieurs familles de contenu, et une adresse d'abonnement à lui. On en tient autant qu'on veut, chacun nommé d'après ce qu'il montre |
-| NOT-6 | D | Six familles de contenu, cochables une par une : cours, travail, perso, tâches, sport, week-ends. Un flux qui mêle les cours, les gardes d'enfants, la litière et le sport ne se lit plus |
+| NOT-6 | D | Six familles de contenu, cochables une par une : cours, travail, perso, tâches, sport, week-ends. Un flux qui mêle les cours, les rendez-vous, la litière et le sport ne se lit plus |
 | NOT-7 | M | Supprimer un calendrier composé coupe son adresse et rien d'autre : les autres abonnements continuent, et le jeton personnel n'est pas renouvelé. On ne supprime que les siens |
 | NOT-8 | D | Deux sortes de jetons ouvrent le flux : celui d'un compte, qui donne tout son planning et se restreint dans l'URL par `qui` et `quoi`, et celui d'un calendrier composé, qui donne exactement ce qu'il déclare. Un jeton composé ne s'élargit jamais par l'URL, sans quoi donner les cours de quelqu'un reviendrait à donner tout son planning |
 | NOT-9 | M | Chacun peut composer le calendrier de l'autre : on vit à deux, et un planning que l'autre ne peut pas consulter oblige à le redemander tous les jours. Dans un calendrier à plusieurs, chaque événement porte le nom de la personne |
-| NOT-10 | T | Un événement personnel garde le titre qu'on lui a donné. Le préfixe de catégorie ne s'applique qu'aux familles qui en ont un : « autre : baby-sitting » n'apprend rien à personne |
+| NOT-10 | T | Un événement personnel garde le titre qu'on lui a donné. Le préfixe de catégorie ne s'applique qu'aux familles qui en ont un : « autre : rendez-vous » n'apprend rien à personne |
 | NOT-14 | T | Pendant les heures de silence, de 23h30 à 7h30 par défaut et réglables par chacun (NOT-15), aucune notification ne part : elles attendent la fin du silence. Une seule exception, HAL d'un compte en pleine conversation avec lui, c'est-à-dire qui lui a écrit il y a moins de trente minutes. Retenue jusqu'au matin, sa réponse arrivait après d'autres qui l'avaient déjà rendue fausse |
 | NOT-15 | M | Chacun règle ses heures dans l'appli : le bilan du matin (7h par défaut), la relance du soir (21h), le récap de HAL (23h) et le silence (23h30 à 7h30). La clôture des séances du jour se fait à l'heure du récap (PLN-9). Le placement du matin et le report d'office restent communs : 7h et juste après minuit |
 | NOT-16 | T | Les notifications passent par le service de notifications d'Apple, vers chaque iPhone où le compte est connecté. Le bot n'en porte plus aucune, sauf les alertes de l'administrateur du serveur (ADM-2). NOT-2 reste : une notification est écrite en base avant d'être envoyée |
-| NOT-17 | T | Chaque changement du planning qui touche quelqu'un part avec sa raison, en une phrase : « L'aspirateur passe à jeudi : tu es absente mercredi ». C'est ce qui remplace « /pourquoi » au quotidien. Les changements d'une même action partent en une seule notification |
+| NOT-17 | T | Chaque changement du planning qui touche quelqu'un part avec sa raison, en une phrase : « L'aspirateur passe à jeudi : absence mercredi ». C'est ce qui remplace « /pourquoi » au quotidien. Les changements d'une même action partent en une seule notification |
 | NOT-18 | T | Le récap du soir, un ajustement de HAL en attente, et une réponse de HAL arrivée panneau fermé mettent un « ! » sur l'orbe de la barre d'onglets, jusqu'à ce qu'on l'ouvre (ORB-4) |
 | NOT-19 | D | Une notification ouvre l'appli au bon endroit : la tâche, la séance, le conflit, la semaine à valider, le panneau de HAL |
 
@@ -482,8 +482,8 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 
 | Acteur | Type | Rôle |
 |---|---|---|
-| Thomas | Principal | Membre et administrateur du foyer : invite, retire un membre, règle les droits sur les tâches (FOY). Administrateur du serveur : lit la partie technique du journal, reçoit les alertes du bot, joint les routes privées et déclenche à la main bilan, relance, report, collecte et relève des billets (FOY-11) |
-| Lorette | Principal | Membre du foyer. Donne ses calendriers, consulte le planning, valide, reporte ou refuse une tâche, ajoute et modifie des tâches selon les droits du foyer, déclare ses absences, compose ses calendriers. Elle a son HAL, comme Thomas |
+| Administrateur | Principal | Membre et administrateur du foyer : invite, retire un membre, règle les droits sur les tâches (FOY). Administrateur du serveur : lit la partie technique du journal, reçoit les alertes du bot, joint les routes privées et déclenche à la main bilan, relance, report, collecte et relève des billets (FOY-11) |
+| Membre | Principal | Membre du foyer. Donne ses calendriers, consulte le planning, valide, reporte ou refuse une tâche, ajoute et modifie des tâches selon les droits du foyer, déclare ses absences, compose ses calendriers. Il a son HAL, comme l'administrateur |
 | Système | Secondaire | Calcule les disponibilités, place les occurrences, répartit les tâches, contrôle les transitions de statut, génère les occurrences suivantes et les notifications, tient le journal |
 | Collecteur | Secondaire | Récupère les données des sources externes et les normalise en occupations |
 | Ordonnanceur | Principal | Déclenche les collectes selon leur fréquence, le bilan, la relance, le report d'office et les relevés (section A.2.4) |
@@ -494,7 +494,7 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 | Telegram | Secondaire | Transporte les alertes et les commandes de l'administrateur du serveur, et rien d'autre (ADM) |
 | Service de notifications d'Apple | Secondaire | Porte les notifications du système jusqu'aux iPhone des membres (NOT-16) |
 | Application HAL | Principal | L'interface de tout le système pour chaque membre : planning, maison, sport, santé et HAL. Se connecte par mot de passe ou par invitation, reçoit les notifications, envoie Santé (partie C) |
-| Portail McDonald's | Secondaire | Fournissait les shifts prévisionnels. Plus suivi depuis septembre 2026 (COL-21) ; l'historique reste |
+| Portail de l'employeur | Secondaire | Fournissait les shifts prévisionnels. Plus suivi depuis septembre 2026 (COL-21) ; l'historique reste |
 
 ---
 
@@ -966,7 +966,7 @@ Une ligne par période de mode allégé. Arrêter avant la fin ferme la période
 | commentaire | TEXT | oui | | | | | |
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
 
-Une absence n'est pas une occupation. Être en cours empêche de faire le ménage à ce moment-là ; être à Saint-Dié dispense de le faire, puisqu'on ne salit pas un logement où l'on n'est pas.
+Une absence n'est pas une occupation. Être en cours empêche de faire le ménage à ce moment-là ; être parti dispense de le faire, puisqu'on ne salit pas un logement où l'on n'est pas.
 
 Un jour n'est compté absent que s'il est entièrement couvert : partir vendredi soir laisse la journée de vendredi utilisable, et la geler créerait un retard fictif.
 
@@ -1358,7 +1358,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-28 | `minimum_sport` est nul ou compris entre 0 et 7 : contrainte `utilisateur_minimum_sport_raisonnable` | Statique forte |
 | SPT-28 | `regler_minimum_sport()` refuse une valeur hors bornes et réorganise les trois semaines | Dynamique forte |
 | SPT-29 | `sportifs()` rend tous les comptes actifs ; une séance garde toujours son propriétaire | Dynamique forte |
-| SPT-30 | « À deux » se juge sur tous les calendriers de l'autre, cours comme gardes d'enfants | Dynamique forte |
+| SPT-30 | « À deux » se juge sur tous les calendriers de l'autre, cours comme rendez-vous | Dynamique forte |
 | SPT-30 | `seance_possible_a_deux()` : vrai seulement si un autre compte n'a aucun obstacle strict sur le même bloc | Dynamique forte |
 | SPT-31 | `invitation_sport` : une seule invitation par séance et par personne, statut parmi attente, acceptée, refusée | Statique forte |
 | SPT-31 | `repondre_invitation()` refuse une deuxième réponse, et crée la séance de l'invité par `choisir_seance_sport` | Dynamique forte |
@@ -1692,13 +1692,13 @@ Depuis la migration 048, les fonctions, les vues et les déclencheurs ne vivent 
 
 ### A.11 Problèmes rencontrés
 
-Les points qui ont demandé le plus de réflexion, et ce que j'en ai tiré. Le README en garde les plus parlants ; ils sont tous ici.
+Les points qui ont demandé le plus de réflexion, et ce qui en a été tiré. Le README en garde les plus parlants ; ils sont tous ici.
 
 #### A.11.1 Collecte
 
 **Le flux de l'université publie chaque cours deux fois**, avec le même identifiant : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par identifiant faisait gagner la dernière lue, donc parfois la version vide, et la salle disparaissait du calendrier. La fusion garde la version la plus informative.
 
-**Une collecte perdait six cours en silence.** Les compteurs affichaient « 80 lues, 51 créées » sans que la différence soit expliquée. J'ai ajouté un invariant : chaque séance lue doit être comptée quelque part, sinon l'écart est signalé. C'est ce contrôle qui a révélé que des chevauchements disparaissaient sans trace.
+**Une collecte perdait six cours en silence.** Les compteurs affichaient « 80 lues, 51 créées » sans que la différence soit expliquée. Un invariant a été ajouté : chaque séance lue doit être comptée quelque part, sinon l'écart est signalé. C'est ce contrôle qui a révélé que des chevauchements disparaissaient sans trace.
 
 **Une collecte muette effaçait deux semaines de planning.** La réconciliation supprime les occupations à venir qui ne sont plus dans le flux : c'est ce qu'il faut faire quand un cours ou un service est annulé. Mais un flux qui ne répond plus, ou qui renvoie une page de connexion, produit exactement le même signal : zéro événement. Le relevé des horaires de sport refuse désormais un résultat vide et conserve ce qu'il avait, plutôt que de vider le planning en silence.
 
@@ -1714,7 +1714,7 @@ Les points qui ont demandé le plus de réflexion, et ce que j'en ai tiré. Le R
 
 **Rejouer une vieille migration cassait le placement.** Le remède précédent avait son revers. Quinze fonctions sont réécrites d'une migration à l'autre, et le script rejouait un fichier modifié sans rejouer ceux qui l'avaient repris depuis : corriger un commentaire dans `003` réinstallait un `placer_taches` vieux de quarante migrations, qui appelle une fonction supprimée. Un fichier dont une migration plus récente a repris une fonction, une vue ou une contrainte n'est plus rejoué : le script le dit, nomme ce qui a été repris, et ne touche à rien. Chaque migration passe aussi dans une seule transaction, pour qu'un échec au milieu ne laisse pas la base entre deux versions.
 
-**Une fonction existait en trois versions.** C'est la cause du défaut précédent, et le garde-fou ne la supprimait pas. Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, la version en vigueur était celle du dernier, et un `git diff` montrait deux cents lignes recopiées pour trois lignes changées. Les fonctions, 90 à l'époque, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant de basculer, j'ai vérifié que charger ce dossier sur une base construite par les 47 migrations la laisse identique, objet par objet. Une migration récente qui définit encore une fonction est refusée.
+**Une fonction existait en trois versions.** C'est la cause du défaut précédent, et le garde-fou ne la supprimait pas. Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, la version en vigueur était celle du dernier, et un `git diff` montrait deux cents lignes recopiées pour trois lignes changées. Les fonctions, 90 à l'époque, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant la bascule, il a été vérifié que charger ce dossier sur une base construite par les 47 migrations la laisse identique, objet par objet. Une migration récente qui définit encore une fonction est refusée.
 
 **Un déploiement raté ne se voyait pas.** Le script comparait `HEAD` à `origin/main`, et fusionnait avant d'appliquer les migrations. Si l'une d'elles échouait, la fusion était déjà faite : le passage suivant concluait qu'il n'y avait plus rien à faire, et le serveur restait sur l'ancienne API avec une base à moitié migrée. Le script retient maintenant le dernier commit déployé avec succès, réessaie tout seul, et prévient une fois sur Telegram. Un déploiement ne compte que si l'API répond sur `/sante` après le redémarrage.
 
@@ -1726,7 +1726,7 @@ Les points qui ont demandé le plus de réflexion, et ce que j'en ai tiré. Le R
 
 **HAL répondait à 7h30 à des questions déjà réglées.** Le silence de la nuit retenait toutes les notifications jusqu'au matin, y compris les réponses de HAL à une conversation menée après 23h30. Elles partaient toutes à 7h30, dans le désordre de la veille : un avis sur un objectif déjà changé, une question à laquelle on avait déjà répondu. On aurait dit que HAL avait refait le plan. Le silence laisse maintenant passer HAL d'une conversation en cours (NOT-14), et une réponse déjà affichée par le bot n'est plus renvoyée en notification.
 
-**Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « Thomas a déclaré une absence » et « l'aspirateur passe à Lorette » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
+**Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « un membre a déclaré une absence » et « l'aspirateur passe à l'autre » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
 
 ---
 
@@ -1756,7 +1756,7 @@ Le module HAL apporte le contenu. À partir d'objectifs fixés par l'utilisateur
 
 HAL conseille et l'utilisateur décide. Une séance n'entre au planning qu'une fois validée, et HAL ne touche plus à ce qui est validé.
 
-HAL sert chaque membre du foyer, Thomas et Lorette, chacun avec le sien. Il couvre la musculation, la course à pied et les machines cardio de la salle.
+HAL sert chaque membre du foyer, chacun avec le sien. Il couvre la musculation, la course à pied et les machines cardio de la salle.
 
 #### B.1.2 Choix effectués
 
@@ -1772,7 +1772,7 @@ HAL sert chaque membre du foyer, Thomas et Lorette, chacun avec le sien. Il couv
 - **Le dossier ne contient rien de personnel.** Il décrit des méthodes, valables pour n'importe qui. Ce qui concerne une personne, sa limitation, ses exercices interdits, son historique, vit en base : dans sa limitation et dans sa mémoire. Le dépôt est public, une donnée de santé n'a rien à y faire, et HAL d'un autre compte ne doit pas recevoir le cas du premier.
 - **Le dossier part en paquets.** Un socle de cinq chapitres part à chaque appel : rôle, sécurité, décision, communication, posture. Le reste est découpé en paquets par sujet, envoyés en résumé ou en entier selon le moment et ce dont on parle (DOS). Un chapitre qui manque se lit à la demande, par un outil. Envoyer tout le dossier à chaque appel coûterait environ cinq fois plus cher.
 - **La mémoire de HAL est en base, en quatre étages.** Plus on remonte loin, moins il y a de détail : la semaine, le mois, les trois derniers mois, puis tout le reste. Les résumés se font seuls la nuit (MEM). Tous les échanges sont gardés, et les dix derniers sont rendus au modèle à chaque appel.
-- **Pas de questionnaire médical.** HAL ne demande ni dépistage ni avis médical avant de commencer, et ne parle de médecin que dans deux cas : une douleur dans la poitrine ou un malaise, et un complément ou une carence qui le justifient. C'est une décision de l'utilisateur, du 9 octobre 2026 (annexe 4).
+- **Pas de questionnaire médical.** HAL ne demande ni dépistage ni avis médical avant de commencer, et ne parle de médecin que dans deux cas : une douleur dans la poitrine ou un malaise, et un complément ou une carence qui le justifient. Décision du 9 octobre 2026 (annexe 4).
 - **Ce que chaque moment lit à coup sûr lui est donné d'office.** La semaine, la santé, la forme, l'emploi du temps : les demander par un outil coûtait un passage entier au modèle (COA-28).
 - **Il n'y a pas de filtre de mots dans le code pour les signaux graves.** Le chapitre de sécurité part à chaque appel et le modèle l'applique seul. C'est un choix assumé, dont la section B.11 dit la contrepartie.
 - **Il n'y a pas de plafond de dépense dans le système.** Le suivi se fait sur la console du fournisseur.
@@ -2233,7 +2233,7 @@ Un carnet de notes à plat ne dit pas ce qui a changé au fil des mois. La mémo
 
 | Acteur | Type | Rôle |
 |---|---|---|
-| Thomas et Lorette | Principal | Chacun a son HAL. Fixe ses objectifs, valide ses semaines, décale ses séances le jour même, demande un changement, saisit ses séries et ses mesures, signale, pose ses questions. Thomas, comme administrateur du serveur, tient le catalogue d'exercices et le dossier |
+| Membre du foyer | Principal | Chacun a son HAL. Fixe ses objectifs, valide ses semaines, décale ses séances le jour même, demande un changement, saisit ses séries et ses mesures, signale, pose ses questions. L'administrateur du serveur tient le catalogue d'exercices et le dossier |
 | HAL | Principal | Module de l'API. Assemble la consigne, appelle le modèle, exécute les outils, enregistre l'échange et la notification |
 | Modèle de langage | Secondaire | Reçoit la consigne et le contexte, demande des outils, rend un texte. Ne voit que ce qu'on lui envoie et n'écrit que par les outils |
 | Système | Secondaire | Vérifie le placement et la sécurité, calcule les charges et le score de forme, tient les états, le journal et les notifications |
@@ -3367,7 +3367,7 @@ La bêta `ios/CoachSante/` reste en service jusqu'à la bascule (lot 10 de la pa
 
 Prévus au retrait : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
 
-**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : Lorette a HAL comme Thomas, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là : Pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) se font au lot 2 de la partie E. Le code retiré ira dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme.
+**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) se font au lot 2 de la partie E. Le code retiré ira dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme.
 
 #### B.10.4 Ordre de construction
 
@@ -3394,7 +3394,7 @@ Cette section disait d'abord les problèmes qu'on attendait. Ceux qu'on a rencon
 
 #### B.11.1 La sécurité repose sur le modèle
 
-Aucun mot n'est filtré par le code (COA-13). Si le modèle lit mal un signalement grave, rien d'autre ne le rattrape. Trois choses limitent le risque sans le supprimer : le chapitre 1.2 part à chaque appel, les scénarios de sécurité sont rejoués avant chaque changement (COA-14), et le message fixe de COA-12 dit au moins que le texte n'a pas été lu. Ce message ne donne aucune consigne d'urgence : c'est une décision de l'utilisateur. HAL ne pose pas de diagnostic ; une douleur dans la poitrine ou un malaise est le seul cas où il dit d'appeler le 15.
+Aucun mot n'est filtré par le code (COA-13). Si le modèle lit mal un signalement grave, rien d'autre ne le rattrape. Trois choses limitent le risque sans le supprimer : le chapitre 1.2 part à chaque appel, les scénarios de sécurité sont rejoués avant chaque changement (COA-14), et le message fixe de COA-12 dit au moins que le texte n'a pas été lu. Ce message ne donne aucune consigne d'urgence : c'est un choix du projet. HAL ne pose pas de diagnostic ; une douleur dans la poitrine ou un malaise est le seul cas où il dit d'appeler le 15.
 
 #### B.11.2 Ce que la base ne vérifie pas
 
@@ -3436,7 +3436,7 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 
 **Une séance de la montre restait seule.** Envoyée avant que la séance soit posée à la main, elle ne trouvait rien à remplir, et la séance était close comme pas faite. Les séances restées seules sont rattachées chaque soir avant la clôture (SAN-9).
 
-**Le questionnaire médical bloquait le démarrage.** Une réponse positive arrêtait tout jusqu'à un avis médical. Il a été retiré à la demande de l'utilisateur (annexe 4).
+**Le questionnaire médical bloquait le démarrage.** Une réponse positive arrêtait tout jusqu'à un avis médical. Il a été retiré le 9 octobre 2026 (annexe 4).
 
 ---
 
@@ -3445,7 +3445,7 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 - Le vélo et la natation. Le dossier les couvre, le module non. La piscine reste un lieu où poser une séance à la main.
 - Le suivi de l'alimentation. HAL répond aux questions dans le chat, rien n'est saisi ni calculé.
 - La modification du plan par un message libre. Elle passe par « Demander un changement » (COA-32), où HAL propose et l'utilisateur valide.
-- HAL pour d'autres foyers que celui de Thomas et Lorette : authentification, limites d'usage et cadre légal seraient à revoir.
+- HAL pour d'autres foyers que le foyer actuel : authentification, limites d'usage et cadre légal seraient à revoir.
 - Une application Apple Watch : la montre sert par l'app Exercice (MON-3).
 - Un écran du coût de HAL dans l'application : il se lit par le bot d'administration (ADM-3).
 - Un filtre de mots pour les signaux graves, et un plafond de dépense.
@@ -3473,7 +3473,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 - **Seul le sport passe par HAL.** Les tâches, l'emploi du temps, les absences et le mode allégé se modifient à la main, sans IA (APP-7).
 - **Un seul rendu, sur photo.** Pas de mode clair ni de mode sombre : une photo de fond, assombrie et floutée pour rester lisible, et quatre combinaisons de couleurs.
 - **Tout est fait de composants réutilisables.** Un écran assemble des composants ; une fonction est un module qui déclare son widget et ses écrans. Ajouter une fonction, c'est ajouter un module (C.5).
-- **Lorette a exactement la même appli.** Rien n'est propre à Thomas, à part le rôle d'administrateur du serveur.
+- **Chaque membre a exactement la même appli.** Rien n'est propre à un compte, à part le rôle d'administrateur du serveur.
 - **Texte en SF Pro** dans l'appli. La maquette utilise Inter, qui s'affiche mieux dans Figma : les tailles et les graisses sont les mêmes.
 
 ### C.2 Structure : `APP`
@@ -3485,7 +3485,7 @@ La barre d'onglets compte quatre onglets et l'orbe de HAL au milieu.
 | 1 | Aujourd'hui | Le tableau de bord : des widgets à composer, ce qui est à faire aujourd'hui, ce qui attend une réponse [1.1] |
 | 2 | Sport | La forme du jour tirée de Santé, le plan, la semaine, la charge, l'évolution, les progrès, les séances de la montre [3.1] |
 | Centre | HAL | L'orbe : il ouvre le panneau de HAL, par-dessus n'importe quel onglet [2.1] |
-| 3 | Maison | Les tâches du jour des deux, l'équilibre du temps passé, Sassy et le linge, ce qui arrive, les absences [4.1] |
+| 3 | Maison | Les tâches du jour des deux, l'équilibre du temps passé, le chat et le linge, ce qui arrive, les absences [4.1] |
 | 4 | Réglages | Apparence, planning, HAL et sport, appareil, foyer et compte [5.1] |
 
 | Code | Type | Règle |
@@ -3541,7 +3541,7 @@ Ce sont les « presets » : chacun existe une fois dans la maquette, sur la plan
 | Panneau IA | Ouvert, réduit | Le panneau de HAL |
 | Barres, courbe | Série de valeurs | Les graphiques |
 | Pastille thème | Une des quatre combinaisons | Le choix du thème |
-| Avatar | Initiale, couleur de la personne | Thomas, Lorette |
+| Avatar | Initiale, couleur de la personne | Les membres du foyer |
 | Icône | Nom d'un symbole SF | Toutes les icônes |
 
 L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
@@ -3573,7 +3573,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | Forme | Petit, Moyen | Sommeil, FC de repos, VFC, pas | Le détail [3.16] |
 | Train | Petit | Le prochain train retenu | Les trains [1.13] |
 | Objectif | Petit | L'objectif principal et les jours qui restent | Objectifs [3.18] |
-| Sassy | Petit | Litière, eau, fontaine : ce qui est dû | Maison |
+| Chat | Petit | Litière, eau, fontaine : ce qui est dû | Maison |
 | Équilibre | Petit | Le temps passé par chacun aux tâches, sur la période | Maison |
 | Séance en cours | Moyen | L'exercice et la série en cours, le repos | La séance [3.5] |
 | Montre | Petit | La dernière séance de la montre | Le détail [3.14] |
@@ -3665,7 +3665,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
-| 4.1 Maison | Tâches du jour des deux, équilibre, Sassy, linge, ce qui arrive | PLA-12 |
+| 4.1 Maison | Tâches du jour des deux, équilibre, chat, linge, ce qui arrive | PLA-12 |
 | 4.2 Détail d'une tâche | Nom, durée, fréquence, pour qui ; « Je l'ai faite », même pour l'autre | TAC-21, EXE-14, EXE-16 |
 | 4.3 Nouvelle tâche | Les questions d'ajout | TAC-20 |
 | 4.4 C'est fait | Aujourd'hui, hier ou un autre jour, même pour l'autre, ou une tâche faite en plus | EXE-8, EXE-11, EXE-17 |
@@ -3688,16 +3688,20 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 5.8 Mémoire de HAL | Les quatre étages, corriger, revenir à une version | MEM-1, MEM-5 |
 | 5.9 Mettre HAL en pause | Motif, date de fin | PAU-1 |
 | 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu | SAN-10 |
-| 5.11 Notifications | Les heures de chacun et le silence | NOT-14, NOT-15 |
+| 5.11 Notifications | Mes heures (bilan, relance, récap), ce qui prévient, et le silence | NOT-14, NOT-15 |
 | 5.12 Calendriers abonnés | Composer, copier le lien, renouveler le jeton | NOT-5 à NOT-9, UTI-3 |
 | 5.13 Serveur | Adresse, état de la connexion, mot de passe | CNX |
 | 5.14 Connexion | Pseudo et mot de passe, ou une invitation | CNX-3, FOY-3 |
+| 5.15 Le foyer | Les membres, inviter, les droits sur les tâches, passer l'admin, retirer, quitter | FOY-2, FOY-5 à FOY-7 |
+| 5.16 Inviter dans le foyer | Le code et le lien, valables 48 h, une seule fois ; partager, copier, annuler | FOY-3 |
+| 5.17 Historique | Les actions du foyer jour par jour, avec ce qu'elles ont changé, et une recherche | JRN-9 |
+| 5.18 Rejoindre un foyer | Le code prérempli, le pseudo et le mot de passe | FOY-3, PRE-1 |
 
 **6 · Hors de l'appli**
 
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
-| 6.1 Notifications | Chaque changement avec sa raison ; le récap et les ajustements de HAL ; l'autre a fait ta tâche | NOT-16 à NOT-19 |
+| 6.1 Notifications | Chaque changement avec sa raison ; le récap et les ajustements de HAL ; la tâche d'un membre faite par un autre | NOT-16 à NOT-19 |
 | 6.2 Écran verrouillé | Anneau Sport et prochain événement, raccourci vers l'orbe, Live Activity du repos | IOS-2, IOS-3 |
 | 6.3 Écran d'accueil iOS | Les mêmes modules en widgets iOS | IOS-1 |
 | 6.4 Dynamic Island | La séance en cours, compacte, minimale ou déployée | IOS-3 |
@@ -3707,13 +3711,13 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
 | 7.1 Bienvenue | Les cinq étapes ; « Plus tard » laisse l'appli utilisable sans plan | DEM-1 |
-| 7.2 à 7.5 Profil | Toi, niveaux, disponibilités, alimentation, avec un champ libre à chaque étape | PRO-1, PRO-2, PRO-7, DEM-1 |
+| 7.2 à 7.5 Profil | Identité, niveaux, disponibilités, alimentation, avec un champ libre à chaque étape | PRO-1, PRO-2, PRO-7, DEM-1 |
 | 7.6 à 7.8 Limitation | Y en a-t-il une, où et quoi, exercices à éviter | DEM-3, EXO-8 |
-| 7.9 Lieux | Où tu t'entraînes, par discipline | LIE-4, LIE-6 |
+| 7.9 Lieux | Les lieux d'entraînement, par discipline | LIE-4, LIE-6 |
 | 7.10 à 7.12 Objectif | Le type, la course et le temps visé, les objectifs à côté | OBJ-1, OBJ-3, OBJ-4, DEM-4 |
 | 7.13 Récapitulatif | Tout sur un écran, chaque ligne se corrige | DEM-2, DEM-6 |
 | 7.14 HAL construit le plan | L'avis sur l'objectif | OBJ-5 |
-| 7.15 Ton plan sur 4 semaines | La feuille de route, les semaines et leur rôle | OBJ-11, PLN-1, PLN-22 |
+| 7.15 Plan sur 4 semaines | La feuille de route, les semaines et leur rôle | OBJ-11, PLN-1, PLN-22 |
 | 7.16 Semaine de calibrage | À valider en une fois | PLN-20, PLN-6 |
 | 7.17 C'est parti | Retour à Aujourd'hui, le récap commence le soir même | DEM-6 |
 | 7.18 Démarrage pas fini | Reprendre là où on en était | DEM-2, DEM-4 |
@@ -3733,7 +3737,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 8.15 Conflit agrandi | Les deux cours, le choix, « Voir plus tard » | COL-12, COL-23 |
 | 8.16, 8.17 Thèmes | Le même tableau de bord dans deux autres combinaisons | THM-3 |
 
-**Écrans à dessiner.** Trois écrans viennent des décisions d'octobre 2026 et ne sont pas encore dans la maquette : le foyer (membres, invitation, droits, D.2), l'Historique (JRN-9) et les heures de notification (NOT-15, à intégrer à 5.11).
+Les écrans 5.15 à 5.18 et les heures de 5.11 viennent des décisions d'octobre 2026. L'écran 5.1 a gagné l'Historique dans le groupe Planning et le foyer dans le groupe Foyer et compte.
 
 ### C.8 La séance de musculation, pas à pas
 
@@ -3771,7 +3775,7 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 
 | Code | Type | Règle |
 |---|---|---|
-| PRE-1 | M | On se connecte avec son pseudo et son mot de passe, ou on rejoint un foyer avec une invitation (FOY-3) [5.14] |
+| PRE-1 | M | On se connecte avec son pseudo et son mot de passe [5.14], ou on rejoint un foyer avec une invitation (FOY-3) [5.18] |
 | PRE-2 | T | Viennent ensuite quatre écrans, dans cet ordre : l'accès à Santé, les notifications, les calendriers, la rencontre avec HAL [8.1 à 8.5]. Chacun explique avant que la fenêtre d'iOS ne s'ouvre, sinon on refuse sans comprendre |
 | PRE-3 | M | Chaque étape a « Plus tard ». Ce qui est passé se rallume dans Réglages, et l'onglet concerné le rappelle tant que c'est vide [8.6, 8.7] |
 | PRE-4 | T | La dernière étape enchaîne sur le démarrage de HAL (section B.3.18), ou laisse découvrir l'appli d'abord ; Sport propose alors de reprendre [7.18] |
@@ -3781,10 +3785,10 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 | Groupe | Ce qu'on y trouve |
 |---|---|
 | Apparence | Fond et couleurs [5.2] |
-| Planning | Calendriers à suivre [5.3, 5.4], calendriers abonnés [5.12], Historique (JRN-9) |
+| Planning | Calendriers à suivre [5.3, 5.4], calendriers abonnés [5.12], Historique [5.17] |
 | HAL et sport | Profil [5.5], limitations [5.6], lieux [5.7], mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5) |
 | Appareil | Santé et Apple Watch [5.10], notifications et heures [5.11] |
-| Foyer et compte | Le foyer, ses membres, l'invitation et les droits (FOY), le serveur et la connexion [5.13], le mot de passe, se déconnecter |
+| Foyer et compte | Le foyer, ses membres, l'invitation et les droits [5.15, 5.16], le serveur et la connexion [5.13], le mot de passe, se déconnecter |
 
 Il n'y a pas d'écran du coût de HAL : il se lit par le bot d'administration (ADM-3).
 
@@ -3812,16 +3816,16 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Le détail des
 
 ## Partie D. Foyer, comptes et administration
 
-Cette partie est nouvelle. Elle remplace l'idée de « deux utilisateurs, un administrateur et un standard » par un foyer qu'un administrateur ouvre et auquel il invite. Aujourd'hui le serveur ne sert qu'un foyer, celui de Thomas et Lorette. Le modèle est écrit pour en accueillir d'autres plus tard, sans rien réécrire.
+Cette partie est nouvelle. Elle remplace l'idée de « deux utilisateurs, un administrateur et un standard » par un foyer qu'un administrateur ouvre et auquel il invite. Aujourd'hui le serveur ne sert qu'un foyer. Le modèle est écrit pour en accueillir d'autres plus tard, sans rien réécrire.
 
 ### D.1 Deux rôles d'administrateur
 
 | Rôle | Qui | Ce qu'il fait |
 |---|---|---|
 | Administrateur du foyer | Un membre du foyer, celui qui l'a créé à l'origine | Invite, retire un membre, règle les droits sur les tâches, passe son rôle à un autre |
-| Administrateur du serveur | Un compte, celui de Thomas | Voit le technique (sources, déploiements, appels de HAL et leur coût), reçoit les alertes du bot, a les routes privées. Il ne lit pas les données privées des autres comptes |
+| Administrateur du serveur | Un compte, celui de la personne qui héberge le serveur | Voit le technique (sources, déploiements, appels de HAL et leur coût), reçoit les alertes du bot, a les routes privées. Il ne lit pas les données privées des autres comptes |
 
-Thomas tient les deux rôles. Ils restent séparés : un jour, un autre foyer aura son propre administrateur, qui ne verra pas le serveur.
+Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un jour, un autre foyer aura son propre administrateur, qui ne verra pas le serveur.
 
 ### D.2 Règles du foyer : `FOY`
 
@@ -3836,9 +3840,9 @@ Thomas tient les deux rôles. Ils restent séparés : un jour, un autre foyer au
 | FOY-7 | M | L'administrateur passe son rôle à un autre membre. Il ne peut quitter le foyer qu'après l'avoir fait, sauf s'il y est seul. Le dernier qui part ferme le foyer : ses tâches s'arrêtent, son historique reste |
 | FOY-8 | D | HAL est personnel. Le profil, les limitations, les objectifs, la santé, les mesures, la mémoire et les échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17) |
 | FOY-9 | D | Ce qui se lit à deux se lit dans le foyer, et seulement dans le foyer : le journal (JRN-6), les calendriers de l'autre (NOT-9), les absences, les tâches. Deux foyers ne voient rien l'un de l'autre |
-| FOY-10 | D | Les tâches, leurs enchaînements et leurs accompagnements, les tâches de départ et de retour, et ce qui concerne Sassy appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
+| FOY-10 | D | Les tâches, leurs enchaînements et leurs accompagnements, les tâches de départ et de retour, et ce qui concerne les animaux appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
 | FOY-11 | D | Un compte porte le rôle d'administrateur du serveur. C'est le seul que le bot écoute (ADM-1), le seul qui lit la partie technique du journal (JRN-6) et qui joint les routes privées (CNX-5) |
-| FOY-12 | T | Au passage à cette version, les deux comptes existants forment le premier foyer. Thomas en est l'administrateur et reste celui du serveur. Rien du passé ne change : tâches, occurrences, journal et séances gardent leurs numéros |
+| FOY-12 | T | Au passage à cette version, les deux comptes existants forment le premier foyer. L'administrateur du serveur en devient l'administrateur. Rien du passé ne change : tâches, occurrences, journal et séances gardent leurs numéros |
 
 ### D.3 Le bot d'administration : `ADM`
 
@@ -3886,20 +3890,26 @@ Appareil
 
 Chaque lot se termine par quelque chose qu'on peut vérifier. Rien ne part sur `main` sans avoir tourné en local d'abord : chaque push y est déployé (A.2.3).
 
+Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10.
+
 | Lot | Contenu | Ce qu'on peut vérifier à la fin |
 |---|---|---|
-| 1. Foyer et accès | Tables du foyer, des invitations et des appareils ; droits sur les tâches ; migration des deux comptes ; routes de l'appli au funnel, administration privée | Une invitation crée un compte dans le foyer ; un membre sans droit ne peut pas modifier une tâche ; une route d'administration ne répond pas depuis internet |
-| 2. Retraits | Les réservations « à déterminer », habitudes et alerte du lundi pour tous (annexe 2), fusion des fonctions de séance, passage de tout le sport à quatre semaines ; les commandes du bot réservées à l'administrateur (ADM) | Les tests du sport passent, moins ceux des règles retirées ; un message d'un autre compte au bot reçoit la phrase d'ADM-1 |
-| 3. Notifications | Envoi par le service d'Apple, heures de chacun, ordonnanceur toutes les cinq minutes, raison jointe à chaque changement, « ! » de l'orbe | Changer l'heure du bilan la déplace dès le lendemain ; une tâche faite par l'autre arrive en notification avec son nom |
 | 4. Socle de l'appli | Thème, fond, composants, système de modules et registre, barre d'onglets et orbe, file hors réseau | Un écran d'essai fait de composants change de couleur avec la combinaison ; un module ajouté apparaît dans la galerie sans autre changement |
+| 1. Foyer et accès | Tables du foyer, des invitations et des appareils ; droits sur les tâches ; migration des deux comptes ; routes de l'appli au funnel, administration privée | Une invitation crée un compte dans le foyer ; un membre sans droit ne peut pas modifier une tâche ; une route d'administration ne répond pas depuis internet |
+| 3. Notifications | Envoi par le service d'Apple, heures de chacun, ordonnanceur toutes les cinq minutes, raison jointe à chaque changement, « ! » de l'orbe | Changer l'heure du bilan la déplace dès le lendemain ; une tâche faite par l'autre arrive en notification avec son nom |
 | 5. Aujourd'hui et Maison | Widgets, mode édition, « + », tâches, conflit, absences, mode allégé, trains | Une semaine de vie sans le bot : tout ce qui se faisait par lui se fait dans l'appli |
 | 6. Sport et séance | Sport, séance de musculation hors réseau, série intermédiaire, fin de séance, bilan, séance libre, mesures, santé automatique | Une séance entière en mode avion, envoyée au retour du réseau sans doublon |
 | 7. HAL dans l'appli | Panneau, contexte de l'écran, dictée, moment « changement », annulation, démarrage dans l'appli | Le démarrage complet d'un compte neuf jusqu'à la semaine de calibrage validée ; un changement demandé pour une séance validée devient un ajustement |
 | 8. Réglages et premier lancement | Réglages, Historique, foyer, premier lancement, états vides et erreurs | Un compte neuf invité arrive sur un Aujourd'hui qui lui dit quoi faire |
 | 9. iOS | Widgets iOS, écran verrouillé, Live Activity, envoi à la montre | Une course envoyée à la montre, courue, et validée toute seule dans le planning |
-| 10. Bascule | Lorette sur HAL, `ios/CoachSante/` rangée dans `anciennes_fonctionnalites/`, les comptes Telegram des membres déliés | Deux semaines d'usage réel à deux, sans le bot |
+| 2. Retraits | Les réservations « à déterminer », habitudes et alerte du lundi pour tous (annexe 2), fusion des fonctions de séance, passage de tout le sport à quatre semaines ; les commandes du bot réservées à l'administrateur (ADM) | Les tests du sport passent, moins ceux des règles retirées ; un message d'un autre compte au bot reçoit la phrase d'ADM-1 |
+| 10. Bascule | Tous les membres sur HAL, `ios/CoachSante/` rangée dans `anciennes_fonctionnalites/`, les comptes Telegram des membres déliés | Deux semaines d'usage réel à deux, sans le bot |
 
-L'ordre suit la dépendance : l'appli a besoin des routes du lot 1 et des notifications du lot 3. Les lots 4 à 9 peuvent se faire sur des données fictives tant que les routes manquent.
+Trois raisons fixent cet ordre :
+
+- **Le socle de l'appli ne dépend pas du serveur.** Il se construit sur des données fictives, et c'est lui qui précise ce que chaque écran demande à l'API.
+- **Les lots 1 et 3 ne font qu'ajouter.** Le foyer, les routes ouvertes à l'appli et les notifications d'Apple s'ajoutent à l'existant : le bot continue de servir pendant ce temps.
+- **Les retraits viennent en dernier.** Le lot 2 retire le bot des membres et l'ancien sport. Il ne se fait qu'une fois que l'appli remplace le bot pour tout l'usage quotidien, juste avant la bascule.
 
 ---
 
@@ -3951,21 +3961,21 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Durée d'une séance | De 15 à 240 minutes | Choix de conception | PLN-13 |
 | Intensité d'une séance libre, par l'effort | Dure à partir de 7, modérée de 4 à 6, légère en dessous | Choix de conception | LIB-12 |
 | Intensité d'une séance libre, par la montre | Dure si la fréquence cardiaque moyenne atteint 80 % de la fréquence maximale, modérée à partir de 65 % | Choix de conception, à calibrer | LIB-12 |
-| Fenêtre de mesure | Deux ou trois jours, sept au plus | Décision de l'utilisateur | MES-1 |
+| Fenêtre de mesure | Deux ou trois jours, sept au plus | Choix du projet | MES-1 |
 | Taille de la mémoire | Globale 4 000, trois mois 3 × 1 500, mois 3 000, semaine 3 000 caractères | Choix de conception | MEM-3 |
 | Ancien message de HAL dans les derniers échanges | 500 caractères | Mesure du coût | MEM-10 |
 | Limite de sortie d'un appel | 16 000 tokens | Mesure | COA-27 |
-| Échanges rendus au modèle | 10 | Décision de l'utilisateur | CAR-7 |
+| Échanges rendus au modèle | 10 | Choix du projet | CAR-7 |
 | Connexion de l'application | Blocage de 15 minutes après 5 échecs ; 10 caractères au moins | Choix de conception | CNX-2, CNX-3 |
 | Tours d'outils par appel | 12, et 30 pour le plan et la révision | Choix de conception | COA-7 |
-| Synthèse en pause | Un soir sur trois | Décision de l'utilisateur | PAU-3 |
-| Semaines détaillées d'avance | Une : la première qui n'est pas validée | Décision de l'utilisateur | PLN-23 |
+| Synthèse en pause | Un soir sur trois | Choix du projet | PAU-3 |
+| Semaines détaillées d'avance | Une : la première qui n'est pas validée | Choix du projet | PLN-23 |
 | Nouveaux essais | À 5, 20 et 50 minutes, puis 6h55 | Choix de conception | COA-11 |
 | Besoin de sommeil | 8 heures | Chapitre 8.2 du dossier | score de forme |
-| Série intermédiaire | Poids baissé de 10 % s'il manque une ou deux répétitions, 20 % au-delà, palier de 2,5 kg | Décision de l'utilisateur, seuils à confirmer | SAI-17 |
+| Série intermédiaire | Poids baissé de 10 % s'il manque une ou deux répétitions, 20 % au-delà, palier de 2,5 kg | Choix du projet, à calibrer | SAI-17 |
 | Heures de chacun | Bilan 7h, relance 21h, récap 23h, silence de 23h30 à 7h30 | Les heures d'avant | NOT-15 |
 | Invitation | Valable 48 heures, usage unique | Choix de conception | FOY-3 |
-| Conflit caché | Revient sept jours avant sa date | Décision de l'utilisateur | COL-23 |
+| Conflit caché | Revient sept jours avant sa date | Choix du projet | COL-23 |
 | Annulation d'une action de HAL | Cinq secondes | Maquette [2.4] | ORB-6 |
 | Historique minimal pour le rapport de charge | 4 semaines | Chapitre 8.1 du dossier | `v_charge_entrainement` |
 
@@ -3979,7 +3989,7 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | CAR-4 | Remplacée par MEM-3 | Le carnet comptait au plus soixante notes actives |
 | CAR-5 | Remplacée par MEM-6 : le roulement de la nuit | Le dimanche, HAL relisait le carnet, fusionnait les doublons et retirait le périmé |
 | CAR-9 | Remplacée par MEM-5 : l'utilisateur corrige un étage, et « /memoire » le montre | HAL retirait une note sur demande ; le carnet n'avait pas d'écran |
-| PRO-3 | Retirée le 9 octobre 2026, à la demande de l'utilisateur | Le dépistage était un questionnaire de sept questions fermées, daté |
+| PRO-3 | Retirée le 9 octobre 2026 | Le dépistage était un questionnaire de sept questions fermées, daté |
 | PRO-5 | Retirée avec PRO-3 | Une réponse positive bloquait le plan jusqu'à un avis médical déclaré |
 | PRO-6 | Retirée avec PRO-3 | Le dépistage se refaisait au bout de douze mois, sans quoi aucun nouveau plan |
 | COA-3, première version | Réécrite : un socle de cinq chapitres, puis des paquets (DOS) | Six chapitres de base à chaque appel, dont 10.1 |
