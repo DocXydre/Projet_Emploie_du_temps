@@ -69,6 +69,10 @@ def amorcer_assignations() -> int:
         destinations = executer("SELECT appliquer_destinations() AS touchees")
         touchees += (destinations or {}).get("touchees", 0)
 
+        # FOY-1 : les comptes d'avant le foyer s'y retrouvent ensemble. Sans
+        # effet dès qu'un foyer est ouvert.
+        executer("SELECT amorcer_foyer()")
+
         resultat = executer("SELECT appliquer_assignations() AS touchees")
     except psycopg.Error as erreur:
         LOG.warning("Assignations reportées : %s", erreur.diag.message_primary or erreur)

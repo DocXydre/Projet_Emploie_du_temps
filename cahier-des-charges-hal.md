@@ -76,7 +76,7 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 | Séance libre annoncée | Elle reste à son auteur, qui la déplace ou la supprime sans HAL | PLN-11 |
 | Taille du foyer | Deux personnes au plus, tant que les règles du ménage sont écrites pour deux | FOY-4 |
 | Droits par défaut | Tous les membres ajoutent, modifient et arrêtent les tâches, jusqu'à restriction par l'administrateur | FOY-6 |
-| Membre retiré | Ses tâches repassent aux autres ; il garde son compte et son HAL | FOY-5 |
+| Membre retiré | Ses tâches repassent aux autres ; son compte est mis en pause, avec son planning et son HAL | FOY-5 |
 | Annulation d'une action de HAL | Cinq secondes | ORB-6 |
 | Couleurs tirées de la photo | Disponibles en option | THM-4 |
 | Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/` à la bascule | Partie E, lot 10 |
@@ -473,7 +473,7 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 | CNX-2 | M | Le mot de passe se choisit en rejoignant le foyer (FOY-3), puis se change dans Réglages, Compte, ou par l'API avec sa clé. Dix caractères au moins |
 | CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe et rend la clé d'API. Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
 | CNX-4 | D | `/connexion` et l'acceptation d'une invitation (FOY-3) sont les seules routes ouvertes sans clé. Chaque autre route exige la clé d'API |
-| CNX-5 | D | Toutes les routes de l'application passent par `tailscale funnel`, derrière la clé. Les routes d'administration restent sur le tailnet : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, tour des week-ends, relève et relecture des courriels |
+| CNX-5 | D | Toutes les routes de l'application passent par `tailscale funnel`, derrière la clé. Les routes d'administration restent sur le tailnet : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, tour des week-ends, relève et relecture des courriels. L'API refuse ces routes (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
 | CNX-6 | M | Se déconnecter, dans Réglages, efface la clé du trousseau et retire l'appareil de la liste des notifications. Changer de mot de passe ne change pas la clé ; la renouveler déconnecte tous les appareils |
 
 ---
@@ -1398,7 +1398,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | CNX-1 | `mot_de_passe` ne contient qu'une empreinte de la forme `scrypt$n$r$p$sel$empreinte`, comparée en temps constant | Statique forte |
 | CNX-2 | Un mot de passe de moins de dix caractères est refusé avant d'être haché | Dynamique forte |
 | CNX-3 | `echecs_connexion` compte les échecs d'affilée et revient à zéro à la première réussite. Au cinquième, `bloque_jusqu_a` reçoit quinze minutes plus tard, et toute connexion est refusée d'ici là | Dynamique forte |
-| CNX-4 | Toute route autre que `POST /connexion` exige l'en-tête `X-Cle-Api` | Dynamique forte |
+| CNX-4 | Toute route autre que `POST /connexion` et `POST /invitations/{code}/accepter` exige l'en-tête `X-Cle-Api` | Dynamique forte |
+| CNX-5 | Une route d'administration appelée avec l'en-tête `Tailscale-Funnel-Request`, ou sur le port du funnel, répond 403 `reseau_prive` | Dynamique forte |
 
 ---
 
@@ -3213,7 +3214,7 @@ Déplacer une séance, en changer le lieu ou la supprimer passe par `/seances/{i
 
 Sont réservées à l'administrateur : le déclenchement de la synthèse, le roulement de la mémoire à la demande, la lecture des appels, l'activation de HAL, la reconstruction du plan d'un autre compte, et l'écriture dans le catalogue d'exercices, qui se fait par migration.
 
-L'application iPhone n'utilise que quatre préfixes, les seuls que `tailscale funnel` publie : `/connexion`, `/donnees-sante`, `/seances` et `/exercices`. Les autres routes ne sont joignables que par le réseau privé.
+L'application iPhone joint ses routes par `tailscale funnel`, derrière la clé (CNX-5). Les routes réservées à l'administrateur ne répondent que par le réseau privé.
 
 #### B.9.2 Outils de HAL
 
@@ -3835,7 +3836,7 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 | FOY-2 | D | Un foyer a un administrateur, et un seul. Celui qui crée le foyer l'est |
 | FOY-3 | M | L'administrateur invite par un lien ou un code, valable 48 heures et à usage unique. La personne l'ouvre dans l'appli, choisit son pseudo et son mot de passe (CNX-1, CNX-2), et arrive dans le foyer. Un lien expiré ou déjà servi est refusé, avec son motif. L'administrateur peut annuler une invitation pas encore servie |
 | FOY-4 | D | Dans cette version, un foyer compte deux personnes au plus. Les règles du ménage sont écrites pour deux : l'alternance, la balance, le mode allégé, la présence (PLA-12, PLA-15, PLA-16, ABS-3). Passer au-delà demande de les réécrire avant d'ouvrir la troisième place |
-| FOY-5 | M | L'administrateur retire un membre, après confirmation. Les tâches à venir du membre repassent à ceux qui restent ; ce qu'il a fait reste au journal du foyer. Son compte, son planning personnel et son HAL restent à lui |
+| FOY-5 | M | L'administrateur retire un membre, après confirmation. Les tâches à venir du membre repassent à ceux qui restent ; ce qu'il a fait reste au journal du foyer. Tant que le système ne tient qu'un foyer, son compte est mis en pause : il garde son planning personnel, son HAL et son historique, et revient en rejoignant un foyer |
 | FOY-6 | M | L'administrateur règle, pour le foyer, qui peut ajouter des tâches, et qui peut les modifier et les arrêter : tout le monde, ou lui seul. Par défaut, tout le monde. Cocher une tâche, la déclarer faite et la reporter restent ouverts à tous (EXE-14) |
 | FOY-7 | M | L'administrateur passe son rôle à un autre membre. Il ne peut quitter le foyer qu'après l'avoir fait, sauf s'il y est seul. Le dernier qui part ferme le foyer : ses tâches s'arrêtent, son historique reste |
 | FOY-8 | D | HAL est personnel. Le profil, les limitations, les objectifs, la santé, les mesures, la mémoire et les échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17) |

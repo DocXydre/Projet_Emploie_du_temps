@@ -6,14 +6,14 @@ en trente secondes, même quand toutes les collectes sont en panne.
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from psycopg.types.json import Json
 from pydantic import BaseModel, Field
 
 from api.base import connexion, executer, lister, un_seul
 from api.collecteurs.service import CollecteImpossible, collecter_source
 from api.config import configuration
-from api.securite import Authentifie
+from api.securite import Authentifie, reseau_prive
 
 routeur = APIRouter(tags=["Contraintes"])
 
@@ -112,7 +112,9 @@ def sources(qui: Authentifie) -> list[dict]:
     return lister("SELECT * FROM v_source_sante ORDER BY code")
 
 
-@routeur.post("/sources/{code}/collecter", summary="Forcer une collecte")
+# CNX-5 : forcer une collecte se fait depuis le réseau privé, jamais par le funnel.
+@routeur.post("/sources/{code}/collecter", summary="Forcer une collecte",
+              dependencies=[Depends(reseau_prive)])
 def collecter(code: str, qui: Authentifie, texte_ics: str | None = None) -> dict:
     """Récupère la source, normalise et réconcilie par clé externe.
 

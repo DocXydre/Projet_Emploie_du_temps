@@ -25,6 +25,7 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
                  ELSE left(regexp_replace(p_ligne ->> 'contenu', '<[^>]+>', '', 'g'), 120)
             END
         WHEN 'utilisateur' THEN p_ligne ->> 'nom'
+        WHEN 'foyer'       THEN p_ligne ->> 'nom'
         WHEN 'allegement'  THEN 'Mode allégé'
         WHEN 'plan'        THEN 'Plan d''entraînement'
         ELSE p_ligne ->> 'libelle'

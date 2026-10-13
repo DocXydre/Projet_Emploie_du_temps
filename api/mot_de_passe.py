@@ -46,12 +46,17 @@ def verifier(mot_de_passe: str, attendu: str | None) -> bool:
     return hmac.compare_digest(essai.hex(), calcul)
 
 
-def choisir(id_utilisateur: int, mot_de_passe: str) -> None:
-    """CNX-2 : enregistre un nouveau mot de passe, et débloque le compte."""
+def valider(mot_de_passe: str) -> None:
+    """CNX-2 : la règle d'un mot de passe, pour un changement comme pour un nouveau compte."""
     if len(mot_de_passe) < LONGUEUR_MINIMALE:
         raise MotDePasseRefuse(f"Au moins {LONGUEUR_MINIMALE} caractères.")
     if mot_de_passe.strip() != mot_de_passe or not mot_de_passe.strip():
         raise MotDePasseRefuse("Pas d'espace au début ni à la fin.")
+
+
+def choisir(id_utilisateur: int, mot_de_passe: str) -> None:
+    """CNX-2 : enregistre un nouveau mot de passe, et débloque le compte."""
+    valider(mot_de_passe)
     executer("""UPDATE utilisateur SET mot_de_passe = %(m)s, echecs_connexion = 0,
                        bloque_jusqu_a = NULL
                  WHERE id_utilisateur = %(u)s""",

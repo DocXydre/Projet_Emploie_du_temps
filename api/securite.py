@@ -7,11 +7,12 @@ transmise dans un en-tête, suffit et se révoque en une requête SQL.
 
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException, Query, status
+from fastapi import Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
 from api import operation
 from api.base import lister, un_seul
+from api.config import configuration
 
 EN_TETE = "X-Cle-Api"
 
@@ -190,7 +191,33 @@ def appelant_par_url(cle: Annotated[str | None, Query()] = None) -> Appelant:
     return Appelant(**ligne)
 
 
-def exiger_admin(qui: Annotated[Appelant, Depends(appelant)]) -> Appelant:
+def par_le_funnel(requete: Request) -> bool:
+    """CNX-5 : la requête vient-elle d'Internet, par `tailscale funnel` ?
+
+    Tailscale marque ce qu'il fait passer par le funnel d'un en-tête
+    `Tailscale-Funnel-Request`. Le port publié sert de second signal, au cas où
+    l'en-tête manquerait : sur le réseau privé, l'API se joint par un autre.
+    """
+    if requete.headers.get("tailscale-funnel-request"):
+        return True
+    hote = requete.headers.get("host", "")
+    return hote.endswith(f":{configuration().port_funnel}")
+
+
+def reseau_prive(requete: Request) -> None:
+    """CNX-5 : depuis Internet, l'appli n'a que ses routes. L'administration du
+    serveur se fait depuis le réseau privé. Vérifié avant la clé : la réponse
+    est la même, qu'on en ait une ou non."""
+    if par_le_funnel(requete):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "reseau_prive",
+                    "message": "Réservé au réseau privé du serveur"},
+        )
+
+
+def exiger_admin(_: Annotated[None, Depends(reseau_prive)],
+                 qui: Annotated[Appelant, Depends(appelant)]) -> Appelant:
     if not qui.est_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

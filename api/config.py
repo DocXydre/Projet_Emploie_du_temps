@@ -53,6 +53,10 @@ class Configuration(BaseSettings):
     # depuis un navigateur mais pas pour le bot, qui n'en a aucune.
     hote_public: str = ""
 
+    # CNX-5 : le port que `tailscale funnel` publie sur Internet. Une requête
+    # arrivée par là ne sert jamais une route d'administration du serveur.
+    port_funnel: int = 8443
+
     # URL des flux. Jamais versionnées : celle du planning de travail contient
     # un jeton d'accès personnel. Elles peuvent aussi être données depuis le bot.
     idmc_url_ics: str = ""

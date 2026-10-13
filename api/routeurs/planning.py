@@ -2,11 +2,11 @@
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from api.base import executer, lister
 from api.config import configuration
-from api.securite import Authentifie
+from api.securite import Authentifie, reseau_prive
 
 routeur = APIRouter(prefix="/planning", tags=["Planning"])
 
@@ -36,7 +36,8 @@ def planning(
     )
 
 
-@routeur.post("/placer", summary="Relancer le placement")
+# CNX-5 : relancer le placement se fait depuis le réseau privé, jamais par le funnel.
+@routeur.post("/placer", summary="Relancer le placement", dependencies=[Depends(reseau_prive)])
 def placer(qui: Authentifie, horizon_jours: int | None = None,
            stabilite_jours: int | None = None) -> dict:
     conf = configuration()

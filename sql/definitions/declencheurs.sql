@@ -104,7 +104,15 @@ CREATE OR REPLACE TRIGGER journal_utilisateur
     AFTER UPDATE ON utilisateur
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'foyer', 'minimum_sport', 'actif', 'lieu_famille', 'gare_famille',
-        'coach_actif');
+        'coach_actif', 'id_foyer');
+
+
+-- FOY-2, FOY-6 : qui administre le foyer, et ce qu'il permet aux autres.
+CREATE OR REPLACE TRIGGER journal_foyer
+    AFTER INSERT OR UPDATE ON foyer
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'nom', 'id_administrateur', 'ajout_taches', 'modif_taches',
+        'ferme_le');
 
 
 CREATE OR REPLACE TRIGGER journal_source

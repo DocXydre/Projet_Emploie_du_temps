@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from api.base import executer, lister, un_seul
-from api.securite import Administrateur, Authentifie
+from api.securite import Appelant, Authentifie
 
 routeur = APIRouter(prefix="/taches", tags=["Tâches"])
 
@@ -38,6 +38,18 @@ class ModificationTache(BaseModel):
     active: bool | None = None
 
 
+def _exiger_droit(qui: Appelant, geste: str) -> None:
+    """FOY-6 : l'administrateur du foyer décide qui ajoute, modifie et arrête."""
+    ligne = un_seul("SELECT droit_sur_les_taches(%(u)s, %(g)s) AS permis",
+                    {"u": qui.id_utilisateur, "g": geste})
+    if not (ligne and ligne["permis"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "droits_insuffisants",
+                    "message": "L'administrateur du foyer garde les tâches pour lui"},
+        )
+
+
 @routeur.get("", summary="Lister les tâches récurrentes")
 def lister_taches(qui: Authentifie, seulement_actives: bool = True) -> list[dict]:
     return lister(
@@ -60,16 +72,18 @@ def lister_taches(qui: Authentifie, seulement_actives: bool = True) -> list[dict
 
 
 @routeur.post("", status_code=status.HTTP_201_CREATED, summary="Créer une tâche")
-def creer(demande: DemandeTache, qui: Administrateur) -> dict:
+def creer(demande: DemandeTache, qui: Authentifie) -> dict:
+    _exiger_droit(qui, "ajouter")
     cree = executer(
         """
         INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
                            periodicite_min_jours, periodicite_max_jours,
                            rappel_journee, heure_min, heure_max, utilise_machine,
-                           requiert_les_deux, reportable, id_utilisateur_defaut)
+                           requiert_les_deux, reportable, id_utilisateur_defaut,
+                           ajoutee_par)
         VALUES (%(code)s, %(libelle)s, %(categorie)s, %(priorite)s, %(duree)s,
                 %(min)s, %(max)s, %(rappel)s, %(hmin)s, %(hmax)s, %(machine)s,
-                %(duo)s, %(reportable)s, %(defaut)s)
+                %(duo)s, %(reportable)s, %(defaut)s, %(moi)s)
         RETURNING *
         """,
         {
@@ -87,6 +101,8 @@ def creer(demande: DemandeTache, qui: Administrateur) -> dict:
             "duo": demande.requiert_les_deux,
             "reportable": demande.reportable,
             "defaut": demande.id_utilisateur_defaut,
+            # TAC-20 : une tâche créée depuis l'appli s'arrête comme une tâche ajoutée.
+            "moi": qui.id_utilisateur,
         },
     )
     assert cree is not None
@@ -94,7 +110,8 @@ def creer(demande: DemandeTache, qui: Administrateur) -> dict:
 
 
 @routeur.patch("/{id_tache}", summary="Modifier une tâche")
-def modifier(id_tache: int, demande: ModificationTache, qui: Administrateur) -> dict:
+def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dict:
+    _exiger_droit(qui, "modifier")
     champs = demande.model_dump(exclude_none=True)
     if not champs:
         raise HTTPException(
@@ -116,7 +133,8 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Administrateur) -> 
 
 
 @routeur.delete("/{id_tache}", summary="Désactiver une tâche")
-def desactiver(id_tache: int, qui: Administrateur) -> dict:
+def desactiver(id_tache: int, qui: Authentifie) -> dict:
+    _exiger_droit(qui, "modifier")
     # On ne supprime pas : l'historique des occurrences garde son sens.
     executer(
         """

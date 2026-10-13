@@ -183,7 +183,7 @@ Le système tourne sur un petit serveur dédié : un portable de récupération 
 
 L'accès distant passe par **Tailscale**, et aucun port n'est ouvert sur la box. `tailscale serve` fournit le HTTPS et son certificat sur le réseau privé : le téléphone s'abonne au calendrier par le nom du tailnet, qui ne change pas d'un réseau Wi-Fi à l'autre, contrairement à une adresse IP locale.
 
-L'application iPhone, elle, n'a pas besoin du client Tailscale. `tailscale funnel` publie sur le port 8443 les quatre chemins dont elle a besoin, et eux seuls : `/connexion`, `/donnees-sante`, `/seances`, `/exercices`. Le pseudo et le mot de passe lui rendent la clé d'API, gardée ensuite dans le trousseau. Le mot de passe n'est stocké que sous forme d'empreinte scrypt, et cinq échecs bloquent le compte un quart d'heure.
+L'application iPhone, elle, n'a pas besoin du client Tailscale. `tailscale funnel` publie l'API sur le port 8443. Chaque route y exige la clé d'API, sauf `/connexion` et l'acceptation d'une invitation, et les routes d'administration y répondent 403 : l'API reconnaît une requête venue d'Internet à l'en-tête `Tailscale-Funnel-Request` et au port publié (`PORT_FUNNEL`). Le pseudo et le mot de passe lui rendent la clé d'API, gardée ensuite dans le trousseau. Le mot de passe n'est stocké que sous forme d'empreinte scrypt, et cinq échecs bloquent le compte un quart d'heure.
 
 **Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
 
@@ -227,7 +227,7 @@ Les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations 
 - **Il n'achète pas les billets de train.** Il propose des horaires et gèle le ménage en conséquence ; l'achat reste manuel.
 - **Il ne devine pas les fermetures de la piscine.** Les créneaux hebdomadaires sont relevés automatiquement sur le site du SUAPS, mais les vacances universitaires et les jours fériés se déclarent à la main dans une table dédiée.
 - **Il est prévu pour deux utilisateurs.** L'authentification par clé d'API en en-tête, obtenue une fois par mot de passe, suffit à cette échelle et ne conviendrait pas au-delà.
-- **L'API n'est pas publique.** Seuls les quatre chemins de l'application passent par `tailscale funnel` ; le reste demande le client Tailscale. C'est voulu pour des données personnelles.
+- **L'administration n'est pas publique.** Les routes de l'application passent par `tailscale funnel`, derrière la clé ; celles de l'administrateur du serveur ne répondent que sur le réseau privé. C'est voulu pour des données personnelles.
 - **Le coach ne fait pas de médecine.** Ni questionnaire de santé, ni diagnostic. Il ne parle de médecin que pour une douleur dans la poitrine ou un malaise, et en une phrase pour un complément qui le demande.
 - **Il n'a pas de plafond de dépense.** Chaque appel au modèle garde ses tokens, et `/coach` dit ce qu'a coûté la semaine.
 
