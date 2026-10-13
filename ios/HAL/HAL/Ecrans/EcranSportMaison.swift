@@ -70,39 +70,88 @@ struct EcranMaison: View {
 struct AjoutRapide: View {
     @Environment(\.dismiss) private var fermer
     @Environment(\.annoncer) private var annoncer
+    @Environment(Foyer.self) private var foyer
 
-    private let actions: [(String, String, Categorie)] = [
-        ("Ajouter une tâche", "plus", .menage),
-        ("C'est fait", "checkmark", .sport),
-        ("Poser un créneau", "calendar.badge.plus", .travail),
-        ("Une absence", "mappin", .ia),
-        ("Une séance libre", "dumbbell", .sport),
-        ("Une mesure", "scalemass", .linge),
-        ("Mode allégé", "moon", .linge),
-    ]
+    private enum Action: String, CaseIterable, Identifiable {
+        case tache = "Ajouter une tâche"
+        case faite = "C'est fait"
+        case creneau = "Poser un créneau"
+        case absence = "Une absence"
+        case seanceLibre = "Une séance libre"
+        case mesure = "Une mesure"
+        case allege = "Mode allégé"
+
+        var id: String { rawValue }
+
+        var icone: String {
+            switch self {
+            case .tache: "plus"
+            case .faite: "checkmark"
+            case .creneau: "calendar.badge.plus"
+            case .absence: "mappin"
+            case .seanceLibre: "dumbbell"
+            case .mesure: "scalemass"
+            case .allege: "moon"
+            }
+        }
+
+        var categorie: Categorie {
+            switch self {
+            case .tache: .menage
+            case .faite, .seanceLibre: .sport
+            case .creneau: .travail
+            case .absence: .ia
+            case .mesure, .allege: .linge
+            }
+        }
+
+        /// Ce qui arrive avec le sport, au lot 6.
+        var plusTard: Bool { self == .seanceLibre || self == .mesure }
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                BarreDeTitre(titre: "Ajouter") {
-                    BoutonRond("xmark", libelle: "Fermer") { fermer() }
-                }
-                GroupeReglages {
-                    ForEach(actions.indices, id: \.self) { rang in
-                        let action = actions[rang]
+        NavigationStack {
+            List {
+                ForEach(Action.allCases) { action in
+                    if action.plusTard || !foyer.connecte {
                         Button {
                             fermer()
-                            annoncer("« \(action.0) » arrive au lot 5")
+                            annoncer(action.plusTard ? "« \(action.rawValue) » arrive avec le sport"
+                                                     : "Connecte-toi à ton serveur pour « \(action.rawValue) »")
                         } label: {
-                            LigneReglage(icone: action.1, couleur: action.2.couleur, libelle: action.0)
+                            LigneReglage(icone: action.icone, couleur: action.categorie.couleur,
+                                         libelle: action.rawValue)
                         }
                         .buttonStyle(.plain)
+                    } else {
+                        NavigationLink(value: action) {
+                            LigneReglage(icone: action.icone, couleur: action.categorie.couleur,
+                                         libelle: action.rawValue, accessoire: .aucun)
+                        }
                     }
                 }
+                .listRowBackground(Color.clear)
             }
-            .padding(Espace.marge)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Ajouter")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Fermer", systemImage: "xmark") { fermer() }
+                }
+            }
+            .navigationDestination(for: Action.self) { action in
+                switch action {
+                case .tache: FormulaireTache()
+                case .faite: FormulaireFaite()
+                case .creneau: FormulaireCreneau()
+                case .absence: FormulaireAbsence()
+                case .allege: FormulaireAllege()
+                case .seanceLibre, .mesure: EmptyView()
+                }
+            }
         }
+        .environment(\.fermerFeuille, { fermer() })
         // Pas de fond à nous : la feuille d'iOS est en Liquid Glass, l'écran reste visible dessous.
-        .scrollContentBackground(.hidden)
     }
 }

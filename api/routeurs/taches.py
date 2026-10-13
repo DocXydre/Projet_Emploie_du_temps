@@ -72,7 +72,7 @@ def lister_taches(qui: Authentifie, seulement_actives: bool = True) -> list[dict
 
 
 @routeur.post("", status_code=status.HTTP_201_CREATED, summary="Créer une tâche")
-def creer(demande: DemandeTache, qui: Authentifie) -> dict:
+def creer(demande: DemandeTache, qui: Authentifie, replacer: bool = False) -> dict:
     _exiger_droit(qui, "ajouter")
     cree = executer(
         """
@@ -106,6 +106,11 @@ def creer(demande: DemandeTache, qui: Authentifie) -> dict:
         },
     )
     assert cree is not None
+    # Lot 5 : l'appli demande le replacement dans la même requête. Le
+    # déclencher à part est réservé au réseau privé (CNX-5).
+    if replacer:
+        from api import ordonnanceur
+        ordonnanceur.placer()
     return cree
 
 

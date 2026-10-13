@@ -1,0 +1,247 @@
+"""Ce que l'appli lit en ouvrant Aujourd'hui et Maison                  (lot 5)
+
+Un seul appel rend tout ce que les widgets affichent : la journée, les tâches
+des deux, le conflit en cours, les absences, le mode allégé, le chat,
+l'équilibre et les week-ends proposés. L'appli le garde sur le téléphone : hors
+réseau, elle montre le dernier reçu (APP-3).
+
+Les widgets ne calculent rien (WID-8) : les catégories arrivent déjà dans le
+vocabulaire de l'appli, et les dates en ISO 8601.
+
+Le mode allégé a ses routes ici : jusque-là, seul le bot savait l'allumer.
+"""
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
+
+from api import allegement
+from api.base import lister, un_seul
+from api.securite import Authentifie
+
+routeur = APIRouter(tags=["Appli"])
+
+# Le vocabulaire de l'appli : neuf couleurs, une par catégorie (C.4).
+CATEGORIES = """
+    CASE %s
+        WHEN 'animal'    THEN 'chat'
+        WHEN 'vaisselle' THEN 'menage'
+        WHEN 'menage'    THEN 'menage'
+        WHEN 'linge'     THEN 'linge'
+        WHEN 'sport'     THEN 'sport'
+        WHEN 'cours'     THEN 'cours'
+        WHEN 'travail'   THEN 'travail'
+        WHEN 'trajet'    THEN 'perso'
+        WHEN 'weekend'   THEN 'perso'
+        ELSE 'perso'
+    END"""
+
+
+def _categorie(colonne: str) -> str:
+    return CATEGORIES % colonne
+
+
+def _membres(moi: int) -> list[dict]:
+    return lister(
+        """
+        SELECT u.id_utilisateur AS id, u.pseudo, u.nom,
+               u.id_utilisateur = f.id_administrateur AS administrateur,
+               u.id_utilisateur = %(moi)s AS moi
+          FROM utilisateur u
+          JOIN foyer f ON f.id_foyer = u.id_foyer
+         WHERE u.id_foyer = foyer_de(%(moi)s) AND u.actif
+         ORDER BY u.id_utilisateur <> %(moi)s, u.id_utilisateur
+        """,
+        {"moi": moi},
+    )
+
+
+@routeur.get("/appli/aujourdhui", summary="Tout ce qu'Aujourd'hui et Maison affichent")
+def aujourdhui(qui: Authentifie) -> dict:
+    moi = qui.id_utilisateur
+    membres = _membres(moi) or [{"id": moi, "pseudo": qui.pseudo, "nom": qui.pseudo,
+                                 "administrateur": False, "moi": True}]
+    ids = [m["id"] for m in membres]
+    params = {"moi": moi, "ids": ids}
+
+    evenements = lister(
+        f"""
+        SELECT p.nature, p.id, p.libelle AS titre, p.debut, p.fin, p.journee_entiere,
+               p.lieu, p.statut, {_categorie('p.categorie')} AS categorie
+          FROM v_planning p
+         WHERE p.id_utilisateur = %(moi)s
+           AND p.categorie IS DISTINCT FROM 'sommeil'
+           AND p.debut < debut_jour(jour_de(now()) + 1)
+           AND p.fin   > debut_jour(jour_de(now()))
+         ORDER BY p.journee_entiere DESC, p.debut, p.libelle
+        """,
+        params,
+    )
+
+    # Les tâches du jour des membres, faites comprises, et celles en retard.
+    # Le sport a son onglet : il n'est pas ici.
+    taches = lister(
+        f"""
+        SELECT o.id_occurrence AS id, o.id_tache, o.tache_code AS code,
+               o.tache_libelle AS titre, o.id_utilisateur AS pour,
+               {_categorie('o.categorie')} AS categorie, o.statut,
+               o.statut = 'faite' AS faite, o.nb_relances AS reports,
+               o.en_retard, o.debut, o.fin, o.rappel_journee AS journee_entiere,
+               o.duree_minutes, o.actions_possibles
+          FROM v_occurrence o
+         WHERE o.categorie <> 'sport'
+           AND o.id_utilisateur = ANY (%(ids)s)
+           AND ((o.statut IN ('planifiee', 'notifiee')
+                 AND o.debut < debut_jour(jour_de(now()) + 1))
+                OR (o.statut = 'faite' AND jour_de(o.date_faite) = jour_de(now()))
+                OR (o.en_retard AND o.statut NOT IN ('faite', 'abandonnee')))
+         ORDER BY o.statut = 'faite', o.debut NULLS LAST, o.priorite
+        """,
+        params,
+    )
+
+    conflit = un_seul(
+        """
+        SELECT c.id_conflit AS id, jour_de(lower(c.periode)) AS jour,
+               json_build_object('titre', oc.libelle, 'debut', lower(oc.periode),
+                                 'fin', upper(oc.periode), 'lieu', oc.lieu) AS existante,
+               json_build_object('titre', c.libelle, 'debut', lower(c.periode),
+                                 'fin', upper(c.periode), 'lieu', c.lieu) AS nouvelle
+          FROM conflit c
+          JOIN source s ON s.id_source = c.id_source
+          JOIN occupation oc ON oc.id_occupation = c.id_occupation
+         WHERE c.statut = 'en_attente' AND s.id_utilisateur = %(moi)s
+           AND upper(c.periode) > now()
+         ORDER BY lower(c.periode)
+         LIMIT 1
+        """,
+        params,
+    )
+
+    absences = lister(
+        """
+        SELECT id_absence AS id, id_utilisateur AS pour, lower(periode) AS debut,
+               upper(periode) AS fin, lieu, origine
+          FROM absence
+         WHERE id_utilisateur = ANY (%(ids)s)
+           AND upper(periode) > now() AND lower(periode) < now() + INTERVAL '30 days'
+         ORDER BY lower(periode)
+        """,
+        params,
+    )
+
+    allegements = lister(
+        """
+        SELECT id_utilisateur AS pour, lower(periode) AS debut, upper(periode) AS fin
+          FROM allegement
+         WHERE id_utilisateur = ANY (%(ids)s) AND upper(periode) > now()
+         ORDER BY lower(periode)
+        """,
+        params,
+    )
+
+    # Le chat : la prochaine fois pour chaque soin (4.1).
+    chat = un_seul(
+        """
+        SELECT min(o.debut) FILTER (WHERE o.tache_code LIKE 'LITIERE%%') AS litiere,
+               min(o.debut) FILTER (WHERE o.tache_code = 'EAU_SASSY') AS eau,
+               min(o.debut) FILTER (WHERE o.tache_code = 'FONTAINE_SASSY') AS fontaine
+          FROM v_occurrence o
+         WHERE o.categorie = 'animal'
+           AND o.statut IN ('planifiee', 'notifiee')
+        """,
+    )
+
+    # L'équilibre : le temps passé aux tâches partagées sur sept jours.
+    equilibre = lister(
+        """
+        SELECT u AS pour, COALESCE(sum(o.duree_minutes), 0)::INTEGER AS minutes
+          FROM unnest(%(ids)s::INTEGER[]) AS u
+          LEFT JOIN v_occurrence o
+                 ON o.id_utilisateur = u AND o.statut = 'faite'
+                AND o.categorie <> 'sport'
+                AND o.date_faite > now() - INTERVAL '7 days'
+         GROUP BY u
+         ORDER BY u <> %(moi)s, u
+        """,
+        params,
+    )
+
+    propositions = lister(
+        """
+        SELECT id_proposition AS id, lower(periode) AS debut, upper(periode) AS fin, lieu
+          FROM proposition
+         WHERE statut = 'proposee' AND id_utilisateur = %(moi)s
+         ORDER BY lower(periode)
+        """,
+        params,
+    )
+
+    orbe = un_seul(
+        """
+        SELECT EXISTS (SELECT 1 FROM notification n
+                        WHERE n.id_utilisateur = u.id_utilisateur AND n.type = 'coach'
+                          AND n.date_creation > COALESCE(u.orbe_vu_le, '-infinity'))
+            OR EXISTS (SELECT 1 FROM ajustement a
+                         JOIN occurrence o ON o.id_occurrence = a.id_occurrence
+                        WHERE o.id_utilisateur = u.id_utilisateur
+                          AND a.statut = 'propose') AS a_dire
+          FROM utilisateur u WHERE u.id_utilisateur = %(moi)s
+        """,
+        params,
+    )
+
+    droits = un_seul(
+        """SELECT droit_sur_les_taches(%(moi)s, 'ajouter') AS ajouter,
+                  droit_sur_les_taches(%(moi)s, 'modifier') AS modifier""",
+        params,
+    )
+
+    return {
+        "jour": un_seul("SELECT jour_de(now()) AS jour")["jour"],
+        "membres": membres,
+        "evenements": evenements,
+        "taches": taches,
+        "conflit": conflit,
+        "absences": absences,
+        "allegements": allegements,
+        "chat": chat,
+        "equilibre": equilibre,
+        "propositions": propositions,
+        "orbe": bool(orbe and orbe["a_dire"]),
+        "droits": droits,
+    }
+
+
+# -----------------------------------------------------------------------------
+# Le mode allégé                                                       (PLA-16)
+# -----------------------------------------------------------------------------
+class DemandeAllegement(BaseModel):
+    jours: int = Field(ge=1, le=14)
+
+
+def _etat_allegement(moi: int, texte: str | None = None) -> dict:
+    mien = allegement.en_cours(moi)
+    return {"en_cours": mien is not None,
+            "fin": mien["fin"] if mien else None,
+            "texte": texte or allegement.ecran(moi).texte}
+
+
+@routeur.get("/allegement", tags=["Appli"], summary="Mon mode allégé")
+def lire_allegement(qui: Authentifie) -> dict:
+    return _etat_allegement(qui.id_utilisateur)
+
+
+@routeur.put("/allegement", tags=["Appli"], summary="Passer en mode allégé pour quelques jours")
+def activer_allegement(demande: DemandeAllegement, qui: Authentifie) -> dict:
+    ecran = allegement.activer(qui.id_utilisateur, demande.jours)
+    return _etat_allegement(qui.id_utilisateur, ecran.texte)
+
+
+@routeur.delete("/allegement", tags=["Appli"], summary="Arrêter le mode allégé")
+def arreter_allegement(qui: Authentifie) -> dict:
+    if allegement.en_cours(qui.id_utilisateur) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "pas_allege", "message": "Tu n'es pas en mode allégé."})
+    ecran = allegement.arreter(qui.id_utilisateur)
+    return _etat_allegement(qui.id_utilisateur, ecran.texte)

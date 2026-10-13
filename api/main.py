@@ -28,6 +28,7 @@ from api.routeurs import (
     taches,
     trajets,
 )
+from api.routeurs.appli import routeur as routeur_de_l_appli
 from api.routeurs.coach import routeur as routeur_du_coach
 from api.routeurs.connexion import routeur as routeur_de_connexion
 from api.routeurs.foyer import routeur as routeur_du_foyer
@@ -110,6 +111,7 @@ app.include_router(routeur_du_coach)
 app.include_router(routeur_de_connexion)
 app.include_router(routeur_du_foyer)
 app.include_router(routeur_de_moi)
+app.include_router(routeur_de_l_appli)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")

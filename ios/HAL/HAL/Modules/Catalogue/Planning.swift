@@ -93,49 +93,67 @@ struct WidgetTaJournee: View {
 struct WidgetConflit: View {
     let agrandi: Bool
     @Environment(Foyer.self) private var foyer
+    @Environment(\.annoncer) private var annoncer
     @State private var choix: Conflit.Cours?
+    @State private var envoi = false
 
     var body: some View {
-        CoquilleWidget(titre: "À choisir · \(foyer.conflitEnCours.jour)", icone: "exclamationmark.circle",
-                       couleur: Categorie.alerte.couleur) {
-            let conflit = foyer.conflitEnCours
-            VStack(alignment: .leading, spacing: 8) {
-                if agrandi {
-                    Text("Deux cours à \(conflit.premier.horaire.prefix(5))").texte(.titre).foregroundStyle(Palette.textePrincipal)
-                    Text("Le flux de la fac a deux cours en même temps. Garde celui où tu vas : le choix est retenu pour les prochaines fois.")
-                        .texte(.corps).foregroundStyle(Palette.texteSecondaire)
-                }
-                ForEach([conflit.premier, conflit.second], id: \.self) { cours in
-                    Button { choix = cours } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: choix == cours ? "largecircle.fill.circle" : "circle")
-                                .foregroundStyle(choix == cours ? Categorie.sport.couleur : Palette.texteSecondaire)
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text(cours.titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
-                                if agrandi {
-                                    Text("\(cours.horaire) · \(cours.salle)").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+        if let conflit = foyer.conflit {
+            CoquilleWidget(titre: "À choisir · \(conflit.jour)", icone: "exclamationmark.circle",
+                           couleur: Categorie.alerte.couleur) {
+                VStack(alignment: .leading, spacing: 8) {
+                    if agrandi {
+                        Text("Deux cours à \(conflit.premier.horaire.prefix(5))").texte(.titre).foregroundStyle(Palette.textePrincipal)
+                        Text("Le flux de la fac a deux cours en même temps. Garde celui où tu vas : le choix est retenu pour les prochaines fois.")
+                            .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    }
+                    ForEach([conflit.premier, conflit.second], id: \.self) { cours in
+                        Button { choix = cours } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: choix == cours ? "largecircle.fill.circle" : "circle")
+                                    .foregroundStyle(choix == cours ? Categorie.sport.couleur : Palette.texteSecondaire)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(cours.titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                                    if agrandi {
+                                        Text(cours.salle.isEmpty ? cours.horaire : "\(cours.horaire) · \(cours.salle)")
+                                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                                    }
                                 }
+                                Spacer(minLength: 0)
                             }
-                            Spacer(minLength: 0)
+                            .padding(.vertical, agrandi ? 10 : 2)
+                            .padding(.horizontal, agrandi ? 12 : 0)
+                            .background(agrandi ? Palette.verreTeinte : .clear, in: RoundedRectangle(cornerRadius: Rayon.ligne))
+                            .contentShape(Rectangle())
                         }
-                        .padding(.vertical, agrandi ? 10 : 2)
-                        .padding(.horizontal, agrandi ? 12 : 0)
-                        .background(agrandi ? Palette.verreTeinte : .clear, in: RoundedRectangle(cornerRadius: Rayon.ligne))
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                }
-                if agrandi {
-                    HStack {
-                        Button("Garder ce cours") { if let choix { foyer.choisir(choix) } }
-                            .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
-                            .disabled(choix == nil)
-                        Button("Voir plus tard") { foyer.essais.conflit = false }
-                            .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                    if agrandi {
+                        HStack {
+                            Button("Garder ce cours") { garder() }
+                                .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                                .disabled(choix == nil || envoi)
+                            Button("Voir plus tard") { foyer.remettreAPlusTard() }
+                                .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                        }
+                        Text("« Voir plus tard » le cache ; s'il n'est pas réglé, il revient au prochain chargement.")
+                            .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                     }
-                    Text("« Voir plus tard » le cache ; s'il n'est pas réglé, il revient une semaine avant.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 }
+            }
+        }
+    }
+
+    private func garder() {
+        guard let choix else { return }
+        envoi = true
+        Task {
+            defer { envoi = false }
+            do {
+                try await foyer.choisir(choix)
+                annoncer("« \(choix.titre) » gardé")
+            } catch {
+                annoncer((error as? ErreurAPI)?.message ?? "Choix impossible")
             }
         }
     }

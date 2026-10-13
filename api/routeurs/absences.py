@@ -42,7 +42,7 @@ def lister_absences(qui: Authentifie, passees: bool = False) -> list[dict]:
 
 
 @routeur.post("", status_code=status.HTTP_201_CREATED, summary="Déclarer une absence")
-def declarer(demande: DemandeAbsence, qui: Authentifie) -> dict:
+def declarer(demande: DemandeAbsence, qui: Authentifie, replacer: bool = False) -> dict:
     if demande.fin <= demande.debut:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -67,12 +67,17 @@ def declarer(demande: DemandeAbsence, qui: Authentifie) -> dict:
         },
     )
     assert creee is not None
+    # Lot 5 : l'appli demande le replacement dans la même requête. Le
+    # déclencher à part est réservé au réseau privé (CNX-5).
+    if replacer:
+        from api import ordonnanceur
+        return {**creee, "occurrences_replacees": ordonnanceur.placer()}
     return creee
 
 
 @routeur.delete("/{id_absence}", status_code=status.HTTP_204_NO_CONTENT,
                 summary="Annuler une absence")
-def annuler(id_absence: int, qui: Authentifie) -> None:
+def annuler(id_absence: int, qui: Authentifie, replacer: bool = False) -> None:
     supprimee = executer(
         "DELETE FROM absence WHERE id_absence = %(id)s RETURNING id_absence",
         {"id": id_absence},
@@ -82,6 +87,9 @@ def annuler(id_absence: int, qui: Authentifie) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "introuvable", "message": f"Absence {id_absence} inconnue"},
         )
+    if replacer:
+        from api import ordonnanceur
+        ordonnanceur.placer()
 
 
 @routeur.post("/depart", status_code=status.HTTP_201_CREATED,

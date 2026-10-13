@@ -62,7 +62,8 @@ def lister_occupations(
 
 @routeur.post("/occupations", status_code=status.HTTP_201_CREATED,
               summary="Saisir une occupation à la main")
-def creer_occupation(demande: DemandeOccupation, qui: Authentifie) -> dict:
+def creer_occupation(demande: DemandeOccupation, qui: Authentifie,
+                     replacer: bool = False) -> dict:
     cree = executer(
         """
         INSERT INTO occupation (id_utilisateur, id_source, type, libelle, periode, lieu)
@@ -84,6 +85,11 @@ def creer_occupation(demande: DemandeOccupation, qui: Authentifie) -> dict:
         },
     )
     assert cree is not None
+    # Lot 5 : l'appli demande le replacement dans la même requête. Le
+    # déclencher à part est réservé au réseau privé (CNX-5).
+    if replacer:
+        from api import ordonnanceur
+        return {**cree, "occurrences_replacees": ordonnanceur.placer()}
     return cree
 
 

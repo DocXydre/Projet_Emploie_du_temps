@@ -2,7 +2,7 @@
 
 L'application du projet : le planning du foyer, la maison, le sport, la santé et HAL. Elle est décrite en partie C de [`cahier-des-charges-hal.md`](../../cahier-des-charges-hal.md), et dessinée dans la maquette Figma (fichier « Appli », page « V2 · Liquid Glass »).
 
-Cette version est le **lot 4** : le socle. Elle tourne sur des données fictives, sans serveur.
+Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur. Sans compte, l'appli tourne sur des données fictives.
 
 ## Lancer l'appli
 
@@ -28,6 +28,17 @@ Dans Xcode, onglet **Signing & Capabilities**, choisir son équipe, puis lancer 
 
 Réglages, Essais, **États à forcer** permet de voir les cas sans serveur : conflit de cours, ajustement de HAL, mesure demandée, jour de muscu, foyer vide, hors réseau, mode allégé, absence, pause.
 
+## Ce que fait le lot 5
+
+- La connexion : l'adresse du serveur, le pseudo et le mot de passe rendent la clé d'API, gardée dans le trousseau (CNX-1, CNX-2). Un code d'invitation crée le compte et le connecte (FOY-3). « Essayer sans serveur » garde les données fictives.
+- Aujourd'hui et Maison lisent `GET /appli/aujourdhui` : la journée, les tâches des deux, le conflit, les absences, le mode allégé, le chat, l'équilibre et les week-ends proposés. La réponse est gardée sur le téléphone : hors réseau, l'appli montre la dernière reçue. Tirer vers le bas recharge, et l'appli recharge seule toutes les deux minutes.
+- Cocher une tâche se confirme en haut de l'écran, avec cinq secondes pour annuler, puis part par la file d'attente (APP-3). Un appui long sur une tâche la repousse.
+- Le « + » : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, le mode allégé. La séance libre et la mesure arrivent avec le sport.
+- Le conflit de cours se tranche dans son widget. Un week-end proposé ouvre les trains : l'aller, le retour, et l'absence se pose toute seule.
+- Réglages, Serveur et mot de passe : changer de mot de passe, se déconnecter.
+
+Le sport, la santé et HAL restent fictifs jusqu'aux lots 6 et 7.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :
@@ -52,4 +63,4 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 ## La suite
 
-Le lot 1 (le foyer et les routes de l'appli) et le lot 3 (les notifications d'Apple) côté serveur. `Foyer` passera alors des données fictives à l'API, et `ExpediteurFictif` laissera la place au vrai client. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
+Le lot 6 : le sport et la séance de musculation, hors réseau compris. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.

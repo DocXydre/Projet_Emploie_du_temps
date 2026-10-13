@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Les états qu'on peut forcer pour essayer l'appli sans serveur
-/// (Réglages, Essais). Ils disparaîtront quand l'API sera branchée.
+/// (Réglages, Essais). Ils ne valent qu'en démonstration.
 struct Essais: Hashable {
     var horsReseau = false
     var modeAllege = false
@@ -15,17 +15,37 @@ struct Essais: Hashable {
     var foyerVide = false
 }
 
+/// D'où viennent les données : les données fictives, ou le serveur.
+enum Source {
+    case demonstration
+    case serveur(ClientAPI)
+}
+
 /// Les données du foyer que lisent les modules. Une seule source pour toute
 /// l'appli : les widgets ne calculent rien, ils affichent (WID-8).
+///
+/// Connecté, Aujourd'hui et Maison viennent du serveur (lot 5). Le sport, la
+/// santé et HAL restent fictifs jusqu'aux lots 6 et 7.
 @MainActor
 @Observable
 final class Foyer {
     var essais = Essais()
+    private(set) var source: Source = .demonstration
 
     private(set) var moi: Membre
     private(set) var autre: Membre?
+    private(set) var membres: [Membre]
     private(set) var evenements: [Evenement]
     var taches: [Tache]
+    private(set) var conflitDuServeur: Conflit?
+    private(set) var absences: [Absence] = []
+    private(set) var allegements: [Allegement] = []
+    private(set) var propositions: [Proposition] = []
+    private(set) var minutesFaites: [Int: Int] = [:]
+    private(set) var droits = Droits(ajouter: true, modifier: true)
+    private(set) var orbeADire = false
+    private(set) var chat: EtatChat
+
     private(set) var semaine: SemaineSport
     private(set) var forme: Forme
     private(set) var frequenceDuJour: [PointSerie]
@@ -34,12 +54,23 @@ final class Foyer {
     private(set) var ajustementEnCours: Ajustement
     private(set) var mesureEnCours: MesureDemandee
     private(set) var objectif: Objectif
-    private(set) var chat: EtatChat
     private(set) var dernierMotDeHAL: String
 
+    /// Le dernier chargement réussi, et ce qui a empêché le suivant.
+    private(set) var misAJour: Date?
+    private(set) var erreur: String?
+    private(set) var charge = false
+
+    /// Les tâches cochées dont l'envoi attend encore la fin du délai d'annulation.
+    private var enSuspens: [Int: Task<Void, Never>] = [:]
+
+    private let apercu: Apercu
+
     init(apercu: Apercu = Apercu()) {
+        self.apercu = apercu
         moi = apercu.moi
         autre = apercu.autre
+        membres = [apercu.moi] + [apercu.autre].compactMap { $0 }
         evenements = apercu.evenements
         taches = apercu.taches
         semaine = apercu.semaine
@@ -54,16 +85,141 @@ final class Foyer {
         dernierMotDeHAL = apercu.dernierMotDeHAL
     }
 
+    var connecte: Bool {
+        if case .serveur = source { return true }
+        return false
+    }
+
+    var client: ClientAPI? {
+        if case .serveur(let client) = source { return client }
+        return nil
+    }
+
+    // MARK: Brancher et charger
+
+    /// Passe sur le serveur : l'état gardé sur le téléphone s'affiche tout de
+    /// suite, le chargement suit.
+    func brancher(_ client: ClientAPI) {
+        source = .serveur(client)
+        if let garde = Self.lireLeCache() { appliquer(garde) }
+        Task { await charger() }
+    }
+
+    /// Revient aux données fictives.
+    func debrancher() {
+        source = .demonstration
+        Self.effacerLeCache()
+        moi = apercu.moi
+        autre = apercu.autre
+        membres = [apercu.moi] + [apercu.autre].compactMap { $0 }
+        evenements = apercu.evenements
+        taches = apercu.taches
+        chat = apercu.chat
+        conflitDuServeur = nil
+        absences = []
+        allegements = []
+        propositions = []
+        minutesFaites = [:]
+        orbeADire = false
+        misAJour = nil
+        erreur = nil
+        charge = false
+    }
+
+    func charger() async {
+        guard let client else { return }
+        do {
+            let etat: EtatDuJour = try await client.requete("GET", "appli/aujourdhui")
+            appliquer(etat)
+            Self.ecrireLeCache(etat)
+            misAJour = .now
+            erreur = nil
+        } catch let refus as ErreurAPI {
+            erreur = refus.message
+        } catch {
+            erreur = "Chargement impossible"
+        }
+    }
+
+    private func membre(_ id: Int?, parmi liste: [Membre]) -> Membre {
+        liste.first { $0.id == id } ?? moi
+    }
+
+    private func appliquer(_ etat: EtatDuJour) {
+        let lus = etat.membres.map { Membre(id: $0.id, nom: $0.nom, estAdministrateur: $0.administrateur) }
+        if let mien = etat.membres.first(where: { $0.moi }) {
+            moi = Membre(id: mien.id, nom: mien.nom, estAdministrateur: mien.administrateur)
+        }
+        membres = lus
+        autre = lus.first { $0.id != moi.id }
+
+        evenements = etat.evenements.map { lu in
+            Evenement(debut: lu.debut, fin: lu.fin, titre: lu.titre, lieu: lu.lieu,
+                      categorie: Categorie(rawValue: lu.categorie) ?? .perso,
+                      journeeEntiere: lu.journeeEntiere ?? false)
+        }
+        taches = etat.taches.map { lue in
+            Tache(id: lue.id, titre: lue.titre,
+                  pourQui: membre(lue.pour, parmi: lus),
+                  categorie: Categorie(rawValue: lue.categorie) ?? .menage,
+                  faite: lue.faite || enSuspens[lue.id] != nil,
+                  reports: lue.reports ?? 0,
+                  code: lue.code,
+                  reportable: lue.actionsPossibles?.contains("reportee") ?? false)
+        }
+        conflitDuServeur = etat.conflit.map { lu in
+            Conflit(id: lu.id, jour: Self.jour(lu.jour),
+                    premier: Self.cours(lu.existante), second: Self.cours(lu.nouvelle))
+        }
+        absences = etat.absences.map { lue in
+            Absence(id: lue.id, pour: membre(lue.pour, parmi: lus),
+                    debut: lue.debut, fin: lue.fin, lieu: lue.lieu)
+        }
+        allegements = etat.allegements.map { lu in
+            Allegement(pour: membre(lu.pour, parmi: lus), debut: lu.debut, fin: lu.fin)
+        }
+        propositions = etat.propositions.map { lue in
+            Proposition(id: lue.id, debut: lue.debut, fin: lue.fin, lieu: lue.lieu ?? "chez toi")
+        }
+        var minutes: [Int: Int] = [:]
+        for ligne in etat.equilibre { minutes[ligne.pour] = ligne.minutes }
+        minutesFaites = minutes
+        if let lus = etat.droits {
+            droits = Droits(ajouter: lus.ajouter, modifier: lus.modifier)
+        }
+        orbeADire = etat.orbe
+        chat = EtatChat(litiere: Dates.relatif(etat.chat?.litiere),
+                        eau: Dates.relatif(etat.chat?.eau),
+                        fontaine: Dates.relatif(etat.chat?.fontaine))
+        charge = true
+    }
+
+    private static func jour(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)
+            .locale(Locale(identifier: "fr_FR"))).capitalized
+    }
+
+    private static func cours(_ cours: EtatDuJour.CoursAPI) -> Conflit.Cours {
+        let debut = cours.debut.formatted(date: .omitted, time: .shortened)
+        let fin = cours.fin.formatted(date: .omitted, time: .shortened)
+        return Conflit.Cours(titre: cours.titre, horaire: "\(debut) – \(fin)", salle: cours.lieu ?? "")
+    }
+
     // MARK: Ce que les widgets lisent
 
-    var evenementsDuJour: [Evenement] { essais.foyerVide ? [] : evenements }
-    var tachesDuJour: [Tache] { essais.foyerVide ? [] : taches }
+    var evenementsDuJour: [Evenement] { !connecte && essais.foyerVide ? [] : evenements }
+    var tachesDuJour: [Tache] { !connecte && essais.foyerVide ? [] : taches }
     var tachesEnRetard: [Tache] { tachesDuJour.filter { $0.reports > 0 && !$0.faite } }
+
+    /// Rien au planning ni au ménage : Aujourd'hui montre les cartes de départ (8.6).
+    var foyerVide: Bool {
+        connecte ? (charge && evenements.isEmpty && taches.isEmpty) : essais.foyerVide
+    }
 
     /// L'événement en cours ou le prochain.
     var maintenant: Evenement? {
         let date = Date()
-        return evenementsDuJour.first { ($0.fin ?? $0.debut) > date }
+        return evenementsDuJour.first { !$0.journeeEntiere && ($0.fin ?? $0.debut) > date }
     }
 
     var ensuite: Evenement? {
@@ -72,13 +228,38 @@ final class Foyer {
         return evenementsDuJour[rang + 1]
     }
 
-    var conflit: Conflit? { essais.conflit && !essais.foyerVide ? conflitEnCours : nil }
+    var conflit: Conflit? {
+        if connecte { return conflitDuServeur }
+        return essais.conflit && !essais.foyerVide ? conflitEnCours : nil
+    }
+
     var ajustement: Ajustement? { essais.ajustement ? ajustementEnCours : nil }
     var mesureDemandee: MesureDemandee? { essais.mesure ? mesureEnCours : nil }
     var seanceAPrevoir: SeanceDuJour? { essais.jourDeMuscu ? seance : nil }
 
-    /// La part des tâches partagées faite par chacun, de 0 à 1, pour l'équilibre.
+    /// Mon mode allégé en cours, s'il y en a un.
+    var monAllegement: Allegement? {
+        if connecte { return allegements.first { $0.pour == moi && $0.debut <= .now } }
+        return essais.modeAllege
+            ? Allegement(pour: moi, debut: .now, fin: .now.addingTimeInterval(2 * 86_400)) : nil
+    }
+
+    /// L'absence en cours ou la prochaine de l'autre.
+    var absenceDeLAutre: Absence? {
+        if connecte { return absences.first { $0.pour != moi } }
+        guard essais.absence, let autre else { return nil }
+        return Absence(id: 0, pour: autre, debut: .now, fin: .now.addingTimeInterval(86_400), lieu: nil)
+    }
+
+    var mesAbsences: [Absence] { absences.filter { $0.pour == moi } }
+
+    /// La part du temps passé aux tâches partagées sur sept jours, de 0 à 1.
     var partDeMoi: Double {
+        if connecte {
+            let total = minutesFaites.values.reduce(0, +)
+            guard total > 0 else { return 0.5 }
+            return Double(minutesFaites[moi.id] ?? 0) / Double(total)
+        }
         let faites = tachesDuJour.filter(\.faite)
         guard !faites.isEmpty else { return 0.5 }
         return Double(faites.filter { $0.pourQui == moi }.count) / Double(faites.count)
@@ -86,22 +267,93 @@ final class Foyer {
 
     // MARK: Ce que l'utilisateur fait
 
-    /// Coche ou décoche une tâche, même celle de l'autre (EXE-14). L'envoi passe par
-    /// la file d'attente, qui le garde si le réseau manque (APP-3).
-    func basculer(_ tache: Tache, file: FileAttente) {
-        guard let rang = taches.firstIndex(where: { $0.id == tache.id }) else { return }
-        taches[rang].faite.toggle()
-        let chemin = taches[rang].faite
-            ? "/occurrences/\(tache.id)/valider"
-            : "/occurrences/\(tache.id)/annuler"
-        file.ajouter(methode: "POST", chemin: chemin)
+    /// Coche une tâche, même celle de l'autre (EXE-14). L'envoi part après cinq
+    /// secondes, le temps d'annuler (ORB-6), puis passe par la file d'attente,
+    /// qui le garde si le réseau manque (APP-3). Rend de quoi annuler.
+    @discardableResult
+    func cocher(_ tache: Tache, file: FileAttente) -> (() -> Void)? {
+        guard let rang = taches.firstIndex(where: { $0.id == tache.id }), !taches[rang].faite else { return nil }
+        taches[rang].faite = true
+        let id = tache.id
+        enSuspens[id] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, let self else { return }
+            self.enSuspens[id] = nil
+            if self.connecte { file.ajouter(methode: "POST", chemin: "occurrences/\(id)/valider") }
+        }
+        return { [weak self] in
+            guard let self else { return }
+            self.enSuspens[id]?.cancel()
+            self.enSuspens[id] = nil
+            if let rang = self.taches.firstIndex(where: { $0.id == id }) { self.taches[rang].faite = false }
+        }
     }
 
-    func choisir(_ cours: Conflit.Cours) {
-        essais.conflit = false
+    /// Repousse une tâche : le moteur lui cherche un autre créneau.
+    func reporter(_ tache: Tache, file: FileAttente) {
+        taches.removeAll { $0.id == tache.id }
+        if connecte { file.ajouter(methode: "POST", chemin: "occurrences/\(tache.id)/reporter") }
+    }
+
+    private struct Arbitrage: Encodable { let garder: String }
+
+    /// COL-12 : garde un des deux cours. Le premier est celui déjà au planning.
+    func choisir(_ cours: Conflit.Cours) async throws {
+        guard let client, let conflit = conflitDuServeur else {
+            essais.conflit = false
+            return
+        }
+        let garder = cours == conflit.premier ? "existante" : "nouvelle"
+        try await client.envoyer("POST", "conflits/\(conflit.id)/resoudre",
+                                 corps: ClientAPI.corps(Arbitrage(garder: garder)))
+        conflitDuServeur = nil
+        await charger()
+    }
+
+    /// Cache le conflit jusqu'au prochain chargement.
+    func remettreAPlusTard() {
+        if connecte { conflitDuServeur = nil } else { essais.conflit = false }
     }
 
     func repondreAjustement(accepte: Bool) {
         essais.ajustement = false
+    }
+
+    /// Une action qui demande une réponse du serveur : elle n'attend pas dans la
+    /// file, et son refus s'affiche dans le formulaire qui l'a lancée.
+    func agir(_ methode: String, _ chemin: String, corps: Data? = nil) async throws {
+        guard let client else { return }
+        try await client.envoyer(methode, chemin, corps: corps)
+        await charger()
+    }
+
+    func demander<Reponse: Decodable>(_ methode: String, _ chemin: String,
+                                      corps: Data? = nil) async throws -> Reponse {
+        guard let client else {
+            throw ErreurAPI(code: "demonstration", message: "Pas de serveur en démonstration")
+        }
+        return try await client.requete(methode, chemin, corps: corps)
+    }
+
+    // MARK: Le cache
+
+    private static var fichierCache: URL {
+        let dossier = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
+        return dossier.appendingPathComponent("etat-du-jour.json")
+    }
+
+    private static func ecrireLeCache(_ etat: EtatDuJour) {
+        guard let donnees = try? ClientAPI.encodeur.encode(etat) else { return }
+        try? donnees.write(to: fichierCache, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
+    private static func lireLeCache() -> EtatDuJour? {
+        guard let donnees = try? Data(contentsOf: fichierCache) else { return nil }
+        return try? ClientAPI.decodeur.decode(EtatDuJour.self, from: donnees)
+    }
+
+    private static func effacerLeCache() {
+        try? FileManager.default.removeItem(at: fichierCache)
     }
 }

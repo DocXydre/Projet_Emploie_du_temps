@@ -1,7 +1,7 @@
 import Foundation
 
-/// Ce que l'appli affiche. Ces types suivent ce que l'API rendra ; pour l'instant
-/// ils sont remplis par `Apercu`, avec des données fictives.
+/// Ce que l'appli affiche. `Foyer` les remplit depuis l'API, ou depuis `Apercu`
+/// en démonstration.
 
 struct Membre: Identifiable, Hashable {
     let id: Int
@@ -16,6 +16,8 @@ struct Evenement: Identifiable, Hashable {
     let titre: String
     var lieu: String? = nil
     let categorie: Categorie
+    /// Une tâche sans heure tient la journée : elle ne compte pas comme « maintenant ».
+    var journeeEntiere: Bool = false
 }
 
 struct Tache: Identifiable, Hashable {
@@ -27,6 +29,39 @@ struct Tache: Identifiable, Hashable {
     var faite: Bool
     /// Le nombre de reports subis : au-delà de zéro, elle est en retard (EXE-4).
     var reports: Int = 0
+    /// Le code de la tâche récurrente, « ASPIRATEUR ».
+    var code: String = ""
+    var reportable: Bool = true
+}
+
+/// Une absence d'un membre : ses tâches passent aux autres (ABS).
+struct Absence: Identifiable, Hashable {
+    let id: Int
+    let pour: Membre
+    let debut: Date
+    let fin: Date
+    let lieu: String?
+}
+
+/// Un mode allégé en cours ou à venir (PLA-16).
+struct Allegement: Hashable {
+    let pour: Membre
+    let debut: Date
+    let fin: Date
+}
+
+/// Un week-end repéré, en attente d'un oui ou d'un non (PRO).
+struct Proposition: Identifiable, Hashable {
+    let id: Int
+    let debut: Date
+    let fin: Date
+    let lieu: String
+}
+
+/// Ce que l'administrateur du foyer permet sur les tâches (FOY-6).
+struct Droits: Hashable {
+    let ajouter: Bool
+    let modifier: Bool
 }
 
 struct SemaineSport: Hashable {

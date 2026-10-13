@@ -33,6 +33,7 @@ struct WidgetACocher: View {
     let taille: TailleWidget
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
+    @Environment(\.annoncer) private var annoncer
 
     var body: some View {
         CoquilleWidget(.aCocher) {
@@ -45,7 +46,15 @@ struct WidgetACocher: View {
                         LigneTache(titre: tache.titre,
                                    pourQui: taille == .petit ? nil : tache.pourQui.nom,
                                    faite: tache.faite) {
-                            withAnimation(.snappy) { foyer.basculer(tache, file: file) }
+                            cocher(tache)
+                        }
+                        .contextMenu {
+                            if tache.reportable && !tache.faite {
+                                Button("Repousser", systemImage: "arrow.uturn.forward") {
+                                    withAnimation(.snappy) { foyer.reporter(tache, file: file) }
+                                    annoncer("« \(tache.titre) » repoussée")
+                                }
+                            }
                         }
                     }
                     Spacer(minLength: 0)
@@ -53,6 +62,16 @@ struct WidgetACocher: View {
                         .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 }
             }
+        }
+    }
+
+    /// Cocher se confirme en haut de l'écran, avec cinq secondes pour annuler (ORB-6).
+    private func cocher(_ tache: Tache) {
+        guard !tache.faite else { return }
+        var annuler: (() -> Void)?
+        withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
+        if let annuler {
+            annoncer("« \(tache.titre) » faite", annuler: { withAnimation(.snappy) { annuler() } })
         }
     }
 
@@ -69,6 +88,7 @@ struct WidgetACocher: View {
 struct WidgetEnRetard: View {
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
+    @Environment(\.annoncer) private var annoncer
 
     var body: some View {
         CoquilleWidget(.enRetard) {
@@ -77,7 +97,13 @@ struct WidgetEnRetard: View {
                     Text(tache.titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
                     Text("reportée \(tache.reports) fois").texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     Spacer(minLength: 0)
-                    Button("Je m'en charge") { foyer.basculer(tache, file: file) }
+                    Button("C'est fait") {
+                        var annuler: (() -> Void)?
+                        withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
+                        if let annuler {
+                            annoncer("« \(tache.titre) » faite", annuler: { withAnimation(.snappy) { annuler() } })
+                        }
+                    }
                         .buttonStyle(.hal(.verreAccent, pleineLargeur: true))
                 }
             } else {

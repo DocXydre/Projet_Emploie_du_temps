@@ -26,7 +26,7 @@ struct EcranAujourdhui: View {
 
             Bandeaux()
 
-            if foyer.essais.foyerVide {
+            if foyer.foyerVide {
                 CartesDeDepart()
             }
 
@@ -40,6 +40,7 @@ struct EcranAujourdhui: View {
             TableauDeBord(edition: $edition, ouvrir: ouvrir, ajouter: { galerie = true })
 
         }
+        .refreshable { await foyer.charger() }
         .animation(.snappy, value: prioritaires.map(\.id))
         .overlay { vueAgrandie }
         .sheet(isPresented: $galerie) { Galerie() }
@@ -91,6 +92,8 @@ struct EcranAujourdhui: View {
 private struct Bandeaux: View {
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
+    @Environment(\.annoncer) private var annoncer
+    @State private var trains: Proposition?
 
     var body: some View {
         if foyer.essais.horsReseau || !file.reseauDisponible {
@@ -99,22 +102,70 @@ private struct Bandeaux: View {
                             ? "Données gardées sur le téléphone"
                             : "\(file.enAttente.count) en attente d'envoi",
                         categorie: .menage, bouton: "Réessayer") {
-                Task { await file.vider() }
+                Task {
+                    await file.vider()
+                    await foyer.charger()
+                }
+            }
+        } else if let erreur = foyer.erreur {
+            BandeauEtat(icone: "exclamationmark.icloud", titre: "Pas à jour", detail: erreur,
+                        categorie: .menage, bouton: "Réessayer") {
+                Task { await foyer.charger() }
             }
         }
         if let refus = file.dernierRefus {
             BandeauEtat(icone: "exclamationmark.circle", titre: "Refusé par le serveur", detail: refus,
                         categorie: .alerte, bouton: "OK") { file.oublierRefus() }
         }
-        if foyer.essais.modeAllege {
-            BandeauEtat(icone: "moon", titre: "Mode allégé · encore 2 jours",
-                        detail: "Tu fais 1/4 des tâches partagées jusqu'à jeudi",
-                        categorie: .linge, bouton: "Arrêter") { foyer.essais.modeAllege = false }
+        if let allegement = foyer.monAllegement {
+            BandeauEtat(icone: "moon", titre: "Mode allégé · \(restant(allegement.fin))",
+                        detail: "Tu fais 1/4 des tâches partagées jusqu'au \(Self.jour(allegement.fin.addingTimeInterval(-3600)))",
+                        categorie: .linge, bouton: "Arrêter") { arreterAllegement() }
         }
-        if foyer.essais.absence, let autre = foyer.autre {
-            BandeauEtat(icone: "mappin", titre: "\(autre.nom) est absent",
-                        detail: "Retour ven. 18:40 · ses tâches sont à toi", categorie: .ia)
+        if let absence = foyer.absenceDeLAutre {
+            BandeauEtat(icone: "mappin",
+                        titre: absence.debut <= .now ? "\(absence.pour.nom) est absent" : "\(absence.pour.nom) part bientôt",
+                        detail: (absence.debut <= .now ? "Retour " : "Du \(Self.moment(absence.debut)) au ")
+                            + Self.moment(absence.fin) + " · ses tâches passent à toi",
+                        categorie: .ia)
         }
+        ForEach(foyer.propositions) { proposition in
+            BandeauEtat(icone: "tram", titre: "Un week-end à \(proposition.lieu) ?",
+                        detail: "Du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin))",
+                        categorie: .travail, bouton: "Voir") { trains = proposition }
+        }
+        Color.clear.frame(height: 0)
+            .sheet(item: $trains) { proposition in
+                EcranTrains(proposition: proposition).presentationDetents([.large])
+            }
+    }
+
+    private func arreterAllegement() {
+        if !foyer.connecte {
+            foyer.essais.modeAllege = false
+            return
+        }
+        Task {
+            do {
+                try await foyer.agir("DELETE", "allegement")
+                annoncer("Mode allégé arrêté")
+            } catch {
+                annoncer((error as? ErreurAPI)?.message ?? "Impossible d'arrêter")
+            }
+        }
+    }
+
+    private func restant(_ fin: Date) -> String {
+        let jours = Calendar.current.dateComponents([.day], from: .now, to: fin).day ?? 0
+        return jours <= 0 ? "jusqu'à ce soir" : "encore \(jours + 1) jours"
+    }
+
+    static func jour(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "fr_FR")))
+    }
+
+    static func moment(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).hour().minute().locale(Locale(identifier: "fr_FR")))
     }
 }
 

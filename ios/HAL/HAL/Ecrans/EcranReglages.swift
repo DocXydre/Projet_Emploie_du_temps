@@ -7,6 +7,7 @@ struct EcranReglages: View {
     @Environment(Foyer.self) private var foyer
     @Environment(Apparence.self) private var apparence
     @Environment(Disposition.self) private var disposition
+    @Environment(Session.self) private var session
 
     var body: some View {
         PageDefilante {
@@ -16,7 +17,8 @@ struct EcranReglages: View {
                 Avatar(nom: foyer.moi.nom)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(foyer.moi.nom).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
-                    Text(foyer.autre.map { "Connecté · avec \($0.nom)" } ?? "Connecté")
+                    Text(!foyer.connecte ? "Démonstration · données fictives"
+                         : foyer.autre.map { "Connecté · avec \($0.nom)" } ?? "Connecté")
                         .texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 }
                 Spacer()
@@ -57,7 +59,8 @@ struct EcranReglages: View {
             EnTeteGroupe(texte: "Foyer et compte")
             GroupeReglages {
                 aVenir("Le foyer", "person.2", Categorie.ia.couleur, lot: 8)
-                aVenir("Serveur et mot de passe", "lock", Palette.texteSecondaire, lot: 8)
+                lien("Serveur et mot de passe", "lock", Palette.texteSecondaire,
+                     valeur: session.pseudo ?? "Démonstration") { EcranCompte() }
             }
 
             EnTeteGroupe(texte: "Essais")
@@ -65,7 +68,7 @@ struct EcranReglages: View {
                 lien("Composants", "square.grid.2x2", Categorie.linge.couleur) { EcranComposants() }
                 lien("États à forcer", "slider.horizontal.3", Categorie.linge.couleur) { EcranEssais() }
             }
-            Text("Le groupe Essais sert tant que l'appli tourne sur des données fictives. Il disparaîtra au branchement de l'API.")
+            Text("Les états à forcer ne valent qu'en démonstration. Connecté, tout vient du serveur.")
                 .texte(.legende).foregroundStyle(Palette.texteTertiaire)
         }
     }
@@ -207,5 +210,83 @@ extension UIImage {
         let echelle = cote / plusGrand
         let taille = CGSize(width: size.width * echelle, height: size.height * echelle)
         return UIGraphicsImageRenderer(size: taille).image { _ in draw(in: CGRect(origin: .zero, size: taille)) }
+    }
+}
+
+/// Le compte : à quel serveur on est connecté, changer son mot de passe, se
+/// déconnecter (CNX-2, CNX-6). En démonstration, se connecter.
+struct EcranCompte: View {
+    @Environment(Session.self) private var session
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+    @Environment(\.annoncer) private var annoncer
+    @State private var nouveau = ""
+    @State private var enCours = false
+    @State private var erreur: String?
+    @State private var confirmer = false
+
+    var body: some View {
+        Form {
+            if let pseudo = session.pseudo {
+                Section("Connecté") {
+                    LabeledContent("Pseudo", value: pseudo)
+                    LabeledContent("Serveur", value: session.adresse?.host() ?? "")
+                    if let misAJour = foyer.misAJour {
+                        LabeledContent("À jour", value: misAJour.formatted(date: .omitted, time: .shortened))
+                    }
+                }
+                Section {
+                    SecureField("Nouveau mot de passe", text: $nouveau)
+                        .textContentType(.newPassword)
+                    Button("Changer le mot de passe") { Task { await changer() } }
+                        .disabled(nouveau.count < 10 || enCours)
+                } header: {
+                    Text("Mot de passe")
+                } footer: {
+                    Text("Au moins dix caractères. La clé de l'appli ne change pas : tes autres appareils restent connectés.")
+                }
+                if let erreur {
+                    Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
+                }
+                Section {
+                    Button("Se déconnecter", role: .destructive) { confirmer = true }
+                        .frame(maxWidth: .infinity)
+                } footer: {
+                    if !file.enAttente.isEmpty {
+                        Text("\(file.enAttente.count) envoi(s) en attente seront perdus.")
+                    }
+                }
+            } else {
+                Section {
+                    Text("L'appli tourne sur des données fictives.")
+                    Button("Se connecter à un serveur") { session.deconnecter() }
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .navigationTitle("Serveur et mot de passe")
+        .navigationBarTitleDisplayMode(.inline)
+        .containerBackground(.clear, for: .navigation)
+        .confirmationDialog("Se déconnecter ?", isPresented: $confirmer, titleVisibility: .visible) {
+            Button("Se déconnecter", role: .destructive) {
+                file.vider(sansEnvoyer: true)
+                session.deconnecter()
+            }
+        }
+    }
+
+    private struct Demande: Encodable { let motDePasse: String }
+
+    private func changer() async {
+        enCours = true
+        erreur = nil
+        defer { enCours = false }
+        do {
+            try await foyer.agir("PUT", "mot-de-passe", corps: ClientAPI.corps(Demande(motDePasse: nouveau)))
+            nouveau = ""
+            annoncer("Mot de passe changé")
+        } catch {
+            erreur = (error as? ErreurAPI)?.message ?? error.localizedDescription
+        }
     }
 }

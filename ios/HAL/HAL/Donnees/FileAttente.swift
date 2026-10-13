@@ -35,6 +35,8 @@ final class FileAttente {
     private(set) var dernierRefus: String?
     private(set) var reseauDisponible = true
     var expediteur: Expediteur
+    /// Appelé quand la file s'est vidée après au moins un envoi : l'écran se recharge.
+    var apresEnvoi: (() async -> Void)?
 
     private let surveillance = NWPathMonitor()
     private var envoiEnCours = false
@@ -66,19 +68,33 @@ final class FileAttente {
         envoiEnCours = true
         defer { envoiEnCours = false }
 
+        var envoyes = 0
         while let premier = enAttente.first {
             switch await expediteur.envoyer(premier) {
             case .envoye:
                 enAttente.removeFirst()
+                reseauDisponible = true
+                envoyes += 1
             case .refuse(let motif):
                 enAttente.removeFirst()
                 dernierRefus = motif
+                envoyes += 1
             case .injoignable:
+                reseauDisponible = false
                 enregistrer()
                 return
             }
             enregistrer()
         }
+        if envoyes > 0 { await apresEnvoi?() }
+    }
+
+    /// À la déconnexion : ce qui attend appartenait à l'autre compte.
+    func vider(sansEnvoyer: Bool) {
+        guard sansEnvoyer else { return }
+        enAttente = []
+        dernierRefus = nil
+        enregistrer()
     }
 
     func oublierRefus() { dernierRefus = nil }
@@ -108,5 +124,22 @@ struct ExpediteurFictif: Expediteur {
         try? await Task.sleep(for: .milliseconds(300))
         let coupe = await MainActor.run { foyer.essais.horsReseau }
         return coupe ? .injoignable : .envoye
+    }
+}
+
+/// L'expéditeur réel : il envoie au serveur avec la clé du compte. Un refus du
+/// serveur retire l'envoi avec son motif ; une panne de réseau le garde.
+struct ExpediteurAPI: Expediteur {
+    let client: ClientAPI
+
+    func envoyer(_ envoi: Envoi) async -> ResultatEnvoi {
+        do {
+            try await client.envoyer(envoi.methode, envoi.chemin, corps: envoi.corps, cleAppareil: envoi.id)
+            return .envoye
+        } catch let erreur as ErreurAPI {
+            return erreur.injoignable ? .injoignable : .refuse(erreur.message)
+        } catch {
+            return .injoignable
+        }
     }
 }
