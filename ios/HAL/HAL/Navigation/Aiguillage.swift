@@ -24,6 +24,27 @@ final class Aiguillage {
     var invitation: InvitationOuverte?
     /// Un lien d'invitation ouvert alors qu'un compte est déjà connecté.
     var invitationRefusee = false
+    /// IOS-2 : le raccourci de l'écran verrouillé ouvre le panneau de HAL.
+    var ouvrirHAL = false
+    /// IOS-3 : toucher la Live Activity ramène sur la séance en cours.
+    var ouvrirSeance = false
+
+    /// IOS-1 : un widget ouvre l'appli au bon endroit (`hal://sport`, `hal://hal`…).
+    /// Rend vrai si le lien est l'un d'eux.
+    func ouvrirUnWidget(_ url: URL) -> Bool {
+        guard url.scheme == "hal" else { return false }
+        switch url.host() {
+        case "aujourdhui": onglet = .aujourdhui
+        case "sport": onglet = .sport
+        case "maison": onglet = .maison
+        case "hal": ouvrirHAL = true
+        case "seance":
+            onglet = .sport
+            ouvrirSeance = true
+        default: return false
+        }
+        return true
+    }
 
     /// `hal://rejoindre?serveur=https%3A%2F%2F…&code=ABCDE-FGHJK`. Rend vrai si le
     /// lien est une invitation.

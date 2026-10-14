@@ -16,6 +16,8 @@ struct EcranSeancePrevue: View {
     @Environment(Foyer.self) private var foyer
     @State private var pasFaite = false
     @State private var supprimer = false
+    @State private var envoyee = false
+    @State private var envoi = false
 
     var body: some View {
         NavigationStack {
@@ -56,9 +58,20 @@ struct EcranSeancePrevue: View {
                             Label("Lancer la séance", systemImage: "play.fill").bold().frame(maxWidth: .infinity)
                         }
                     } else if !detail.close {
-                        // MON-1 : une course ne se lance pas ici, elle part sur la montre.
-                        Label("Envoyer à la montre : au lot 9", systemImage: "applewatch")
-                            .foregroundStyle(Palette.texteSecondaire)
+                        // MON-1, MON-2 : une course ne se lance pas ici, elle part sur la montre.
+                        Button { Task { await envoyerALaMontre() } } label: {
+                            HStack {
+                                Label(envoyee ? "Renvoyer à la montre" : "Envoyer à la montre",
+                                      systemImage: "applewatch")
+                                Spacer()
+                                if envoi { ProgressView() }
+                            }
+                        }
+                        .disabled(envoi)
+                        if envoyee {
+                            Text("Elle t'attend dans l'app Exercice, à son heure. Faite, elle arrive par Santé et se valide toute seule.")
+                                .font(.footnote).foregroundStyle(Palette.texteSecondaire)
+                        }
                     }
                     if !detail.close {
                         Button("Déjà faite, sans saisie") {
@@ -136,6 +149,22 @@ struct EcranSeancePrevue: View {
             }
         }
         .feuilleEnVerre()
+        .task {
+            guard ["course", "cardio"].contains(detail.seance.discipline ?? ""), !detail.close else { return }
+            envoyee = await EnvoiMontre.dejaEnvoyee(detail.seance.idOccurrence)
+        }
+    }
+
+    private func envoyerALaMontre() async {
+        envoi = true
+        defer { envoi = false }
+        do {
+            try await EnvoiMontre.envoyer(detail)
+            envoyee = true
+            annoncer("Séance envoyée à la montre")
+        } catch {
+            annoncer(error.localizedDescription)
+        }
     }
 
     private var sousTitre: String {

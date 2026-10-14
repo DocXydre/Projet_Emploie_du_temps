@@ -85,12 +85,28 @@ struct Racine: View {
             withAnimation(.snappy) { annonce = nouvelle }
         })
         .onChange(of: onglet) { conversation.contexte = onglet.libelle }
+        // IOS-2, IOS-3 : ce que les widgets et la Live Activity demandent d'ouvrir.
+        .onChange(of: aiguillage.ouvrirHAL) { suivreLesLiens() }
+        .onChange(of: aiguillage.ouvrirSeance) { suivreLesLiens() }
+        .onAppear { suivreLesLiens() }
         // NOT-18 : le serveur dit que HAL a parlé, le « ! » s'allume.
         .onChange(of: foyer.orbeADire) { _, aDire in if aDire { conversation.signaler() } }
         .task(id: annonce?.id) {
             guard annonce != nil else { return }
             try? await Task.sleep(for: .seconds(5))
             withAnimation(.snappy) { annonce = nil }
+        }
+    }
+
+    /// Un lien venu d'un widget, au lancement ou appli ouverte.
+    private func suivreLesLiens() {
+        if aiguillage.ouvrirHAL {
+            aiguillage.ouvrirHAL = false
+            conversation.ouvrir()
+        }
+        if aiguillage.ouvrirSeance {
+            aiguillage.ouvrirSeance = false
+            if seance.enCours { seance.affichee = true }
         }
     }
 
