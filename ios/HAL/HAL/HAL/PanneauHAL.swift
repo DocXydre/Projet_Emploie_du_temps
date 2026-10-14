@@ -90,7 +90,7 @@ struct PanneauHAL: View {
             case .semaine(let lundi):
                 NavigationStack { EcranSemaine(lundi: lundi) }.feuilleEnVerre()
             case .mesure(let mesure):
-                FeuilleMesure(mesure: mesure).presentationDetents([.large]).feuilleEnVerre()
+                FeuilleMesure(mesure: mesure).presentationDetents([.fraction(0.8), .large]).feuilleEnVerre()
             case .objectifs:
                 NavigationStack { EcranObjectifs() }.feuilleEnVerre()
             }

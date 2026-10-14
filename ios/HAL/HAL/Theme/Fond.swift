@@ -14,7 +14,7 @@ struct Fond: View {
                 .clipped()
                 .saturation(apparence.saturation)
                 .blur(radius: apparence.flou * 40, opaque: true)
-                .overlay(Color.black.opacity(apparence.assombrissement))
+                .overlay(Color.black.opacity(apparence.assombrissementEffectif))
         }
         .ignoresSafeArea()
         // L'image remplit son cadre en débordant : .clipped() cache ce qui

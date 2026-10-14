@@ -243,6 +243,8 @@ final class Foyer {
                   categorie: Categorie(rawValue: lue.categorie) ?? .menage,
                   faite: lue.faite || enSuspens[lue.id] != nil,
                   reports: lue.reports ?? 0,
+                  enRetard: lue.enRetard ?? false,
+                  fin: lue.fin,
                   code: lue.code,
                   reportable: lue.actionsPossibles?.contains("reportee") ?? false)
         }
@@ -290,7 +292,9 @@ final class Foyer {
 
     var evenementsDuJour: [Evenement] { !connecte && essais.foyerVide ? [] : evenements }
     var tachesDuJour: [Tache] { !connecte && essais.foyerVide ? [] : taches }
-    var tachesEnRetard: [Tache] { tachesDuJour.filter { $0.reports > 0 && !$0.faite } }
+    var tachesEnRetard: [Tache] {
+        tachesDuJour.filter { ($0.enRetard || $0.reports > 0) && !$0.faite }
+    }
 
     /// 8.6 : aucun calendrier suivi, ni par moi ni pour moi. Aujourd'hui le
     /// rappelle tant que c'est vrai (PRE-3).

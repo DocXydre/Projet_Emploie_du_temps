@@ -39,7 +39,8 @@ struct Compteur: View {
     }
 
     private var enClair: String {
-        let nombre = valeur.rounded() == valeur ? String(Int(valeur)) : String(format: "%.1f", valeur)
+        let nombre = valeur.formatted(.number.precision(.fractionLength(0...1))
+            .grouping(.never).locale(Locale(identifier: "fr_FR")))
         return unite.isEmpty ? nombre : "\(nombre) \(unite)"
     }
 
@@ -107,6 +108,7 @@ struct BarreDeTitre<Droite: View>: View {
                     Text(sousTitre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 }
             }
+            .surLaPhoto()
             HStack {
                 if let retour { BoutonRond("chevron.left", libelle: "Retour", action: retour) }
                 Spacer()
@@ -136,6 +138,7 @@ struct EnTeteOnglet<Boutons: View>: View {
                 Text(titre).texte(.grandTitre).foregroundStyle(Palette.textePrincipal)
                     .accessibilityAddTraits(.isHeader)
             }
+            .surLaPhoto()
             Spacer()
             HStack(spacing: 8) { boutons }
         }

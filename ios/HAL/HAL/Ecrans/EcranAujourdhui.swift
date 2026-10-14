@@ -43,7 +43,7 @@ struct EcranAujourdhui: View {
         .animation(.snappy, value: prioritaires.map(\.id))
         .overlay { vueAgrandie }
         .sheet(isPresented: $galerie) { Galerie() }
-        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.fraction(0.64), .large]) }
         .navigationDestination(item: $ecranOuvert) { id in
             Registre.module(id)?.ecran?()
         }

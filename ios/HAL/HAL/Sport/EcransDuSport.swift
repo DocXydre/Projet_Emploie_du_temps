@@ -377,7 +377,7 @@ struct EcranFrequence: View {
                 EnTeteGroupe(texte: "En face, la journée")
                 GroupeReglages {
                     ForEach(foyer.evenementsDuJour.filter { !$0.journeeEntiere }) { evenement in
-                        LigneEvenement(heure: evenement.debut.formatted(date: .omitted, time: .shortened),
+                        LigneEvenement(heure: evenement.heure,
                                        titre: evenement.titre, lieu: evenement.lieu,
                                        categorie: evenement.categorie,
                                        passe: (evenement.fin ?? evenement.debut) < .now)

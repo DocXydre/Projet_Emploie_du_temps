@@ -132,6 +132,12 @@ struct EcranFondCouleurs: View {
             VStack(spacing: 14) {
                 curseur("Flou", valeur: $apparence.flou)
                 curseur("Assombrissement", valeur: $apparence.assombrissement, bornes: 0...0.7)
+                if apparence.plancherAssombrissement > apparence.assombrissement {
+                    Text("Photo claire : elle reste assombrie d'au moins \(Int((apparence.plancherAssombrissement * 100).rounded())) %, pour que le texte se lise.")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 curseur("Couleurs de la photo", valeur: $apparence.saturation, bornes: 0...1.2)
                 Button("Réglages d'origine") { apparence.revenirAuxReglagesParDefaut() }
                     .buttonStyle(.hal(.verre))

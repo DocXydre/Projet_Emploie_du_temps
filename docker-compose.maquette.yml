@@ -1,0 +1,19 @@
+# La fausse base, pour vérifier l'appli dans le simulateur.
+#
+#   ./outils/fausse_base.sh
+#
+# Se superpose à docker-compose.yml et docker-compose.local.yml. L'API lit la
+# base « planif_maquette », remplie de données inventées, au lieu de la copie
+# de production. Le conteneur de la base reste le même.
+#
+# L'ordonnanceur et le bot sont coupés : rien ne part tout seul, ni
+# notification, ni récap du soir, ni appel payant au modèle. La fausse base
+# reste telle que le script l'a remplie.
+#
+# Pour revenir à la vraie base locale : ./outils/local.sh demarrer
+
+services:
+  api:
+    environment:
+      POSTGRES_DB: planif_maquette
+      ORDONNANCEUR_ACTIF: "false"

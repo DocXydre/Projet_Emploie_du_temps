@@ -156,4 +156,17 @@ enum Dates {
         default: return "dans \(jours) jours"
         }
     }
+
+    /// « depuis hier », « depuis 3 jours » : ce que dit une tâche en retard.
+    static func depuis(_ date: Date?, maintenant: Date = .now) -> String {
+        guard let date else { return "en retard" }
+        let calendrier = Calendar.current
+        let jours = calendrier.dateComponents([.day], from: calendrier.startOfDay(for: date),
+                                              to: calendrier.startOfDay(for: maintenant)).day ?? 0
+        switch jours {
+        case ..<1: return "en retard"
+        case 1: return "depuis hier"
+        default: return "depuis \(jours) jours"
+        }
+    }
 }

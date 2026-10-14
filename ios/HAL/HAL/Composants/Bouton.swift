@@ -24,8 +24,11 @@ struct StyleBoutonHAL: ButtonStyle {
         configuration.label
             .texte(.corpsFort)
             .lineLimit(1)
+            // Un libellé long rétrécit un peu plutôt que d'être coupé :
+            // « Valider la semaine » dans une grille de deux boutons.
+            .minimumScaleFactor(0.75)
             .foregroundStyle(couleurTexte)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, pleineLargeur ? 12 : 16)
             .frame(maxWidth: pleineLargeur ? .infinity : nil)
             .frame(height: grand ? 54 : 36)
             .contentShape(Capsule())
