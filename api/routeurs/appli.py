@@ -513,6 +513,34 @@ def bilan_par_cle(cle: UUID, bilan: Bilan, qui: Authentifie,
 
 
 # -----------------------------------------------------------------------------
+# Annuler une séance lancée par erreur                                  (SAI-19)
+#
+# Une séance libre ouverte ici puis annulée n'a jamais eu lieu : elle disparaît
+# avec ses séries. Une séance prévue reste à faire : seules les séries saisies
+# pendant ce lancement s'en vont. Une série figée par la synthèse ne bouge pas.
+# -----------------------------------------------------------------------------
+class SeriesAnnulees(BaseModel):
+    cles: list[UUID] = Field(default_factory=list, max_length=500)
+
+
+@routeur.delete("/seances/par-cle/{cle}", tags=["Coach : séances"],
+                summary="Annuler une séance libre ouverte par l'appareil")
+def annuler_seance_libre(cle: UUID, qui: Authentifie) -> dict:
+    id_occurrence = _par_cle(qui.id_utilisateur, cle)
+    executer("SELECT annuler_seance_libre(%(u)s, %(o)s)",
+             {"u": qui.id_utilisateur, "o": id_occurrence})
+    return {"annulee": id_occurrence}
+
+
+@routeur.post("/seances/{id_occurrence}/annuler-saisie", tags=["Coach : séances"],
+              summary="Retirer les séries saisies pendant un lancement annulé")
+def annuler_la_saisie(id_occurrence: int, annulees: SeriesAnnulees, qui: Authentifie) -> dict:
+    ligne = executer("SELECT annuler_saisie(%(u)s, %(o)s, %(c)s::UUID[]) AS n",
+                     {"u": qui.id_utilisateur, "o": id_occurrence, "c": annulees.cles})
+    return {"retirees": ligne["n"]}
+
+
+# -----------------------------------------------------------------------------
 # Le démarrage de HAL dans l'appli                               (DEM-1 à DEM-6)
 #
 # L'appli pose les questions écran par écran. Les réponses en cours sont

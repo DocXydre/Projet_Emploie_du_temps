@@ -2040,6 +2040,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAI-16 | M | Une séance de musculation prévue peut se dire « déjà faite, sans saisie » sans l'ouvrir. Elle compte comme faite, sans charge (SAI-13). Le bilan reste possible ensuite (SAI-12) |
 | SAI-17 | T | « J'ai bloqué avant » : l'utilisateur dit à combien de répétitions il s'est arrêté. La série est notée telle quelle, et une série intermédiaire s'ajoute juste après : même nombre de répétitions prévu, poids baissé de 10 % s'il manquait une ou deux répétitions, de 20 % au-delà, arrondi au palier de 2,5 kg. C'est une règle fixe, calculée sur le téléphone, sans HAL et sans réseau. La série suivante garde le poids prévu |
 | SAI-18 | T | Valider une série lance le repos prévu. Il reste visible sur l'écran verrouillé et dans la Dynamic Island, avec un retour haptique à la fin (IOS-3) |
+| SAI-19 | M | Une séance lancée par erreur s'annule entière, depuis la séance en cours. Une séance libre ouverte ainsi disparaît avec ses séries ; une séance prévue reste à faire, sans les séries saisies pendant ce lancement. Une séance close, avec un bilan ou des séries figées, ne s'annule plus |
 
 #### B.3.7 Données de santé : `SAN`
 

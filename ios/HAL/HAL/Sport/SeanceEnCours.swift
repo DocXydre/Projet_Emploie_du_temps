@@ -114,6 +114,8 @@ struct SeanceLocale: Codable {
     var courant: Int
     var proposition: SerieProposee?
     var consigne: String?
+    /// Les séries déjà sur le serveur au lancement : annuler ne les retire pas (SAI-19).
+    var dejaSaisies: Int? = nil
 }
 
 /// La séance de musculation en cours (3.5 à 3.9). Une seule à la fois.
@@ -167,7 +169,8 @@ final class SeanceEnCours {
         seance = SeanceLocale(cle: UUID(), idOccurrence: detail.seance.idOccurrence,
                               libre: detail.seance.libre ?? false, titre: detail.titre, debut: .now,
                               exercices: detail.prevu.map(ExerciceDeSeance.init), series: deja,
-                              courant: 0, proposition: nil, consigne: detail.seance.consigne)
+                              courant: 0, proposition: nil, consigne: detail.seance.consigne,
+                              dejaSaisies: deja.count)
         enregistrer()
         affichee = true
         demanderLesNotifications()
@@ -367,6 +370,25 @@ final class SeanceEnCours {
     func pasFaite(file: FileAttente) {
         if let id = seance?.idOccurrence {
             file.ajouter(methode: "POST", chemin: "seances/\(id)/pas-faite")
+        }
+        oublier()
+    }
+
+    private struct Annulees: Encodable { let cles: [UUID] }
+
+    /// SAI-19 : une séance lancée par erreur. Libre, elle disparaît avec ses
+    /// séries ; prévue, elle reste à faire, sans les séries de ce lancement.
+    /// Tout passe par la file : sans réseau, l'annulation part au retour.
+    func annuler(file: FileAttente) {
+        guard let seance else { return }
+        if let id = seance.idOccurrence {
+            let cles = seance.series.dropFirst(seance.dejaSaisies ?? 0).map(\.cle)
+            if !cles.isEmpty {
+                file.ajouter(methode: "POST", chemin: "seances/\(id)/annuler-saisie",
+                             corps: ClientAPI.corps(Annulees(cles: Array(cles))))
+            }
+        } else {
+            file.ajouter(methode: "DELETE", chemin: "seances/par-cle/\(seance.cle.uuidString)")
         }
         oublier()
     }

@@ -158,6 +158,8 @@ struct EcranSeanceEnCours: View {
     @State private var terminer = false
     @State private var choisir = false
     @State private var bilan = false
+    @State private var annuler = false
+    @Environment(\.annoncer) private var annoncer
 
     var body: some View {
         NavigationStack {
@@ -198,12 +200,30 @@ struct EcranSeanceEnCours: View {
                     switch choix {
                     case .bilan: bilan = true
                     case .pasFaite: seance.pasFaite(file: file)
+                    case .annuler:
+                        // La feuille se referme d'abord : la question vient juste après.
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450))
+                            annuler = true
+                        }
                     }
                 }
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
                 .feuilleEnVerre()
             }
             .navigationDestination(isPresented: $bilan) { EcranBilan() }
+            .confirmationDialog("Annuler toute la séance ?", isPresented: $annuler, titleVisibility: .visible) {
+                Button("Annuler la séance", role: .destructive) {
+                    let prevue = seance.seance?.idOccurrence != nil
+                    seance.annuler(file: file)
+                    annoncer(prevue ? "Lancement annulé : la séance reste à faire" : "Séance annulée")
+                }
+                Button("Continuer la séance", role: .cancel) {}
+            } message: {
+                Text(seance.seance?.idOccurrence != nil
+                     ? "Elle reste à faire. Les séries saisies pendant ce lancement sont effacées."
+                     : "Rien n'est gardé : la séance et ses séries sont effacées.")
+            }
         }
         .onAppear(perform: preRemplir)
         .onChange(of: seance.exerciceCourant?.id) { preRemplir() }
@@ -421,7 +441,7 @@ private struct FeuilleBloque: View {
 
 // MARK: - 3.8 Terminer ou arrêter
 
-private enum FinDeSeance { case bilan, pasFaite }
+private enum FinDeSeance { case bilan, pasFaite, annuler }
 
 /// SAI-15 : tout est saisi, arrêtée ici, faite sans rien saisir, ou pas faite.
 private struct FeuilleTerminer: View {
@@ -431,13 +451,17 @@ private struct FeuilleTerminer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Terminer la séance").texte(.titre).foregroundStyle(Palette.textePrincipal)
+            Text("Terminer ou annuler").texte(.titre).foregroundStyle(Palette.textePrincipal)
             choix("J'ai tout fait", "checkmark.circle", "Le bilan, puis HAL te répond.") { choisir(.bilan) }
             choix("J'arrête ici", "stop.circle", "Faite mais incomplète : seules les séries entrées comptent.") { choisir(.bilan) }
             choix("Faite, sans rien saisir", "circle.dashed", "Elle compte faite. Le bilan reste à donner.") { choisir(.bilan) }
             if prevue {
                 choix("Pas faite", "xmark.circle", "HAL décide de la suite.") { choisir(.pasFaite) }
             }
+            // SAI-19 : lancée par erreur, elle s'annule entière.
+            choix("Annuler la séance", "trash",
+                  prevue ? "Lancée par erreur : elle reste à faire, sans les séries de ce lancement."
+                         : "Lancée par erreur : rien n'est gardé.") { choisir(.annuler) }
         }
         .padding(Espace.marge)
     }

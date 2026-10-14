@@ -28,8 +28,12 @@
 	<string>HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ton sommeil et tes séances pour adapter ton plan.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>HAL n'écrit rien dans Santé.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Le micro sert à dicter tes messages à HAL, seulement quand tu le demandes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>HAL utilise la photo que tu choisis comme fond de l'appli.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Ta voix est transcrite en texte pour écrire ton message à HAL.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
