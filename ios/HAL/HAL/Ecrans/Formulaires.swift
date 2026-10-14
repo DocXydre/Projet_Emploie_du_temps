@@ -35,8 +35,14 @@ struct FormulaireVerre<Contenu: View>: View {
 /// Le fond d'une ligne de formulaire : le même verre dépoli que les cartes, pour
 /// que le texte reste lisible sur une photo claire.
 struct FondDeLigne: View {
+    @Environment(\.verre) private var verre
+
     var body: some View {
-        Rectangle().fill(.ultraThinMaterial).overlay(Palette.verreTeinte)
+        if let glass = verre.glass {
+            Rectangle().fill(.clear).glassEffect(glass, in: .rect)
+        } else {
+            Rectangle().fill(.ultraThinMaterial).overlay(Palette.verreTeinte)
+        }
     }
 }
 

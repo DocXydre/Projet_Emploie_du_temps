@@ -146,6 +146,19 @@ struct EcranFondCouleurs: View {
             .padding(Espace.interne)
             .carte(rayon: Rayon.controle)
 
+            EnTeteGroupe(texte: "Verre des cartes")
+            VStack(alignment: .leading, spacing: 14) {
+                Segmente(choix: StyleVerre.allCases.map { ($0, $0.nom) },
+                         selection: $apparence.styleVerre.animation(.smooth))
+                Text(apparence.styleVerre.detail).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+                if apparence.styleVerre != .depoli {
+                    curseur("Assombrir le verre", valeur: $apparence.teinteVerre, bornes: 0...0.6)
+                }
+            }
+            .padding(Espace.interne)
+            .carte(rayon: Rayon.controle)
+
             EnTeteGroupe(texte: "Couleurs des boutons")
             VStack(spacing: 14) {
                 HStack(alignment: .top) {

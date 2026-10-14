@@ -67,6 +67,45 @@ extension EnvironmentValues {
     }
 }
 
+/// Le verre des cartes et des widgets (THM-5). Réglage de l'appareil.
+enum StyleVerre: String, CaseIterable, Identifiable, Codable {
+    /// Le Liquid Glass d'iOS 26 : il réfracte la photo et reflète la lumière.
+    case liquide
+    /// Le même, plus transparent : la photo passe davantage.
+    case liquideClair
+    /// L'ancien verre : un flou uniforme, plus opaque, le plus lisible.
+    case depoli
+
+    var id: String { rawValue }
+
+    var nom: String {
+        switch self {
+        case .liquide: "Liquid Glass"
+        case .liquideClair: "Transparent"
+        case .depoli: "Dépoli"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .liquide: "Le verre d'iOS : il réfracte la photo et reflète la lumière."
+        case .liquideClair: "Le même verre, plus transparent : la photo passe davantage. À assombrir si le texte se lit mal."
+        case .depoli: "Un flou uniforme, plus opaque : le plus lisible sur une photo chargée."
+        }
+    }
+}
+
+/// Ce que les cartes lisent pour se dessiner.
+struct ReglageVerre: Equatable {
+    var style: StyleVerre = .liquide
+    /// De 0 à 0,6 : la teinte sombre posée dans le verre, pour la lisibilité.
+    var teinte: Double = 0.15
+}
+
+extension EnvironmentValues {
+    @Entry var verre = ReglageVerre()
+}
+
 /// L'apparence de l'appli : la photo de fond, son traitement et la combinaison.
 /// C'est un réglage de l'appareil, il ne part pas au serveur (THM-6).
 @Observable
@@ -77,6 +116,11 @@ final class Apparence {
     var flou: Double { didSet { enregistrer() } }
     var assombrissement: Double { didSet { enregistrer() } }
     var saturation: Double { didSet { enregistrer() } }
+    /// Le verre des cartes : Liquid Glass, transparent ou dépoli.
+    var styleVerre: StyleVerre { didSet { enregistrer() } }
+    var teinteVerre: Double { didSet { enregistrer() } }
+
+    var verre: ReglageVerre { ReglageVerre(style: styleVerre, teinte: teinteVerre) }
 
     private(set) var photo: UIImage?
     private var couleursPhoto: Theme?
@@ -95,6 +139,8 @@ final class Apparence {
         flou = reglages.object(forKey: Cle.flou) as? Double ?? 0.35
         assombrissement = reglages.object(forKey: Cle.assombrissement) as? Double ?? 0.28
         saturation = reglages.object(forKey: Cle.saturation) as? Double ?? 0.9
+        styleVerre = StyleVerre(rawValue: reglages.string(forKey: Cle.styleVerre) ?? "") ?? .liquide
+        teinteVerre = reglages.object(forKey: Cle.teinteVerre) as? Double ?? 0.15
         photo = Self.lirePhoto()
         recalculerCouleursPhoto()
     }
@@ -114,6 +160,8 @@ final class Apparence {
         flou = 0.35
         assombrissement = 0.28
         saturation = 0.9
+        styleVerre = .liquide
+        teinteVerre = 0.15
     }
 
     private func recalculerCouleursPhoto() {
@@ -127,6 +175,8 @@ final class Apparence {
         reglages.set(flou, forKey: Cle.flou)
         reglages.set(assombrissement, forKey: Cle.assombrissement)
         reglages.set(saturation, forKey: Cle.saturation)
+        reglages.set(styleVerre.rawValue, forKey: Cle.styleVerre)
+        reglages.set(teinteVerre, forKey: Cle.teinteVerre)
     }
 
     private enum Cle {
@@ -135,6 +185,8 @@ final class Apparence {
         static let flou = "apparence.flou"
         static let assombrissement = "apparence.assombrissement"
         static let saturation = "apparence.saturation"
+        static let styleVerre = "apparence.styleVerre"
+        static let teinteVerre = "apparence.teinteVerre"
     }
 
     private static var fichierPhoto: URL {

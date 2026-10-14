@@ -36,6 +36,7 @@ struct HALApp: App {
             .environment(seance)
             .environment(sante)
             .environment(\.theme, apparence.theme)
+            .environment(\.verre, apparence.verre)
             .tint(apparence.theme.principal)
             .preferredColorScheme(.dark)
             .task(id: session.etat) {
