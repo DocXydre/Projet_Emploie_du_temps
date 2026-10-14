@@ -56,10 +56,16 @@ final class Session {
 
     private(set) var etat: Etat
     private(set) var adresse: URL?
+    /// PRE-2 : après une connexion ou une invitation acceptée, les écrans du
+    /// premier lancement passent avant l'appli, une fois par connexion.
+    private(set) var accueilAFaire: Bool {
+        didSet { UserDefaults.standard.set(accueilAFaire, forKey: Self.cleAccueil) }
+    }
 
     private static let cleAdresse = "serveur.adresse"
     private static let clePseudo = "serveur.pseudo"
     private static let cleDemo = "serveur.demonstration"
+    private static let cleAccueil = "serveur.accueil_a_faire"
 
     init() {
         // Calculés d'abord, rangés ensuite : @Observable n'accepte pas qu'on lise
@@ -74,6 +80,17 @@ final class Session {
             etat = .aChoisir
         }
         adresse = lue
+        accueilAFaire = reglages.bool(forKey: Self.cleAccueil)
+    }
+
+    /// Le premier lancement est fini, ou passé : l'appli s'ouvre.
+    func accueilFait() {
+        accueilAFaire = false
+    }
+
+    /// Réglages, Essais : revoir le premier lancement sans se reconnecter.
+    func revoirAccueil() {
+        if pseudo != nil { accueilAFaire = true }
     }
 
     /// Le client de l'API, quand un compte est connecté.
@@ -149,6 +166,7 @@ final class Session {
         let reglages = UserDefaults.standard
         reglages.removeObject(forKey: Self.clePseudo)
         reglages.removeObject(forKey: Self.cleDemo)
+        accueilAFaire = false
         etat = .aChoisir
     }
 
@@ -159,6 +177,7 @@ final class Session {
         reglages.set(compte.pseudo, forKey: Self.clePseudo)
         reglages.set(false, forKey: Self.cleDemo)
         self.adresse = adresse
+        accueilAFaire = true
         etat = .connecte(pseudo: compte.pseudo)
     }
 }

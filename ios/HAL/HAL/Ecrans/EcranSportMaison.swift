@@ -29,6 +29,15 @@ struct EcranSport: View {
         PageDefilante {
             EnTeteOnglet(surTitre: enPause ? "En pause" : "Cette semaine", titre: "Sport") {}
                 .padding(.bottom, 4)
+            BandeauServeur()
+            if foyer.connecte && sante.disponible && !sante.accesDemande {
+                // 8.7 : sans Santé, la forme, le sommeil et les séances de la montre restent vides.
+                CarteVide(icone: "heart", categorie: .alerte, titre: "Santé n'est pas encore lue",
+                          texte: "Ton sommeil, ta fréquence cardiaque et les séances de ta montre remplissent cet onglet, et aident HAL à doser tes séances.",
+                          bouton: "Autoriser Santé") {
+                    Task { await sante.demanderAcces() }
+                }
+            }
             if enPause {
                 // PAU-1 : la pause se lève d'ici, ou depuis Réglages.
                 BandeauEtat(icone: "pause", titre: "HAL est en pause",
@@ -148,6 +157,7 @@ struct EcranSport: View {
 /// L'onglet Maison (4.1) : les tâches des deux, l'équilibre, le chat.
 struct EcranMaison: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(Aiguillage.self) private var aiguillage
     @State private var ajoutRapide = false
 
     var body: some View {
@@ -157,6 +167,24 @@ struct EcranMaison: View {
                 BoutonRond("plus", libelle: "Ajouter") { ajoutRapide = true }
             }
             .padding(.bottom, 4)
+            BandeauServeur()
+            // 8.8 : un foyer sans tâche, ou une personne seule, le disent avec de quoi agir.
+            if foyer.sansTache {
+                CarteVide(icone: "house", categorie: .menage, titre: "Aucune tâche dans le foyer",
+                          texte: foyer.droits.ajouter
+                              ? "Ajoute ce qui revient : la vaisselle, les lessives, la litière. Le moteur les place dans vos creux et les répartit."
+                              : "C'est l'administrateur du foyer qui ajoute les tâches (FOY-6).",
+                          bouton: foyer.droits.ajouter ? "Ajouter une tâche" : nil) {
+                    aiguillage.feuille = .ajouterTache
+                }
+            }
+            if foyer.connecte && foyer.autre == nil && foyer.moi.estAdministrateur {
+                CarteVide(icone: "person.badge.plus", categorie: .ia, titre: "Tu es seul dans le foyer",
+                          texte: "Invite la personne avec qui tu vis : vous partagerez les tâches, et la balance les répartira entre vous.",
+                          bouton: "Inviter") {
+                    aiguillage.feuille = .inviter
+                }
+            }
             WidgetFixe(module: .aCocher, taille: .moyen)
             HStack(spacing: Espace.gouttiere) {
                 WidgetFixe(module: .chat)

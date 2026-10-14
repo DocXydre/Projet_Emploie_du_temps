@@ -472,7 +472,7 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 | CNX-1 | D | Un compte peut avoir un mot de passe. Il n'est jamais stocké, seulement son empreinte scrypt. Sans mot de passe, la connexion par mot de passe est fermée pour ce compte |
 | CNX-2 | M | Le mot de passe se choisit en rejoignant le foyer (FOY-3), puis se change dans Réglages, Compte, ou par l'API avec sa clé. Dix caractères au moins |
 | CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe et rend la clé d'API. Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
-| CNX-4 | D | `/connexion` et l'acceptation d'une invitation (FOY-3) sont les seules routes ouvertes sans clé. Chaque autre route exige la clé d'API |
+| CNX-4 | D | `/connexion`, l'acceptation d'une invitation (FOY-3) et la page de son lien (5.16) sont les seules routes ouvertes sans clé. La page ne lit rien en base : elle ouvre l'appli avec le code et l'adresse du serveur. Chaque autre route exige la clé d'API |
 | CNX-5 | D | Toutes les routes de l'application passent par `tailscale funnel`, derrière la clé. Les routes d'administration restent sur le tailnet : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, tour des week-ends, relève et relecture des courriels. L'API refuse ces routes (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
 | CNX-6 | M | Se déconnecter, dans Réglages, efface la clé du trousseau et retire l'appareil de la liste des notifications. Changer de mot de passe ne change pas la clé ; la renouveler déconnecte tous les appareils |
 
@@ -1619,7 +1619,7 @@ Notifications
   POST   /notifications/{id_notification}/envoyee          Marquer une notification comme transmise
 
 Journal
-  GET    /journal?mot=&actions=                            Ce qui a changé, et ce qui l'a déclenché
+  GET    /journal?mot=&actions=&avant=                     Ce qui a changé, et ce qui l'a déclenché
 
 Connexion
   POST   /connexion                                        Pseudo et mot de passe : rend la clé d'API
@@ -3804,7 +3804,8 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Le détail des
 | Notifications | Enregistrer l'appareil et son jeton de notification ; envoyer par le service d'Apple | NOT-16 |
 | Heures de chacun | Les heures du bilan, de la relance, du récap et du silence, par compte ; l'ordonnanceur passe toutes les cinq minutes | NOT-15 |
 | Raison des changements | Une phrase par changement, tirée du journal, jointe à la notification | NOT-17 |
-| Historique | `/journal`, déjà là, lu par l'écran Historique | JRN-9 |
+| Historique | `/journal`, déjà là, lu par l'écran Historique ; `avant` charge la suite, `correspond` désigne ce qui parle du mot | JRN-9 |
+| Calendriers à suivre | `/appli/calendriers` : lister ceux du foyer, essayer un lien sans le garder, suivre un calendrier pour soi ou un membre, régler groupe et UE écartées, changer le lien, arrêter, reprendre | COL-7, COL-14, COL-17, COL-21 |
 | Hors réseau | Une clé d'appareil acceptée sur les validations de tâches et les « c'est fait », comme sur les séries | APP-3 |
 | Tâches | Modifier et arrêter par un membre selon les droits ; une tâche faite en plus | TAC-21, EXE-17, FOY-6 |
 | Conflit | « Voir plus tard » et son retour à sept jours | COL-23 |
@@ -3858,7 +3859,7 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 
 ### D.4 Routes du foyer
 
-Elles s'ajoutent aux routes de la section A.9.1 et passent par le funnel, derrière la clé, sauf l'acceptation d'une invitation (CNX-4).
+Elles s'ajoutent aux routes de la section A.9.1 et passent par le funnel, derrière la clé, sauf l'acceptation d'une invitation et la page de son lien (CNX-4).
 
 ```
 Foyer
@@ -3867,6 +3868,7 @@ Foyer
   POST   /foyer/invitations                       Créer un lien d'invitation (administrateur)
   DELETE /foyer/invitations/{id}                  Annuler une invitation pas encore servie
   POST   /invitations/{code}/accepter             Rejoindre : pseudo et mot de passe, rend la clé
+  GET    /rejoindre/{code}                        La page du lien d'invitation : elle ouvre l'appli
   DELETE /foyer/membres/{id}                      Retirer un membre (administrateur)
   POST   /foyer/administrateur                    Passer son rôle à un autre membre
   POST   /foyer/quitter                           Quitter le foyer

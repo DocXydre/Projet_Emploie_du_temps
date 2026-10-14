@@ -45,7 +45,10 @@ BEGIN
     UPDATE invitation SET servie_le = now(), servie_par = v_compte
      WHERE id_invitation = v_invitation.id_invitation;
 
-    -- Le nouveau venu prend sa part du ménage dès maintenant.
+    -- COL-16 : un calendrier PERSO_<PSEUDO> qui l'attendait devient le sien,
+    -- avant que l'assignation générale ne le laisse à l'administrateur. Puis le
+    -- nouveau venu prend sa part du ménage dès maintenant.
+    PERFORM assigner_calendriers_perso();
     PERFORM appliquer_assignations();
     RETURN v_compte;
 END $$;

@@ -97,6 +97,7 @@ struct EcranEssais: View {
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
     @Environment(ConversationHAL.self) private var conversation
+    @Environment(Session.self) private var session
 
     var body: some View {
         @Bindable var foyer = foyer
@@ -107,7 +108,7 @@ struct EcranEssais: View {
                 bascule("Ajustement de HAL", "sparkle", .ia, $foyer.essais.ajustement)
                 bascule("Mesure demandée", "scalemass", .ia, $foyer.essais.mesure)
                 bascule("Jour de muscu", "dumbbell", .sport, $foyer.essais.jourDeMuscu)
-                bascule("Foyer vide", "tray", .perso, $foyer.essais.foyerVide)
+                bascule("Compte neuf", "tray", .perso, $foyer.essais.foyerVide)
             }
             EnTeteGroupe(texte: "États qui durent")
             GroupeReglages {
@@ -119,6 +120,12 @@ struct EcranEssais: View {
             EnTeteGroupe(texte: "HAL")
             Button("Le récap du soir est arrivé") { conversation.aQuelqueChoseADire = true }
                 .buttonStyle(.hal(.verre, pleineLargeur: true))
+            EnTeteGroupe(texte: "Premier lancement")
+            Button("Revoir le premier lancement") { session.revoirAccueil() }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
+                .disabled(session.pseudo == nil)
+            Text("Connecté seulement : Santé, notifications, calendriers et HAL, comme après une invitation.")
+                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
             EnTeteGroupe(texte: "File d'attente")
             Text(file.enAttente.isEmpty ? "Rien en attente." : "\(file.enAttente.count) envoi(s) en attente du réseau.")
                 .texte(.corps).foregroundStyle(Palette.texteSecondaire)

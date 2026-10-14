@@ -33,12 +33,17 @@ struct WidgetACocher: View {
     let taille: TailleWidget
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
+    @Environment(Aiguillage.self) private var aiguillage
     @Environment(\.annoncer) private var annoncer
 
     var body: some View {
         CoquilleWidget(.aCocher) {
             let taches = foyer.tachesDuJour
-            if taches.isEmpty {
+            if taches.isEmpty && foyer.sansTache && foyer.droits.ajouter {
+                VideWidget(texte: "Aucune tâche dans le foyer.", bouton: "Ajouter") {
+                    aiguillage.feuille = .ajouterTache
+                }
+            } else if taches.isEmpty {
                 VideWidget(texte: "Aucune tâche aujourd'hui.")
             } else {
                 VStack(alignment: .leading, spacing: 10) {

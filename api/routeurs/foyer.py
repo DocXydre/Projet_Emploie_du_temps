@@ -5,21 +5,25 @@ qu'une invitation vaut. Ici, deux choses seulement que la base ne fait pas :
 tirer le code d'invitation et la clé d'API au hasard, et calculer l'empreinte
 du mot de passe.
 
-`POST /invitations/{code}/accepter` est, avec `/connexion`, la seule route
-ouverte sans clé : la personne invitée n'a pas encore de compte.
+`POST /invitations/{code}/accepter` et la page `GET /rejoindre/{code}` sont,
+avec `/connexion`, les seules routes ouvertes sans clé : la personne invitée
+n'a pas encore de compte (CNX-4).
 """
 
 import hashlib
+import re
 import secrets
 import string
+from html import escape
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from api import mot_de_passe
 from api.base import executer, lister, un_seul
-from api.securite import Authentifie
+from api.securite import Authentifie, par_le_funnel
 
 routeur = APIRouter(tags=["Foyer"])
 
@@ -117,16 +121,90 @@ def regler_foyer(qui: Authentifie, reglage: ReglageFoyer) -> dict:
 # -----------------------------------------------------------------------------
 # Les invitations                                                       (FOY-3)
 # -----------------------------------------------------------------------------
+def _adresse(requete: Request) -> str:
+    """L'adresse par laquelle l'appli joint le serveur, telle qu'elle l'a appelée.
+
+    Derrière le funnel, Tailscale tient le HTTPS : l'API voit passer du HTTP.
+    """
+    schema = "https" if par_le_funnel(requete) else requete.url.scheme
+    return f"{schema}://{requete.url.netloc}"
+
+
 @routeur.post("/foyer/invitations", status_code=status.HTTP_201_CREATED,
               summary="Inviter quelqu'un : un code valable 48 heures, montré une fois")
-def inviter(qui: Authentifie) -> dict:
+def inviter(qui: Authentifie, requete: Request) -> dict:
     code = _nouveau_code()
     invitation = executer(
         "SELECT * FROM inviter_au_foyer(%(moi)s, %(empreinte)s)",
         {"moi": qui.id_utilisateur, "empreinte": _empreinte(code)},
     )
     assert invitation is not None
-    return {**invitation, "code": _lisible(code)}
+    lisible = _lisible(code)
+    # 5.16 : le lien s'ouvre dans n'importe quel navigateur, et de là dans l'appli.
+    return {**invitation, "code": lisible, "serveur": _adresse(requete),
+            "lien": f"{_adresse(requete)}/rejoindre/{lisible}"}
+
+
+# La page d'un lien d'invitation : elle ne lit rien en base, et ne dit donc pas
+# si le code vaut encore. C'est l'appli qui le saura, en l'acceptant.
+FORME_CODE = re.compile(r"[A-Za-z0-9]{5}-?[A-Za-z0-9]{5}")
+
+PAGE_INVITATION = """<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Rejoindre un foyer dans HAL</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         background: radial-gradient(circle at 30% 20%, #2b2f55, #0d0f1a 70%);
+         font: 17px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+         color: #fff; }
+  main { max-width: 360px; padding: 32px 24px; text-align: center; }
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  p { color: rgba(255,255,255,.72); margin: 0 0 20px; }
+  .code { font: 600 26px ui-monospace, Menlo, monospace; letter-spacing: 2px;
+          padding: 14px; border-radius: 18px; background: rgba(255,255,255,.08);
+          border: 1px solid rgba(255,255,255,.24); margin: 0 0 24px; }
+  a.bouton { display: block; padding: 16px; border-radius: 999px; background: #5ce1c5;
+             color: #0a0f14; font-weight: 600; text-decoration: none; margin-bottom: 16px; }
+  small { color: rgba(255,255,255,.5); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Rejoindre le foyer</h1>
+  <p>On t'invite dans HAL : le planning du foyer, la maison et le sport.</p>
+  <div class="code">{code}</div>
+  <a class="bouton" id="ouvrir" href="hal://rejoindre?code={code}">Ouvrir dans HAL</a>
+  <small>Sans l'appli, installe-la d'abord, puis touche de nouveau ce lien. Tu peux aussi
+  choisir « J'ai une invitation » dans l'appli et taper ce code, avec l'adresse
+  <b id="adresse"></b>. Il vaut 48 heures, une seule fois.</small>
+</main>
+<script>
+  var serveur = window.location.origin;
+  document.getElementById("adresse").textContent = window.location.host;
+  document.getElementById("ouvrir").href =
+    "hal://rejoindre?serveur=" + encodeURIComponent(serveur) + "&code={code}";
+</script>
+</body>
+</html>
+"""
+
+
+@routeur.get("/rejoindre/{code}", response_class=HTMLResponse, include_in_schema=False)
+def page_invitation(code: str) -> HTMLResponse:
+    """5.16, 5.18 : le lien partagé ouvre cette page, qui ouvre l'appli avec le
+    code et l'adresse du serveur déjà remplis."""
+    if not FORME_CODE.fullmatch(code):
+        return HTMLResponse(
+            "<!doctype html><meta charset=utf-8><title>HAL</title>"
+            "<p>Ce lien d'invitation n'est pas complet : demande-le de nouveau.</p>",
+            status_code=status.HTTP_404_NOT_FOUND)
+    propre = code.upper().replace("-", "")
+    return HTMLResponse(PAGE_INVITATION.replace("{code}", escape(_lisible(propre))))
 
 
 @routeur.delete("/foyer/invitations/{id_invitation}", summary="Annuler une invitation")

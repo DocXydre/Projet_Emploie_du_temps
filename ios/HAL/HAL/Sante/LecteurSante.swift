@@ -90,6 +90,12 @@ final class LecteurSante {
         try await store.requestAuthorization(toShare: [], read: typesLus)
     }
 
+    /// iOS a-t-il déjà montré sa fenêtre ? Il ne dit pas ce qu'on y a répondu,
+    /// seulement s'il faut encore la montrer (PRE-2).
+    func accesDejaDemande() async -> Bool {
+        (try? await store.statusForAuthorizationRequest(toShare: [], read: typesLus)) == .unnecessary
+    }
+
     /// La date de la plus ancienne donnée de pas : le début de l'historique.
     func premiereDonnee() async throws -> Date? {
         let descripteur = HKSampleQueryDescriptor(

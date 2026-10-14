@@ -26,9 +26,8 @@ struct EcranAujourdhui: View {
 
             Bandeaux()
 
-            if foyer.foyerVide {
-                CartesDeDepart()
-            }
+            // 8.6 : ce qui manque à un compte neuf, tant que ça manque (PRE-3).
+            CarteDeDepart()
 
             ForEach(prioritaires) { module in
                 module.widget(.moyen)
@@ -96,27 +95,7 @@ private struct Bandeaux: View {
     @State private var trains: Proposition?
 
     var body: some View {
-        if foyer.essais.horsReseau || !file.reseauDisponible {
-            BandeauEtat(icone: "wifi.slash", titre: "Serveur injoignable",
-                        detail: file.enAttente.isEmpty
-                            ? "Données gardées sur le téléphone"
-                            : "\(file.enAttente.count) en attente d'envoi",
-                        categorie: .menage, bouton: "Réessayer") {
-                Task {
-                    await file.vider()
-                    await foyer.charger()
-                }
-            }
-        } else if let erreur = foyer.erreur {
-            BandeauEtat(icone: "exclamationmark.icloud", titre: "Pas à jour", detail: erreur,
-                        categorie: .menage, bouton: "Réessayer") {
-                Task { await foyer.charger() }
-            }
-        }
-        if let refus = file.dernierRefus {
-            BandeauEtat(icone: "exclamationmark.circle", titre: "Refusé par le serveur", detail: refus,
-                        categorie: .alerte, bouton: "OK") { file.oublierRefus() }
-        }
+        BandeauServeur()
         if let allegement = foyer.monAllegement {
             BandeauEtat(icone: "moon", titre: "Mode allégé · \(restant(allegement.fin))",
                         detail: "Tu fais 1/4 des tâches partagées jusqu'au \(Self.jour(allegement.fin.addingTimeInterval(-3600)))",
@@ -166,33 +145,5 @@ private struct Bandeaux: View {
 
     static func moment(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).hour().minute().locale(Locale(identifier: "fr_FR")))
-    }
-}
-
-/// Ce que montre Aujourd'hui avant le premier calendrier et le démarrage de HAL (8.6).
-private struct CartesDeDepart: View {
-    @Environment(ConversationHAL.self) private var conversation
-
-    var body: some View {
-        carte(icone: "calendar", titre: "Ton planning est vide",
-              texte: "Ajoute le lien de ta fac ou de ton agenda : HAL organise ta journée autour.",
-              bouton: "Ajouter un calendrier") {}
-        carte(icone: "sparkle", titre: "HAL n'a pas encore de plan",
-              texte: "Quatre minutes de questions et il te propose quatre semaines.",
-              bouton: "Démarrer HAL") { conversation.demarrageOuvert = true }
-    }
-
-    private func carte(icone: String, titre: String, texte: String, bouton: String,
-                       action: @escaping () -> Void) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: icone).font(.system(size: 22)).foregroundStyle(Categorie.travail.couleur)
-                .frame(width: 48, height: 48).background(Palette.verreTeinteForte, in: RoundedRectangle(cornerRadius: 14))
-            Text(titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
-            Text(texte).texte(.corps).foregroundStyle(Palette.texteSecondaire).multilineTextAlignment(.center)
-            Button(bouton, action: action).buttonStyle(.hal(.accent))
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity)
-        .carte()
     }
 }
