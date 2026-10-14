@@ -39,6 +39,9 @@ final class ConversationHAL {
     private(set) var inactif = false
     /// Le message parti sans réponse : il est gardé sur le téléphone (ORB-8).
     private(set) var enAttente: DemandeEnAttente?
+    /// Les éléments réglés depuis le panneau, avec ce qui a été fait : leurs
+    /// boutons disparaissent tout de suite, sans attendre le serveur.
+    private(set) var faits: [String: String] = [:]
     /// Le démarrage de HAL, ouvert par-dessus tout (DEM-1) : depuis Sport, l'orbe ou Réglages.
     var demarrageOuvert = false
 
@@ -244,7 +247,9 @@ final class ConversationHAL {
     /// ORB-6 : une action validée dans le panneau le referme et s'annonce cinq
     /// secondes avec « Annuler ». Elle ne part qu'à la fin de ce délai : annuler
     /// ne laisse donc rien à défaire sur le serveur.
-    func agir(_ action: ActionHAL, confirmation: String, annoncer: AnnonceurAction) {
+    func agir(_ action: ActionHAL, sur element: String, confirmation: String, annoncer: AnnonceurAction) {
+        guard faits[element] == nil else { return }
+        faits[element] = confirmation
         guard let client else {
             annoncer(confirmation)
             return
@@ -259,12 +264,16 @@ final class ConversationHAL {
                 await self?.charger()
             } catch {
                 let motif = (error as? ErreurAPI)?.message ?? error.localizedDescription
+                self?.faits[element] = nil
                 self?.messages.append(MessageHAL(id: UUID().uuidString, auteur: .systeme,
                                                  texte: "« \(action.libelle) » n'a pas pu se faire : \(motif)"))
                 self?.aQuelqueChoseADire = true
             }
         }
-        annoncer(confirmation, annuler: { tache.cancel() })
+        annoncer(confirmation, annuler: { [weak self] in
+            tache.cancel()
+            self?.faits[element] = nil
+        })
     }
 
     // MARK: Le message gardé

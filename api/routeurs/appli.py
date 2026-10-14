@@ -546,6 +546,15 @@ def annuler_seance_libre(cle: UUID, qui: Authentifie) -> dict:
     return {"annulee": id_occurrence}
 
 
+@routeur.delete("/seances/{id_occurrence}/libre", tags=["Coach : séances"],
+                summary="Annuler une séance libre restée ouverte")
+def annuler_seance_libre_par_numero(id_occurrence: int, qui: Authentifie) -> dict:
+    """SAI-19 : la même annulation, quand le téléphone ne connaît plus la séance."""
+    executer("SELECT annuler_seance_libre(%(u)s, %(o)s)",
+             {"u": qui.id_utilisateur, "o": id_occurrence})
+    return {"annulee": id_occurrence}
+
+
 @routeur.post("/seances/{id_occurrence}/annuler-saisie", tags=["Coach : séances"],
               summary="Retirer les séries saisies pendant un lancement annulé")
 def annuler_la_saisie(id_occurrence: int, annulees: SeriesAnnulees, qui: Authentifie) -> dict:

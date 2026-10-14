@@ -71,7 +71,15 @@ struct PanneauHAL: View {
         }
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
-        .carte(rayon: 32)
+        // Le panneau ne suit pas le réglage du verre : une conversation se lit
+        // sur un fond sombre et presque opaque, quelle que soit la photo.
+        .background {
+            let forme = RoundedRectangle(cornerRadius: 32, style: .continuous)
+            forme.fill(Color(red: 0.07, green: 0.08, blue: 0.10).opacity(0.86))
+                .background(.ultraThinMaterial, in: forme)
+                .overlay(forme.strokeBorder(Palette.verreBord, lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
+        }
         .gesture(DragGesture(minimumDistance: 20).onEnded { geste in
             if geste.translation.height > 60 { conversation.fermer() }
         })
@@ -275,12 +283,17 @@ private struct CarteElement: View {
                 Text(ligne).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !boutons.isEmpty {
-                HStack(spacing: 8) {
+            if let regle = conversation.faits[element.id] ?? element.regle {
+                Label(regle, systemImage: "checkmark.circle.fill")
+                    .texte(.corpsFort).foregroundStyle(Categorie.sport.couleur)
+            } else if !boutons.isEmpty {
+                // Jusqu'à quatre boutons : ils passent à la ligne plutôt que de déborder.
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], alignment: .leading,
+                          spacing: 8) {
                     ForEach(boutons.indices, id: \.self) { rang in
                         let bouton = boutons[rang]
                         Button(bouton.libelle, action: bouton.faire)
-                            .buttonStyle(.hal(rang == 0 ? .accent : .verre))
+                            .buttonStyle(.hal(rang == 0 ? .accent : .verre, pleineLargeur: true))
                     }
                 }
             }
@@ -362,14 +375,15 @@ private struct CarteElement: View {
         func differe(_ libelle: String, _ confirmation: String) -> Bouton? {
             route(libelle).map { action in
                 Bouton(libelle: libelle) {
-                    conversation.agir(action, confirmation: confirmation, annoncer: annoncer)
+                    conversation.agir(action, sur: element.id, confirmation: confirmation, annoncer: annoncer)
                 }
             }
         }
         switch element.type {
         case "seance_proposee":
             guard let id = element.idOccurrence else { return [] }
-            return [Bouton(libelle: "Voir") { ouvrir(.seance(id)) },
+            return [differe("Valider", "Séance validée"),
+                    Bouton(libelle: "Voir") { ouvrir(.seance(id)) },
                     Bouton(libelle: "Changer") {
                         conversation.joint = ElementJoint(genre: .seance, idOccurrence: id, libelle: titre)
                     },
