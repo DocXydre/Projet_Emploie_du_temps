@@ -13,7 +13,8 @@ extension Module {
         id: "taJournee", nom: "Ta journée", icone: "clock", categorie: .travail,
         tailles: [.moyen, .grand],
         widget: { taille in AnyView(WidgetTaJournee(taille: taille)) },
-        agrandi: { AnyView(WidgetTaJournee(taille: .grand).frame(height: 360)) },
+        // WID-5 : Ta journée ouvre le planning de la semaine [1.12].
+        ecran: { AnyView(EcranPlanning()) },
         pourHAL: { foyer in "Journée : " + foyer.evenementsDuJour.map(\.titre).joined(separator: ", ") }
     )
 

@@ -21,6 +21,7 @@ final class Disposition {
         Place(module: "aCocher", taille: .petit),
         Place(module: "sport", taille: .petit),
         Place(module: "hal", taille: .moyen),
+        Place(module: "weekend", taille: .moyen),
         Place(module: "taJournee", taille: .moyen),
         Place(module: "frequenceDuJour", taille: .moyen),
         Place(module: "enRetard", taille: .petit),
@@ -33,7 +34,18 @@ final class Disposition {
         } else {
             places = Self.parDefaut
         }
+        // Les week-ends proposés étaient des bandeaux en tête ; ils sont devenus
+        // un widget. Une disposition gardée d'avant le reçoit une fois, après HAL.
+        if !UserDefaults.standard.bool(forKey: Self.cleWeekEnd) {
+            UserDefaults.standard.set(true, forKey: Self.cleWeekEnd)
+            if !places.contains(where: { $0.module == "weekend" }) {
+                let rang = (places.firstIndex { $0.module == "hal" }).map { $0 + 1 } ?? places.count
+                places.insert(Place(module: "weekend", taille: .moyen), at: rang)
+            }
+        }
     }
+
+    private static let cleWeekEnd = "disposition.weekend_ajoute"
 
     /// Les modules qu'on peut encore ajouter depuis la galerie.
     var disponibles: [Module] {

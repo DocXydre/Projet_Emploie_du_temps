@@ -47,6 +47,9 @@ final class Foyer {
     private(set) var chat: EtatChat
     /// L'onglet Sport tel que le serveur l'a rendu (lot 6).
     private(set) var sportDuServeur: EtatSport?
+    /// Le planning de la semaine, les trains, le plan, Santé, la progression et
+    /// les mesures : ce que lisent Sport [3.1], Maison [4.1] et leurs widgets.
+    var complements = Complements()
 
     private(set) var semaine: SemaineSport
     private(set) var forme: Forme
@@ -135,6 +138,7 @@ final class Foyer {
         chat = apercu.chat
         conflitDuServeur = nil
         sportDuServeur = nil
+        complements = Complements()
         semaine = apercu.semaine
         forme = apercu.forme
         frequenceDuJour = apercu.frequence
@@ -177,6 +181,7 @@ final class Foyer {
             appliquer(sport)
             Self.ecrire(sport, "etat-du-sport.json")
         }
+        await chargerComplements(client)
         publierPourLesWidgets()
     }
 
@@ -245,6 +250,8 @@ final class Foyer {
                   reports: lue.reports ?? 0,
                   enRetard: lue.enRetard ?? false,
                   fin: lue.fin,
+                  debut: lue.debut,
+                  journeeEntiere: lue.journeeEntiere ?? false,
                   code: lue.code,
                   reportable: lue.actionsPossibles?.contains("reportee") ?? false)
         }

@@ -16,15 +16,28 @@ extension Module {
     )
 
     static let chat = Module(
-        id: "chat", nom: "Chat", icone: "pawprint", categorie: .chat,
+        id: "chat", nom: "Sassy", icone: "pawprint", categorie: .chat,
         tailles: [.petit],
         widget: { _ in AnyView(WidgetChat()) }
     )
 
     static let equilibre = Module(
         id: "equilibre", nom: "Équilibre", icone: "person.2", categorie: .linge,
+        tailles: [.petit, .moyen],
+        widget: { taille in AnyView(WidgetEquilibre(taille: taille)) }
+    )
+
+    static let linge = Module(
+        id: "linge", nom: "Linge", icone: "tshirt", categorie: .linge,
         tailles: [.petit],
-        widget: { _ in AnyView(WidgetEquilibre()) }
+        widget: { _ in AnyView(WidgetLinge()) }
+    )
+
+    static let bientot = Module(
+        id: "bientot", nom: "Bientôt", icone: "calendar", categorie: .travail,
+        tailles: [.moyen, .grand],
+        widget: { taille in AnyView(WidgetBientot(taille: taille)) },
+        ecran: { AnyView(EcranPlanning()) }
     )
 }
 
@@ -118,12 +131,13 @@ struct WidgetEnRetard: View {
     }
 }
 
+/// Litière, eau, fontaine : la prochaine fois pour chaque soin du chat (4.1).
 struct WidgetChat: View {
     @Environment(Foyer.self) private var foyer
 
     var body: some View {
         CoquilleWidget(.chat) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 ligne("Litière", foyer.chat.litiere)
                 ligne("Eau", foyer.chat.eau)
                 ligne("Fontaine", foyer.chat.fontaine)
@@ -133,24 +147,130 @@ struct WidgetChat: View {
 
     private func ligne(_ titre: String, _ quand: String) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-            Text(quand).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+            Text(quand).texte(.legende)
+                .foregroundStyle(quand == "en retard" ? Categorie.alerte.couleur : Palette.texteSecondaire)
+                .lineLimit(1)
         }
     }
 }
 
-/// La part des tâches faite par chacun.
+/// Le temps passé aux tâches partagées sur sept jours, par chacun (EXE, 4.1).
 struct WidgetEquilibre: View {
+    var taille: TailleWidget = .petit
     @Environment(Foyer.self) private var foyer
 
     var body: some View {
-        CoquilleWidget(.equilibre) {
+        CoquilleWidget(titre: taille == .petit ? "Équilibre" : "Équilibre de la semaine",
+                       icone: "person.2", couleur: Categorie.linge.couleur,
+                       droite: taille == .petit ? nil : "temps passé") {
+            let moi = foyer.partDeMoi
             VStack(alignment: .leading, spacing: 10) {
-                Anneau(valeur: foyer.partDeMoi, couleur: Categorie.linge.couleur, epaisseur: 8,
-                       texte: "\(Int((foyer.partDeMoi * 100).rounded())) %")
-                    .frame(width: 72, height: 72)
-                Text("\(foyer.moi.nom) · \(foyer.autre?.nom ?? "seul")")
-                    .texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+                if taille == .petit {
+                    HStack(alignment: .firstTextBaseline) {
+                        part(moi, "Toi", alignement: .leading)
+                        Spacer(minLength: 4)
+                        part(1 - moi, foyer.autre?.nom ?? "—", alignement: .trailing)
+                    }
+                }
+                barre(moi)
+                if taille == .petit {
+                    Spacer(minLength: 0)
+                    Text("Temps passé · semaine").texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                } else {
+                    HStack {
+                        personne(foyer.moi, "Toi")
+                        Spacer()
+                        if let autre = foyer.autre { personne(autre, autre.nom) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func part(_ valeur: Double, _ nom: String, alignement: HorizontalAlignment) -> some View {
+        VStack(alignment: alignement, spacing: 0) {
+            Text("\(Int((valeur * 100).rounded())) %").texte(.chiffre).foregroundStyle(Palette.textePrincipal)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(nom).texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+        }
+    }
+
+    private func barre(_ moi: Double) -> some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                Capsule().fill(foyer.couleur(de: foyer.moi)).frame(width: geo.size.width * moi)
+                Capsule().fill(foyer.couleur(de: foyer.autre))
+            }
+        }
+        .frame(height: 8)
+        .clipShape(Capsule())
+    }
+
+    private func personne(_ membre: Membre, _ nom: String) -> some View {
+        HStack(spacing: 8) {
+            Avatar(nom: membre.nom, couleur: foyer.couleur(de: membre), taille: 28)
+            Text("\(nom) · \(EnFrancais.duree(minutes: foyer.minutesFaites[membre.id] ?? 0))")
+                .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+        }
+    }
+}
+
+/// Le linge qui vient : la machine, l'étendage, le pliage (4.1).
+struct WidgetLinge: View {
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.linge) {
+            let linge = Array(foyer.lingeAVenir.prefix(2))
+            if linge.isEmpty {
+                VideWidget(texte: "Pas de linge prévu.")
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(linge, id: \.cle) { element in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(element.libelle).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                .lineLimit(1).minimumScaleFactor(0.8)
+                            Text(quand(element)).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func quand(_ element: ElementPlanning) -> String {
+        let jour = Calendar.current.isDateInToday(element.debut) ? "aujourd'hui" : EnFrancais.jour(element.debut)
+        return element.journeeEntiere == true ? jour : "\(jour) · \(EnFrancais.heure(element.debut))"
+    }
+}
+
+/// Ce qui arrive les jours suivants, pour les deux (4.1). Toucher ouvre le planning [1.12].
+struct WidgetBientot: View {
+    let taille: TailleWidget
+    @Environment(Foyer.self) private var foyer
+
+    var body: some View {
+        CoquilleWidget(.bientot) {
+            let lignes = Array(foyer.bientot.prefix(taille == .grand ? 8 : 3))
+            if lignes.isEmpty {
+                VideWidget(texte: "Rien de prévu les prochains jours.")
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(lignes, id: \.cle) { element in
+                        HStack(spacing: 10) {
+                            Text(EnFrancais.jourCourt(element.debut))
+                                .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                                .frame(width: 36, alignment: .leading)
+                            Text(element.libelle).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            if let membre = foyer.membre(numero: element.idUtilisateur), foyer.membres.count > 1 {
+                                Avatar(nom: membre.nom, couleur: foyer.couleur(de: membre), taille: 24)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

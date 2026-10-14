@@ -48,15 +48,23 @@ struct CoquilleWidget<Contenu: View>: View {
     let titre: String
     let icone: String
     let couleur: Color
+    /// Un mot à droite de l'en-tête : « 1 sur 5 », « temps passé », « 30 jours ».
+    var droite: String? = nil
     @ViewBuilder var contenu: Contenu
 
     var body: some View {
         VStack(alignment: .leading, spacing: Espace.serre) {
-            Label(titre.uppercased(), systemImage: icone)
-                .texte(.etiquette)
-                .foregroundStyle(Palette.texteSecondaire)
-                .labelStyle(EtiquetteIcone(couleur: couleur))
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                Label(titre.uppercased(), systemImage: icone)
+                    .texte(.etiquette)
+                    .foregroundStyle(Palette.texteSecondaire)
+                    .labelStyle(EtiquetteIcone(couleur: couleur))
+                    .lineLimit(1)
+                if let droite {
+                    Spacer(minLength: 4)
+                    Text(droite).texte(.legende).foregroundStyle(Palette.texteTertiaire).lineLimit(1)
+                }
+            }
             contenu
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -67,7 +75,8 @@ struct CoquilleWidget<Contenu: View>: View {
 }
 
 extension CoquilleWidget {
-    init(_ module: Module, @ViewBuilder contenu: () -> Contenu) {
-        self.init(titre: module.nom, icone: module.icone, couleur: module.categorie.couleur, contenu: contenu)
+    init(_ module: Module, droite: String? = nil, @ViewBuilder contenu: () -> Contenu) {
+        self.init(titre: module.nom, icone: module.icone, couleur: module.categorie.couleur,
+                  droite: droite, contenu: contenu)
     }
 }
