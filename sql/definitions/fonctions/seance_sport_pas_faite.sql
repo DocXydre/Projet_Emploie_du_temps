@@ -1,5 +1,5 @@
--- SPT-25 : « pas faite » n'est pas « supprimée ». La séance a été choisie, le
--- choix compte pour les habitudes ; elle est close, et la semaine se complète.
+-- SPT-25, SPT-36 : « pas faite » n'est pas « supprimée ». La séance est close,
+-- et la semaine ne se recomplète pas d'elle-même : HAL en décide (PLN-10).
 CREATE OR REPLACE FUNCTION seance_sport_pas_faite(
     p_utilisateur INTEGER,
     p_occurrence  INTEGER
@@ -22,6 +22,8 @@ BEGIN
               USING ERRCODE = 'no_data_found';
     END IF;
 
-    PERFORM organiser_sport_semaine(p_utilisateur, lundi_de(v_jour));
     RETURN v_jour;
 END $$;
+
+COMMENT ON FUNCTION seance_sport_pas_faite(INTEGER, INTEGER) IS
+    'SPT-36 : la séance est close comme pas faite ; rien ne la remplace d''office.';

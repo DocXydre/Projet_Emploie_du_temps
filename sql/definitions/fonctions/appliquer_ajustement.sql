@@ -51,7 +51,7 @@ BEGIN
             a.id_utilisateur, v_lieu, v_jour,
             (a.contenu ->> 'heure_min')::TIME, (a.contenu ->> 'heure_max')::TIME,
             a.duree_minutes, a.discipline, a.intensite, a.groupes, a.id_occurrence);
-        v_bloc := bloc_seance_duree(a.id_utilisateur, v_lieu, v_debut, a.duree_minutes);
+        v_bloc := bloc_de_seance(a.id_utilisateur, v_lieu, v_debut, a.duree_minutes);
 
         UPDATE occurrence o
            SET creneau = NULL, statut = 'a_placer',
@@ -103,7 +103,7 @@ BEGIN
      WHERE se.id_occurrence = a.id_occurrence;
 
     IF v_duree <> a.duree_minutes THEN
-        v_bloc := bloc_seance_duree(a.id_utilisateur, a.id_lieu, a.debut_seance, v_duree);
+        v_bloc := bloc_de_seance(a.id_utilisateur, a.id_lieu, a.debut_seance, v_duree);
         UPDATE occurrence o
            SET creneau = v_bloc,
                fenetre = tstzrange(LEAST(lower(o.fenetre), lower(v_bloc)),
