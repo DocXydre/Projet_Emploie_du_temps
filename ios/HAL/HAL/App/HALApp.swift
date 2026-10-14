@@ -4,7 +4,7 @@ import SwiftUI
 struct HALApp: App {
     @UIApplicationDelegateAdaptor(DelegueApp.self) private var delegue
     @State private var apparence = Apparence()
-    @State private var session = Session()
+    @State private var session: Session
     @State private var foyer: Foyer
     @State private var file: FileAttente
     @State private var conversation = ConversationHAL()
@@ -15,7 +15,12 @@ struct HALApp: App {
     @Environment(\.scenePhase) private var phase
 
     init() {
+        let session = Session()
         let foyer = Foyer()
+        // Déjà connecté : le foyer part du cache du serveur dès la première
+        // image, sans passer par les données fictives le temps du branchement.
+        if let client = session.client { foyer.brancher(client) }
+        _session = State(initialValue: session)
         _foyer = State(initialValue: foyer)
         _file = State(initialValue: FileAttente(expediteur: ExpediteurFictif(foyer: foyer)))
     }

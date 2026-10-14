@@ -1,0 +1,353 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1FC9B357024925ACF2D375B3 /* EcranReglages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA727C1B2D0990AEA04FDD3 /* EcranReglages.swift */; };
+		21F984594D92EF446CF7521D /* SeanceEnCours.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623EBB7971FE54A9C659EFD9 /* SeanceEnCours.swift */; };
+		27C89F07D2969288379D3F27 /* Raccourci.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6D2F17D83B7DA25898D00C /* Raccourci.swift */; };
+		2FC038C963447BAF37BE827C /* Synchro.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD467CBBF8D2226E7C0BEA2 /* Synchro.swift */; };
+		46463E53CF07C814EB11C9DD /* LecteurSante.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9153743D93F534BEAD648F53 /* LecteurSante.swift */; };
+		8367959D422E39AAD4A97521 /* EcranSeance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ADECAA50AA2421C948230AE /* EcranSeance.swift */; };
+		86931C92540F38FE55857E1C /* ClientAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BE3F5D932F972EE5CAAB5A5 /* ClientAPI.swift */; };
+		99A1AA6B211B0F449335C9EC /* CoachSanteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FEF428A85DE678DDE836264 /* CoachSanteApp.swift */; };
+		F27FB6FC3CE3CEECE631C645 /* EcranPrincipal.swift in Sources */ = {isa = PBXBuildFile; fileRef = D081BE63EA5B084F0F10D9F4 /* EcranPrincipal.swift */; };
+		F7C4CA8EBA6994CDE0573D18 /* EcranExercice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F9DE43D0F25E8600DC18B56 /* EcranExercice.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		07062EDD485C2047805A2F65 /* CoachSante.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CoachSante.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		195E3F888BC85D39DA5A63E8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3DD467CBBF8D2226E7C0BEA2 /* Synchro.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Synchro.swift; sourceTree = "<group>"; };
+		5ADECAA50AA2421C948230AE /* EcranSeance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcranSeance.swift; sourceTree = "<group>"; };
+		623EBB7971FE54A9C659EFD9 /* SeanceEnCours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeanceEnCours.swift; sourceTree = "<group>"; };
+		6BE3F5D932F972EE5CAAB5A5 /* ClientAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientAPI.swift; sourceTree = "<group>"; };
+		8BA727C1B2D0990AEA04FDD3 /* EcranReglages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcranReglages.swift; sourceTree = "<group>"; };
+		8FEF428A85DE678DDE836264 /* CoachSanteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachSanteApp.swift; sourceTree = "<group>"; };
+		9153743D93F534BEAD648F53 /* LecteurSante.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LecteurSante.swift; sourceTree = "<group>"; };
+		9F9DE43D0F25E8600DC18B56 /* EcranExercice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcranExercice.swift; sourceTree = "<group>"; };
+		D081BE63EA5B084F0F10D9F4 /* EcranPrincipal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EcranPrincipal.swift; sourceTree = "<group>"; };
+		F056C69E8ED65125C1A0C00E /* CoachSante.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CoachSante.entitlements; sourceTree = "<group>"; };
+		FC6D2F17D83B7DA25898D00C /* Raccourci.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Raccourci.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		4DF33F83FA36DDB561E10D6C /* CoachSante */ = {
+			isa = PBXGroup;
+			children = (
+				6BE3F5D932F972EE5CAAB5A5 /* ClientAPI.swift */,
+				F056C69E8ED65125C1A0C00E /* CoachSante.entitlements */,
+				8FEF428A85DE678DDE836264 /* CoachSanteApp.swift */,
+				195E3F888BC85D39DA5A63E8 /* Info.plist */,
+				9153743D93F534BEAD648F53 /* LecteurSante.swift */,
+				FC6D2F17D83B7DA25898D00C /* Raccourci.swift */,
+				3DD467CBBF8D2226E7C0BEA2 /* Synchro.swift */,
+				A43F8902FBD30EE519CD1C06 /* Muscu */,
+				FD745D1A24DE5ED6501CF71D /* Vues */,
+			);
+			path = CoachSante;
+			sourceTree = "<group>";
+		};
+		A43F8902FBD30EE519CD1C06 /* Muscu */ = {
+			isa = PBXGroup;
+			children = (
+				623EBB7971FE54A9C659EFD9 /* SeanceEnCours.swift */,
+			);
+			path = Muscu;
+			sourceTree = "<group>";
+		};
+		B56EB92D5629F9A703232FFF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				07062EDD485C2047805A2F65 /* CoachSante.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C5DA8F9477B23A2823D15EBF = {
+			isa = PBXGroup;
+			children = (
+				4DF33F83FA36DDB561E10D6C /* CoachSante */,
+				B56EB92D5629F9A703232FFF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		FD745D1A24DE5ED6501CF71D /* Vues */ = {
+			isa = PBXGroup;
+			children = (
+				9F9DE43D0F25E8600DC18B56 /* EcranExercice.swift */,
+				D081BE63EA5B084F0F10D9F4 /* EcranPrincipal.swift */,
+				8BA727C1B2D0990AEA04FDD3 /* EcranReglages.swift */,
+				5ADECAA50AA2421C948230AE /* EcranSeance.swift */,
+			);
+			path = Vues;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		C9443A24DCCD5FDB4BE701B0 /* CoachSante */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 57075D7391B8BAB414684120 /* Build configuration list for PBXNativeTarget "CoachSante" */;
+			buildPhases = (
+				C14FF2E7CA0539A17DF36C21 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CoachSante;
+			packageProductDependencies = (
+			);
+			productName = CoachSante;
+			productReference = 07062EDD485C2047805A2F65 /* CoachSante.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1721EA91A727537B5A2ED01 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					C9443A24DCCD5FDB4BE701B0 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 06EA04EED15040503091A563 /* Build configuration list for PBXProject "CoachSante" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = C5DA8F9477B23A2823D15EBF;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B56EB92D5629F9A703232FFF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				C9443A24DCCD5FDB4BE701B0 /* CoachSante */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		C14FF2E7CA0539A17DF36C21 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86931C92540F38FE55857E1C /* ClientAPI.swift in Sources */,
+				99A1AA6B211B0F449335C9EC /* CoachSanteApp.swift in Sources */,
+				F7C4CA8EBA6994CDE0573D18 /* EcranExercice.swift in Sources */,
+				F27FB6FC3CE3CEECE631C645 /* EcranPrincipal.swift in Sources */,
+				1FC9B357024925ACF2D375B3 /* EcranReglages.swift in Sources */,
+				8367959D422E39AAD4A97521 /* EcranSeance.swift in Sources */,
+				46463E53CF07C814EB11C9DD /* LecteurSante.swift in Sources */,
+				27C89F07D2969288379D3F27 /* Raccourci.swift in Sources */,
+				21F984594D92EF446CF7521D /* SeanceEnCours.swift in Sources */,
+				2FC038C963447BAF37BE827C /* Synchro.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		57B36D856C41C1F1CFD8D46E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CoachSante/CoachSante.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HYZ7BT7P7B;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CoachSante/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fr.docxydre.coachsante;
+				PRODUCT_NAME = CoachSante;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		8B3E1E15F86E3C0CB9BF46D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		BEE49961ED6A1FFE09F2149A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CoachSante/CoachSante.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = HYZ7BT7P7B;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CoachSante/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = fr.docxydre.coachsante;
+				PRODUCT_NAME = CoachSante;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		D4CDC59E0BEE76D8EC63D0F4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		06EA04EED15040503091A563 /* Build configuration list for PBXProject "CoachSante" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D4CDC59E0BEE76D8EC63D0F4 /* Debug */,
+				8B3E1E15F86E3C0CB9BF46D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		57075D7391B8BAB414684120 /* Build configuration list for PBXNativeTarget "CoachSante" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				57B36D856C41C1F1CFD8D46E /* Debug */,
+				BEE49961ED6A1FFE09F2149A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1721EA91A727537B5A2ED01 /* Project object */;
+}

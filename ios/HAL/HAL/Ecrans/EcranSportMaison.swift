@@ -195,7 +195,7 @@ struct EcranMaison: View {
                 Color.clear.aspectRatio(1, contentMode: .fit)
             }
         }
-        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.medium, .large]) }
+        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.fraction(0.64), .large]) }
     }
 }
 
@@ -206,15 +206,27 @@ struct AjoutRapide: View {
     @Environment(Foyer.self) private var foyer
 
     private enum Action: String, CaseIterable, Identifiable {
-        case tache = "Ajouter une tâche"
+        case tache = "Tâche"
         case faite = "C'est fait"
-        case creneau = "Poser un créneau"
-        case absence = "Une absence"
-        case seanceLibre = "Une séance libre"
-        case mesure = "Une mesure"
+        case creneau = "Créneau"
+        case absence = "Absence"
+        case seanceLibre = "Séance libre"
+        case mesure = "Mesure"
         case allege = "Mode allégé"
 
         var id: String { rawValue }
+
+        var sousTitre: String {
+            switch self {
+            case .tache: "une fois ou régulière"
+            case .faite: "même celle de l'autre"
+            case .creneau: "bloquer un moment"
+            case .absence: "je pars, je rentre"
+            case .seanceLibre: "à mon idée"
+            case .mesure: "poids, tours"
+            case .allege: "en faire moins"
+            }
+        }
 
         var icone: String {
             switch self {
@@ -242,34 +254,28 @@ struct AjoutRapide: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(Action.allCases) { action in
-                    if !foyer.connecte {
-                        Button {
-                            fermer()
-                            annoncer("Connecte-toi à ton serveur pour « \(action.rawValue) »")
-                        } label: {
-                            LigneReglage(icone: action.icone, couleur: action.categorie.couleur,
-                                         libelle: action.rawValue)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        NavigationLink(value: action) {
-                            LigneReglage(icone: action.icone, couleur: action.categorie.couleur,
-                                         libelle: action.rawValue, accessoire: .aucun)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                    HStack {
+                        Text("Ajouter").texte(.titre).foregroundStyle(Palette.textePrincipal)
+                        Spacer()
+                        BoutonRond("xmark", libelle: "Fermer") { fermer() }
+                    }
+                    // 1.5 : toutes les actions d'un coup d'œil, deux par ligne,
+                    // le mode allégé seul sur la dernière.
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: Espace.gouttiere),
+                                        GridItem(.flexible(), spacing: Espace.gouttiere)],
+                              spacing: Espace.gouttiere) {
+                        ForEach(Action.allCases.filter { $0 != .allege }) { action in
+                            tuile(action)
                         }
                     }
+                    tuile(.allege)
                 }
-                .listRowBackground(Color.clear)
+                .padding(Espace.marge)
             }
-            .scrollContentBackground(.hidden)
-            .navigationTitle("Ajouter")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer", systemImage: "xmark") { fermer() }
-                }
-            }
+            .scrollBounceBehavior(.basedOnSize)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Action.self) { action in
                 switch action {
                 case .tache: FormulaireTache()
@@ -285,5 +291,37 @@ struct AjoutRapide: View {
         .environment(\.fermerFeuille, ActionFermer { fermer() })
         .feuilleEnVerre()
         // Pas de fond à nous : la feuille d'iOS est en Liquid Glass, l'écran reste visible dessous.
+    }
+
+    @ViewBuilder
+    private func tuile(_ action: Action) -> some View {
+        let contenu = HStack(spacing: 12) {
+            Image(systemName: action.icone)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.black.opacity(0.8))
+                .frame(width: 36, height: 36)
+                .background(action.categorie.couleur, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(action.rawValue).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                Text(action.sousTitre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: Rayon.ligne, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Rayon.ligne, style: .continuous)
+            .strokeBorder(Palette.verreBord, lineWidth: 0.5))
+        .contentShape(Rectangle())
+        if foyer.connecte {
+            NavigationLink(value: action) { contenu }.buttonStyle(.plain)
+        } else {
+            Button {
+                fermer()
+                annoncer("Connecte-toi à ton serveur pour « \(action.rawValue) »")
+            } label: { contenu }
+            .buttonStyle(.plain)
+        }
     }
 }

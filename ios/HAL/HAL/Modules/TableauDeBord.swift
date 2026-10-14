@@ -202,9 +202,10 @@ struct BandeauEtat: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        // Le voile de la catégorie sur le verre des cartes : un voile seul
+        // laissait passer une photo claire, et le texte blanc s'y perdait.
         .background(categorie.voile, in: RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous)
-            .strokeBorder(Palette.verreBord, lineWidth: 0.5))
+        .carte(rayon: Rayon.controle)
         .accessibilityElement(children: .combine)
     }
 }

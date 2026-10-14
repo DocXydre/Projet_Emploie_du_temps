@@ -287,7 +287,7 @@ struct WidgetMesureDemandee: View {
             }
         }
         .sheet(isPresented: $saisir) {
-            FeuilleMesure(mesure: mesure).presentationDetents([.large]).feuilleEnVerre()
+            FeuilleMesure(mesure: mesure).presentationDetents([.fraction(0.8), .large]).feuilleEnVerre()
         }
     }
 
@@ -308,58 +308,98 @@ struct WidgetMesureDemandee: View {
     }
 }
 
-/// 3.19 : saisir une mesure. Un test de course se donne en minutes et secondes,
-/// sur deux roues comme le minuteur d'iOS : tout tient dans la largeur.
+/// 3.19 : saisir une mesure. Ouverte par une fenêtre de HAL, son type est
+/// fixé et « Je ne peux pas » la repousse ; ouverte depuis Mesures (`id` à 0),
+/// on choisit le type (MES-4). La valeur part de la dernière saisie. Un test de
+/// course se donne en minutes et secondes, sur deux roues comme le minuteur d'iOS.
 struct FeuilleMesure: View {
     let mesure: MesureDemandee
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @Environment(\.annoncer) private var annoncer
+    @State private var type = "poids"
+    @State private var cote = "droite"
     @State private var valeur: Double = 70
     @State private var minutes = 15
     @State private var secondes = 0
+    @State private var date = Date.now
+    @State private var historique: [MesureSaisie] = []
     @State private var envoi = false
     @State private var erreur: String?
 
-    private var unite: String { TypeMesure.unite(mesure.type) }
+    private var libre: Bool { mesure.id == 0 }
+    private var unite: String { TypeMesure.unite(type) }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                    if !mesure.consigne.isEmpty {
-                        AvisDeHAL(texte: mesure.consigne, secondaire: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                HStack {
+                    Text("Saisir une mesure").texte(.titre).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    BoutonRond("xmark", libelle: "Fermer") { fermer() }
+                }
+                if libre {
+                    EnTeteGroupe(texte: "Type")
+                    Flux {
+                        ForEach(TypeMesure.tous, id: \.self) { choix in
+                            PuceChoix(texte: TypeMesure.court(choix), choisie: choix == type) {
+                                withAnimation(.snappy) { type = choix }
+                            }
+                        }
                     }
-                    saisie
-                    if let erreur {
-                        Label(erreur, systemImage: "exclamationmark.circle")
-                            .foregroundStyle(Categorie.alerte.couleur)
+                }
+                if TypeMesure.parCote(type) {
+                    EnTeteGroupe(texte: "Côté")
+                    Segmente(choix: [("gauche", "Gauche"), ("droite", "Droite")], selection: $cote)
+                }
+                saisie
+                HStack {
+                    Text("Date").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    DatePicker("Date", selection: $date, in: ...Date.now, displayedComponents: .date)
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "fr_FR"))
+                }
+                .padding(.horizontal, Espace.interne)
+                .padding(.vertical, 10)
+                .carte(rayon: Rayon.controle)
+                if !libre {
+                    Label {
+                        Text("Mesure demandée par HAL \(mesure.jusquA)" + (mesure.consigne.isEmpty ? "" : " : \(mesure.consigne)"))
                             .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "clock")
                     }
-                    Button(envoi ? "Envoi…" : "Enregistrer") { Task { await enregistrer() } }
-                        .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
-                        .disabled(envoi || (unite == "s" && minutes * 60 + secondes <= 0))
+                    .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    .padding(Espace.interne)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .carte(rayon: Rayon.controle)
                 }
-                .padding(Espace.marge)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .containerBackground(.clear, for: .navigation)
-            .navigationTitle(mesure.titre)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Fermer", systemImage: "xmark") { fermer() }
+                if let erreur {
+                    Label(erreur, systemImage: "exclamationmark.circle")
+                        .foregroundStyle(Categorie.alerte.couleur)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Button(envoi ? "Envoi…" : "Enregistrer") { Task { await enregistrer() } }
+                    .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                    .disabled(envoi || (unite == "s" && minutes * 60 + secondes <= 0))
+                if !libre {
+                    Button("Je ne peux pas cette fois") { Task { await reporter() } }
+                        .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                        .disabled(envoi)
                 }
             }
+            .padding(Espace.marge)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .onAppear {
-            switch unite {
-            case "kg": valeur = 70
-            case "reps": valeur = 10
-            default: valeur = 40
-            }
+        .scrollBounceBehavior(.basedOnSize)
+        .task {
+            type = mesure.type
+            await chargerHistorique()
+            partirDeLaDerniere()
         }
+        .onChange(of: type) { partirDeLaDerniere() }
+        .onChange(of: cote) { partirDeLaDerniere() }
     }
 
     @ViewBuilder private var saisie: some View {
@@ -377,8 +417,36 @@ struct FeuilleMesure: View {
         case "kg":
             Compteur(titre: "Poids", valeur: $valeur, pas: 0.1, bornes: 20...300, unite: "kg")
         default:
-            Compteur(titre: "Tour", valeur: $valeur, pas: 0.5, bornes: 10...200, unite: "cm")
+            Compteur(titre: TypeMesure.libelle(type), valeur: $valeur, pas: 0.5, bornes: 10...200, unite: "cm")
         }
+    }
+
+    /// La dernière mesure du même type, et du même côté s'il y en a un.
+    private func partirDeLaDerniere() {
+        let derniere = historique.first {
+            $0.typeMesure == type && (!TypeMesure.parCote(type) || $0.cote == cote)
+        }
+        if let derniere {
+            if unite == "s" {
+                let total = Int(derniere.valeur.rounded())
+                minutes = total / 60
+                secondes = total % 60
+            } else {
+                valeur = derniere.valeur
+            }
+            return
+        }
+        switch unite {
+        case "kg": valeur = 70
+        case "reps": valeur = 10
+        case "s": minutes = 15; secondes = 0
+        default: valeur = 40
+        }
+    }
+
+    private func chargerHistorique() async {
+        guard foyer.connecte else { return }
+        historique = (try? await foyer.demander("GET", "appli/mesures")) ?? []
     }
 
     private func roue(_ titre: String, selection: Binding<Int>, valeurs: ClosedRange<Int>,
@@ -397,6 +465,8 @@ struct FeuilleMesure: View {
         let type: String
         let valeur: Double
         let unite: String
+        let cote: String?
+        let dateMesure: String
     }
 
     private func enregistrer() async {
@@ -410,8 +480,28 @@ struct FeuilleMesure: View {
         let nombre = unite == "s" ? Double(minutes * 60 + secondes) : (valeur * 10).rounded() / 10
         do {
             try await foyer.agir("POST", "mesures", corps: ClientAPI.corps(Envoi(
-                type: mesure.type, valeur: nombre, unite: unite)))
+                type: type, valeur: nombre, unite: unite,
+                cote: TypeMesure.parCote(type) ? cote : nil,
+                dateMesure: TexteHAL.jourISO(date))))
             annoncer("Mesure enregistrée")
+            fermer()
+        } catch {
+            erreur = (error as? ErreurAPI)?.message ?? error.localizedDescription
+        }
+    }
+
+    /// MES-3 : « Je ne peux pas » repousse la fenêtre, sans reproche.
+    private func reporter() async {
+        guard foyer.connecte else {
+            foyer.essais.mesure = false
+            fermer()
+            return
+        }
+        envoi = true
+        defer { envoi = false }
+        do {
+            try await foyer.agir("POST", "mesures/fenetres/\(mesure.id)/reporter")
+            annoncer("Mesure repoussée")
             fermer()
         } catch {
             erreur = (error as? ErreurAPI)?.message ?? error.localizedDescription

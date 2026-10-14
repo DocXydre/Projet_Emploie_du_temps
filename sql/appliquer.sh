@@ -37,7 +37,9 @@ lire_env() {
     echo "${valeur:-$defaut}"
 }
 
-BASE="$(lire_env POSTGRES_DB planif)"
+# PLANIF_BASE choisit une autre base du même conteneur : la fausse base de la
+# maquette (outils/fausse_base.sh) se migre ainsi sans toucher à la vraie.
+BASE="${PLANIF_BASE:-$(lire_env POSTGRES_DB planif)}"
 UTILISATEUR="$(lire_env POSTGRES_USER planif)"
 
 psql_exec() {

@@ -20,6 +20,11 @@ struct Evenement: Identifiable, Hashable {
     let categorie: Categorie
     /// Une tâche sans heure tient la journée : elle ne compte pas comme « maintenant ».
     var journeeEntiere: Bool = false
+
+    /// L'heure de la ligne : « 12:45 », ou « Jour » pour ce qui tient la journée.
+    var heure: String {
+        journeeEntiere ? "Jour" : debut.formatted(date: .omitted, time: .shortened)
+    }
 }
 
 struct Tache: Identifiable, Hashable {
@@ -29,8 +34,12 @@ struct Tache: Identifiable, Hashable {
     let pourQui: Membre
     let categorie: Categorie
     var faite: Bool
-    /// Le nombre de reports subis : au-delà de zéro, elle est en retard (EXE-4).
+    /// Le nombre de reports subis (EXE-4).
     var reports: Int = 0
+    /// En retard selon le serveur : reportée, ou sa fenêtre est passée (EXE-4).
+    var enRetard: Bool = false
+    /// La fin de sa fenêtre, pour dire depuis quand elle traîne.
+    var fin: Date?
     /// Le code de la tâche récurrente, « ASPIRATEUR ».
     var code: String = ""
     var reportable: Bool = true

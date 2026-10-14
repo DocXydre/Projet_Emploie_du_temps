@@ -132,6 +132,79 @@ struct EnTeteGroupe: View {
             .foregroundStyle(Palette.texteSecondaire)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.top, Espace.serre)
+            .surLaPhoto()
             .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// Une puce qu'on touche pour choisir : le type d'une mesure, par exemple.
+/// Choisie, elle prend le voile de l'accent.
+struct PuceChoix: View {
+    let texte: String
+    let choisie: Bool
+    let action: () -> Void
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(texte)
+                .texte(.corps)
+                .foregroundStyle(Palette.textePrincipal)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .background(choisie ? theme.principalVoile : Palette.verreTeinte, in: Capsule())
+                .overlay(Capsule().strokeBorder(choisie ? theme.principal : Palette.verreBord,
+                                                lineWidth: choisie ? 1 : 0.5))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(choisie ? .isSelected : [])
+    }
+}
+
+/// Des éléments côte à côte qui passent à la ligne quand la largeur manque.
+struct Flux: Layout {
+    var espacement: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let lignes = ranger(largeur: proposal.width ?? .infinity, subviews: subviews)
+        let hauteur = lignes.map(\.hauteur).reduce(0, +) + espacement * CGFloat(max(0, lignes.count - 1))
+        return CGSize(width: proposal.width ?? lignes.map(\.largeur).max() ?? 0, height: hauteur)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for ligne in ranger(largeur: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for rang in ligne.rangs {
+                let taille = subviews[rang].sizeThatFits(.unspecified)
+                subviews[rang].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(taille))
+                x += taille.width + espacement
+            }
+            y += ligne.hauteur + espacement
+        }
+    }
+
+    private struct Ligne {
+        var rangs: [Int] = []
+        var largeur: CGFloat = 0
+        var hauteur: CGFloat = 0
+    }
+
+    private func ranger(largeur: CGFloat, subviews: Subviews) -> [Ligne] {
+        var lignes: [Ligne] = [Ligne()]
+        for rang in subviews.indices {
+            let taille = subviews[rang].sizeThatFits(.unspecified)
+            let suite = lignes[lignes.count - 1].rangs.isEmpty ? taille.width
+                : lignes[lignes.count - 1].largeur + espacement + taille.width
+            if suite > largeur, !lignes[lignes.count - 1].rangs.isEmpty {
+                lignes.append(Ligne())
+            }
+            let derniere = lignes.count - 1
+            lignes[derniere].largeur += (lignes[derniere].rangs.isEmpty ? 0 : espacement) + taille.width
+            lignes[derniere].hauteur = max(lignes[derniere].hauteur, taille.height)
+            lignes[derniere].rangs.append(rang)
+        }
+        return lignes
     }
 }

@@ -124,18 +124,13 @@ struct EcranMesures: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                Menu {
-                    ForEach(TypeMesure.tous, id: \.self) { type in
-                        Button(TypeMesure.libelle(type)) {
-                            aSaisir = MesureDemandee(titre: TypeMesure.libelle(type), consigne: "",
-                                                     jusquA: "", id: 0, type: type)
-                        }
-                    }
+                // Le type se choisit dans la feuille (3.19).
+                Button {
+                    aSaisir = MesureDemandee(titre: "", consigne: "", jusquA: "", id: 0, type: "poids")
                 } label: {
                     Label("Saisir une mesure", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
-                .menuStyle(.button)
                 .buttonStyle(.hal(.accent, pleineLargeur: true))
 
                 if let mesures {
@@ -162,7 +157,7 @@ struct EcranMesures: View {
         .task { await charger() }
         .refreshable { await charger() }
         .sheet(item: $aSaisir, onDismiss: { Task { await charger() } }) { mesure in
-            FeuilleMesure(mesure: mesure).presentationDetents([.large]).feuilleEnVerre()
+            FeuilleMesure(mesure: mesure).presentationDetents([.fraction(0.8), .large]).feuilleEnVerre()
         }
     }
 

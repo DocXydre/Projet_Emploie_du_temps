@@ -100,7 +100,7 @@ struct WidgetEnRetard: View {
             if let tache = foyer.tachesEnRetard.first {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tache.titre).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
-                    Text("reportée \(tache.reports) fois").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    Text(tache.reports > 0 ? "reportée \(tache.reports) fois" : Dates.depuis(tache.fin)).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     Spacer(minLength: 0)
                     Button("C'est fait") {
                         var annuler: (() -> Void)?

@@ -9,6 +9,12 @@ extension View {
         modifier(Carte(rayon: rayon))
     }
 
+    /// Du texte posé à même la photo, sans carte : titres d'écran et de groupe.
+    /// Une ombre douce le détache d'une photo claire.
+    func surLaPhoto() -> some View {
+        shadow(color: .black.opacity(0.45), radius: 6, y: 1)
+    }
+
     /// Un contrôle qui flotte : bouton, barre, champ.
     func verreControle<Forme: Shape>(_ forme: Forme, teinte: Color? = nil, interactif: Bool = true) -> some View {
         var verre = Glass.regular

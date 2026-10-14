@@ -166,6 +166,22 @@ struct EcranConnexion: View {
             erreur = nil
             aiguillage.invitation = nil
         }
+        #if DEBUG && targetEnvironment(simulator)
+        // Le simulateur ne colle rien dans un champ de mot de passe. Pour la
+        // fausse base (outils/fausse_base.sh), le lancement peut donner
+        // HAL_CONNEXION="http://localhost:8000 thomas maquette-thomas" :
+        // l'écran se remplit et se valide seul. Absent de l'appli de l'iPhone.
+        .task {
+            let morceaux = (ProcessInfo.processInfo.environment["HAL_CONNEXION"] ?? "")
+                .split(separator: " ").map(String.init)
+            guard morceaux.count == 3 else { return }
+            mode = .connexion
+            serveur = morceaux[0]
+            pseudo = morceaux[1]
+            motDePasse = morceaux[2]
+            await valider()
+        }
+        #endif
     }
 
     private var complet: Bool {

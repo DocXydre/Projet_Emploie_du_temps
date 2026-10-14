@@ -22,7 +22,7 @@ struct WidgetHAL: View {
     var body: some View {
         CoquilleWidget(.hal) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(foyer.dernierMotDeHAL)
+                Text(dernierMot)
                     .texte(.corps).foregroundStyle(Palette.textePrincipal).lineLimit(3)
                 Spacer(minLength: 0)
                 HStack {
@@ -35,6 +35,14 @@ struct WidgetHAL: View {
                 }
             }
         }
+    }
+
+    /// Connecté, le dernier message de HAL tel que le serveur l'a rendu ; sans
+    /// serveur, celui des données fictives.
+    private var dernierMot: String {
+        guard foyer.connecte else { return foyer.dernierMotDeHAL }
+        return conversation.messages.last { $0.auteur == .hal && !$0.texte.isEmpty }?.texte
+            ?? "HAL n'a encore rien dit."
     }
 }
 

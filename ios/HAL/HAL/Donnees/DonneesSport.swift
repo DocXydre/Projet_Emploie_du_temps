@@ -377,6 +377,22 @@ enum TypeMesure {
         }
     }
 
+    /// Le nom court d'une puce : « Avant-bras » plutôt que « Tour d'avant-bras ».
+    static func court(_ type: String) -> String {
+        switch type {
+        case "poids": "Poids"
+        case "tour_avant_bras": "Avant-bras"
+        case "tour_cuisse": "Cuisse"
+        case "tour_poitrine": "Poitrine"
+        default: nom(type)
+        }
+    }
+
+    /// Les tours qui se mesurent d'un côté puis de l'autre.
+    static func parCote(_ type: String) -> Bool {
+        ["tour_bras", "tour_avant_bras", "tour_cuisse"].contains(type)
+    }
+
     static func unite(_ type: String) -> String {
         switch type {
         case "poids": "kg"

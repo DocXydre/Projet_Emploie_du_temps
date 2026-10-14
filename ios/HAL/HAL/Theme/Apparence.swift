@@ -122,8 +122,25 @@ final class Apparence {
 
     var verre: ReglageVerre { ReglageVerre(style: styleVerre, teinte: teinteVerre) }
 
-    private(set) var photo: UIImage?
+    private(set) var photo: UIImage? {
+        didSet { luminancePhoto = photo.map(Self.luminance) ?? 0 }
+    }
     private var couleursPhoto: Theme?
+    /// De 0 à 1 : la clarté moyenne de la photo choisie.
+    private(set) var luminancePhoto: Double = 0
+
+    /// THM-2 : l'assombrissement réellement posé sur la photo. Sur une photo
+    /// claire, le réglage ne descend pas sous le voile qui garde le texte blanc
+    /// lisible : le fond reste au plus à `clarteMaximale` une fois assombri.
+    var assombrissementEffectif: Double { max(assombrissement, plancherAssombrissement) }
+
+    /// Le voile minimal qu'impose la photo, 0 pour une photo sombre.
+    var plancherAssombrissement: Double {
+        guard luminancePhoto > Self.clarteMaximale else { return 0 }
+        return min(0.7, 1 - Self.clarteMaximale / luminancePhoto)
+    }
+
+    private static let clarteMaximale = 0.34
 
     /// Les couleurs à appliquer, selon le réglage.
     var theme: Theme {
@@ -142,6 +159,7 @@ final class Apparence {
         styleVerre = StyleVerre(rawValue: reglages.string(forKey: Cle.styleVerre) ?? "") ?? .liquide
         teinteVerre = reglages.object(forKey: Cle.teinteVerre) as? Double ?? 0.15
         photo = Self.lirePhoto()
+        luminancePhoto = photo.map(Self.luminance) ?? 0
         recalculerCouleursPhoto()
     }
 
@@ -193,6 +211,25 @@ final class Apparence {
         let dossier = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dossier, withIntermediateDirectories: true)
         return dossier.appendingPathComponent("fond.jpg")
+    }
+
+    /// La clarté moyenne d'une image, sur une réduction à 16 × 16.
+    private static func luminance(_ image: UIImage) -> Double {
+        let cote = 16
+        var pixels = [UInt8](repeating: 0, count: cote * cote * 4)
+        guard let cg = image.cgImage,
+              let contexte = CGContext(data: &pixels, width: cote, height: cote, bitsPerComponent: 8,
+                                       bytesPerRow: cote * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return 0 }
+        contexte.interpolationQuality = .medium
+        contexte.draw(cg, in: CGRect(x: 0, y: 0, width: cote, height: cote))
+        var somme = 0.0
+        for rang in stride(from: 0, to: pixels.count, by: 4) {
+            somme += 0.2126 * Double(pixels[rang]) + 0.7152 * Double(pixels[rang + 1])
+                + 0.0722 * Double(pixels[rang + 2])
+        }
+        return somme / 255 / Double(cote * cote)
     }
 
     private static func lirePhoto() -> UIImage? {
