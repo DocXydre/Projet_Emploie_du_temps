@@ -92,7 +92,6 @@ private struct Bandeaux: View {
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
     @Environment(\.annoncer) private var annoncer
-    @State private var trains: Proposition?
 
     var body: some View {
         BandeauServeur()
@@ -108,15 +107,7 @@ private struct Bandeaux: View {
                             + Self.moment(absence.fin) + " · ses tâches passent à toi",
                         categorie: .ia)
         }
-        ForEach(foyer.propositions) { proposition in
-            BandeauEtat(icone: "tram", titre: "Un week-end à \(proposition.lieu) ?",
-                        detail: "Du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin))",
-                        categorie: .travail, bouton: "Voir") { trains = proposition }
-        }
-        Color.clear.frame(height: 0)
-            .sheet(item: $trains) { proposition in
-                EcranTrains(proposition: proposition).presentationDetents([.large])
-            }
+        // Les week-ends proposés sont un widget de l'accueil (WID, 1.13), pas un état.
     }
 
     private func arreterAllegement() {

@@ -25,6 +25,7 @@ Les comptes, à taper dans l'appli (serveur http://localhost:8000) :
     lorette  / maquette-lorette     HAL pas démarré
 """
 
+import hashlib
 import json
 import math
 import secrets
@@ -67,11 +68,17 @@ def dire(texte: str) -> None:
 # Les comptes
 # ---------------------------------------------------------------------------
 
+def cle_fixe(pseudo: str) -> str:
+    """Une clé d'API qui ne change pas d'une fausse base à l'autre : l'appli du
+    simulateur reste connectée quand on refait la base. Fausse base seulement."""
+    return hashlib.sha256(f"maquette-{pseudo}".encode()).hexdigest()
+
+
 def comptes() -> tuple[int, int]:
     for pseudo, nom, role in (("thomas", "Thomas", "admin"), ("lorette", "Lorette", "standard")):
         sql("""INSERT INTO utilisateur (pseudo, nom, role, cle_api, jeton_calendrier)
                VALUES (%(p)s, %(n)s, %(r)s, %(c)s, %(j)s)""",
-            p=pseudo, n=nom, r=role, c=secrets.token_hex(24), j=secrets.token_hex(16))
+            p=pseudo, n=nom, r=role, c=cle_fixe(pseudo), j=secrets.token_hex(16))
     sql("SELECT amorcer_foyer()")
     sql("SELECT appliquer_assignations()")
     sql("SELECT assigner_calendriers_perso()")
@@ -184,6 +191,24 @@ def maison(t: int, lo: int) -> None:
            VALUES (%(u)s, tstzrange(%(d)s, %(f)s, '[)'), 'Lusse', 'manuelle')""",
         u=lo, d=a(samedi - timedelta(days=1), 18), f=a(samedi + timedelta(days=1), 20))
     sql("SELECT activer_allegement(%(u)s, 3)", u=lo)
+
+    # Un train retenu par Thomas pour le week-end de Lorette à Lusse. Comme le
+    # conflit, ces horaires viennent d'ordinaire de la SNCF : on les pose tels
+    # qu'elle les donnerait, puis la base les retient par sa fonction.
+    aller = un("""INSERT INTO trajet (id_utilisateur, sens, periode, origine, destination,
+                                      correspondances, resume)
+                  VALUES (%(u)s, 'aller', tstzrange(%(d)s, %(a)s, '[)'), 'Nancy',
+                          'Saint-Dié-des-Vosges', 0, 'TER 835412')
+                  RETURNING id_trajet""",
+               u=t, d=a(samedi - timedelta(days=1), 17, 42), a=a(samedi - timedelta(days=1), 19, 6))
+    retour = un("""INSERT INTO trajet (id_utilisateur, sens, periode, origine, destination,
+                                       correspondances, resume, id_trajet_aller)
+                   VALUES (%(u)s, 'retour', tstzrange(%(d)s, %(a)s, '[)'), 'Saint-Dié-des-Vosges',
+                           'Nancy', 0, 'TER 835437', %(al)s)
+                   RETURNING id_trajet""",
+                u=t, d=a(samedi + timedelta(days=1), 18, 10),
+                a=a(samedi + timedelta(days=1), 19, 34), al=aller)
+    sql("SELECT retenir_trajet(%(a)s, %(r)s)", a=aller, r=retour)
 
     n = un("SELECT count(*) FROM proposer_weekends(%(u)s, 'Lusse')", u=t)
     sql("SELECT placer_taches(35, 7)")
@@ -492,12 +517,12 @@ def sport(t: int, lo: int) -> None:
     # La semaine prochaine : proposée, à valider (PLN-6).
     lundi = LUNDI + timedelta(days=7)
     with operation.ouvrir("fausse base : semaine", acteur="hal") as op:
-        for decalage, quoi in ((0, "course"), (2, "haut"), (4, "course_frac"), (5, "bas")):
+        for decalage, quoi in ((0, "course"), (2, "haut"), (3, "bas"), (4, "course_frac")):
             jour = lundi + timedelta(days=decalage)
             if quoi == "haut":
                 proposer(t, "musculation", "Haut du corps", jour, HAUT)
             elif quoi == "bas":
-                proposer(t, "musculation", "Bas du corps", jour, BAS, plage=("10:00", "20:30"))
+                proposer(t, "musculation", "Bas du corps", jour, BAS, plage=("18:00", "21:00"))
             elif quoi == "course":
                 proposer(t, "course", "Endurance fondamentale", jour, COURSE_EF,
                          intensite="legere", duree=45, plage=("12:00", "14:00"))

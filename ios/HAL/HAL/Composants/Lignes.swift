@@ -31,6 +31,11 @@ struct LigneTache: View {
     let titre: String
     var pourQui: String? = nil
     let faite: Bool
+    /// À droite : l'heure, ou le retard en rouge (4.1).
+    var detail: String? = nil
+    var detailEnAlerte = false
+    /// L'initiale et la couleur de la personne, tout à droite (4.1).
+    var avatar: (nom: String, couleur: Color)? = nil
     var action: () -> Void
     @Environment(\.theme) private var theme
 
@@ -57,6 +62,14 @@ struct LigneTache: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if let detail {
+                    Text(detail).texte(.legende)
+                        .foregroundStyle(detailEnAlerte ? Categorie.alerte.couleur : Palette.texteSecondaire)
+                        .lineLimit(1)
+                }
+                if let avatar {
+                    Avatar(nom: avatar.nom, couleur: avatar.couleur, taille: 26)
+                }
             }
             .contentShape(Rectangle())
         }

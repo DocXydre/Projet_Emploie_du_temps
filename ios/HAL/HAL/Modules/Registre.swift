@@ -15,6 +15,14 @@ enum Registre {
         .chat,
         .equilibre,
         .frequenceDuJour,
+        .weekend,
+        .train,
+        .semaine,
+        .montre,
+        .derniereCourse,
+        .seanceEnCours,
+        .linge,
+        .bientot,
         .seanceLibre,
     ]
 

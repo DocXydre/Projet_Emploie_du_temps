@@ -13,147 +13,6 @@ struct WidgetFixe: View {
     }
 }
 
-/// L'onglet Sport, dans l'ordre fixe de la maquette (3.1, WID-4). Ce qui attend
-/// une réponse passe devant : la séance en cours, celle du jour, une mesure, un
-/// ajustement de HAL.
-struct EcranSport: View {
-    @Environment(Foyer.self) private var foyer
-    @Environment(SeanceEnCours.self) private var seance
-    @Environment(EnvoiSante.self) private var sante
-    @Environment(ConversationHAL.self) private var conversation
-    @Environment(\.annoncer) private var annoncer
-    @State private var prevue: DetailSeance?
-    @State private var annonce = false
-
-    var body: some View {
-        PageDefilante {
-            EnTeteOnglet(surTitre: enPause ? "En pause" : "Cette semaine", titre: "Sport") {}
-                .padding(.bottom, 4)
-            BandeauServeur()
-            if foyer.connecte && sante.disponible && !sante.accesDemande {
-                // 8.7 : sans Santé, la forme, le sommeil et les séances de la montre restent vides.
-                CarteVide(icone: "heart", categorie: .alerte, titre: "Santé n'est pas encore lue",
-                          texte: "Ton sommeil, ta fréquence cardiaque et les séances de ta montre remplissent cet onglet, et aident HAL à doser tes séances.",
-                          bouton: "Autoriser Santé") {
-                    Task { await sante.demanderAcces() }
-                }
-            }
-            if enPause {
-                // PAU-1 : la pause se lève d'ici, ou depuis Réglages.
-                BandeauEtat(icone: "pause", titre: "HAL est en pause",
-                            detail: "Les séances se posent à la main ; le récap passe un soir sur trois",
-                            categorie: .ia, bouton: foyer.connecte ? "Reprendre" : nil) {
-                    Task {
-                        do {
-                            try await foyer.agir("DELETE", "coach/pause")
-                            annoncer("Pause levée : HAL prépare la reprise")
-                        } catch {
-                            annoncer((error as? ErreurAPI)?.message ?? "Impossible pour l'instant")
-                        }
-                    }
-                }
-            }
-            if let bloc = foyer.sportDuServeur?.demarrage {
-                // DEM-1, 7.18 : le démarrage, ou sa reprise là où on s'était arrêté.
-                Button { conversation.demarrageOuvert = true } label: {
-                    BandeauEtat(icone: "sparkle",
-                                titre: bloc == "profil" ? "Démarrer HAL" : "Reprendre le démarrage",
-                                detail: bloc == "profil"
-                                    ? "Quelques questions, et HAL te propose quatre semaines"
-                                    : "Il reste : \(EcranDemarrage.nomDuBloc(bloc))",
-                                categorie: .ia)
-                }
-                .buttonStyle(.plain)
-            }
-            if seance.enCours {
-                BandeauEtat(icone: "dumbbell", titre: "Séance en cours",
-                            detail: "\(seance.seance?.series.count ?? 0) séries · \(seance.minutesEcoulees) min",
-                            categorie: .sport, bouton: "Reprendre") { seance.affichee = true }
-            } else if let detail = foyer.seanceDuJour {
-                WidgetFixe(module: .lancerSeance)
-                    .onTapGesture { prevue = detail }
-            }
-            if let semaine = foyer.sportDuServeur?.semaineAValider {
-                NavigationLink { EcranSemaine() } label: {
-                    BandeauEtat(icone: "calendar.badge.checkmark", titre: "Semaine à valider",
-                                detail: "\(semaine.seances) séance\(semaine.seances > 1 ? "s" : "") proposée\(semaine.seances > 1 ? "s" : "") par HAL",
-                                categorie: .ia)
-                }
-                .buttonStyle(.plain)
-            }
-            ForEach(foyer.sportDuServeur?.invitations ?? []) { invitation in
-                BandeauInvitation(invitation: invitation)
-            }
-            ForEach(foyer.sportDuServeur?.seancesDuJour.filter { !$0.close && $0.seance.discipline != "musculation" } ?? []) { course in
-                Button { prevue = course } label: {
-                    BandeauEtat(icone: "figure.run", titre: "\(course.titre) aujourd'hui",
-                                detail: course.prevu.first?.consigne ?? course.seance.consigne ?? "Le détail de la séance",
-                                categorie: .sport)
-                }
-                .buttonStyle(.plain)
-            }
-            if foyer.ajustement != nil { WidgetFixe(module: .ajustement) }
-            if foyer.mesureDemandee != nil { WidgetFixe(module: .mesureDemandee) }
-            lien(EcranSommeil()) { WidgetFixe(module: .forme) }
-            HStack(spacing: Espace.gouttiere) {
-                lien(EcranSemaine()) { WidgetFixe(module: .sport, taille: .petit) }
-                lien(EcranObjectifs()) { WidgetFixe(module: .objectif) }
-            }
-            lien(EcranFrequence()) { WidgetFixe(module: .frequenceDuJour) }
-            HStack(spacing: Espace.gouttiere) {
-                Color.clear.aspectRatio(1, contentMode: .fit)
-                WidgetFixe(module: .seanceLibre)
-            }
-            EnTeteGroupe(texte: "Aller plus loin")
-            GroupeReglages {
-                ligne("La semaine", "calendar", Categorie.sport.couleur) { EcranSemaine() }
-                ligne("Progression", "chart.line.uptrend.xyaxis", Categorie.sport.couleur) { EcranProgression() }
-                ligne("Sommeil et récupération", "bed.double", Categorie.linge.couleur) { EcranSommeil() }
-                ligne("Objectifs", "target", Categorie.sport.couleur) { EcranObjectifs() }
-                ligne("Mesures", "scalemass", Categorie.ia.couleur) { EcranMesures() }
-                ligne("Séances de la montre", "applewatch", Categorie.sport.couleur) { EcranSeancesMontre() }
-                ligne("Fréquence cardiaque du jour", "heart.text.square", Categorie.alerte.couleur) { EcranFrequence() }
-                Button { annonce = true } label: {
-                    LigneReglage(icone: "calendar.badge.plus", couleur: Categorie.ia.couleur,
-                                 libelle: "Annoncer une séance libre")
-                }
-                .buttonStyle(.plain)
-            }
-            if let bilan = sante.dernierBilan {
-                Text("Santé : \(bilan)").texte(.legende).foregroundStyle(Palette.texteTertiaire)
-            }
-        }
-        .refreshable {
-            await foyer.charger()
-            await sante.envoyer(raison: "à la demande")
-            foyer.poserLaFrequence(sante.frequenceDuJour)
-        }
-        .sheet(item: $prevue) { detail in EcranSeancePrevue(detail: detail) }
-        .sheet(isPresented: $annonce) {
-            NavigationStack { FormulaireAnnonce() }.feuilleEnVerre()
-        }
-    }
-
-    /// Toucher un widget ouvre son écran détaillé.
-    private func lien<Destination: View, Contenu: View>(_ destination: Destination,
-                                                        @ViewBuilder contenu: () -> Contenu) -> some View {
-        NavigationLink { destination } label: { contenu() }
-            .buttonStyle(.plain)
-    }
-
-    private func ligne<Destination: View>(_ libelle: String, _ icone: String, _ couleur: Color,
-                                          @ViewBuilder destination: @escaping () -> Destination) -> some View {
-        NavigationLink { destination() } label: {
-            LigneReglage(icone: icone, couleur: couleur, libelle: libelle)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var enPause: Bool {
-        foyer.connecte ? foyer.sportDuServeur?.pause != nil : foyer.essais.pause
-    }
-}
-
 /// L'onglet Maison (4.1) : les tâches des deux, l'équilibre, le chat.
 struct EcranMaison: View {
     @Environment(Foyer.self) private var foyer
@@ -185,17 +44,82 @@ struct EcranMaison: View {
                     aiguillage.feuille = .inviter
                 }
             }
-            WidgetFixe(module: .aCocher, taille: .moyen)
-            HStack(spacing: Espace.gouttiere) {
-                WidgetFixe(module: .chat)
-                WidgetFixe(module: .equilibre)
+            // 4.1 : les tâches du jour des deux, l'équilibre, Sassy et le linge, ce qui arrive.
+            // Ici les tuiles prennent la hauteur de leur contenu, comme la maquette :
+            // pas de carré ni de format moyen imposé.
+            TachesDuJourDesDeux()
+            Module.equilibre.widget(.moyen).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .top, spacing: Espace.gouttiere) {
+                Module.chat.widget(.petit)
+                Module.linge.widget(.petit)
             }
-            HStack(spacing: Espace.gouttiere) {
-                WidgetFixe(module: .enRetard)
-                Color.clear.aspectRatio(1, contentMode: .fit)
+            .fixedSize(horizontal: false, vertical: true)
+            NavigationLink { EcranPlanning() } label: {
+                Module.bientot.widget(.moyen).fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+        }
+        .refreshable { await foyer.charger() }
+        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.fraction(0.64), .large]) }
+    }
+}
+
+/// 4.1 : toutes les tâches du jour des deux, avec l'heure ou le retard, et à
+/// qui elles reviennent. Cocher celle de l'autre la crédite à qui l'a faite (EXE-14).
+private struct TachesDuJourDesDeux: View {
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+    @Environment(\.annoncer) private var annoncer
+
+    var body: some View {
+        let taches = foyer.tachesDuJour
+        CoquilleWidget(titre: "Aujourd'hui", icone: "checklist", couleur: Categorie.menage.couleur,
+                       droite: taches.isEmpty ? nil : "\(taches.filter(\.faite).count) sur \(taches.count)") {
+            if taches.isEmpty {
+                Text("Aucune tâche aujourd'hui.").texte(.corps).foregroundStyle(Palette.texteSecondaire)
+            } else {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(taches) { tache in
+                        LigneTache(titre: tache.titre, faite: tache.faite,
+                                   detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
+                                   avatar: foyer.membres.count > 1
+                                       ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil) {
+                            cocher(tache)
+                        }
+                        .contextMenu {
+                            if tache.reportable && !tache.faite {
+                                Button("Repousser", systemImage: "arrow.uturn.forward") {
+                                    withAnimation(.snappy) { foyer.reporter(tache, file: file) }
+                                    annoncer("« \(tache.titre) » repoussée")
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
-        .sheet(isPresented: $ajoutRapide) { AjoutRapide().presentationDetents([.fraction(0.64), .large]) }
+    }
+
+    /// « 21:00 », ou « 2 j de retard » en rouge.
+    private func detail(_ tache: Tache) -> String? {
+        if tache.enRetard && !tache.faite {
+            let jours = tache.fin.map {
+                Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: $0),
+                                                to: Calendar.current.startOfDay(for: .now)).day ?? 0
+            } ?? 0
+            return jours > 0 ? "\(jours) j de retard" : "en retard"
+        }
+        guard !tache.journeeEntiere, let debut = tache.debut else { return nil }
+        return EnFrancais.heure(debut)
+    }
+
+    private func cocher(_ tache: Tache) {
+        guard !tache.faite else { return }
+        var annuler: (() -> Void)?
+        withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
+        if let annuler {
+            annoncer("« \(tache.titre) » faite", annuler: { withAnimation(.snappy) { annuler() } })
+        }
     }
 }
 

@@ -40,6 +40,9 @@ struct Tache: Identifiable, Hashable {
     var enRetard: Bool = false
     /// La fin de sa fenêtre, pour dire depuis quand elle traîne.
     var fin: Date?
+    /// Son heure prévue, sauf si elle tient la journée.
+    var debut: Date?
+    var journeeEntiere = false
     /// Le code de la tâche récurrente, « ASPIRATEUR ».
     var code: String = ""
     var reportable: Bool = true
