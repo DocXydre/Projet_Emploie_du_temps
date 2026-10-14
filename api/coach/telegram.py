@@ -822,7 +822,7 @@ def reinitialiser(id_utilisateur: int, choix: str) -> Ecran:
     texte = (f"🧹 C'est effacé : {bilan.get('seances', 0)} séance(s), "
              f"{bilan.get('objectifs', 0)} objectif(s), {bilan.get('echanges', 0)} échange(s).")
     if choix == "tout":
-        texte += (" Les données de la montre aussi : dans l'appli Coach Santé, touche "
+        texte += (" Les données de la montre aussi : dans l'appli HAL, Réglages, "
                   "« Envoyer tout l'historique » pour les renvoyer.")
     return demarrage.recommencer(id_utilisateur, texte)
 

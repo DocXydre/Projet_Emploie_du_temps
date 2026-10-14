@@ -47,9 +47,11 @@ BEGIN
        SET creneau = NULL, statut = 'a_placer', motif = NULL
      WHERE statut = 'planifiee'
        AND NOT epinglee
-       -- PLN-4 : une séance proposée par HAL occupe son créneau. Elle
-       -- n'est pas épinglée, mais seul HAL ou l'utilisateur la déplace.
-       AND origine <> 'coach'
+       -- SPT-23 : une réservation de sport n'est pas à replacer, elle est
+       -- tenue par organiser_sport.
+       -- PLN-4 : une séance proposée par le coach occupe son créneau. Elle
+       -- n'est pas épinglée, mais seul le coach ou l'utilisateur la déplace.
+       AND origine NOT IN ('quota', 'coach')
        AND (creneau IS NULL
             OR lower(creneau) > v_gele
             OR (id_utilisateur IS NOT NULL
@@ -59,6 +61,9 @@ BEGIN
     -- le ramassage retiré ne compte pas dans le tour de celui qui l'aurait eu.
     PERFORM absorber_les_couvertes();
 
+    -- SPT-23 : les réservations de sport d'abord, le ménage se range autour.
+    PERFORM organiser_sport();
+
     FOR o IN
         SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,
                oc.rappel_journee, oc.utilise_machine,
@@ -67,8 +72,8 @@ BEGIN
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
          WHERE oc.statut = 'a_placer'
-           -- Le sport ne passe pas par ici : HAL propose les séances, ou
-           -- l'utilisateur les pose (SPT-33).
+           -- Le sport ne passe plus par ici : une séance est choisie, ou
+           -- réservée par organiser_sport.
            AND t.categorie <> 'sport'
            AND upper(oc.fenetre) > now()
            AND lower(oc.fenetre) < now() + make_interval(days => p_horizon_jours)

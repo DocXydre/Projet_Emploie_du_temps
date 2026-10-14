@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION seance_possible_a_deux(
 RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
     SELECT EXISTS (
         SELECT 1 FROM partenaires_sport(p_utilisateur) p
-         WHERE obstacle_seance(p, p_lieu, p_debut, NULL, NULL, NULL, TRUE) IS NULL);
+         WHERE obstacle_seance(p, p_lieu, p_debut, NULL, TRUE) IS NULL);
 $$;
 
 COMMENT ON FUNCTION seance_possible_a_deux IS

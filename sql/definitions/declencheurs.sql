@@ -103,7 +103,7 @@ CREATE OR REPLACE TRIGGER journal_tache
 CREATE OR REPLACE TRIGGER journal_utilisateur
     AFTER UPDATE ON utilisateur
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
-        'foyer', 'actif', 'lieu_famille', 'gare_famille',
+        'foyer', 'minimum_sport', 'actif', 'lieu_famille', 'gare_famille',
         'coach_actif', 'id_foyer');
 
 

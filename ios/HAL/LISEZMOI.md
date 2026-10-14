@@ -133,4 +133,4 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 ## La suite
 
-Le lot 2, les retraits : le bot réservé à l'administrateur et l'ancien sport retiré. Puis le lot 10, la bascule : tout le monde sur HAL, la bêta `ios/CoachSante/` rangée.
+Tous les lots sont faits. Le bot ne sert plus qu'à l'administrateur du serveur, l'ancien sport est retiré (lot 2), et la bêta Coach Santé est rangée dans `anciennes_fonctionnalites/coach_sante/` (lot 10). Reste la vérification du lot 10 : deux semaines d'usage réel à deux, sans le bot.

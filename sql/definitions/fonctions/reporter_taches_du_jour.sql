@@ -12,6 +12,10 @@ DECLARE
     v_alertes     INTEGER := 0;
     v_demain      DATE := jour_de(now()) + 1;
 BEGIN
+    -- SPT-25 : les réservations de sport passées sont constatées d'abord,
+    -- au cas où l'ordonnanceur ne l'aurait pas fait dans la journée.
+    PERFORM seances_a_determiner_passees();
+
     -- 1. Ce qui avait un créneau et n'a pas été fait.
     FOR o IN
         SELECT oc.id_occurrence, oc.id_utilisateur, oc.creneau, oc.fenetre,

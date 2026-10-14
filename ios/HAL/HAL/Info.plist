@@ -45,6 +45,8 @@
 	<string>HAL utilise la photo que tu choisis comme fond de l'appli.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Ta voix est transcrite en texte pour écrire ton message à HAL.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

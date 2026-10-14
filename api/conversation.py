@@ -34,8 +34,7 @@ ACTIONS = ("valider", "reporter", "refuser")
 # ---------------------------------------------------------------------------
 
 def appairer(cle_api: str, id_telegram: int) -> dict | None:
-    """Associe une conversation Telegram au compte de l'administrateur du
-    serveur, via sa clé d'API (ADM-5). Une clé d'un autre compte ne relie rien.
+    """Associe une conversation Telegram à un compte, via sa clé d'API.
 
     La clé fait office de mot de passe. Un appairage existant est écrasé, ce
     qui permet de changer de téléphone.
@@ -44,7 +43,7 @@ def appairer(cle_api: str, id_telegram: int) -> dict | None:
         """
         UPDATE utilisateur
            SET id_telegram = %(tg)s
-         WHERE cle_api = %(cle)s AND actif AND role = 'admin'
+         WHERE cle_api = %(cle)s AND actif
         RETURNING id_utilisateur, pseudo, role
         """,
         {"cle": cle_api.strip(), "tg": id_telegram},
@@ -259,17 +258,16 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
             return "Celle-là ne peut pas être repoussée : la repousser ne résoudrait rien."
         return "Reportée à demain."
 
-    # SPT-25, SPT-36 : une séance de sport refusée n'est pas à réassigner à
-    # quelqu'un d'autre. Elle n'est pas faite, et elle est close.
+    # SPT-25 : une séance de sport refusée n'est pas à réassigner à quelqu'un
+    # d'autre. Elle n'est pas faite, et la semaine se complète ailleurs.
     seance = un_seul(
         "SELECT t.code FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache "
         " WHERE o.id_occurrence = %(o)s",
         {"o": id_occurrence},
     )
     if seance and seance["code"] == "SPORT":
-        executer("SELECT seance_sport_pas_faite(%(u)s, %(o)s) AS jour",
-                 {"u": id_utilisateur, "o": id_occurrence})
-        return "Noté : pas faite."
+        from api import sport
+        return sport.pas_faite(id_utilisateur, id_occurrence).texte
 
     remplacante = executer(
         """
@@ -863,26 +861,38 @@ def trancher_conflit(id_conflit: int, garder: str, id_utilisateur: int) -> str:
 # File d'attente
 # ---------------------------------------------------------------------------
 
-def notifications_a_envoyer(limite: int = 20) -> list[dict]:
-    """Les alertes de l'administration qui attendent le bot (ADM-2, ADM-5).
+def notifications_a_envoyer(limite: int = 20, pendant_le_silence: bool = False) -> list[dict]:
+    """Notifications en attente, pour les comptes reliés à Telegram.
 
-    Le bot ne transporte plus rien d'autre : les notifications des membres,
-    celles de l'administrateur comprises, passent par l'appli. Une alerte part
-    à toute heure : un serveur en panne n'attend pas le matin.
+    NOT-14 : pendant le silence de la nuit, seuls partent les messages du coach
+    d'un compte en pleine conversation avec lui (un appel venu de l'utilisateur
+    il y a moins de 30 minutes). Retenus jusqu'à 7h30, ils arrivaient en retard,
+    après des réponses qui les avaient déjà rendus faux.
     """
     return lister(
         """
-        SELECT n.id_notification, n.id_utilisateur, u.id_telegram, n.type, n.contenu
+        SELECT n.id_notification, n.id_utilisateur, u.id_telegram,
+               n.id_occurrence, n.id_proposition, n.id_invitation, n.type, n.contenu,
+               n.id_echange,
+               o.tache_libelle, o.tache_code, o.actions_possibles
           FROM notification n
           JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur
+          LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence
          WHERE n.statut = 'a_envoyer'
-           AND n.type = 'administration'
-           AND u.role = 'admin' AND u.actif
            AND u.id_telegram IS NOT NULL
+           -- NOT-17 : les changements racontés ne vont qu'à l'appli. Le bot a
+           -- « /pourquoi » pour ça.
+           AND n.type <> 'changement'
+           AND (NOT %(silence)s
+                OR (n.type = 'coach'
+                    AND EXISTS (SELECT 1 FROM appel_coach a
+                                 WHERE a.id_utilisateur = n.id_utilisateur
+                                   AND a.declencheur = 'utilisateur'
+                                   AND a.debut > now() - INTERVAL '30 minutes')))
          ORDER BY n.date_creation
          LIMIT %(limite)s
         """,
-        {"limite": limite},
+        {"limite": limite, "silence": pendant_le_silence},
     )
 
 
