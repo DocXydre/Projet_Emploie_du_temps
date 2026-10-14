@@ -13,7 +13,7 @@
 #   ./outils/local.sh texte [N]     ouvre le texte exact envoyé au modèle (dernier appel, ou N)
 #   ./outils/local.sh limitations   importe seulement les limitations de local/demarrage.json
 #   ./outils/local.sh rouler        le roulement de la mémoire de la nuit, tout de suite
-#   ./outils/local.sh iphone        ouvre l'API au Wi-Fi pour l'appli Coach Santé
+#   ./outils/local.sh iphone        ouvre l'API au Wi-Fi pour l'appli HAL
 #   ./outils/local.sh sante         ce que l'appli a envoyé
 #   ./outils/local.sh journal       les 200 dernières lignes de l'API
 #   ./outils/local.sh etat          ce qui tourne
@@ -128,17 +128,17 @@ SELECT a.id_appel, d ->> 'tour' AS tour, d ->> 'outil' AS outil,
 SQL
         ;;
     iphone)
-        # L'API ouverte au Wi-Fi de la maison, pour l'appli Coach Santé. Seulement
+        # L'API ouverte au Wi-Fi de la maison, pour l'appli HAL. Seulement
         # en local : le serveur, lui, ne s'ouvre que par Tailscale.
         API_BIND=0.0.0.0 "${COMPOSE[@]}" up -d api && attendre_l_api
         nom="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
         echo
         echo "Adresse à mettre dans l'appli : http://${nom}.local:${PORT}"
-        echo "Clé : celle de ton compte, la même que pour /demarrer dans le bot."
+        echo "Puis connecte-toi avec ton pseudo et ton mot de passe."
         echo "Pour refermer : ./outils/local.sh demarrer"
         ;;
     sante)
-        # Ce que l'appli Coach Santé a envoyé : les 14 derniers jours, les 10 dernières séances.
+        # Ce que l'appli HAL a envoyé : les 14 derniers jours, les 10 dernières séances.
         psql_local "$BASE" -P pager=off <<'SQL'
 SELECT u.pseudo, s.jour, s.pas, s.fc_repos, s.vfc_ms, s.sommeil_minutes AS sommeil,
        to_char(s.recue_le AT TIME ZONE 'Europe/Paris', 'DD/MM HH24:MI') AS recue

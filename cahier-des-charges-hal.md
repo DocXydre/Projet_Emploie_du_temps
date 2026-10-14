@@ -79,7 +79,7 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 | Membre retiré | Ses tâches repassent aux autres ; son compte est mis en pause, avec son planning et son HAL | FOY-5 |
 | Annulation d'une action de HAL | Cinq secondes | ORB-6 |
 | Couleurs tirées de la photo | Disponibles en option | THM-4 |
-| Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/` à la bascule | Partie E, lot 10 |
+| Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/coach_sante/` à la bascule | Partie E, lot 10 |
 
 ---
 
@@ -3327,7 +3327,7 @@ Un texte libre n'est plus envoyé au bot mais écrit dans le panneau de HAL, ave
 
 #### B.9.5 L'application iPhone
 
-La bêta `ios/CoachSante/` reste en service jusqu'à la bascule (lot 10 de la partie E). L'application qui la remplace, HAL, est décrite en partie C : elle fait tout ce que faisait la bêta, et ce qui lui manquait, la file sans réseau, les réponses avec leurs boutons, la séance libre, la mesure et le signalement.
+La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la partie E) ; elle est rangée dans `anciennes_fonctionnalites/coach_sante/`. L'application qui la remplace, HAL, est décrite en partie C : elle fait tout ce que faisait la bêta, et ce qui lui manquait, la file sans réseau, les réponses avec leurs boutons, la séance libre, la mesure et le signalement.
 
 ---
 
@@ -3369,7 +3369,7 @@ La bêta `ios/CoachSante/` reste en service jusqu'à la bascule (lot 10 de la pa
 
 Prévus au retrait : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
 
-**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré est dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
+**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) se font au lot 2 de la partie E. Le code retiré ira dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme.
 
 #### B.10.4 Ordre de construction
 
@@ -3386,7 +3386,7 @@ Les migrations partent de 051. Les fonctions, les vues et les déclencheurs vont
 | 7. HAL complet | Tous les outils, les sept moments, la requalification, l'ordonnanceur, un appel à la fois, les essais qui reprennent, le journal privé | Une semaine entière jouée sur le Docker local, de l'objectif à la révision du dimanche |
 | 8. Mise en production | Fusion dans `main`, puis `coach_actif` pour un compte | Le planning domestique tourne comme avant ; la première synthèse arrive à 23 h |
 
-Les lots 1 à 8 sont faits ; la fin du lot 4 l'a été au lot 2 de la partie E (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
+Les lots 1 à 3 et 5 à 8 sont faits ; le lot 4 l'est en partie (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
 
 ---
 
@@ -3467,7 +3467,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 
 ### C.1 Rappel et choix effectués
 
-- **Une seule application, HAL**, pour tout : le planning, la maison, le sport, la santé et l'IA. Elle remplace la bêta `ios/CoachSante/`, qui reste dans le dépôt tant que HAL ne fait pas tout ce qu'elle fait (lot 10 de la partie E).
+- **Une seule application, HAL**, pour tout : le planning, la maison, le sport, la santé et l'IA. Elle remplace la bêta Coach Santé, rangée dans `anciennes_fonctionnalites/coach_sante/` à la bascule (lot 10 de la partie E).
 - **Le bot Telegram ne sert plus qu'à l'administration** (partie D, `ADM`). Tout ce qu'un membre du foyer faisait par le bot se fait dans l'appli. L'annexe 5 donne, commande par commande, l'écran qui la remplace.
 - **iOS 26 au minimum, SwiftUI, et le vrai Liquid Glass** d'Apple (`glassEffect`). Pas d'imitation pour les versions plus anciennes.
 - **Le compte développeur Apple payant est un prérequis.** Il permet les notifications envoyées par le serveur, les widgets iOS qui partagent les données de l'appli, et met fin à la réinstallation tous les sept jours.

@@ -165,9 +165,9 @@ SQL
 docker compose restart api
 ```
 
-Chacun relie ensuite son compte Telegram, avec `/demarrer` suivi de sa clé d'API, puis choisit le mot de passe de l'application iPhone avec `/motdepasse`.
+Tout le reste se fait dans l'application iPhone HAL : l'administrateur s'y connecte, puis invite les autres membres du foyer depuis Réglages ; une invitation donne un code, et chacun choisit son mot de passe en l'acceptant. Le bot Telegram ne sert plus qu'à l'administrateur du serveur : il s'y relie avec `/demarrer` suivi de sa clé d'API, et reçoit les alertes du serveur.
 
-Le coach s'active par compte, avec `POST /coach/activer`. Il demande une clé d'API Anthropic dans `.env` ; le nom du modèle est un réglage. Au premier message, le bot conduit le démarrage : profil, limitations, lieux, objectif. L'installation de l'application iPhone est dans [`ios/CoachSante/LISEZMOI.md`](ios/CoachSante/LISEZMOI.md).
+HAL, le coach, demande une clé d'API Anthropic dans `.env` ; le nom du modèle est un réglage. Chacun le démarre dans l'appli : profil, limitations, lieux, objectif. L'installation de l'application est dans [`ios/HAL/LISEZMOI.md`](ios/HAL/LISEZMOI.md).
 
 | | |
 |---|---|
@@ -210,7 +210,8 @@ api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, 
 api/coach/                  le coach : consigne, outils, mémoire, boucle d'appel au modèle
 coach/                      son dossier (un fichier par chapitre), ses paquets, son catalogue,
                             sa consigne, ses scénarios
-ios/CoachSante/             l'application iPhone : Santé, saisie de musculation
+ios/HAL/                    l'application iPhone HAL : planning, maison, sport, santé, HAL,
+                            ses widgets et sa Live Activity
 outils/                     déploiement, pile locale, démarrage d'un compte du coach,
                             scénarios, diagnostics d'un flux et de la boîte mail
 anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre

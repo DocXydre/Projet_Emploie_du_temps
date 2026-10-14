@@ -44,7 +44,7 @@ BEGIN
          ORDER BY CASE WHEN COALESCE(v_tard, FALSE) THEN -EXTRACT(EPOCH FROM h)
                        ELSE EXTRACT(EPOCH FROM h) END
     LOOP
-        v_obstacle := obstacle_seance(p_utilisateur, p_lieu, v_heure, p_duree,
+        v_obstacle := obstacle_seance_coach(p_utilisateur, p_lieu, v_heure, p_duree,
                                             p_discipline, p_ignorer, TRUE);
         IF v_obstacle IS NOT NULL THEN
             IF v_code IS NULL THEN

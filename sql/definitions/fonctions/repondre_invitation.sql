@@ -36,7 +36,8 @@ BEGIN
     -- Accepter, c'est choisir cette séance pour soi : elle passe par les mêmes
     -- règles que n'importe quel choix, et peut donc être refusée si l'emploi
     -- du temps a changé depuis l'invitation.
-    v_occurrence := choisir_seance_sport(p_utilisateur, i.id_lieu, i.debut_seance);
+    v_occurrence := choisir_seance_sport(p_utilisateur, i.id_lieu, i.debut_seance,
+                                         NULL, 'a_deux');
 
     UPDATE invitation_sport
        SET statut = 'acceptee', date_reponse = now(),

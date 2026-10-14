@@ -106,7 +106,7 @@ BEGIN
                      LEAST((s.debut_seance AT TIME ZONE 'Europe/Paris')::TIME
                            + make_interval(mins => v_duree), TIME '23:59')),
             v_duree, s.discipline, v_intensite, v_groupes, p_occurrence);
-        v_bloc := bloc_de_seance(p_utilisateur, v_lieu, v_debut, v_duree);
+        v_bloc := bloc_seance_duree(p_utilisateur, v_lieu, v_debut, v_duree);
 
         UPDATE occurrence o
            SET creneau = NULL, statut = 'a_placer',

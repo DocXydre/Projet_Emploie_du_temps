@@ -39,7 +39,7 @@ BEGIN
     v_lieu  := CASE WHEN p_lieu IS NULL THEN s.id_lieu
                     ELSE lieu_de_discipline(p_utilisateur, s.discipline, p_lieu) END;
 
-    v_raison := obstacle_seance(p_utilisateur, v_lieu, v_debut, s.duree_minutes,
+    v_raison := obstacle_seance_coach(p_utilisateur, v_lieu, v_debut, s.duree_minutes,
                                       s.discipline, p_occurrence, FALSE);
     IF v_raison IS NOT NULL THEN
         PERFORM refus_coach('creneau_pris', v_raison);
@@ -54,7 +54,7 @@ BEGIN
             || jsonb_build_object('code', r.code, 'message', r.motif);
     END LOOP;
 
-    v_bloc := bloc_de_seance(p_utilisateur, v_lieu, v_debut, s.duree_minutes);
+    v_bloc := bloc_seance_duree(p_utilisateur, v_lieu, v_debut, s.duree_minutes);
 
     UPDATE occurrence o
        SET creneau = NULL, statut = 'a_placer',

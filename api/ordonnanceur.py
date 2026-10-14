@@ -10,9 +10,10 @@
                         la clôture du jour et la révision du dimanche
     chaque minute       changements à raconter (NOT-17), envoi par Apple (NOT-16)
     07h10               propositions de week-end
+    07h20, le lundi     prévenir si le sport de la semaine n'est pas choisi
+    toutes les 30 min   constater les séances à déterminer passées
     06h55               coach : rattrapage de la synthèse si elle a échoué
     toutes les 10 min   coach : ajustements restés sans réponse au début d'une séance
-    toutes les 5 min    surveillance du serveur, alertes à l'administrateur (ADM-2)
     00h05               report d'office de ce qui n'a pas été fait
 
 Les heures ci-dessus sont des heures de Paris. Le conteneur, lui, vit en UTC :
@@ -130,6 +131,39 @@ def relever_les_horaires() -> list[dict]:
         return []
 
 
+def alerter_pour_le_sport() -> int:
+    """SPT-27 : le lundi, prévenir si la semaine n'a pas ses séances choisies.
+
+    Rien quand tout est choisi. Sinon ce qui manque, et ce qui est réservé en
+    attendant, avec un bouton pour organiser.
+    """
+    from api import sport
+
+    try:
+        return sport.alerter_le_lundi()
+    except Exception:
+        LOG.exception("Échec de l'alerte de sport du lundi")
+        return 0
+
+
+def constater_le_sport() -> int:
+    """SPT-25 : une séance à déterminer passée sans être choisie.
+
+    Pas de « c'est fait ? » : un message le constate, et la semaine se complète
+    sur un autre jour quand il en reste.
+    """
+    from api import sport
+
+    try:
+        manquees = sport.constater_les_manquees()
+    except Exception:
+        LOG.exception("Échec du constat des séances à déterminer")
+        return 0
+    if manquees:
+        LOG.info("Sport : %s séance(s) à déterminer passée(s)", manquees)
+    return manquees
+
+
 def placer() -> int:
     conf = configuration()
     resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
@@ -225,15 +259,7 @@ def notifications_de_l_appli() -> dict:
         bilan.update(apple.envoyer_la_file())
     except Exception:
         LOG.exception("Échec de l'envoi par Apple")
-    from api import administration
-    administration.apres_l_envoi_par_apple(bilan)
     return bilan
-
-
-def surveillance() -> list[str]:
-    """ADM-2 : sources, erreurs de l'API, disque et base, pour l'administrateur."""
-    from api import administration
-    return administration.surveiller()
 
 
 def report_de_minuit() -> dict:
@@ -410,6 +436,20 @@ def demarrer() -> BackgroundScheduler:
                          id="weekends", name="Propositions de week-end",
                          coalesce=True)
 
+    # Lundi seulement, juste après le bilan : la semaine vient de commencer et
+    # c'est le moment où on l'organise.
+    ordonnanceur.add_job(alerter_pour_le_sport,
+                         CronTrigger(day_of_week="mon", hour=7, minute=20,
+                                     timezone=conf.fuseau),
+                         id="sport", name="Alerte de sport du lundi",
+                         coalesce=True)
+
+    # Une réservation passée se constate vite, pour que le message arrive quand
+    # on peut encore caser la séance ailleurs dans la journée.
+    ordonnanceur.add_job(constater_le_sport, IntervalTrigger(minutes=30),
+                         id="sport_manque", name="Séances à déterminer passées",
+                         max_instances=1, coalesce=True)
+
     # Le coach. La synthèse part à l'heure du récap de chacun (heures_de_chacun),
     # clôture du jour comprise. Les nouveaux essais se programment d'eux-mêmes
     # après un échec.
@@ -418,11 +458,6 @@ def demarrer() -> BackgroundScheduler:
                          coalesce=True)
     ordonnanceur.add_job(ajustements_du_coach, IntervalTrigger(minutes=10),
                          id="coach_ajustements", name="Ajustements sans réponse",
-                         max_instances=1, coalesce=True)
-    # ADM-2, ADM-4 : la surveillance passe souvent ; la base empêche une
-    # alerte de se répéter plus d'une fois par heure.
-    ordonnanceur.add_job(surveillance, IntervalTrigger(minutes=5),
-                         id="surveillance", name="Surveillance du serveur",
                          max_instances=1, coalesce=True)
     ordonnanceur.add_job(report_de_minuit, a(0, 5),
                          id="report", name="Report d'office", coalesce=True)

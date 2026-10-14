@@ -405,20 +405,6 @@ def repondre_invitation(id_invitation: int, reponse: Reponse, qui: Authentifie) 
     return {"id_occurrence": (ligne or {}).get("id_occurrence"), "vient": reponse.vient}
 
 
-@routeur.post("/seances/{id_occurrence}/inviter", tags=["Coach : séances"],
-              summary="Proposer sa séance à l'autre personne")
-def inviter_a_la_seance(id_occurrence: int, qui: Authentifie) -> dict:
-    """SPT-31, PLN-17 : l'autre reçoit le créneau, pas le contenu. Seuls ceux
-    qui sont libres à ce moment sont invités. Faisait partie du bot."""
-    if un_seul("SELECT 1 AS ok FROM occurrence WHERE id_occurrence = %(o)s"
-               " AND id_utilisateur = %(u)s",
-               {"o": id_occurrence, "u": qui.id_utilisateur}) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND,
-                            detail={"code": "introuvable", "message": "Séance introuvable"})
-    ligne = un_seul("SELECT inviter_a_la_seance(%(o)s) AS n", {"o": id_occurrence})
-    return {"invites": (ligne or {}).get("n", 0)}
-
-
 @routeur.get("/appli/semaine", summary="Les séances d'une semaine, pour la valider")
 def semaine_de_sport(qui: Authentifie, lundi: date | None = None) -> dict:
     """3.2 : une validation pour toute la semaine (PLN-6)."""
