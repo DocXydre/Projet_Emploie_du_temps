@@ -420,7 +420,7 @@ def _comptes() -> tuple[dict[int, str], dict[str, str]]:
             {ligne["pseudo"]: ligne["nom"] for ligne in lignes})
 
 
-def _routine(evenement: dict) -> bool:
+def routine(evenement: dict) -> bool:
     """Ce qui ne mérite pas une ligne quand on ne l'a pas demandé.
 
     Un message parti normalement, un courriel sans billet : c'est le cours
@@ -448,7 +448,7 @@ def _ordre_des_taches(evenement: dict) -> tuple[int, datetime]:
 
 
 def lire(mot: str | None = None, admin: bool = False,
-         actions: int = 8, jours: int = 90) -> list[dict]:
+         actions: int = 8, jours: int = 90, avant: datetime | None = None) -> list[dict]:
     """Les dernières actions, de la plus récente à la plus ancienne.
 
     Chaque action rend ses événements, mis en phrases. Sans mot, on ne lit que
@@ -457,6 +457,8 @@ def lire(mot: str | None = None, admin: bool = False,
 
     JRN-6 : le technique n'est rendu qu'à l'administrateur.
     JRN-9 : avec un mot, seules les actions qui en parlent sont rendues.
+    `avant` reprend la lecture sous une action déjà montrée : l'Historique de
+    l'appli charge la suite en descendant.
     """
     noms, par_pseudo = _comptes()
     evenements = lister(
@@ -467,6 +469,7 @@ def lire(mot: str | None = None, admin: bool = False,
              WHERE quand > now() - make_interval(days => %(jours)s)
                AND (%(admin)s OR NOT technique)
              GROUP BY operation
+            HAVING %(avant)s::TIMESTAMPTZ IS NULL OR max(quand) < %(avant)s::TIMESTAMPTZ
              ORDER BY dernier DESC
              LIMIT %(limite)s
         )
@@ -479,7 +482,8 @@ def lire(mot: str | None = None, admin: bool = False,
         """,
         # Trois fois plus d'actions que demandé : certaines ne contiennent que
         # de la routine, et ne donneront aucune ligne.
-        {"jours": jours, "admin": admin, "limite": None if mot else actions * 3},
+        {"jours": jours, "admin": admin, "avant": avant,
+         "limite": None if mot else actions * 3},
     )
 
     par_action: dict[str, list[dict]] = {}
@@ -517,7 +521,7 @@ def lire(mot: str | None = None, admin: bool = False,
     return resultat
 
 
-def _origine(origine: str | None) -> str:
+def origine_lisible(origine: str | None) -> str:
     if not origine:
         return ""
     for prefixe in ("bot : ", "api : "):
@@ -540,10 +544,10 @@ def lignes_d_action(action: dict, filtre: bool = False) -> list[str]:
         # À côté de ce qu'on cherche, ce qui l'a provoqué : une absence, un
         # cours ajouté, un billet lu. C'est la réponse à « pourquoi ».
         causes = [e for e in evenements
-                  if not e.get("correspond") and not _routine(e)
+                  if not e.get("correspond") and not routine(e)
                   and e["objet"] not in ("occurrence", "notification")]
     else:
-        retenus = [e for e in evenements if not _routine(e)]
+        retenus = [e for e in evenements if not routine(e)]
         causes = []
 
     declencheurs = [e for e in retenus if e["objet"] not in ("occurrence", "notification")]
@@ -573,7 +577,7 @@ def entete(action: dict) -> str:
     """Quand, qui, et par quelle action. En HTML."""
     return " · ".join(morceau for morceau in (
         f"<b>{_moment(action['quand'])}</b>", _html(action["qui"]),
-        _html(_origine(action["origine"]))) if morceau)
+        _html(origine_lisible(action["origine"]))) if morceau)
 
 
 def raconter(mot: str | None = None, admin: bool = False) -> str:

@@ -69,12 +69,17 @@ struct WidgetMaintenant: View {
 struct WidgetTaJournee: View {
     let taille: TailleWidget
     @Environment(Foyer.self) private var foyer
+    @Environment(Aiguillage.self) private var aiguillage
 
     var body: some View {
         CoquilleWidget(.taJournee) {
             let evenements = foyer.evenementsDuJour
-            if evenements.isEmpty {
-                VideWidget(texte: "Ajoute un calendrier pour voir ta journée.")
+            if evenements.isEmpty && foyer.sansCalendrier {
+                VideWidget(texte: "Ajoute un calendrier pour voir ta journée.", bouton: "Ajouter") {
+                    aiguillage.feuille = .ajouterCalendrier
+                }
+            } else if evenements.isEmpty {
+                VideWidget(texte: "Rien de prévu aujourd'hui.")
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(evenements.prefix(taille == .grand ? 10 : 4)) { evenement in
@@ -159,15 +164,24 @@ struct WidgetConflit: View {
     }
 }
 
-/// Ce qu'un widget dit quand il n'a rien à montrer : ce qui manque (WID-8).
+/// Ce qu'un widget dit quand il n'a rien à montrer : ce qui manque, et comment
+/// l'obtenir en un bouton (WID-8).
 struct VideWidget: View {
     let texte: String
+    var bouton: String? = nil
+    var action: () -> Void = {}
 
     var body: some View {
-        Text(texte)
-            .texte(.corps)
-            .foregroundStyle(Palette.texteSecondaire)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .multilineTextAlignment(.center)
+        VStack(spacing: 8) {
+            Text(texte)
+                .texte(.corps)
+                .foregroundStyle(Palette.texteSecondaire)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.85)
+            if let bouton {
+                Button(bouton, action: action).buttonStyle(.hal(.verreAccent))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 }

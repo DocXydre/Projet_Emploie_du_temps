@@ -118,6 +118,7 @@ struct WidgetForme: View {
 
 struct WidgetObjectif: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(ConversationHAL.self) private var conversation
 
     var body: some View {
         CoquilleWidget(.objectif) {
@@ -128,8 +129,12 @@ struct WidgetObjectif: View {
                     Text("J−\(objectif.joursRestants)").texte(.chiffre).foregroundStyle(Palette.textePrincipal)
                     ProgressView(value: objectif.avancee).tint(Categorie.sport.couleur)
                 }
+            } else if foyer.demarrageDeHAL != nil {
+                VideWidget(texte: "Pas encore d'objectif.", bouton: "Démarrer HAL") {
+                    conversation.demarrageOuvert = true
+                }
             } else {
-                VideWidget(texte: "Pas encore d'objectif : HAL t'en propose un au démarrage.")
+                VideWidget(texte: "Pas d'objectif en cours : dis à HAL ce que tu vises.")
             }
         }
     }

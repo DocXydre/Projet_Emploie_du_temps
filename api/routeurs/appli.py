@@ -202,6 +202,19 @@ def aujourdhui(qui: Authentifie) -> dict:
         params,
     )
 
+    # 8.6 à 8.8 : ce qui manque à un compte neuf, pour qu'Aujourd'hui et Maison
+    # disent quoi faire tant que c'est vide (PRE-3, WID-8).
+    depart = un_seul(
+        """
+        SELECT (SELECT count(*) FROM source s
+                 WHERE s.id_utilisateur = %(moi)s AND s.mode_collecte = 'ics'
+                   AND s.active AND s.url IS NOT NULL)::INTEGER AS calendriers,
+               (SELECT count(*) FROM tache t
+                 WHERE t.active AND t.categorie <> 'sport')::INTEGER AS taches
+        """,
+        params,
+    )
+
     return {
         "jour": un_seul("SELECT jour_de(now()) AS jour")["jour"],
         "membres": membres,
@@ -215,6 +228,7 @@ def aujourdhui(qui: Authentifie) -> dict:
         "propositions": propositions,
         "orbe": bool(orbe and orbe["a_dire"]),
         "droits": droits,
+        "depart": depart,
     }
 
 

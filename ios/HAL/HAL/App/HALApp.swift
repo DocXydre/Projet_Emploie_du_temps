@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct HALApp: App {
+    @UIApplicationDelegateAdaptor(DelegueApp.self) private var delegue
     @State private var apparence = Apparence()
     @State private var session = Session()
     @State private var foyer: Foyer
@@ -10,6 +11,7 @@ struct HALApp: App {
     @State private var disposition = Disposition()
     @State private var seance = SeanceEnCours()
     @State private var sante = EnvoiSante()
+    @State private var aiguillage = Aiguillage()
     @Environment(\.scenePhase) private var phase
 
     init() {
@@ -23,6 +25,9 @@ struct HALApp: App {
             Group {
                 if session.etat == .aChoisir {
                     EcranConnexion()
+                } else if session.accueilAFaire, session.pseudo != nil {
+                    // PRE-2 : Santé, les notifications, les calendriers, HAL.
+                    EcranPremierLancement()
                 } else {
                     Racine()
                 }
@@ -35,6 +40,8 @@ struct HALApp: App {
             .environment(disposition)
             .environment(seance)
             .environment(sante)
+            .environment(aiguillage)
+            .environment(delegue.notifications)
             .environment(\.theme, apparence.theme)
             .environment(\.verre, apparence.verre)
             .tint(apparence.theme.principal)
@@ -50,12 +57,31 @@ struct HALApp: App {
                     // ORB-8 : un message resté sans réponse repart à l'ouverture.
                     await conversation.charger()
                     await lireSante()
+                    // Un accord donné ou retiré dans les réglages d'iOS.
+                    await delegue.notifications.relire()
                 }
             }
+            // 5.18 : la page d'un lien d'invitation ouvre l'appli sur « Rejoindre ».
+            .onOpenURL { url in ouvrir(url) }
         }
         // SAN-10 : iOS réveille l'appli de temps en temps pour envoyer Santé.
         .backgroundTask(.appRefresh(EnvoiSante.idTache)) {
             await sante.envoyerEnFond()
+        }
+    }
+
+    /// Une invitation se lit sans compte : connecté, l'appli dit pourquoi elle
+    /// ne s'en sert pas ; en démonstration, elle revient à la connexion.
+    private func ouvrir(_ url: URL) {
+        guard aiguillage.ouvrir(url) else { return }
+        switch session.etat {
+        case .connecte:
+            aiguillage.invitation = nil
+            aiguillage.invitationRefusee = true
+        case .demonstration:
+            session.deconnecter()
+        case .aChoisir:
+            break
         }
     }
 
@@ -71,6 +97,7 @@ struct HALApp: App {
             foyer.brancher(client)
             sante.client = client
             conversation.client = client
+            delegue.notifications.client = client
             let foyerBranche = foyer
             conversation.apresAction = { await foyerBranche.charger() }
             Task { await lireSante() }
@@ -83,6 +110,7 @@ struct HALApp: App {
             foyer.debrancher()
             sante.client = nil
             conversation.client = nil
+            delegue.notifications.client = nil
             conversation.apresAction = nil
             file.expediteur = ExpediteurFictif(foyer: foyer)
             file.apresEnvoi = nil

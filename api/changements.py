@@ -125,7 +125,7 @@ def raison(lignes: list[dict], siens: list[dict], noms: dict[int, str],
     place de la tâche, le geste de quelqu'un, et à défaut d'où vient l'action."""
     declencheurs = [e for e in lignes
                     if e["objet"] not in ("occurrence", "notification")
-                    and not e["technique"] and not journal._routine(e)]
+                    and not e["technique"] and not journal.routine(e)]
     texte = declencheurs[0]["phrase"] if declencheurs else None
 
     if texte is None:
@@ -144,7 +144,7 @@ def raison(lignes: list[dict], siens: list[dict], noms: dict[int, str],
     if texte is None:
         acteur, origine = lignes[0]["acteur"], lignes[0]["origine"]
         texte = (f"changé par {noms_par_pseudo[acteur]}" if acteur in noms_par_pseudo
-                 else journal._origine(origine) or None)
+                 else journal.origine_lisible(origine) or None)
     if not texte:
         return None
     return texte if len(texte) <= MAX_RAISON else texte[:MAX_RAISON - 1].rstrip() + "…"
