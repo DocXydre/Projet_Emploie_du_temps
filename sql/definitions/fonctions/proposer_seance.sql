@@ -117,7 +117,7 @@ BEGIN
     v_debut := chercher_debut_seance(p_utilisateur, v_lieu, p_jour, p_heure_min,
                                      p_heure_max, p_duree, p_discipline, p_intensite,
                                      v_groupes);
-    v_bloc := bloc_seance_duree(p_utilisateur, v_lieu, v_debut, p_duree);
+    v_bloc := bloc_de_seance(p_utilisateur, v_lieu, v_debut, p_duree);
 
     -- Une séance passe avant le ménage, qui se replace autour.
     UPDATE occurrence o
@@ -129,11 +129,6 @@ BEGIN
        AND NOT o.rappel_journee
        AND o.origine NOT IN ('quota', 'coach')
        AND o.creneau && v_bloc;
-    DELETE FROM occurrence o
-     WHERE o.id_utilisateur = p_utilisateur
-       AND o.id_tache = v_tache AND o.origine = 'quota'
-       AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
-       AND (o.creneau && v_bloc OR jour_de(o.debut_seance) = p_jour);
 
     INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, creneau, statut,
                             origine, epinglee, id_lieu, debut_seance, motif, titre)

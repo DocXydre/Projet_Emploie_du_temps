@@ -147,7 +147,7 @@ BEGIN
 
         IF v_duree > s.duree_minutes THEN
             r := NULL;
-            SELECT obstacle_seance_coach(p_utilisateur, s.id_lieu, s.debut_seance, v_duree,
+            SELECT obstacle_seance(p_utilisateur, s.id_lieu, s.debut_seance, v_duree,
                                          s.discipline, p_occurrence, TRUE) AS motif INTO r;
             IF r.motif IS NOT NULL THEN
                 PERFORM refus_coach('creneau_pris', r.motif);
