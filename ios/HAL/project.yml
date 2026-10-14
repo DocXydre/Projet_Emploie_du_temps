@@ -67,6 +67,7 @@ targets:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
         # NOT-16 : les notifications envoyées par le serveur, par le service
-        # d'Apple. Demande le compte développeur payant ; Xcode passe en
-        # « production » pour une appli distribuée.
-        aps-environment: development
+        # d'Apple. Elles demandent le compte développeur payant : une équipe
+        # personnelle refuse de signer l'appli avec. Retirer le « # » de la
+        # ligne suivante, puis relancer xcodegen, une fois le compte pris.
+        # aps-environment: development
