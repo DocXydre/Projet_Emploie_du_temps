@@ -76,6 +76,25 @@ Changer d'exercice avant de lancer (3.4) se fait pendant la séance, par le menu
 - Le démarrage de HAL, écran par écran : profil, limitation, lieux, objectif, récapitulatif, avis, plan, semaine de calibrage (7.1 à 7.17). Il reprend là où on s'était arrêté.
 - Réglages : profil sportif, limitations et exercices interdits, lieux, mémoire de HAL et ses versions, pause, reprendre ou repartir de zéro.
 
+## Ce que fait le lot 8
+
+- Le premier lancement, après une connexion ou une invitation acceptée : Santé, les notifications, les calendriers, la rencontre avec HAL (8.1 à 8.5). Chaque écran explique avant que la fenêtre d'iOS ne s'ouvre ; Santé n'est plus demandée toute seule à l'ouverture (PRE-2). Chacun a « Plus tard » (PRE-3).
+- Rejoindre un foyer par un lien : l'administrateur partage `https://serveur/rejoindre/CODE`, une page qui ouvre l'appli par `hal://rejoindre`, avec le code et l'adresse du serveur déjà remplis (5.16, 5.18). Il ne reste qu'à choisir son pseudo et son mot de passe.
+- Aujourd'hui dit à un compte neuf quoi faire : « Pour bien démarrer » liste ce qui manque, un calendrier, HAL, Santé, les notifications, et chaque ligne disparaît une fois faite (8.6). Maison et Sport font de même pour les tâches, la personne à inviter et Santé (8.7, 8.8). Un widget vide propose le bouton qui le remplit (WID-8).
+- Serveur injoignable : le bandeau est sur les trois onglets, avec l'heure des données affichées et ce qui attend d'être envoyé (8.9, APP-2). Une clé que le serveur ne reconnaît plus propose de se reconnecter.
+- Réglages, groupe Planning : les calendriers à suivre, leur état, le groupe de TD, les UE écartées, arrêter et reprendre (5.3) ; ajouter un calendrier en collant son lien, vérifié avant d'être gardé (5.4, COL-7) ; les calendriers abonnés, le lien de son planning, les calendriers composés (5.12) ; l'Historique, jour par jour, avec sa recherche (5.17).
+- Réglages, Appareil : les notifications et mes heures, bilan, relance, récap et silence (5.11). L'iPhone s'enregistre auprès du serveur pour les notifications d'Apple, et s'en retire à la déconnexion (NOT-16, CNX-6).
+- Réglages, Foyer et compte : le foyer, ses membres, inviter, les droits sur les tâches, passer l'administration, retirer, quitter (5.15, 5.16) ; le serveur et l'état de la connexion (5.13).
+
+La capacité Push (`aps-environment`) est dans `project.yml` : elle demande le compte développeur payant. Réglages, Essais, « Revoir le premier lancement » le rejoue sans se déconnecter, et « Compte neuf » montre en démonstration ce que voit un compte qui arrive.
+
+### Vérifier le lot 8
+
+1. Sur le premier iPhone : Réglages, Le foyer, Inviter quelqu'un, puis partager le lien.
+2. Sur l'autre : toucher le lien, puis « Ouvrir dans HAL ». Le code et le serveur sont remplis ; choisir un pseudo et un mot de passe.
+3. Passer les quatre écrans, ou en sauter avec « Plus tard ».
+4. Aujourd'hui montre « Pour bien démarrer » avec ce qui reste. Ajouter un calendrier le fait disparaître de la liste, et la journée s'affiche.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :
@@ -89,7 +108,7 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 | Dossier | Contenu |
 |---|---|
-| `App` | Le point d'entrée |
+| `App` | Le point d'entrée, les notifications d'Apple |
 | `Theme` | Couleurs, mesures, styles de texte, combinaisons, photo de fond |
 | `Composants` | Les composants réutilisables |
 | `Navigation` | La racine, la barre d'onglets, les gabarits d'écran |
@@ -99,7 +118,8 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 | `Ecrans` | Les onglets, les réglages et les formulaires |
 | `Sport` | La séance en cours, gardée sur le téléphone, et ses écrans |
 | `Sante` | La lecture de Santé et son envoi |
+| `PremierLancement` | Les quatre écrans d'après la connexion |
 
 ## La suite
 
-Le lot 7 : HAL dans l'appli. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
+Le lot 9 : les widgets iOS, l'écran verrouillé, la Live Activity et l'envoi à la montre. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.

@@ -15,8 +15,11 @@ struct Racine: View {
     @Environment(ConversationHAL.self) private var conversation
     @Environment(SeanceEnCours.self) private var seance
     @Environment(Foyer.self) private var foyer
-    @State private var onglet: Onglet = .aujourdhui
+    @Environment(Session.self) private var session
+    @Environment(Aiguillage.self) private var aiguillage
     @State private var annonce: Annonce?
+
+    private var onglet: Onglet { aiguillage.onglet }
 
     var body: some View {
         GeometryReader { geo in
@@ -39,7 +42,7 @@ struct Racine: View {
                             .padding(.horizontal, Espace.marge)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    BarreOnglets(selection: $onglet)
+                    BarreOnglets(selection: Bindable(aiguillage).onglet)
                 }
                 .padding(.bottom, 4)
             }
@@ -61,6 +64,23 @@ struct Racine: View {
         .fullScreenCover(isPresented: Bindable(seance).affichee) { EcranSeanceEnCours() }
         // Le démarrage de HAL, depuis Sport, l'orbe ou Réglages (DEM-1).
         .fullScreenCover(isPresented: Bindable(conversation).demarrageOuvert) { EcranDemarrage() }
+        // Ce qu'une carte de départ ou un widget vide propose, d'où qu'on soit (WID-8).
+        .sheet(item: Bindable(aiguillage).feuille) { feuille in
+            switch feuille {
+            case .ajouterCalendrier:
+                NavigationStack { FormulaireCalendrier() }.feuilleEnVerre()
+            case .ajouterTache:
+                NavigationStack { FormulaireTache() }.feuilleEnVerre()
+            case .inviter:
+                NavigationStack { EcranInvitation() }.feuilleEnVerre()
+            }
+        }
+        // FOY-3 : une invitation crée un compte. Connecté, on ne s'en sert pas.
+        .alert("Tu es déjà connecté", isPresented: Bindable(aiguillage).invitationRefusee) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Cette invitation crée un nouveau compte. Pour l'utiliser, déconnecte-toi d'abord de « \(session.pseudo ?? "") », dans Réglages, Serveur et connexion.")
+        }
         .environment(\.annoncer, AnnonceurAction { nouvelle in
             withAnimation(.snappy) { annonce = nouvelle }
         })

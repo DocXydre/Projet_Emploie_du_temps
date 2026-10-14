@@ -93,6 +93,14 @@ struct EtatDuJour: Codable {
         let modifier: Bool
     }
 
+    /// Ce qui manque à un compte neuf (8.6 à 8.8).
+    struct DepartAPI: Codable {
+        /// Mes calendriers suivis, lien donné.
+        let calendriers: Int
+        /// Les tâches actives du foyer, hors sport.
+        let taches: Int
+    }
+
     let jour: Date
     let membres: [MembreAPI]
     let evenements: [EvenementAPI]
@@ -105,6 +113,8 @@ struct EtatDuJour: Codable {
     let propositions: [PropositionAPI]
     let orbe: Bool
     let droits: DroitsAPI?
+    /// Absent d'une réponse gardée avant le lot 8.
+    let depart: DepartAPI?
 }
 
 /// Une tâche récurrente du foyer, telle que `GET /taches` la rend.
