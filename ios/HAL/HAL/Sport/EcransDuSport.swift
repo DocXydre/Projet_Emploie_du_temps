@@ -77,6 +77,7 @@ struct EcranSemaine: View {
     @State private var semaine: SemaineDeSport?
     @State private var erreur: String?
     @State private var envoi = false
+    @State private var ouverte: DetailSeance?
 
     init(lundi: Date? = nil) {
         _lundi = State(initialValue: lundi)
@@ -101,7 +102,8 @@ struct EcranSemaine: View {
                 ForEach(jours(semaine), id: \.self) { jour in
                     Section(jourCourt(jour)) {
                         ForEach(semaine.seances.filter { Calendar.current.isDate($0.jour, inSameDayAs: jour) }) { seance in
-                            ligne(seance)
+                            Button { Task { await ouvrir(seance.idOccurrence) } } label: { ligne(seance) }
+                                .buttonStyle(.plain)
                         }
                     }
                 }
@@ -158,6 +160,17 @@ struct EcranSemaine: View {
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL(semaine.map { "Semaine du \(jourCourt($0.lundi))" } ?? "La semaine")
         .task(id: lundi) { await charger() }
+        .sheet(item: $ouverte, onDismiss: { Task { await charger() } }) { detail in
+            EcranSeancePrevue(detail: detail)
+        }
+    }
+
+    private func ouvrir(_ id: Int) async {
+        do {
+            ouverte = try await foyer.demander("GET", "seances/\(id)")
+        } catch {
+            erreur = motif(error)
+        }
     }
 
     private func ligne(_ seance: SemaineDeSport.SeanceDeLaSemaine) -> some View {
@@ -174,7 +187,9 @@ struct EcranSemaine: View {
             }
             Spacer()
             Text(Self.situation(seance.situation)).font(.footnote).foregroundStyle(Palette.texteSecondaire)
+            Image(systemName: "chevron.right").font(.footnote).foregroundStyle(Palette.texteTertiaire)
         }
+        .contentShape(Rectangle())
     }
 
     static func situation(_ code: String?) -> String {
