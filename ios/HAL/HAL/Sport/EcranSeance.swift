@@ -13,7 +13,9 @@ struct EcranSeancePrevue: View {
     @Environment(\.dismiss) private var fermer
     @Environment(\.annoncer) private var annoncer
     @Environment(ConversationHAL.self) private var conversation
+    @Environment(Foyer.self) private var foyer
     @State private var pasFaite = false
+    @State private var supprimer = false
 
     var body: some View {
         NavigationStack {
@@ -75,6 +77,14 @@ struct EcranSeancePrevue: View {
                 } footer: {
                     Text("« Déjà faite » la compte sans charge : tu pourras donner ton bilan ensuite.")
                 }
+                if detail.seance.libre == true && !detail.close {
+                    Section {
+                        Button("Supprimer cette séance libre", role: .destructive) { supprimer = true }
+                            .frame(maxWidth: .infinity)
+                    } footer: {
+                        Text("Lancée par erreur : elle disparaît, sans rien laisser.")
+                    }
+                }
                 if !detail.close {
                     Section {
                         Button {
@@ -96,6 +106,23 @@ struct EcranSeancePrevue: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Fermer") { fermer() } }
+            }
+            .confirmationDialog("Supprimer cette séance libre ?", isPresented: $supprimer,
+                                titleVisibility: .visible) {
+                Button("Supprimer", role: .destructive) {
+                    let id = detail.seance.idOccurrence
+                    Task {
+                        do {
+                            try await foyer.agir("DELETE", "seances/\(id)/libre")
+                            // SAI-19 : si le téléphone la tenait encore ouverte, il l'oublie.
+                            if seance.seance?.idOccurrence == id { seance.oublier() }
+                            annoncer("Séance libre supprimée")
+                            fermer()
+                        } catch {
+                            annoncer((error as? ErreurAPI)?.message ?? "Suppression impossible")
+                        }
+                    }
+                }
             }
             .confirmationDialog("Cette séance n'a pas été faite ?", isPresented: $pasFaite,
                                 titleVisibility: .visible) {

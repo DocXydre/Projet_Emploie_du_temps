@@ -52,6 +52,29 @@ struct ElementHAL: Codable, Hashable, Identifiable, Sendable {
     var seances: Int?
     var semaines: [SemaineDuPlan]?
     var actions: [ActionHAL]?
+    /// Ce que l'élément est devenu depuis : « en_attente » tant que ses boutons
+    /// servent, sinon accepte, refuse, validee, retiree…
+    var etat: String?
+
+    /// L'élément est réglé : ses boutons ne servent plus.
+    var regle: String? {
+        guard let etat, etat != "en_attente" else { return nil }
+        switch etat {
+        case "accepte": return "Accepté"
+        case "refuse": return "Refusé"
+        case "applique": return "Appliqué"
+        case "validee": return "Validée"
+        case "retiree": return "Retirée"
+        case "faite": return "Faite"
+        case "pas_faite": return "Pas faite"
+        case "remplacee": return "Remplacée"
+        case "supprimee": return "Supprimée"
+        case "reportee": return "Repoussée"
+        case "expiree": return "Expirée"
+        case "posee_a_la_main": return "Posée à la main"
+        default: return "Plus d'actualité"
+        }
+    }
 
     var id: String {
         "\(type)-\(idOccurrence ?? idAjustement ?? idFenetre ?? idObjectif ?? idPlan ?? 0)-\(lundi ?? "")"

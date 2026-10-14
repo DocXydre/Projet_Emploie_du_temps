@@ -881,8 +881,14 @@ def relire_echanges(qui: Authentifie, limite: int = Query(default=20, ge=1, le=2
             WHERE id_utilisateur = %(u)s AND (%(m)s::TEXT IS NULL OR moment = %(m)s::TEXT)
             ORDER BY id_echange DESC LIMIT %(n)s""",
         {"u": qui.id_utilisateur, "m": moment, "n": limite})
-    return [{**reponse.depuis_echange(ligne), "id_occurrence": ligne["id_occurrence"],
-             "importance": ligne["importance"]} for ligne in lignes]
+    rendus = []
+    for ligne in lignes:
+        rendu = reponse.depuis_echange(ligne)
+        rendu["elements"] = reponse.etat_des_elements(qui.id_utilisateur,
+                                                      list(rendu["elements"] or []))
+        rendus.append({**rendu, "id_occurrence": ligne["id_occurrence"],
+                       "importance": ligne["importance"]})
+    return rendus
 
 
 @routeur.post("/coach/synthese", tags=["Coach"], summary="Déclencher la synthèse du soir")

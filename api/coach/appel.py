@@ -133,8 +133,12 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "une séance libre annoncée, ou la réponse à une question que tu avais posée. "
             "Applique d'abord le chapitre 1.2, puis le chapitre 8.4 ou 7.4 selon le cas. Tu "
             "peux retirer ou modifier des séances proposées. Sur une séance validée, tu "
-            "déposes un ajustement. Garde la trace de ce qui est signalé dans la mémoire "
-            "de la semaine, et marque l'échange important s'il change la suite.")
+            "déposes un ajustement. Si l'utilisateur veut faire autre chose à la place "
+            "(un footing au lieu de la musculation), retirer ne suffit pas : propose "
+            "aussi la séance qui remplace, avec `proposer_seance`, dans le même appel. "
+            "Ne laisse jamais un trou là où il a dit ce qu'il ferait. Garde la trace de "
+            "ce qui est signalé dans la mémoire de la semaine, et marque l'échange "
+            "important s'il change la suite.")
     elif m == "changement":
         lignes.append(
             "L'utilisateur a touché « Demander un changement » dans l'appli, sur l'élément "
@@ -142,7 +146,9 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "bouton : rien ne change sans lui. Sur une séance proposée, modifie-la ou "
             "retire-la et propose la nouvelle version ; elle reste à valider. Sur une "
             "séance validée, tu ne la modifies pas : tu déposes un ajustement "
-            "(`proposer_ajustement`) avec son motif, qu'il acceptera ou non. Si sa demande "
+            "(`proposer_ajustement`) avec son motif, qu'il acceptera ou non. S'il veut "
+            "faire autre chose à la place, propose aussi la séance qui remplace "
+            "(`proposer_seance`) : un retrait seul laisse un trou. Si sa demande "
             "n'est pas claire, pose une seule question, avec deux ou trois réponses "
             "possibles. Ton message dit en une ou deux phrases ce que tu proposes et "
             "pourquoi ; les boutons pour valider s'affichent dessous.")
