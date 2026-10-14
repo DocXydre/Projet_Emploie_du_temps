@@ -160,8 +160,10 @@ def soir(programmer_essai=None, seulement: set[int] | None = None) -> dict:
 def nouvel_essai(id_utilisateur: int, moment: str, operation_id: str, essai: int,
                  programmer_essai=None) -> bool:
     """COA-11, COA-24 : l'essai garde le numéro d'opération et termine le travail."""
+    from api import administration
     try:
         synthese(id_utilisateur, moment, None, operation_id, essai)
+        administration.hal_repond()
         return True
     except appel.EchecAppel as echec:
         rang = essai - 1                       # essai 2 -> index 1 des délais
@@ -171,6 +173,9 @@ def nouvel_essai(id_utilisateur: int, moment: str, operation_id: str, essai: int
         else:
             # Après le dernier échec, un message le dit. Rattrapage à 6h55.
             figer(id_utilisateur)
+            compte = un_seul("SELECT pseudo FROM utilisateur WHERE id_utilisateur = %(u)s",
+                             {"u": id_utilisateur})
+            administration.hal_injoignable(compte["pseudo"] if compte else str(id_utilisateur))
             executer(
                 """INSERT INTO notification (id_utilisateur, type, contenu)
                    VALUES (%(u)s, 'coach', %(c)s)""",

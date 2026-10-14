@@ -3369,7 +3369,7 @@ La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la p
 
 Prévus au retrait : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
 
-**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) se font au lot 2 de la partie E. Le code retiré ira dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme.
+**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré est dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
 
 #### B.10.4 Ordre de construction
 
@@ -3386,7 +3386,7 @@ Les migrations partent de 051. Les fonctions, les vues et les déclencheurs vont
 | 7. HAL complet | Tous les outils, les sept moments, la requalification, l'ordonnanceur, un appel à la fois, les essais qui reprennent, le journal privé | Une semaine entière jouée sur le Docker local, de l'objectif à la révision du dimanche |
 | 8. Mise en production | Fusion dans `main`, puis `coach_actif` pour un compte | Le planning domestique tourne comme avant ; la première synthèse arrive à 23 h |
 
-Les lots 1 à 3 et 5 à 8 sont faits ; le lot 4 l'est en partie (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
+Les lots 1 à 8 sont faits ; la fin du lot 4 l'a été au lot 2 de la partie E (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
 
 ---
 

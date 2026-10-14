@@ -18,18 +18,9 @@ BEGIN
     IF NOT FOUND THEN
         PERFORM refus_coach('introuvable', 'Compte inconnu');
     END IF;
-
-    IF p_actif THEN
-        DELETE FROM occurrence o
-         USING tache t
-         WHERE t.id_tache = o.id_tache AND t.categorie = 'sport'
-           AND o.id_utilisateur = p_utilisateur
-           AND o.origine = 'quota'
-           AND o.statut IN ('a_placer', 'planifiee', 'notifiee');
-    END IF;
     RETURN p_actif;
 END $$;
 
 COMMENT ON FUNCTION activer_coach(INTEGER, BOOLEAN) IS
-    'COA-1, PRO-7 : active le coach pour un compte qui a un profil, et retire
-     ses réservations à déterminer. Le couper est un retour en arrière d''une ligne.';
+    'COA-1, PRO-7 : active le coach pour un compte qui a un profil. Le couper
+     est un retour en arrière d''une ligne.';

@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import bot, conversation, journal, operation, ordonnanceur
+from api import administration, bot, conversation, journal, operation, ordonnanceur
 from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
@@ -42,6 +42,8 @@ conf = configuration()
 
 @asynccontextmanager
 async def cycle_de_vie(app: FastAPI):
+    # ADM-3 : /erreurs lit ce que l'API écrit au journal.
+    administration.installer()
     demarrer_pool()
     # JRN-7 : un redémarrage explique les tâches planifiées manquées, et ce que
     # l'amorçage modifie doit porter son nom plutôt que « direct ».

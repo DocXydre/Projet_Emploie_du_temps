@@ -17,6 +17,11 @@ struct Fond: View {
                 .overlay(Color.black.opacity(apparence.assombrissement))
         }
         .ignoresSafeArea()
+        // L'image remplit son cadre en débordant : .clipped() cache ce qui
+        // dépasse, mais le débordement reçoit encore les touchers. Dans
+        // l'aperçu de « Fond et couleurs », il passait par-dessus le bouton
+        // retour. Le fond ne se touche jamais.
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
