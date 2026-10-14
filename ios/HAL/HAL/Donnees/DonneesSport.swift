@@ -39,6 +39,15 @@ struct EtatSport: Codable, Sendable {
         let du: Date
         let au: Date
         let consigne: String?
+        /// La séance de test à laquelle HAL a rattaché la fenêtre (MES-6).
+        var jourSeance: Date? = nil
+
+        /// MES-1 : une fenêtre ne se montre qu'une fois commencée, et pas avant
+        /// le jour de sa séance de test.
+        var commencee: Bool {
+            let aujourdhui = Calendar.current.startOfDay(for: .now)
+            return du <= aujourdhui && (jourSeance.map { $0 <= aujourdhui } ?? true)
+        }
     }
 
     struct AjustementAPI: Codable, Sendable {
@@ -105,11 +114,32 @@ struct SemaineDeSport: Codable, Sendable {
     let validee: Date?
     let aValider: Bool
     let seances: [SeanceDeLaSemaine]
+    /// Chapitre 8.1 : effort noté multiplié par la durée. Absente sans bilan.
+    var charge: Charge? = nil
+
+    struct Charge: Codable, Sendable {
+        let chargeSeptJours: Double?
+        let chargeQuatreSemaines: Double?
+        let rapport: Double?
+        let seancesSeptJours: Int?
+        let seancesSansBilan: Int?
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case lundi, role, intention, aValider, seances
+        case lundi, role, intention, aValider, seances, charge
         case validee = "valideeLe"
     }
+}
+
+/// 3.1, 3.19 : une mesure saisie, dans la fenêtre de HAL ou hors fenêtre (MES-4).
+struct MesureSaisie: Codable, Hashable, Identifiable, Sendable {
+    let idMesure: Int
+    let typeMesure: String
+    let valeur: Double
+    let unite: String
+    let cote: String?
+    let dateMesure: Date
+    var id: Int { idMesure }
 }
 
 /// 3.16 : les journées de Santé reçues par le serveur, et les séances de la montre.
@@ -307,6 +337,30 @@ enum Poids {
 
 /// Les mesures que HAL peut demander (MES), avec leur unité.
 enum TypeMesure {
+    /// Les types que le serveur accepte, dans l'ordre de l'écran Mesures.
+    static let tous = ["poids", "tour_taille", "tour_poitrine", "tour_bras", "tour_avant_bras",
+                       "tour_cuisse", "test_course", "test_force"]
+
+    /// Le nom d'une mesure dans une liste : « Poids », pas « Pèse-toi ».
+    static func libelle(_ type: String) -> String {
+        type == "poids" ? "Poids" : nom(type)
+    }
+
+    /// Une valeur lisible : 13 min 05 pour un test de course, 70,8 kg pour un poids.
+    static func enClair(_ valeur: Double, unite: String) -> String {
+        switch unite {
+        case "s":
+            let total = Int(valeur.rounded())
+            return "\(total / 60) min \(String(format: "%02d", total % 60))"
+        case "reps":
+            return "\(Int(valeur.rounded())) reps"
+        default:
+            let nombre = valeur.formatted(.number.precision(.fractionLength(0...1))
+                .locale(Locale(identifier: "fr_FR")))
+            return "\(nombre) \(unite)"
+        }
+    }
+
     static func nom(_ type: String) -> String {
         switch type {
         case "poids": "Pèse-toi"

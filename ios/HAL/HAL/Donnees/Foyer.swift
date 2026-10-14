@@ -293,7 +293,7 @@ final class Foyer {
 
     var mesureDemandee: MesureDemandee? {
         guard connecte else { return essais.mesure ? mesureEnCours : nil }
-        return sportDuServeur?.mesures.first.map { fenetre in
+        return sportDuServeur?.mesures.first(where: \.commencee).map { fenetre in
             MesureDemandee(titre: TypeMesure.nom(fenetre.typeMesure),
                            consigne: fenetre.consigne ?? "Quand tu peux, d'ici la fin de la fenêtre.",
                            jusquA: "jusqu'au " + fenetre.au.formatted(

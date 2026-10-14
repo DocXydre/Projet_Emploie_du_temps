@@ -77,6 +77,9 @@ struct EcranSport: View {
                 ligne("Progression", "chart.line.uptrend.xyaxis", Categorie.sport.couleur) { EcranProgression() }
                 ligne("Sommeil et récupération", "bed.double", Categorie.linge.couleur) { EcranSommeil() }
                 ligne("Objectifs", "target", Categorie.sport.couleur) { EcranObjectifs() }
+                ligne("Mesures", "scalemass", Categorie.ia.couleur) { EcranMesures() }
+                ligne("Séances de la montre", "applewatch", Categorie.sport.couleur) { EcranSeancesMontre() }
+                ligne("Fréquence cardiaque du jour", "heart.text.square", Categorie.alerte.couleur) { EcranFrequence() }
                 Button { annonce = true } label: {
                     LigneReglage(icone: "calendar.badge.plus", couleur: Categorie.ia.couleur,
                                  libelle: "Annoncer une séance libre")

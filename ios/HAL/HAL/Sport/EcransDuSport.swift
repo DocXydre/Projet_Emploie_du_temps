@@ -91,7 +91,7 @@ struct EcranSemaine: View {
                     }
                     .buttonStyle(.borderless)
                     if let intention = semaine.intention, !intention.isEmpty {
-                        Label(intention, systemImage: "sparkle").foregroundStyle(Categorie.ia.couleur)
+                        AvisDeHAL(texte: intention)
                     }
                 }
                 ForEach(jours(semaine), id: \.self) { jour in
@@ -103,6 +103,25 @@ struct EcranSemaine: View {
                 }
                 if semaine.seances.isEmpty {
                     Section { Text("Aucune séance cette semaine.").foregroundStyle(Palette.texteSecondaire) }
+                }
+                if let charge = semaine.charge, charge.chargeSeptJours != nil {
+                    Section {
+                        LabeledContent("Sur 7 jours", value: charge.chargeSeptJours.map { "\(Int($0))" } ?? "–")
+                        LabeledContent("Moyenne par semaine sur 28 jours",
+                                       value: charge.chargeQuatreSemaines.map { "\(Int($0 / 4))" } ?? "–")
+                        if let rapport = charge.rapport {
+                            LabeledContent("Rapport", value: rapport.formatted(
+                                .number.precision(.fractionLength(2)).locale(francais)))
+                        }
+                        if let sans = charge.seancesSansBilan, sans > 0 {
+                            Text("\(sans) séance\(sans > 1 ? "s" : "") sans bilan ne compte\(sans > 1 ? "nt" : "") pas.")
+                                .font(.footnote).foregroundStyle(Palette.texteSecondaire)
+                        }
+                    } header: {
+                        Text("Charge d'entraînement")
+                    } footer: {
+                        Text("La charge d'une séance, c'est l'effort noté au bilan multiplié par sa durée. Le rapport compare ta semaine à ta moyenne : il apparaît après quatre semaines.")
+                    }
                 }
                 if let erreur {
                     Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
@@ -382,7 +401,7 @@ struct EcranObjectifs: View {
                             }
                         }
                         if let avis = objectif.avisDetail ?? objectif.avis {
-                            Label(avis, systemImage: "sparkle").foregroundStyle(Categorie.ia.couleur)
+                            AvisDeHAL(texte: avis)
                         }
                         if let feuille = objectif.feuilleDeRoute, !feuille.isEmpty {
                             Text(feuille).font(.callout).foregroundStyle(Palette.textePrincipal)

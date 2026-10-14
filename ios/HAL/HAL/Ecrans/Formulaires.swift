@@ -25,10 +25,18 @@ struct FormulaireVerre<Contenu: View>: View {
     var body: some View {
         Form {
             Group { contenu }
-                .listRowBackground(Palette.verreTeinte)
+                .listRowBackground(FondDeLigne())
         }
         .scrollContentBackground(.hidden)
         .containerBackground(.clear, for: .navigation)
+    }
+}
+
+/// Le fond d'une ligne de formulaire : le même verre dépoli que les cartes, pour
+/// que le texte reste lisible sur une photo claire.
+struct FondDeLigne: View {
+    var body: some View {
+        Rectangle().fill(.ultraThinMaterial).overlay(Palette.verreTeinte)
     }
 }
 

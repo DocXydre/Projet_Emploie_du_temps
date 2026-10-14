@@ -307,10 +307,17 @@ def sport(qui: Authentifie) -> dict:
         """,
         params,
     )
+    # MES-1 : une fenêtre ne se montre qu'une fois commencée. Rattachée à une
+    # séance de test (MES-6), elle attend le jour de cette séance.
     mesures = lister(
-        """SELECT id_fenetre, type_mesure, lower(periode) AS du, upper(periode) - 1 AS au,
-                  consigne FROM fenetre_mesure
-            WHERE id_utilisateur = %(moi)s AND statut = 'ouverte' ORDER BY lower(periode)""",
+        """SELECT f.id_fenetre, f.type_mesure, lower(f.periode) AS du,
+                  upper(f.periode) - 1 AS au, f.consigne, s.jour AS jour_seance
+             FROM fenetre_mesure f
+             LEFT JOIN v_seance_coach s ON s.id_occurrence = f.id_occurrence
+            WHERE f.id_utilisateur = %(moi)s AND f.statut = 'ouverte'
+              AND lower(f.periode) <= jour_de(now())
+              AND (s.jour IS NULL OR s.jour <= jour_de(now()))
+            ORDER BY lower(f.periode)""",
         params,
     )
     ajustements = lister(
@@ -396,7 +403,15 @@ def semaine_de_sport(qui: Authentifie, lundi: date | None = None) -> dict:
             WHERE p.id_utilisateur = %(moi)s AND p.statut = 'en_cours' AND ps.lundi = %(lundi)s""",
         params,
     )
-    return {"lundi": debut, "role": (plan or {}).get("role"),
+    # Chapitre 8.1 : la charge d'entraînement, vide tant qu'aucun bilan n'existe.
+    charge = un_seul(
+        """SELECT charge_7j::FLOAT AS charge_sept_jours,
+                  charge_28j::FLOAT AS charge_quatre_semaines, rapport::FLOAT AS rapport,
+                  seances_7j AS seances_sept_jours, seances_sans_bilan_28j AS seances_sans_bilan
+             FROM v_charge_entrainement WHERE id_utilisateur = %(moi)s""",
+        params,
+    )
+    return {"lundi": debut, "role": (plan or {}).get("role"), "charge": charge,
             "intention": (plan or {}).get("intention"),
             "validee_le": (plan or {}).get("validee_le"),
             "a_valider": any(s["situation"] == "proposee" for s in seances),
@@ -421,6 +436,19 @@ def sante(qui: Authentifie, jours: int = 30) -> dict:
                   AND lower(a.periode) > now() - make_interval(days => %(jours)s)
                 ORDER BY lower(a.periode) DESC""", params),
     }
+
+
+@routeur.get("/appli/mesures", summary="L'historique des mesures, poids, tours et tests")
+def historique_des_mesures(qui: Authentifie, type: str | None = None) -> list[dict]:
+    """3.1 et 3.19 : les mesures, des plus récentes aux plus anciennes (MES-4)."""
+    return lister(
+        """SELECT id_mesure, type_mesure, valeur::FLOAT AS valeur, unite, cote, date_mesure
+             FROM mesure
+            WHERE id_utilisateur = %(moi)s
+              AND (%(t)s::TEXT IS NULL OR type_mesure = %(t)s::TEXT)
+            ORDER BY date_mesure DESC, id_mesure DESC LIMIT 200""",
+        {"moi": qui.id_utilisateur, "t": type},
+    )
 
 
 @routeur.get("/appli/progression", summary="La progression des exercices, semaine par semaine")

@@ -12,6 +12,41 @@ import Observation
 final class EnvoiSante {
     nonisolated static let idTache = "fr.docxydre.hal.sante"
 
+    /// SAN-10 : ce que l'appli lit, coché dans Réglages. Tout l'est au départ.
+    enum Donnee: String, CaseIterable, Identifiable {
+        case pas, fcRepos, vfc, sommeil, seances, frequence
+
+        var id: String { rawValue }
+
+        var libelle: String {
+            switch self {
+            case .pas: "Pas"
+            case .fcRepos: "Fréquence cardiaque au repos"
+            case .vfc: "Variabilité cardiaque"
+            case .sommeil: "Sommeil"
+            case .seances: "Séances de la montre"
+            case .frequence: "Fréquence cardiaque du jour"
+            }
+        }
+
+        var icone: String {
+            switch self {
+            case .pas: "figure.walk"
+            case .fcRepos: "heart"
+            case .vfc: "waveform.path.ecg"
+            case .sommeil: "bed.double"
+            case .seances: "applewatch"
+            case .frequence: "heart.text.square"
+            }
+        }
+    }
+
+    /// Ce qui est coché. Une case décochée n'est plus envoyée ; ce qui est déjà
+    /// sur le serveur y reste.
+    var lues: Set<Donnee> = Set(Donnee.allCases) {
+        didSet { reglages.set(lues.map(\.rawValue), forKey: "sante.lues") }
+    }
+
     private(set) var enCours = false
     private(set) var dernierEnvoi: Date?
     private(set) var dernierBilan: String?
@@ -24,6 +59,19 @@ final class EnvoiSante {
 
     init() {
         dernierEnvoi = reglages.object(forKey: "sante.dernier_envoi") as? Date
+        if let codes = reglages.stringArray(forKey: "sante.lues") {
+            lues = Set(codes.compactMap(Donnee.init(rawValue:)))
+        }
+    }
+
+    /// Une journée réduite à ce qui est coché.
+    private func filtree(_ jour: JourSante) -> JourSante {
+        var j = jour
+        if !lues.contains(.pas) { j.pas = nil }
+        if !lues.contains(.fcRepos) { j.fcRepos = nil }
+        if !lues.contains(.vfc) { j.vfcMs = nil }
+        if !lues.contains(.sommeil) { j.sommeilMinutes = nil }
+        return j
     }
 
     var disponible: Bool { LecteurSante.disponible }
@@ -73,7 +121,10 @@ final class EnvoiSante {
     }
 
     func relireLaFrequence() async {
-        guard disponible else { return }
+        guard disponible, lues.contains(.frequence) else {
+            frequenceDuJour = []
+            return
+        }
         frequenceDuJour = (try? await lecteur.frequenceDuJour()) ?? []
     }
 
@@ -97,7 +148,7 @@ final class EnvoiSante {
         var echecs = 0
         var injoignable = false
         do {
-            for jour in try await lecteur.jours(depuis: debut) where !jour.estVide {
+            for jour in try await lecteur.jours(depuis: debut).map(filtree) where !jour.estVide {
                 do {
                     try await client.envoyer("PUT", "donnees-sante/jours/\(Self.jour(jour.jour))",
                                              corps: corps(jour.corps))
@@ -109,7 +160,7 @@ final class EnvoiSante {
                     echecs += 1
                 }
             }
-            if !injoignable {
+            if !injoignable && lues.contains(.seances) {
                 for seance in try await lecteur.seances(depuis: debut) {
                     do {
                         try await client.envoyer("PUT", "donnees-sante/activites/\(seance.id.uuidString)",

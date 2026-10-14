@@ -57,6 +57,14 @@ HAL reste fictif jusqu'au lot 7.
 
 Changer d'exercice avant de lancer (3.4) se fait pendant la séance, par le menu « Changer ».
 
+## Ce que fait le lot 6c
+
+- Santé dans Réglages (5.10) : le dernier envoi, « Envoyer maintenant », ce qui est lu, case par case (SAN-10).
+- Les mesures : la dernière de chaque type, sa courbe, l'historique, et une saisie hors de toute fenêtre (MES-4).
+- Les séances de la montre en détail, et la charge d'entraînement dans la semaine.
+- Une mesure demandée n'apparaît qu'à partir du premier jour de sa fenêtre (MES-1).
+- Le texte de HAL est en blanc, et les lignes des formulaires sont en verre dépoli : tout se lit sur une photo claire.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :

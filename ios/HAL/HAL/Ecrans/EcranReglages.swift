@@ -8,6 +8,7 @@ struct EcranReglages: View {
     @Environment(Apparence.self) private var apparence
     @Environment(Disposition.self) private var disposition
     @Environment(Session.self) private var session
+    @Environment(EnvoiSante.self) private var sante
 
     var body: some View {
         PageDefilante {
@@ -51,7 +52,8 @@ struct EcranReglages: View {
 
             EnTeteGroupe(texte: "Appareil")
             GroupeReglages {
-                aVenir("Santé", "heart", Categorie.alerte.couleur, lot: 6)
+                lien("Santé", "heart", Categorie.alerte.couleur,
+                     valeur: sante.disponible ? "\(sante.lues.count) lues" : "Indisponible") { EcranReglagesSante() }
                 aVenir("Apple Watch", "applewatch", Categorie.sport.couleur, lot: 9)
                 aVenir("Notifications", "bell", Categorie.alerte.couleur, lot: 8)
             }

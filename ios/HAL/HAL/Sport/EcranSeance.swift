@@ -23,7 +23,7 @@ struct EcranSeancePrevue: View {
                         Text(sousTitre).texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     }
                     if let consigne = detail.seance.consigne, !consigne.isEmpty {
-                        Label(consigne, systemImage: "sparkle").foregroundStyle(Categorie.ia.couleur)
+                        AvisDeHAL(texte: consigne)
                     }
                 }
                 Section("Exercices") {
@@ -259,7 +259,7 @@ struct EcranSeanceEnCours: View {
                 Text(prevu).texte(.corps).foregroundStyle(Palette.texteSecondaire)
             }
             if let consigne = exercice.consigne, !consigne.isEmpty {
-                Text(consigne).texte(.legende).foregroundStyle(Categorie.ia.couleur)
+                AvisDeHAL(texte: consigne, style: .legende, secondaire: true)
             }
             let faites = seance.series(de: exercice)
             if !faites.isEmpty {
@@ -541,7 +541,7 @@ struct ChoixExercice: View {
                         }
                     }
                     .disabled(exercice.interdit == true)
-                    .listRowBackground(Palette.verreTeinte)
+                    .listRowBackground(FondDeLigne())
                 }
             }
             .scrollContentBackground(.hidden)
