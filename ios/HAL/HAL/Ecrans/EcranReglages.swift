@@ -61,7 +61,7 @@ struct EcranReglages: View {
                 lien("Santé", "heart", Categorie.alerte.couleur,
                      valeur: !sante.disponible ? "Indisponible"
                         : sante.accesDemande ? "\(sante.lues.count) lues" : "À autoriser") { EcranReglagesSante() }
-                aVenir("Apple Watch", "applewatch", Categorie.sport.couleur, lot: 9)
+                lien("Apple Watch", "applewatch", Categorie.sport.couleur) { EcranMontre() }
                 lien("Notifications et heures", "bell", Categorie.alerte.couleur,
                      valeur: etatNotifications) { EcranNotifications() }
             }
@@ -94,32 +94,11 @@ struct EcranReglages: View {
         .buttonStyle(.plain)
     }
 
-    private func aVenir(_ libelle: String, _ icone: String, _ couleur: Color, lot: Int) -> some View {
-        lien(libelle, icone, couleur) { EcranAVenir(titre: libelle, lot: lot) }
-    }
-
     private var etatNotifications: String {
         switch notifications.etat {
         case .autorisees: "Activées"
         case .aDemander: "À activer"
         case .refusees: "Refusées"
-        }
-    }
-}
-
-/// Un réglage qui n'est pas encore construit.
-struct EcranAVenir: View {
-    let titre: String
-    let lot: Int
-
-    var body: some View {
-        PagePoussee(titre: titre) {
-            VStack(spacing: 12) {
-                Image(systemName: "hammer").font(.system(size: 28)).foregroundStyle(Palette.texteSecondaire)
-                Text("Cet écran arrive au lot \(lot).").texte(.corps).foregroundStyle(Palette.texteSecondaire)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 80)
         }
     }
 }

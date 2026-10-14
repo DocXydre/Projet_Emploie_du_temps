@@ -84,9 +84,9 @@ struct EcranReglagesSante: View {
             }
 
             Section {
-                LabeledContent("Apple Watch", value: "au lot 9")
+                NavigationLink("Apple Watch") { EcranMontre() }
             } footer: {
-                Text("L'envoi d'une course à la montre arrive avec les widgets d'iOS. Les séances faites avec la montre arrivent déjà, par Santé.")
+                Text("Les séances faites avec la montre arrivent par Santé. Une course prévue part sur la montre depuis sa séance.")
             }
         }
         .navigationTitle("Santé")

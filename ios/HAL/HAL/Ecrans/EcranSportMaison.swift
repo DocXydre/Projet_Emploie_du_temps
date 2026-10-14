@@ -238,19 +238,16 @@ struct AjoutRapide: View {
             }
         }
 
-        /// Ce qui arrive avec le sport, au lot 6.
-        var plusTard: Bool { self == .seanceLibre || self == .mesure }
     }
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(Action.allCases) { action in
-                    if action.plusTard || !foyer.connecte {
+                    if !foyer.connecte {
                         Button {
                             fermer()
-                            annoncer(action.plusTard ? "« \(action.rawValue) » arrive avec le sport"
-                                                     : "Connecte-toi à ton serveur pour « \(action.rawValue) »")
+                            annoncer("Connecte-toi à ton serveur pour « \(action.rawValue) »")
                         } label: {
                             LigneReglage(icone: action.icone, couleur: action.categorie.couleur,
                                          libelle: action.rawValue)
@@ -280,7 +277,8 @@ struct AjoutRapide: View {
                 case .creneau: FormulaireCreneau()
                 case .absence: FormulaireAbsence()
                 case .allege: FormulaireAllege()
-                case .seanceLibre, .mesure: EmptyView()
+                case .seanceLibre: FormulaireAnnonce()
+                case .mesure: EcranMesures()
                 }
             }
         }
