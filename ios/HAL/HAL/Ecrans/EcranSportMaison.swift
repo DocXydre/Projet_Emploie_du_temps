@@ -20,6 +20,8 @@ struct EcranSport: View {
     @Environment(Foyer.self) private var foyer
     @Environment(SeanceEnCours.self) private var seance
     @Environment(EnvoiSante.self) private var sante
+    @Environment(ConversationHAL.self) private var conversation
+    @Environment(\.annoncer) private var annoncer
     @State private var prevue: DetailSeance?
     @State private var annonce = false
 
@@ -28,9 +30,31 @@ struct EcranSport: View {
             EnTeteOnglet(surTitre: enPause ? "En pause" : "Cette semaine", titre: "Sport") {}
                 .padding(.bottom, 4)
             if enPause {
+                // PAU-1 : la pause se lève d'ici, ou depuis Réglages.
                 BandeauEtat(icone: "pause", titre: "HAL est en pause",
                             detail: "Les séances se posent à la main ; le récap passe un soir sur trois",
-                            categorie: .ia)
+                            categorie: .ia, bouton: foyer.connecte ? "Reprendre" : nil) {
+                    Task {
+                        do {
+                            try await foyer.agir("DELETE", "coach/pause")
+                            annoncer("Pause levée : HAL prépare la reprise")
+                        } catch {
+                            annoncer((error as? ErreurAPI)?.message ?? "Impossible pour l'instant")
+                        }
+                    }
+                }
+            }
+            if let bloc = foyer.sportDuServeur?.demarrage {
+                // DEM-1, 7.18 : le démarrage, ou sa reprise là où on s'était arrêté.
+                Button { conversation.demarrageOuvert = true } label: {
+                    BandeauEtat(icone: "sparkle",
+                                titre: bloc == "profil" ? "Démarrer HAL" : "Reprendre le démarrage",
+                                detail: bloc == "profil"
+                                    ? "Quelques questions, et HAL te propose quatre semaines"
+                                    : "Il reste : \(EcranDemarrage.nomDuBloc(bloc))",
+                                categorie: .ia)
+                }
+                .buttonStyle(.plain)
             }
             if seance.enCours {
                 BandeauEtat(icone: "dumbbell", titre: "Séance en cours",

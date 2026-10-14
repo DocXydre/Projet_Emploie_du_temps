@@ -5,7 +5,7 @@ BEGIN
         IF NEW.operation IS NOT NULL THEN
             NEW.importance := GREATEST(NEW.importance,
                                        importance_operation(NEW.operation, NEW.moment));
-        ELSIF NEW.moment = 'signalement' THEN
+        ELSIF NEW.moment IN ('signalement', 'changement') THEN
             NEW.importance := GREATEST(NEW.importance, 2);
         END IF;
         RETURN NEW;

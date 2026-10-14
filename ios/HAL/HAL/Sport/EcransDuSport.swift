@@ -78,6 +78,10 @@ struct EcranSemaine: View {
     @State private var erreur: String?
     @State private var envoi = false
 
+    init(lundi: Date? = nil) {
+        _lundi = State(initialValue: lundi)
+    }
+
     var body: some View {
         FormulaireVerre {
             if let semaine {
@@ -136,8 +140,9 @@ struct EcranSemaine: View {
                         Label("Semaine validée", systemImage: "checkmark.seal").foregroundStyle(Categorie.sport.couleur)
                     }
                     Button("Demander un changement") {
-                        conversation.contexte = "Semaine du \(jourCourt(semaine.lundi))"
-                        conversation.ouvrir()
+                        conversation.demanderUnChangement(ElementJoint(
+                            genre: .semaine, lundi: semaine.lundi,
+                            libelle: "Semaine du \(jourCourt(semaine.lundi))"))
                     }
                     .frame(maxWidth: .infinity)
                 } footer: {
@@ -151,6 +156,7 @@ struct EcranSemaine: View {
         }
         .navigationTitle("La semaine")
         .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL(semaine.map { "Semaine du \(jourCourt($0.lundi))" } ?? "La semaine")
         .task(id: lundi) { await charger() }
     }
 
@@ -274,6 +280,7 @@ struct EcranSommeil: View {
         }
         .navigationTitle("Sommeil et récupération")
         .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL("Sommeil et récupération")
         .containerBackground(.clear, for: .navigation)
         .task(id: periode) {
             do {
@@ -421,10 +428,7 @@ struct EcranObjectifs: View {
                     }
                 }
                 Section {
-                    Button("Changer d'objectif avec HAL") {
-                        conversation.contexte = "Objectifs"
-                        conversation.ouvrir()
-                    }
+                    Button("Changer d'objectif avec HAL") { conversation.ouvrir() }
                     .frame(maxWidth: .infinity)
                 }
             } else if let erreur {
@@ -435,6 +439,7 @@ struct EcranObjectifs: View {
         }
         .navigationTitle("Objectifs")
         .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL("Objectifs")
         .task {
             do { objectifs = try await foyer.demander("GET", "objectifs") } catch { erreur = motif(error) }
         }
@@ -501,6 +506,7 @@ struct EcranProgression: View {
         }
         .navigationTitle("Progression")
         .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL("Progression")
         .containerBackground(.clear, for: .navigation)
         .task {
             do { semaines = try await foyer.demander("GET", "appli/progression") } catch { erreur = motif(error) }

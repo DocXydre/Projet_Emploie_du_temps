@@ -113,6 +113,12 @@ def _lectures(id_utilisateur: int, moment: str, id_occurrence: int | None) -> li
                 semaine, forme]
     if moment == "signalement":
         return [semaine, sante(7), forme]
+    if moment == "changement":
+        lectures = [semaine, forme, planning(14)]
+        if id_occurrence:
+            lectures.insert(0, ("La séance dont on parle (lire_seance)",
+                                lambda: outils.lire_seance(u, {"id_occurrence": id_occurrence})))
+        return lectures
     return []
 
 

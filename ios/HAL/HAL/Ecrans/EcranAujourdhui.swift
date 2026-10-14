@@ -179,7 +179,7 @@ private struct CartesDeDepart: View {
               bouton: "Ajouter un calendrier") {}
         carte(icone: "sparkle", titre: "HAL n'a pas encore de plan",
               texte: "Quatre minutes de questions et il te propose quatre semaines.",
-              bouton: "Démarrer HAL") { conversation.ouvrir() }
+              bouton: "Démarrer HAL") { conversation.demarrageOuvert = true }
     }
 
     private func carte(icone: String, titre: String, texte: String, bouton: String,

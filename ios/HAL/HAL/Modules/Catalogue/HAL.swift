@@ -26,8 +26,10 @@ struct WidgetHAL: View {
                     .texte(.corps).foregroundStyle(Palette.textePrincipal).lineLimit(3)
                 Spacer(minLength: 0)
                 HStack {
-                    Button("Oui, jeu. 18:00") {}
-                        .buttonStyle(.hal(.verreAccent))
+                    if !foyer.connecte {
+                        Button("Oui, jeu. 18:00") {}
+                            .buttonStyle(.hal(.verreAccent))
+                    }
                     Button("En parler") { conversation.ouvrir() }
                         .buttonStyle(.hal(.verre))
                 }

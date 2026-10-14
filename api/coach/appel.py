@@ -69,6 +69,8 @@ class Demande:
     deja_affichee: bool = False
     # PAU-6 : à la reprise, la révision retrouve ses outils de séance.
     extra: dict = field(default_factory=dict)
+    # COA-33 : ce que l'appli affiche quand le message part, en clair.
+    ecran: str | None = None
 
 
 def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
@@ -133,6 +135,17 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
             "peux retirer ou modifier des séances proposées. Sur une séance validée, tu "
             "déposes un ajustement. Garde la trace de ce qui est signalé dans la mémoire "
             "de la semaine, et marque l'échange important s'il change la suite.")
+    elif m == "changement":
+        lignes.append(
+            "L'utilisateur a touché « Demander un changement » dans l'appli, sur l'élément "
+            "joint plus bas, et t'explique ce qu'il veut. Tu proposes, il valide d'un "
+            "bouton : rien ne change sans lui. Sur une séance proposée, modifie-la ou "
+            "retire-la et propose la nouvelle version ; elle reste à valider. Sur une "
+            "séance validée, tu ne la modifies pas : tu déposes un ajustement "
+            "(`proposer_ajustement`) avec son motif, qu'il acceptera ou non. Si sa demande "
+            "n'est pas claire, pose une seule question, avec deux ou trois réponses "
+            "possibles. Ton message dit en une ou deux phrases ce que tu proposes et "
+            "pourquoi ; les boutons pour valider s'affichent dessous.")
     elif m == "chat":
         lignes.append(
             "L'utilisateur t'écrit. Une question : réponds-y. Tu n'as pas ici les outils "
@@ -146,6 +159,10 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
 
     if demande.precision:
         lignes.append(demande.precision)
+    if demande.ecran:
+        # COA-33 : une information, pas une permission.
+        lignes.append(f"L'appli affiche : {demande.ecran}. C'est ce que l'utilisateur a sous "
+                      "les yeux : tu n'agis qu'avec les outils de ce moment.")
     if demande.id_occurrence:
         lignes.append(f"La séance dont on parle : id_occurrence {demande.id_occurrence}.")
     if deja_ecrit:

@@ -46,6 +46,8 @@ struct HALApp: App {
                 guard nouvelle == .active else { return }
                 Task {
                     await foyer.charger()
+                    // ORB-8 : un message resté sans réponse repart à l'ouverture.
+                    await conversation.charger()
                     await lireSante()
                 }
             }
@@ -67,7 +69,11 @@ struct HALApp: App {
         if let client = session.client {
             foyer.brancher(client)
             sante.client = client
+            conversation.client = client
+            let foyerBranche = foyer
+            conversation.apresAction = { await foyerBranche.charger() }
             Task { await lireSante() }
+            Task { await conversation.charger() }
             file.expediteur = ExpediteurAPI(client: client)
             let foyer = foyer
             file.apresEnvoi = { await foyer.charger() }
@@ -75,6 +81,8 @@ struct HALApp: App {
         } else {
             foyer.debrancher()
             sante.client = nil
+            conversation.client = nil
+            conversation.apresAction = nil
             file.expediteur = ExpediteurFictif(foyer: foyer)
             file.apresEnvoi = nil
         }

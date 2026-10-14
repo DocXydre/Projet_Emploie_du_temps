@@ -13,7 +13,7 @@
 CREATE OR REPLACE FUNCTION importance_operation(p_operation TEXT, p_moment TEXT)
 RETURNS SMALLINT LANGUAGE sql STABLE AS $$
     SELECT GREATEST(
-        CASE WHEN p_moment IN ('signalement', 'revision', 'plan', 'faisabilite')
+        CASE WHEN p_moment IN ('signalement', 'changement', 'revision', 'plan', 'faisabilite')
              THEN 2 ELSE 1 END,
         COALESCE((SELECT max(CASE
                       WHEN t.type IN ('important', 'plan', 'avis_objectif', 'ajustement')

@@ -14,6 +14,7 @@ struct Annonce: Identifiable, Equatable {
 struct Racine: View {
     @Environment(ConversationHAL.self) private var conversation
     @Environment(SeanceEnCours.self) private var seance
+    @Environment(Foyer.self) private var foyer
     @State private var onglet: Onglet = .aujourdhui
     @State private var annonce: Annonce?
 
@@ -58,10 +59,14 @@ struct Racine: View {
         }
         // La séance en cours passe par-dessus tout, d'où qu'on l'ait lancée.
         .fullScreenCover(isPresented: Bindable(seance).affichee) { EcranSeanceEnCours() }
+        // Le démarrage de HAL, depuis Sport, l'orbe ou Réglages (DEM-1).
+        .fullScreenCover(isPresented: Bindable(conversation).demarrageOuvert) { EcranDemarrage() }
         .environment(\.annoncer, AnnonceurAction { nouvelle in
             withAnimation(.snappy) { annonce = nouvelle }
         })
         .onChange(of: onglet) { conversation.contexte = onglet.libelle }
+        // NOT-18 : le serveur dit que HAL a parlé, le « ! » s'allume.
+        .onChange(of: foyer.orbeADire) { _, aDire in if aDire { conversation.signaler() } }
         .task(id: annonce?.id) {
             guard annonce != nil else { return }
             try? await Task.sleep(for: .seconds(5))

@@ -264,6 +264,10 @@
       "sante": "complet",
       "planification": "resume"
     },
+    "changement": {
+      "planification": "resume",
+      "sante": "resume"
+    },
     "chat": {}
   },
   "disciplines": {
@@ -277,7 +281,8 @@
     "revision": "complet",
     "faisabilite": "resume",
     "synthese": "resume",
-    "bilan": "resume"
+    "bilan": "resume",
+    "changement": "resume"
   },
   "conditions_du_complet": {
     "_lisezmoi": "Un chapitre listé ici ne part en complet que si sa condition est vraie pour l'utilisateur. « jamais » : seulement par lire_chapitre. trail : un objectif de course parle de trail. course_proche : une course dans les 21 jours. plusieurs_disciplines : des objectifs actifs dans plus d'une discipline.",

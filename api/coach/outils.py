@@ -28,7 +28,8 @@ from api.erreurs import message_lisible, refus_coach
 # Les moments, et les familles d'outils que chacun ouvre (COA-5, section 9.2)
 # ---------------------------------------------------------------------------
 
-MOMENTS = ("faisabilite", "plan", "revision", "synthese", "bilan", "signalement", "chat")
+MOMENTS = ("faisabilite", "plan", "revision", "synthese", "bilan", "signalement", "chat",
+           "changement")
 
 FAMILLES_DU_MOMENT = {
     "faisabilite": {"lecture", "avis", "memoire"},
@@ -37,6 +38,9 @@ FAMILLES_DU_MOMENT = {
     "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre", "mesure"},
     "bilan":       {"lecture", "seances", "memoire", "avis_libre", "mesure"},
     "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure"},
+    # COA-32 : une demande de changement. HAL propose ou dépose un ajustement ;
+    # rien ne s'applique sans le bouton de l'utilisateur.
+    "changement":  {"lecture", "seances", "memoire"},
     # Dans le chat, le coach lit et tient sa mémoire : il ne propose aucune séance.
     # S'il lit un signalement dans le texte, il le requalifie (COA-25).
     "chat":        {"lecture", "memoire", "requalification", "mesure"},

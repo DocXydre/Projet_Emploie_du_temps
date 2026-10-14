@@ -65,6 +65,17 @@ Changer d'exercice avant de lancer (3.4) se fait pendant la séance, par le menu
 - Une mesure demandée n'apparaît qu'à partir du premier jour de sa fenêtre (MES-1).
 - Le texte de HAL est en blanc, et les lignes des formulaires sont en verre dépoli : tout se lit sur une photo claire.
 
+## Ce que fait le lot 7
+
+- Le panneau de HAL parle au serveur : l'historique des échanges, le récap du soir, les éléments de chaque réponse avec leurs boutons (COA-17). Un message sans réponse est gardé sur le téléphone et repart tout seul (ORB-8).
+- HAL sait ce qui est affiché : l'onglet, et la séance, la semaine ou le réglage ouvert (« Voit : Sport · Semaine du 12 oct. », COA-33).
+- « Demander un changement », sur une séance, une course ou la semaine, joint l'élément en haut du panneau. HAL propose, tu valides (COA-32).
+- Une action faite depuis le panneau s'annonce cinq secondes avec « Annuler ». Elle ne part qu'à la fin du délai : annuler ne laisse rien à défaire.
+- Des réponses prêtes en boutons : « Oui », « Non » quand HAL pose une question, « J'ai mal quelque part » pour signaler (ORB-9, ORB-11).
+- La dictée, avec le texte en direct, sur le téléphone quand il le permet (ORB-5).
+- Le démarrage de HAL, écran par écran : profil, limitation, lieux, objectif, récapitulatif, avis, plan, semaine de calibrage (7.1 à 7.17). Il reprend là où on s'était arrêté.
+- Réglages : profil sportif, limitations et exercices interdits, lieux, mémoire de HAL et ses versions, pause, reprendre ou repartir de zéro.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :

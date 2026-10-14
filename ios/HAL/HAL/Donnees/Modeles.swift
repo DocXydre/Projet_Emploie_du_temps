@@ -129,11 +129,3 @@ struct EtatChat: Hashable {
     let fontaine: String
 }
 
-/// Une parole de la conversation avec HAL.
-struct Message: Identifiable, Hashable {
-    enum Auteur: Hashable { case moi, hal }
-
-    let id = UUID()
-    let auteur: Auteur
-    let texte: String
-}

@@ -75,6 +75,8 @@ struct EtatSport: Codable, Sendable {
     let pause: PauseAPI?
     let semaineAValider: SemaineAValider?
     let invitations: [InvitationAPI]?
+    /// DEM-1 : le premier bloc du démarrage de HAL qui manque, ou rien.
+    var demarrage: String? = nil
 
     struct SemaineAValider: Codable, Sendable {
         let lundi: Date

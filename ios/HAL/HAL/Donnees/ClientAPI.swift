@@ -48,8 +48,10 @@ struct ClientAPI: Sendable {
     func requete<Reponse: Decodable & Sendable>(_ methode: String, _ chemin: String,
                                      corps: Data? = nil,
                                      cleAppareil: UUID? = nil,
+                                     delai: TimeInterval = 20,
                                      en type: Reponse.Type = Reponse.self) async throws -> Reponse {
-        let donnees = try await brut(methode, chemin, corps: corps, cleAppareil: cleAppareil)
+        let donnees = try await brut(methode, chemin, corps: corps, cleAppareil: cleAppareil,
+                                     delai: delai)
         do {
             return try Self.decodeur.decode(Reponse.self, from: donnees)
         } catch {

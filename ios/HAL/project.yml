@@ -50,6 +50,11 @@ targets:
           HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ton
           sommeil et tes séances pour adapter ton plan.
         NSHealthUpdateUsageDescription: HAL n'écrit rien dans Santé.
+        # ORB-5 : la dictée, dans le panneau de HAL.
+        NSMicrophoneUsageDescription: >-
+          Le micro sert à dicter tes messages à HAL, seulement quand tu le demandes.
+        NSSpeechRecognitionUsageDescription: >-
+          Ta voix est transcrite en texte pour écrire ton message à HAL.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante]
     entitlements:

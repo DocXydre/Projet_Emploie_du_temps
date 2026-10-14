@@ -11,14 +11,16 @@ vocabulaire de l'appli, et les dates en ISO 8601.
 Le mode allégé a ses routes ici : jusque-là, seul le bot savait l'allumer.
 """
 
+import json
 from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
+from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from api import allegement
-from api.base import lister, un_seul
+from api.base import executer, lister, un_seul
 from api.routeurs.coach import Bilan, Serie
 from api.securite import Authentifie
 
@@ -350,7 +352,15 @@ def sport(qui: Authentifie) -> dict:
         "pause": contexte.pause(moi),
         "semaine_a_valider": a_valider,
         "invitations": _invitations(moi),
+        # DEM-1 : le premier bloc du démarrage qui manque, ou rien s'il est fini.
+        "demarrage": _bloc_du_demarrage(moi),
     }
+
+
+def _bloc_du_demarrage(moi: int) -> str | None:
+    from api.coach import demarrage
+
+    return demarrage.bloc_manquant(moi)
 
 
 def _invitations(moi: int) -> list[dict]:
@@ -500,3 +510,104 @@ def bilan_par_cle(cle: UUID, bilan: Bilan, qui: Authentifie,
                   appeler_coach: bool = False) -> dict:
     from api.routeurs.coach import enregistrer_bilan
     return enregistrer_bilan(qui, _par_cle(qui.id_utilisateur, cle), bilan, appeler_coach)
+
+
+# -----------------------------------------------------------------------------
+# Le démarrage de HAL dans l'appli                               (DEM-1 à DEM-6)
+#
+# L'appli pose les questions écran par écran. Les réponses en cours sont
+# gardées en base, sous la clé « _appli » de `demarrage_coach`, à côté de ce que
+# le bot y garde : on peut commencer d'un côté et finir de l'autre sans que
+# l'un efface l'autre. Chaque bloc fini passe par sa route habituelle (profil,
+# limitations, lieux, objectif) : rien ne contourne une règle (DEM-2).
+# -----------------------------------------------------------------------------
+class Brouillon(BaseModel):
+    etape: str = Field(max_length=30)
+    reponses: dict = Field(default_factory=dict)
+
+
+class MaximumDeSeances(BaseModel):
+    valeur: int | None = Field(default=None, ge=1, le=14)
+
+
+def _reponses_du_demarrage(moi: int) -> dict:
+    ligne = un_seul("SELECT reponses FROM demarrage_coach WHERE id_utilisateur = %(u)s",
+                    {"u": moi})
+    return (ligne or {}).get("reponses") or {}
+
+
+def _garder_le_demarrage(moi: int, etape: str, reponses: dict) -> None:
+    executer(
+        """INSERT INTO demarrage_coach (id_utilisateur, etape, reponses)
+           VALUES (%(u)s, %(e)s, %(r)s)
+           ON CONFLICT (id_utilisateur) DO UPDATE
+              SET etape = EXCLUDED.etape, reponses = EXCLUDED.reponses, maj = now()""",
+        {"u": moi, "e": etape[:30], "r": Jsonb(reponses)})
+
+
+@routeur.get("/appli/demarrage", summary="Où en est le démarrage de HAL")
+def demarrage_de_hal(qui: Authentifie) -> dict:
+    """DEM-1, DEM-4 : ce qui manque, ce qui est déjà rempli, et le brouillon en cours."""
+    from api.coach import contexte, demarrage
+
+    moi = qui.id_utilisateur
+    reponses = _reponses_du_demarrage(moi)
+    reglages = contexte.reglages(moi)
+    brouillon = reponses.get("_appli") or {}
+    return {
+        "manque": demarrage.bloc_manquant(moi),
+        "coach_actif": bool(reglages.get("coach_actif")),
+        "seances_max_semaine": reglages.get("seances_max_semaine"),
+        "etape": brouillon.get("etape"),
+        "brouillon": brouillon.get("reponses") or {},
+        "limitations_faites": bool(reponses.get("_limitations_faites")),
+        "profil": contexte.profil(moi),
+        "limitations": contexte.limitations(moi, actives=False),
+        "lieux": contexte.lieux(moi),
+        "lieux_possibles": lister(
+            "SELECT id_lieu, code, libelle FROM lieu_sport ORDER BY libelle"),
+        "objectifs": contexte.objectifs(moi),
+        "plan": contexte.plan(moi) is not None,
+        "pause": contexte.pause(moi),
+    }
+
+
+@routeur.put("/appli/demarrage/brouillon", summary="Garder les réponses en cours")
+def garder_le_brouillon(qui: Authentifie, brouillon: Brouillon) -> dict:
+    """DEM-2 : les réponses en cours ne deviennent rien tant que leur bloc n'est pas fini."""
+    if len(json.dumps(brouillon.reponses)) > 16_000:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"code": "requete_invalide",
+                                    "message": "Le brouillon est trop long"})
+    reponses = _reponses_du_demarrage(qui.id_utilisateur)
+    reponses["_appli"] = {"etape": brouillon.etape, "reponses": brouillon.reponses}
+    _garder_le_demarrage(qui.id_utilisateur, brouillon.etape, reponses)
+    return {"etape": brouillon.etape}
+
+
+@routeur.post("/appli/demarrage/limitations-faites",
+              summary="La question des limitations a eu sa réponse")
+def limitations_faites(qui: Authentifie) -> dict:
+    """DEM-3 : la question est posée une fois, et n'est pas reposée."""
+    reponses = _reponses_du_demarrage(qui.id_utilisateur)
+    reponses["_limitations_faites"] = True
+    _garder_le_demarrage(qui.id_utilisateur, "limitations", reponses)
+    return {"limitations_faites": True}
+
+
+@routeur.post("/appli/demarrage/activer", summary="Activer HAL pour soi")
+def activer_hal(qui: Authentifie) -> dict:
+    """COA-1 : HAL s'active pour chaque membre. La base exige un profil, et refuse
+    une personne mineure (PRO-7)."""
+    from api.coach import contexte
+
+    executer("SELECT activer_coach(%(u)s, TRUE)", {"u": qui.id_utilisateur})
+    return {"coach_actif": True, "manque": contexte.ce_qui_manque(qui.id_utilisateur)}
+
+
+@routeur.put("/appli/seances-max", summary="Le maximum de séances par semaine")
+def regler_le_maximum(qui: Authentifie, maximum: MaximumDeSeances) -> dict:
+    """5.5, PLN-14 : vide, HAL décide seul du nombre de séances."""
+    executer("UPDATE utilisateur SET seances_max_semaine = %(v)s WHERE id_utilisateur = %(u)s",
+             {"v": maximum.valeur, "u": qui.id_utilisateur})
+    return {"seances_max_semaine": maximum.valeur}

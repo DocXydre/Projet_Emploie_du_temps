@@ -52,14 +52,15 @@ def _exiger_coach(id_utilisateur: int) -> None:
 
 def demander_au_coach(id_utilisateur: int, moment: str, texte: str | None = None,
                       id_occurrence: int | None = None, cle_client: UUID | None = None,
-                      precision: str | None = None, deja_affichee: bool = False) -> dict:
+                      precision: str | None = None, deja_affichee: bool = False,
+                      ecran: str | None = None) -> dict:
     """Un appel à la demande : l'API ne répond qu'une fois le coach terminé (COA-16)."""
     try:
         return appel.appeler_coach(appel.Demande(
             id_utilisateur=id_utilisateur, moment=moment, declencheur="utilisateur",
             texte=texte, id_occurrence=id_occurrence,
             cle_client=str(cle_client) if cle_client else None,
-            precision=precision, deja_affichee=deja_affichee))
+            precision=precision, deja_affichee=deja_affichee, ecran=ecran))
     except appel.CoachInactif:
         raise _refuser("coach_inactif", "Le coach n'est pas activé pour ce compte",
                        403) from None
@@ -817,6 +818,13 @@ class DemandeAuCoach(BaseModel):
     texte: str = Field(min_length=1)
     id_occurrence: int | None = None
     cle_client: UUID
+    # COA-33 : l'onglet, et la séance ou la semaine ouverte, en clair.
+    ecran: str | None = Field(default=None, max_length=200)
+
+
+class DemandeDeChangement(DemandeAuCoach):
+    """COA-32 : l'élément joint, une séance ou une semaine."""
+    lundi: date | None = None
 
 
 class Pause(BaseModel):
@@ -829,14 +837,37 @@ class Pause(BaseModel):
 def signaler(qui: Authentifie, demande: DemandeAuCoach) -> dict:
     """COA-10 : un signalement déclenche un appel immédiat. Il n'attend jamais 23 h."""
     return demander_au_coach(qui.id_utilisateur, "signalement", demande.texte,
-                             demande.id_occurrence, demande.cle_client)
+                             demande.id_occurrence, demande.cle_client, ecran=demande.ecran)
 
 
 @routeur.post("/coach/question", tags=["Coach"], summary="Poser une question")
 def questionner(qui: Authentifie, demande: DemandeAuCoach) -> dict:
     """Si le texte est en fait un signalement, le coach le requalifie lui-même (COA-25)."""
     return demander_au_coach(qui.id_utilisateur, "chat", demande.texte,
-                             demande.id_occurrence, demande.cle_client)
+                             demande.id_occurrence, demande.cle_client, ecran=demande.ecran)
+
+
+@routeur.post("/coach/changement", tags=["Coach"],
+              summary="Demander un changement sur une séance ou une semaine")
+def demander_un_changement(qui: Authentifie, demande: DemandeDeChangement) -> dict:
+    """COA-32 : HAL propose, l'utilisateur valide. Sur une séance validée, ce qu'il
+    propose est un ajustement (PLN-18), qui s'applique dès qu'on l'accepte."""
+    if demande.id_occurrence is not None:
+        seance = un_seul(
+            """SELECT situation, jour, discipline, type_seance FROM v_seance_coach
+                WHERE id_occurrence = %(o)s AND id_utilisateur = %(u)s""",
+            {"o": demande.id_occurrence, "u": qui.id_utilisateur})
+        if seance is None:
+            raise _refuser("introuvable", "Séance introuvable", 404)
+        joint = (f"L'élément joint : la séance id_occurrence {demande.id_occurrence}, "
+                 f"{seance['discipline']} {seance['type_seance'] or ''} du {seance['jour']}, "
+                 f"situation « {seance['situation']} ».")
+    else:
+        lundi = lundi_de(demande.lundi or aujourd_hui())
+        joint = f"L'élément joint : la semaine du lundi {lundi.isoformat()}."
+    return demander_au_coach(qui.id_utilisateur, "changement", demande.texte,
+                             demande.id_occurrence, demande.cle_client, precision=joint,
+                             ecran=demande.ecran)
 
 
 @routeur.get("/coach/echanges", tags=["Coach"], summary="Relire les échanges")

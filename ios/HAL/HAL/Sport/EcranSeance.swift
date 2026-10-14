@@ -12,6 +12,7 @@ struct EcranSeancePrevue: View {
     @Environment(FileAttente.self) private var file
     @Environment(\.dismiss) private var fermer
     @Environment(\.annoncer) private var annoncer
+    @Environment(ConversationHAL.self) private var conversation
     @State private var pasFaite = false
 
     var body: some View {
@@ -74,7 +75,23 @@ struct EcranSeancePrevue: View {
                 } footer: {
                     Text("« Déjà faite » la compte sans charge : tu pourras donner ton bilan ensuite.")
                 }
+                if !detail.close {
+                    Section {
+                        Button {
+                            fermer()
+                            conversation.demanderUnChangement(ElementJoint(
+                                genre: .seance, idOccurrence: detail.seance.idOccurrence,
+                                libelle: "\(detail.titre) · \(sousTitre)"))
+                        } label: {
+                            Label("Demander un changement à HAL", systemImage: "sparkle")
+                                .frame(maxWidth: .infinity)
+                        }
+                    } footer: {
+                        Text("Le jour, la durée, le contenu : HAL propose, tu valides. Changer un exercice se fait pendant la séance.")
+                    }
+                }
             }
+            .vuParHAL("\(detail.titre), \(sousTitre)")
             .navigationTitle("Séance du jour")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

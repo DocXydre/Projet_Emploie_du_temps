@@ -36,18 +36,21 @@ struct EcranReglages: View {
 
             EnTeteGroupe(texte: "Planning")
             GroupeReglages {
-                aVenir("Calendriers à suivre", "calendar", Categorie.travail.couleur, lot: 5)
-                aVenir("Calendriers abonnés", "calendar.badge.plus", Categorie.travail.couleur, lot: 5)
+                aVenir("Calendriers à suivre", "calendar", Categorie.travail.couleur, lot: 8)
+                aVenir("Calendriers abonnés", "calendar.badge.plus", Categorie.travail.couleur, lot: 8)
                 aVenir("Historique", "clock", Categorie.travail.couleur, lot: 8)
             }
 
             EnTeteGroupe(texte: "HAL et sport")
             GroupeReglages {
-                aVenir("Profil sportif", "person", Categorie.sport.couleur, lot: 7)
-                aVenir("Limitations", "exclamationmark.circle", Categorie.alerte.couleur, lot: 7)
-                aVenir("Lieux de sport", "mappin", Categorie.sport.couleur, lot: 7)
-                aVenir("Mémoire de HAL", "sparkle", Categorie.ia.couleur, lot: 7)
-                aVenir("Mettre HAL en pause", "pause", Categorie.ia.couleur, lot: 7)
+                lien("Profil sportif", "person", Categorie.sport.couleur) { EcranProfilSportif() }
+                lien("Limitations", "exclamationmark.circle", Categorie.alerte.couleur) { EcranLimitations() }
+                lien("Lieux de sport", "mappin", Categorie.sport.couleur) { EcranLieux() }
+                lien("Mémoire de HAL", "sparkle", Categorie.ia.couleur) { EcranMemoire() }
+                lien("Mettre HAL en pause", "pause", Categorie.ia.couleur,
+                     valeur: foyer.sportDuServeur?.pause != nil ? "En pause" : nil) { EcranPause() }
+                lien("Démarrage de HAL", "arrow.counterclockwise", Categorie.ia.couleur,
+                     valeur: foyer.sportDuServeur?.demarrage != nil ? "À finir" : nil) { EcranDemarrageReglages() }
             }
 
             EnTeteGroupe(texte: "Appareil")
