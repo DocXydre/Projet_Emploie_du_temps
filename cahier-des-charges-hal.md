@@ -2066,7 +2066,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | MES-3 | T | Une fenêtre qui se ferme sans mesure est close comme expirée. HAL le relève dans la synthèse. Il n'y a pas de relance à part |
 | MES-4 | M | Une mesure se saisit aussi hors de toute fenêtre |
 | MES-5 | D | Un utilisateur n'a qu'une fenêtre ouverte à la fois pour un même type de mesure |
-| MES-6 | T | Un test de course ou de force est une séance du plan, de type test. Son résultat est enregistré comme une mesure |
+| MES-6 | T | Un test de course ou de force est une séance du plan, de type test. Son résultat est enregistré comme une mesure. Sa fenêtre de mesure se rattache à la séance et prend son jour ; sans séance de test, elle est refusée (migration 066) |
 | MES-7 | T | Une mesure dite dans un message, « je pèse 70 kg », est enregistrée par HAL comme une mesure, dans le chat, la synthèse, le bilan et le signalement. La noter seulement en mémoire la perdait pour les courbes |
 | MES-8 | T | Une mesure qui arrive par Santé, d'une balance connectée par exemple, remplit la fenêtre ouverte de son type : rien à saisir |
 

@@ -3,8 +3,14 @@ LANGUAGE plpgsql AS $$
 DECLARE
     v_nombre INTEGER;
 BEGIN
+    -- MES-6 : la fenêtre d'un test suit sa séance. Déplacée plus tard, la
+    -- séance garde sa fenêtre ouverte jusqu'au lendemain de son nouveau jour.
     UPDATE fenetre_mesure f SET statut = 'expiree'
-     WHERE f.statut = 'ouverte' AND upper(f.periode) <= jour_de(now());
+     WHERE f.statut = 'ouverte' AND upper(f.periode) <= jour_de(now())
+       AND NOT EXISTS (SELECT 1 FROM v_seance_coach s
+                        WHERE s.id_occurrence = f.id_occurrence
+                          AND s.statut_occurrence IN ('planifiee', 'notifiee')
+                          AND s.jour + 1 >= jour_de(now()));
     GET DIAGNOSTICS v_nombre = ROW_COUNT;
     RETURN v_nombre;
 END $$;

@@ -817,7 +817,9 @@ OUTILS: tuple[Outil, ...] = (
 
     Outil("ouvrir_fenetre_mesure", "fenetre",
           "Ouvre une fenêtre de mesure de deux ou trois jours (sept au plus), avec sa "
-          "consigne. Une seule fenêtre ouverte par type.",
+          "consigne. Une seule fenêtre ouverte par type. Un test de course ou de force "
+          "est une séance du plan (proposer_seance avec est_test) : propose-la d'abord, "
+          "la fenêtre se rattache à elle et prend son jour.",
           _objet({"type": {"type": "string", "enum": TYPES_MESURE},
                   "du": {"type": "string"}, "au": {"type": "string"},
                   "consigne": {"type": "string"}}, ["type", "du", "au"]),
