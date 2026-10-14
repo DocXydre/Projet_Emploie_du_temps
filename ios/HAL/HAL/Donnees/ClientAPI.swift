@@ -136,8 +136,11 @@ enum Dates {
     }()
 
     static func lire(_ texte: String) -> Date? {
-        complete.date(from: texte) ?? simple.date(from: texte) ?? local.date(from: texte)
-            ?? jour.date(from: texte)
+        if let date = complete.date(from: texte) ?? simple.date(from: texte) { return date }
+        // Python écrit les microsecondes, « 13:25:58.804950Z » : les millisecondes suffisent.
+        let millisecondes = texte.replacingOccurrences(of: #"(\.\d{3})\d+"#, with: "$1",
+                                                       options: .regularExpression)
+        return complete.date(from: millisecondes) ?? local.date(from: texte) ?? jour.date(from: texte)
     }
 
     /// « aujourd'hui », « demain », « dans 4 jours » : ce que dit le widget du chat.

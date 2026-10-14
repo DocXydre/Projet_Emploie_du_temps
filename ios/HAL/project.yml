@@ -57,8 +57,16 @@ targets:
           Ta voix est transcrite en texte pour écrire ton message à HAL.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante]
+        # 5.18 : la page d'un lien d'invitation ouvre l'appli par hal://rejoindre.
+        CFBundleURLTypes:
+          - CFBundleURLName: fr.docxydre.hal
+            CFBundleURLSchemes: [hal]
     entitlements:
       path: HAL/HAL.entitlements
       properties:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        # NOT-16 : les notifications envoyées par le serveur, par le service
+        # d'Apple. Demande le compte développeur payant ; Xcode passe en
+        # « production » pour une appli distribuée.
+        aps-environment: development

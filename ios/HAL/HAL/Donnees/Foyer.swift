@@ -58,10 +58,22 @@ final class Foyer {
     private(set) var objectif: Objectif
     private(set) var dernierMotDeHAL: String
 
-    /// Le dernier chargement réussi, et ce qui a empêché le suivant.
-    private(set) var misAJour: Date?
+    /// Le dernier chargement réussi, et ce qui a empêché le suivant. L'heure est
+    /// gardée avec les données : hors réseau, l'appli dit de quand elles datent (APP-2).
+    private(set) var misAJour: Date? {
+        didSet { UserDefaults.standard.set(misAJour, forKey: "foyer.mis_a_jour") }
+    }
     private(set) var erreur: String?
+    /// Le dernier échec est venu du réseau ou d'un serveur coupé (8.9).
+    private(set) var injoignable = false
+    /// Le serveur ne reconnaît plus la clé : compte retiré, ou clé renouvelée (CNX-6).
+    private(set) var cleRefusee = false
     private(set) var charge = false
+
+    /// 8.6 à 8.8 : mes calendriers suivis et les tâches du foyer. Inconnus tant
+    /// que le serveur n'a pas répondu.
+    private(set) var calendriersSuivis: Int?
+    private(set) var tachesDuFoyer: Int?
 
     /// Les tâches cochées dont l'envoi attend encore la fin du délai d'annulation.
     private var enSuspens: [Int: Task<Void, Never>] = [:]
@@ -103,7 +115,10 @@ final class Foyer {
     /// suite, le chargement suit.
     func brancher(_ client: ClientAPI) {
         source = .serveur(client)
-        if let garde = Self.lireLeCache() { appliquer(garde) }
+        if let garde = Self.lireLeCache() {
+            appliquer(garde)
+            misAJour = UserDefaults.standard.object(forKey: "foyer.mis_a_jour") as? Date
+        }
         if let garde: EtatSport = Self.lire("etat-du-sport.json") { appliquer(garde) }
         Task { await charger() }
     }
@@ -132,7 +147,11 @@ final class Foyer {
         orbeADire = false
         misAJour = nil
         erreur = nil
+        injoignable = false
+        cleRefusee = false
         charge = false
+        calendriersSuivis = nil
+        tachesDuFoyer = nil
     }
 
     func charger() async {
@@ -143,10 +162,15 @@ final class Foyer {
             Self.ecrireLeCache(etat)
             misAJour = .now
             erreur = nil
+            injoignable = false
+            cleRefusee = false
         } catch let refus as ErreurAPI {
             erreur = refus.message
+            injoignable = refus.injoignable
+            cleRefusee = refus.statut == 401
         } catch {
             erreur = "Chargement impossible"
+            injoignable = true
         }
         // Le sport à part : son échec n'empêche pas la maison de s'afficher.
         if let sport: EtatSport = try? await client.requete("GET", "appli/sport") {
@@ -197,9 +221,12 @@ final class Foyer {
     }
 
     private func appliquer(_ etat: EtatDuJour) {
-        let lus = etat.membres.map { Membre(id: $0.id, nom: $0.nom, estAdministrateur: $0.administrateur) }
+        let lus = etat.membres.map {
+            Membre(id: $0.id, nom: $0.nom, estAdministrateur: $0.administrateur, pseudo: $0.pseudo)
+        }
         if let mien = etat.membres.first(where: { $0.moi }) {
-            moi = Membre(id: mien.id, nom: mien.nom, estAdministrateur: mien.administrateur)
+            moi = Membre(id: mien.id, nom: mien.nom, estAdministrateur: mien.administrateur,
+                         pseudo: mien.pseudo)
         }
         membres = lus
         autre = lus.first { $0.id != moi.id }
@@ -239,6 +266,8 @@ final class Foyer {
             droits = Droits(ajouter: lus.ajouter, modifier: lus.modifier)
         }
         orbeADire = etat.orbe
+        calendriersSuivis = etat.depart?.calendriers
+        tachesDuFoyer = etat.depart?.taches
         chat = EtatChat(litiere: Dates.relatif(etat.chat?.litiere),
                         eau: Dates.relatif(etat.chat?.eau),
                         fontaine: Dates.relatif(etat.chat?.fontaine))
@@ -262,9 +291,20 @@ final class Foyer {
     var tachesDuJour: [Tache] { !connecte && essais.foyerVide ? [] : taches }
     var tachesEnRetard: [Tache] { tachesDuJour.filter { $0.reports > 0 && !$0.faite } }
 
-    /// Rien au planning ni au ménage : Aujourd'hui montre les cartes de départ (8.6).
-    var foyerVide: Bool {
-        connecte ? (charge && evenements.isEmpty && taches.isEmpty) : essais.foyerVide
+    /// 8.6 : aucun calendrier suivi, ni par moi ni pour moi. Aujourd'hui le
+    /// rappelle tant que c'est vrai (PRE-3).
+    var sansCalendrier: Bool {
+        connecte ? calendriersSuivis == 0 : essais.foyerVide
+    }
+
+    /// 8.8 : le foyer n'a encore aucune tâche. Maison le dit, avec de quoi en ajouter.
+    var sansTache: Bool {
+        connecte ? tachesDuFoyer == 0 : essais.foyerVide
+    }
+
+    /// DEM-1 : le premier bloc du démarrage de HAL qui manque, ou rien s'il est fini.
+    var demarrageDeHAL: String? {
+        connecte ? sportDuServeur?.demarrage : (essais.foyerVide ? "profil" : nil)
     }
 
     /// L'événement en cours ou le prochain.

@@ -48,6 +48,10 @@ final class EnvoiSante {
     }
 
     private(set) var enCours = false
+    /// PRE-2 : la fenêtre d'iOS a déjà été montrée. Tant qu'elle ne l'a pas été,
+    /// rien n'est lu : elle ne s'ouvre qu'après l'écran qui explique, au premier
+    /// lancement, dans Sport ou dans Réglages.
+    private(set) var accesDemande = true
     private(set) var dernierEnvoi: Date?
     private(set) var dernierBilan: String?
     private(set) var frequenceDuJour: [PointSerie] = []
@@ -106,15 +110,27 @@ final class EnvoiSante {
     }
 
     /// iOS ne dit jamais si la lecture est refusée : une donnée refusée
-    /// ressemble à une donnée absente.
+    /// ressemble à une donnée absente. Le premier envoi suit la réponse.
     func demanderAcces() async {
         guard disponible else { return }
         try? await lecteur.demanderAcces()
+        let avant = accesDemande
+        await relireLAcces()
+        if !avant && accesDemande {
+            dernierEssai = nil
+            await aLOuverture()
+        }
+    }
+
+    func relireLAcces() async {
+        accesDemande = !disponible ? true : await lecteur.accesDejaDemande()
     }
 
     /// À l'ouverture : un envoi si le dernier essai date de plus d'un quart d'heure.
     func aLOuverture() async {
         Self.planifier()
+        await relireLAcces()
+        guard accesDemande else { return }
         await relireLaFrequence()
         if let dernierEssai, Date.now.timeIntervalSince(dernierEssai) < 15 * 60 { return }
         await envoyer(raison: "ouverture")
@@ -137,10 +153,10 @@ final class EnvoiSante {
         guard !enCours else { return "Un envoi est déjà en cours." }
         guard disponible else { return "Santé n'est pas disponible sur cet appareil." }
         guard let client else { return "Pas de serveur." }
+        guard accesDemande else { return "Santé n'est pas encore autorisée." }
         enCours = true
         dernierEssai = .now
         defer { enCours = false }
-        await demanderAcces()
 
         let debut = debutDeLEnvoi()
         var jours = 0
@@ -200,6 +216,7 @@ final class EnvoiSante {
 
     func envoyerEnFond() async {
         Self.planifier()
+        await relireLAcces()
         await envoyer(raison: "arrière-plan")
     }
 }

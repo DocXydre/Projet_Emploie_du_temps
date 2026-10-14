@@ -7,6 +7,8 @@ struct Membre: Identifiable, Hashable {
     let id: Int
     let nom: String
     let estAdministrateur: Bool
+    /// Ce qui désigne le membre pour l'API : « lorette ».
+    var pseudo: String = ""
 }
 
 struct Evenement: Identifiable, Hashable {

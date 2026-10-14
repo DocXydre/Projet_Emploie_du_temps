@@ -1,14 +1,16 @@
 import SwiftUI
 import PhotosUI
 
-/// Réglages (5.1), rangés en groupes. Ce qui n'est pas encore construit ouvre un
-/// écran qui dit à quel lot il arrive.
+/// Réglages (5.1), en cinq groupes (C.12) : apparence ; planning ; HAL et sport ;
+/// appareil ; foyer et compte. Ce qui n'est pas encore construit ouvre un écran
+/// qui dit à quel lot il arrive.
 struct EcranReglages: View {
     @Environment(Foyer.self) private var foyer
     @Environment(Apparence.self) private var apparence
     @Environment(Disposition.self) private var disposition
     @Environment(Session.self) private var session
     @Environment(EnvoiSante.self) private var sante
+    @Environment(Notifications.self) private var notifications
 
     var body: some View {
         PageDefilante {
@@ -36,9 +38,10 @@ struct EcranReglages: View {
 
             EnTeteGroupe(texte: "Planning")
             GroupeReglages {
-                aVenir("Calendriers à suivre", "calendar", Categorie.travail.couleur, lot: 8)
-                aVenir("Calendriers abonnés", "calendar.badge.plus", Categorie.travail.couleur, lot: 8)
-                aVenir("Historique", "clock", Categorie.travail.couleur, lot: 8)
+                lien("Calendriers à suivre", "calendar", Categorie.travail.couleur,
+                     valeur: foyer.sansCalendrier ? "À ajouter" : nil) { EcranCalendriersSuivis() }
+                lien("Calendriers abonnés", "calendar.badge.plus", Categorie.travail.couleur) { EcranCalendriersAbonnes() }
+                lien("Historique", "clock", Categorie.travail.couleur) { EcranHistorique() }
             }
 
             EnTeteGroupe(texte: "HAL et sport")
@@ -50,22 +53,25 @@ struct EcranReglages: View {
                 lien("Mettre HAL en pause", "pause", Categorie.ia.couleur,
                      valeur: foyer.sportDuServeur?.pause != nil ? "En pause" : nil) { EcranPause() }
                 lien("Démarrage de HAL", "arrow.counterclockwise", Categorie.ia.couleur,
-                     valeur: foyer.sportDuServeur?.demarrage != nil ? "À finir" : nil) { EcranDemarrageReglages() }
+                     valeur: foyer.demarrageDeHAL.map { $0 == "profil" ? "À faire" : "À finir" }) { EcranDemarrageReglages() }
             }
 
             EnTeteGroupe(texte: "Appareil")
             GroupeReglages {
                 lien("Santé", "heart", Categorie.alerte.couleur,
-                     valeur: sante.disponible ? "\(sante.lues.count) lues" : "Indisponible") { EcranReglagesSante() }
+                     valeur: !sante.disponible ? "Indisponible"
+                        : sante.accesDemande ? "\(sante.lues.count) lues" : "À autoriser") { EcranReglagesSante() }
                 aVenir("Apple Watch", "applewatch", Categorie.sport.couleur, lot: 9)
-                aVenir("Notifications", "bell", Categorie.alerte.couleur, lot: 8)
+                lien("Notifications et heures", "bell", Categorie.alerte.couleur,
+                     valeur: etatNotifications) { EcranNotifications() }
             }
 
             EnTeteGroupe(texte: "Foyer et compte")
             GroupeReglages {
-                aVenir("Le foyer", "person.2", Categorie.ia.couleur, lot: 8)
-                lien("Serveur et mot de passe", "lock", Palette.texteSecondaire,
-                     valeur: session.pseudo ?? "Démonstration") { EcranCompte() }
+                lien("Le foyer", "person.2", Categorie.ia.couleur,
+                     valeur: foyer.connecte ? "\(foyer.membres.count) membre\(foyer.membres.count > 1 ? "s" : "")" : nil) { EcranFoyer() }
+                lien("Serveur et connexion", "lock", Palette.texteSecondaire,
+                     valeur: session.pseudo ?? "Démonstration") { EcranServeur() }
             }
 
             EnTeteGroupe(texte: "Essais")
@@ -90,6 +96,14 @@ struct EcranReglages: View {
 
     private func aVenir(_ libelle: String, _ icone: String, _ couleur: Color, lot: Int) -> some View {
         lien(libelle, icone, couleur) { EcranAVenir(titre: libelle, lot: lot) }
+    }
+
+    private var etatNotifications: String {
+        switch notifications.etat {
+        case .autorisees: "Activées"
+        case .aDemander: "À activer"
+        case .refusees: "Refusées"
+        }
     }
 }
 
@@ -228,82 +242,5 @@ extension UIImage {
         let echelle = cote / plusGrand
         let taille = CGSize(width: size.width * echelle, height: size.height * echelle)
         return UIGraphicsImageRenderer(size: taille).image { _ in draw(in: CGRect(origin: .zero, size: taille)) }
-    }
-}
-
-/// Le compte : à quel serveur on est connecté, changer son mot de passe, se
-/// déconnecter (CNX-2, CNX-6). En démonstration, se connecter.
-struct EcranCompte: View {
-    @Environment(Session.self) private var session
-    @Environment(Foyer.self) private var foyer
-    @Environment(FileAttente.self) private var file
-    @Environment(\.annoncer) private var annoncer
-    @State private var nouveau = ""
-    @State private var enCours = false
-    @State private var erreur: String?
-    @State private var confirmer = false
-
-    var body: some View {
-        FormulaireVerre {
-            if let pseudo = session.pseudo {
-                Section("Connecté") {
-                    LabeledContent("Pseudo", value: pseudo)
-                    LabeledContent("Serveur", value: session.adresse?.host() ?? "")
-                    if let misAJour = foyer.misAJour {
-                        LabeledContent("À jour", value: misAJour.formatted(date: .omitted, time: .shortened))
-                    }
-                }
-                Section {
-                    SecureField("Nouveau mot de passe", text: $nouveau)
-                        .textContentType(.newPassword)
-                    Button("Changer le mot de passe") { Task { await changer() } }
-                        .disabled(nouveau.count < 10 || enCours)
-                } header: {
-                    Text("Mot de passe")
-                } footer: {
-                    Text("Au moins dix caractères. La clé de l'appli ne change pas : tes autres appareils restent connectés.")
-                }
-                if let erreur {
-                    Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
-                }
-                Section {
-                    Button("Se déconnecter") { confirmer = true }
-                        .foregroundStyle(Palette.texteSecondaire)
-                        .frame(maxWidth: .infinity)
-                } footer: {
-                    if !file.enAttente.isEmpty {
-                        Text("\(file.enAttente.count) envoi(s) en attente seront perdus.")
-                    }
-                }
-            } else {
-                Section {
-                    Text("L'appli tourne sur des données fictives.")
-                    Button("Se connecter à un serveur") { session.deconnecter() }
-                }
-            }
-        }
-        .navigationTitle("Serveur et mot de passe")
-        .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Se déconnecter ?", isPresented: $confirmer, titleVisibility: .visible) {
-            Button("Se déconnecter", role: .destructive) {
-                file.vider(sansEnvoyer: true)
-                session.deconnecter()
-            }
-        }
-    }
-
-    private struct Demande: Encodable { let motDePasse: String }
-
-    private func changer() async {
-        enCours = true
-        erreur = nil
-        defer { enCours = false }
-        do {
-            try await foyer.agir("PUT", "mot-de-passe", corps: ClientAPI.corps(Demande(motDePasse: nouveau)))
-            nouveau = ""
-            annoncer("Mot de passe changé")
-        } catch {
-            erreur = (error as? ErreurAPI)?.message ?? error.localizedDescription
-        }
     }
 }
