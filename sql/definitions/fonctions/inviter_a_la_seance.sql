@@ -11,13 +11,15 @@ DECLARE
     v_invitation INTEGER;
     v_n        INTEGER := 0;
 BEGIN
-    SELECT oc.id_occurrence, oc.id_utilisateur, oc.id_lieu, oc.debut_seance
+    -- La séance de HAL porte sa durée : l'invité doit tenir la même.
+    SELECT oc.id_occurrence, oc.id_utilisateur, oc.id_lieu, oc.debut_seance,
+           s.duree_minutes AS duree
       INTO o
       FROM occurrence oc
       JOIN tache t ON t.id_tache = oc.id_tache
+      LEFT JOIN seance s ON s.id_occurrence = oc.id_occurrence
      WHERE oc.id_occurrence = p_occurrence
        AND t.code = 'SPORT'
-       AND oc.origine <> 'quota'
        AND oc.statut IN ('planifiee', 'notifiee');
     IF NOT FOUND OR o.debut_seance IS NULL THEN
         RETURN 0;
@@ -29,7 +31,7 @@ BEGIN
     FOR p IN SELECT s FROM partenaires_sport(o.id_utilisateur) s LOOP
         -- On n'invite que qui peut venir : une invitation à un créneau de
         -- cours se referme sur un refus qui n'apprend rien à personne.
-        CONTINUE WHEN obstacle_seance(p, o.id_lieu, o.debut_seance, NULL, TRUE) IS NOT NULL;
+        CONTINUE WHEN obstacle_seance(p, o.id_lieu, o.debut_seance, o.duree, NULL, NULL, TRUE) IS NOT NULL;
 
         INSERT INTO invitation_sport (id_occurrence, id_invite)
         VALUES (p_occurrence, p)

@@ -56,12 +56,12 @@ BEGIN
     END IF;
 
     IF p_annoncee AND p_debut > now() THEN
-        v_obstacle := obstacle_seance_coach(p_utilisateur, v_lieu, p_debut, v_duree,
+        v_obstacle := obstacle_seance(p_utilisateur, v_lieu, p_debut, v_duree,
                                             p_discipline, NULL, FALSE);
         IF v_obstacle IS NOT NULL THEN
             PERFORM refus_coach('creneau_pris', v_obstacle);
         END IF;
-        v_bloc := bloc_seance_duree(p_utilisateur, v_lieu, p_debut, v_duree);
+        v_bloc := bloc_de_seance(p_utilisateur, v_lieu, p_debut, v_duree);
 
         UPDATE occurrence o
            SET creneau = NULL, statut = 'a_placer',
