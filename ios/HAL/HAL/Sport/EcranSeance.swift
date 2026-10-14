@@ -38,22 +38,39 @@ struct EcranSeancePrevue: View {
                         }
                     }
                 }
+                if let montre = detail.montre?.first {
+                    Section("Enregistrée par la montre") { MontreEnClair(montre: montre) }
+                    if let avis = detail.seance.avisLibre {
+                        Section("HAL") { Text(avis).foregroundStyle(Palette.textePrincipal) }
+                    }
+                }
                 Section {
-                    Button {
-                        seance.lancer(detail)
-                        fermer()
-                    } label: {
-                        Label("Lancer la séance", systemImage: "play.fill").bold().frame(maxWidth: .infinity)
+                    if detail.seance.discipline == "musculation" {
+                        Button {
+                            seance.lancer(detail)
+                            fermer()
+                        } label: {
+                            Label("Lancer la séance", systemImage: "play.fill").bold().frame(maxWidth: .infinity)
+                        }
+                    } else if !detail.close {
+                        // MON-1 : une course ne se lance pas ici, elle part sur la montre.
+                        Label("Envoyer à la montre : au lot 9", systemImage: "applewatch")
+                            .foregroundStyle(Palette.texteSecondaire)
                     }
-                    Button("Déjà faite, sans saisie") {
-                        SeanceEnCours.dejaFaite(detail, file: file)
-                        annoncer("Séance comptée faite")
-                        fermer()
-                    }
-                    .frame(maxWidth: .infinity)
-                    Button("Pas faite") { pasFaite = true }
-                        .foregroundStyle(Palette.texteSecondaire)
+                    if !detail.close {
+                        Button("Déjà faite, sans saisie") {
+                            SeanceEnCours.dejaFaite(detail, file: file)
+                            annoncer("Séance comptée faite")
+                            fermer()
+                        }
                         .frame(maxWidth: .infinity)
+                        Button("Pas faite") { pasFaite = true }
+                            .foregroundStyle(Palette.texteSecondaire)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Label("Séance \(EcranSemaine.situation(detail.seance.situation))", systemImage: "checkmark.circle")
+                            .foregroundStyle(Palette.texteSecondaire)
+                    }
                 } footer: {
                     Text("« Déjà faite » la compte sans charge : tu pourras donner ton bilan ensuite.")
                 }
@@ -84,6 +101,29 @@ struct EcranSeancePrevue: View {
         if let lieu = detail.seance.lieu { morceaux.append(lieu) }
         morceaux.append("\(detail.prevu.count) exercice\(detail.prevu.count > 1 ? "s" : "")")
         return morceaux.joined(separator: " · ")
+    }
+}
+
+/// 3.14 : une course faite, comme l'app Forme la montre.
+private struct MontreEnClair: View {
+    let montre: DetailSeance.Montre
+
+    var body: some View {
+        if let duree = montre.dureeSecondes {
+            LabeledContent("Durée", value: "\(duree / 60) min \(String(format: "%02d", duree % 60)) s")
+        }
+        if let distance = montre.distanceM {
+            LabeledContent("Distance", value: String(format: "%.2f km", Double(distance) / 1000))
+        }
+        if let allure = montre.allureSKm {
+            LabeledContent("Allure", value: "\(allure / 60):\(String(format: "%02d", allure % 60)) /km")
+        }
+        if let fc = montre.fcMoyenne {
+            LabeledContent("FC moyenne", value: "\(fc) bpm" + (montre.fcMax.map { " · max \($0)" } ?? ""))
+        }
+        if let denivele = montre.deniveleM { LabeledContent("Dénivelé", value: "\(denivele) m") }
+        if let energie = montre.energieKcal { LabeledContent("Énergie", value: "\(energie) kcal") }
+        if let cadence = montre.cadence { LabeledContent("Cadence", value: "\(cadence) pas/min") }
     }
 }
 

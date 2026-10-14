@@ -28,7 +28,7 @@ final class EnvoiSante {
 
     var disponible: Bool { LecteurSante.disponible }
 
-    static func instant(_ date: Date) -> String {
+    nonisolated static func instant(_ date: Date) -> String {
         let format = ISO8601DateFormatter()
         format.timeZone = .current
         return format.string(from: date)

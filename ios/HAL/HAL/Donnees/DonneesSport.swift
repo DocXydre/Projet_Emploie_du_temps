@@ -64,6 +64,95 @@ struct EtatSport: Codable, Sendable {
     let mesures: [FenetreMesure]
     let ajustements: [AjustementAPI]
     let pause: PauseAPI?
+    let semaineAValider: SemaineAValider?
+    let invitations: [InvitationAPI]?
+
+    struct SemaineAValider: Codable, Sendable {
+        let lundi: Date
+        let seances: Int
+    }
+
+    /// SPT-31 : l'autre propose une séance à deux.
+    struct InvitationAPI: Codable, Hashable, Identifiable, Sendable {
+        let idInvitation: Int
+        let qui: String
+        let lieu: String?
+        let debut: Date
+        var id: Int { idInvitation }
+    }
+}
+
+/// 3.2 : une semaine de sport, à valider d'un geste.
+struct SemaineDeSport: Codable, Sendable {
+    struct SeanceDeLaSemaine: Codable, Hashable, Identifiable, Sendable {
+        let idOccurrence: Int
+        let jour: Date
+        let debut: Date?
+        let discipline: String?
+        let typeSeance: String?
+        let intensite: String?
+        let dureeMinutes: Int?
+        let situation: String?
+        let lieu: String?
+        let consigne: String?
+        let exercices: Int?
+        var id: Int { idOccurrence }
+    }
+
+    let lundi: Date
+    let role: String?
+    let intention: String?
+    let validee: Date?
+    let aValider: Bool
+    let seances: [SeanceDeLaSemaine]
+
+    private enum CodingKeys: String, CodingKey {
+        case lundi, role, intention, aValider, seances
+        case validee = "valideeLe"
+    }
+}
+
+/// 3.16 : les journées de Santé reçues par le serveur, et les séances de la montre.
+struct HistoriqueSante: Codable, Sendable {
+    struct Activite: Codable, Hashable, Sendable {
+        let type: String?
+        let discipline: String?
+        let debut: Date
+        let dureeSecondes: Int?
+        let distanceM: Int?
+        let fcMoyenne: Int?
+        let fcMax: Int?
+        let allureSKm: Int?
+        let energieKcal: Int?
+    }
+
+    let jours: [EtatSport.JourDeForme]
+    let seances: [Activite]
+}
+
+/// 3.17 : une semaine d'un exercice.
+struct SemaineDExercice: Codable, Hashable, Sendable {
+    let code: String
+    let libelle: String
+    let lundi: Date
+    let meilleureCharge: Double?
+    let meilleuresRepetitions: Int?
+    let volume: Double?
+    let series: Int?
+}
+
+/// 3.18 : un objectif, avec l'avis de HAL et sa feuille de route.
+struct ObjectifDetaille: Codable, Hashable, Identifiable, Sendable {
+    let idObjectif: Int
+    let type: String?
+    let libelle: String
+    let echeance: Date?
+    let principal: Bool
+    let statut: String
+    let avis: String?
+    let avisDetail: String?
+    let feuilleDeRoute: String?
+    var id: Int { idObjectif }
 }
 
 /// Une séance telle que le serveur la décrit : ce qui est prévu, avec les
@@ -82,11 +171,27 @@ struct DetailSeance: Codable, Hashable, Sendable {
         let dureeMinutes: Int?
         let consigne: String?
         let effort: Int?
+        let commentaire: String?
+        let avisLibre: String?
+    }
+
+    /// SAN-2 : ce que la montre a enregistré pour cette séance.
+    struct Montre: Codable, Hashable, Sendable {
+        let type: String?
+        let dureeSecondes: Int?
+        let distanceM: Int?
+        let deniveleM: Int?
+        let energieKcal: Int?
+        let fcMoyenne: Int?
+        let fcMax: Int?
+        let allureSKm: Int?
+        let cadence: Int?
     }
 
     let seance: Seance
     let prevu: [LignePrevue]
     let saisi: [SerieServeur]
+    let montre: [Montre]?
 
     /// Faite, pas faite, remplacée ou retirée : il n'y a plus rien à lancer.
     var close: Bool {
@@ -219,8 +324,10 @@ enum TypeMesure {
     static func unite(_ type: String) -> String {
         switch type {
         case "poids": "kg"
-        case "test_course": "m"
-        case "test_force": "kg"
+        // Un test de course se note au temps, un test de force aux répétitions,
+        // comme le bot le faisait.
+        case "test_course": "s"
+        case "test_force": "reps"
         default: "cm"
         }
     }

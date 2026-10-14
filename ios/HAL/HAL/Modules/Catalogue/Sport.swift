@@ -260,7 +260,7 @@ struct WidgetMesureDemandee: View {
             }
         }
         .sheet(isPresented: $saisir) {
-            FeuilleMesure(mesure: mesure).presentationDetents([.medium]).feuilleEnVerre()
+            FeuilleMesure(mesure: mesure).presentationDetents([.medium, .large]).feuilleEnVerre()
         }
     }
 
@@ -281,33 +281,51 @@ struct WidgetMesureDemandee: View {
     }
 }
 
-/// 3.19 : saisir une mesure.
+/// 3.19 : saisir une mesure. Un test de course se donne en minutes et secondes.
 struct FeuilleMesure: View {
     let mesure: MesureDemandee
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @Environment(\.annoncer) private var annoncer
     @State private var valeur: Double = 70
+    @State private var minutes: Double = 15
+    @State private var secondes: Double = 0
+    @State private var envoi = false
     @State private var erreur: String?
 
+    private var unite: String { TypeMesure.unite(mesure.type) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Espace.gouttiere) {
-            Text(mesure.titre).texte(.titre).foregroundStyle(Palette.textePrincipal)
-            Text(mesure.consigne).texte(.corps).foregroundStyle(Palette.texteSecondaire)
-            Compteur(titre: TypeMesure.unite(mesure.type) == "kg" ? "Poids" : "Mesure", valeur: $valeur,
-                     pas: TypeMesure.unite(mesure.type) == "m" ? 50 : 0.5, bornes: 1...20_000,
-                     unite: TypeMesure.unite(mesure.type))
-            if let erreur {
-                Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                Text(mesure.titre).texte(.titre).foregroundStyle(Palette.textePrincipal)
+                Text(mesure.consigne).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                switch unite {
+                case "s":
+                    HStack(spacing: Espace.gouttiere) {
+                        Compteur(titre: "Minutes", valeur: $minutes, pas: 1, bornes: 0...180)
+                        Compteur(titre: "Secondes", valeur: $secondes, pas: 5, bornes: 0...55)
+                    }
+                case "reps":
+                    Compteur(titre: "Répétitions", valeur: $valeur, pas: 1, bornes: 1...500)
+                case "kg":
+                    Compteur(titre: "Poids", valeur: $valeur, pas: 0.1, bornes: 20...300, unite: "kg")
+                default:
+                    Compteur(titre: "Tour", valeur: $valeur, pas: 0.5, bornes: 10...200, unite: "cm")
+                }
+                if let erreur {
+                    Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur)
+                }
+                Button("Enregistrer") { Task { await enregistrer() } }
+                    .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                    .disabled(envoi || (unite == "s" && minutes * 60 + secondes <= 0))
             }
-            Button("Enregistrer") { Task { await enregistrer() } }
-                .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+            .padding(Espace.marge)
         }
-        .padding(Espace.marge)
         .onAppear {
-            switch TypeMesure.unite(mesure.type) {
+            switch unite {
             case "kg": valeur = 70
-            case "m": valeur = 2400
+            case "reps": valeur = 10
             default: valeur = 40
             }
         }
@@ -325,9 +343,12 @@ struct FeuilleMesure: View {
             fermer()
             return
         }
+        envoi = true
+        defer { envoi = false }
+        let nombre = unite == "s" ? minutes * 60 + secondes : (valeur * 10).rounded() / 10
         do {
             try await foyer.agir("POST", "mesures", corps: ClientAPI.corps(Envoi(
-                type: mesure.type, valeur: valeur, unite: TypeMesure.unite(mesure.type))))
+                type: mesure.type, valeur: nombre, unite: unite)))
             annoncer("Mesure enregistrée")
             fermer()
         } catch {

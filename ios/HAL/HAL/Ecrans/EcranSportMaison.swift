@@ -21,6 +21,7 @@ struct EcranSport: View {
     @Environment(SeanceEnCours.self) private var seance
     @Environment(EnvoiSante.self) private var sante
     @State private var prevue: DetailSeance?
+    @State private var annonce = false
 
     var body: some View {
         PageDefilante {
@@ -39,17 +40,48 @@ struct EcranSport: View {
                 WidgetFixe(module: .lancerSeance)
                     .onTapGesture { prevue = detail }
             }
+            if let semaine = foyer.sportDuServeur?.semaineAValider {
+                NavigationLink { EcranSemaine() } label: {
+                    BandeauEtat(icone: "calendar.badge.checkmark", titre: "Semaine à valider",
+                                detail: "\(semaine.seances) séance\(semaine.seances > 1 ? "s" : "") proposée\(semaine.seances > 1 ? "s" : "") par HAL",
+                                categorie: .ia)
+                }
+                .buttonStyle(.plain)
+            }
+            ForEach(foyer.sportDuServeur?.invitations ?? []) { invitation in
+                BandeauInvitation(invitation: invitation)
+            }
+            ForEach(foyer.sportDuServeur?.seancesDuJour.filter { !$0.close && $0.seance.discipline != "musculation" } ?? []) { course in
+                Button { prevue = course } label: {
+                    BandeauEtat(icone: "figure.run", titre: "\(course.titre) aujourd'hui",
+                                detail: course.prevu.first?.consigne ?? course.seance.consigne ?? "Le détail de la séance",
+                                categorie: .sport)
+                }
+                .buttonStyle(.plain)
+            }
             if foyer.ajustement != nil { WidgetFixe(module: .ajustement) }
             if foyer.mesureDemandee != nil { WidgetFixe(module: .mesureDemandee) }
-            WidgetFixe(module: .forme)
+            lien(EcranSommeil()) { WidgetFixe(module: .forme) }
             HStack(spacing: Espace.gouttiere) {
-                WidgetFixe(module: .sport, taille: .petit)
-                WidgetFixe(module: .objectif)
+                lien(EcranSemaine()) { WidgetFixe(module: .sport, taille: .petit) }
+                lien(EcranObjectifs()) { WidgetFixe(module: .objectif) }
             }
-            WidgetFixe(module: .frequenceDuJour)
+            lien(EcranFrequence()) { WidgetFixe(module: .frequenceDuJour) }
             HStack(spacing: Espace.gouttiere) {
                 Color.clear.aspectRatio(1, contentMode: .fit)
                 WidgetFixe(module: .seanceLibre)
+            }
+            EnTeteGroupe(texte: "Aller plus loin")
+            GroupeReglages {
+                ligne("La semaine", "calendar", Categorie.sport.couleur) { EcranSemaine() }
+                ligne("Progression", "chart.line.uptrend.xyaxis", Categorie.sport.couleur) { EcranProgression() }
+                ligne("Sommeil et récupération", "bed.double", Categorie.linge.couleur) { EcranSommeil() }
+                ligne("Objectifs", "target", Categorie.sport.couleur) { EcranObjectifs() }
+                Button { annonce = true } label: {
+                    LigneReglage(icone: "calendar.badge.plus", couleur: Categorie.ia.couleur,
+                                 libelle: "Annoncer une séance libre")
+                }
+                .buttonStyle(.plain)
             }
             if let bilan = sante.dernierBilan {
                 Text("Santé : \(bilan)").texte(.legende).foregroundStyle(Palette.texteTertiaire)
@@ -61,6 +93,24 @@ struct EcranSport: View {
             foyer.poserLaFrequence(sante.frequenceDuJour)
         }
         .sheet(item: $prevue) { detail in EcranSeancePrevue(detail: detail) }
+        .sheet(isPresented: $annonce) {
+            NavigationStack { FormulaireAnnonce() }.feuilleEnVerre()
+        }
+    }
+
+    /// Toucher un widget ouvre son écran détaillé.
+    private func lien<Destination: View, Contenu: View>(_ destination: Destination,
+                                                        @ViewBuilder contenu: () -> Contenu) -> some View {
+        NavigationLink { destination } label: { contenu() }
+            .buttonStyle(.plain)
+    }
+
+    private func ligne<Destination: View>(_ libelle: String, _ icone: String, _ couleur: Color,
+                                          @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink { destination() } label: {
+            LigneReglage(icone: icone, couleur: couleur, libelle: libelle)
+        }
+        .buttonStyle(.plain)
     }
 
     private var enPause: Bool {

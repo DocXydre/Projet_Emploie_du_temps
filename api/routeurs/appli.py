@@ -11,6 +11,7 @@ vocabulaire de l'appli, et les dates en ISO 8601.
 Le mode allégé a ses routes ici : jusque-là, seul le bot savait l'allumer.
 """
 
+from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -320,6 +321,15 @@ def sport(qui: Authentifie) -> dict:
             ORDER BY s.debut""",
         params,
     )
+    # PLN-6 : la semaine que HAL attend de voir validée, celle-ci ou la suivante.
+    a_valider = un_seul(
+        """SELECT lundi, count(*)::INTEGER AS seances
+             FROM v_seance_coach
+            WHERE id_utilisateur = %(moi)s AND situation = 'proposee'
+              AND lundi >= date_trunc('week', jour_de(now()))::DATE
+            GROUP BY lundi ORDER BY lundi LIMIT 1""",
+        params,
+    )
     compte = un_seul("SELECT coach_actif FROM utilisateur WHERE id_utilisateur = %(moi)s",
                      params)
     return {
@@ -331,7 +341,101 @@ def sport(qui: Authentifie) -> dict:
         "mesures": mesures,
         "ajustements": ajustements,
         "pause": contexte.pause(moi),
+        "semaine_a_valider": a_valider,
+        "invitations": _invitations(moi),
     }
+
+
+def _invitations(moi: int) -> list[dict]:
+    """SPT-31 : les séances où l'autre propose de venir, en attente de réponse."""
+    return lister(
+        """SELECT inv.id_invitation, u.nom AS qui, l.libelle AS lieu, o.debut_seance AS debut
+             FROM invitation_sport inv
+             JOIN occurrence o ON o.id_occurrence = inv.id_occurrence
+             JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
+             LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
+            WHERE inv.id_invite = %(moi)s AND inv.statut = 'attente'
+              AND o.debut_seance > now()
+            ORDER BY o.debut_seance""",
+        {"moi": moi},
+    )
+
+
+class Reponse(BaseModel):
+    vient: bool
+
+
+@routeur.post("/seances/invitations/{id_invitation}/repondre", tags=["Coach : séances"],
+              summary="« Je viens » ou « pas cette fois » à une séance à deux")
+def repondre_invitation(id_invitation: int, reponse: Reponse, qui: Authentifie) -> dict:
+    """SPT-32 : venir pose la même séance, au même lieu et à la même heure."""
+    ligne = un_seul("SELECT repondre_invitation(%(i)s, %(u)s, %(v)s) AS id_occurrence",
+                    {"i": id_invitation, "u": qui.id_utilisateur, "v": reponse.vient})
+    return {"id_occurrence": (ligne or {}).get("id_occurrence"), "vient": reponse.vient}
+
+
+@routeur.get("/appli/semaine", summary="Les séances d'une semaine, pour la valider")
+def semaine_de_sport(qui: Authentifie, lundi: date | None = None) -> dict:
+    """3.2 : une validation pour toute la semaine (PLN-6)."""
+    params = {"moi": qui.id_utilisateur, "lundi": lundi}
+    debut = un_seul(
+        "SELECT date_trunc('week', COALESCE(%(lundi)s::DATE, jour_de(now())))::DATE AS lundi",
+        params)["lundi"]
+    params["lundi"] = debut
+    seances = lister(
+        """SELECT id_occurrence, jour, debut, discipline, type_seance, intensite,
+                  duree_minutes, situation, lieu, consigne, exercices
+             FROM v_seance_coach
+            WHERE id_utilisateur = %(moi)s AND lundi = %(lundi)s
+            ORDER BY jour, debut NULLS LAST, id_occurrence""",
+        params,
+    )
+    plan = un_seul(
+        """SELECT ps.role, ps.intention, ps.validee_le
+             FROM plan p JOIN plan_semaine ps ON ps.id_plan = p.id_plan
+            WHERE p.id_utilisateur = %(moi)s AND p.statut = 'en_cours' AND ps.lundi = %(lundi)s""",
+        params,
+    )
+    return {"lundi": debut, "role": (plan or {}).get("role"),
+            "intention": (plan or {}).get("intention"),
+            "validee_le": (plan or {}).get("validee_le"),
+            "a_valider": any(s["situation"] == "proposee" for s in seances),
+            "seances": seances}
+
+
+@routeur.get("/appli/sante", summary="Sommeil et récupération sur 7, 30 ou 90 jours")
+def sante(qui: Authentifie, jours: int = 30) -> dict:
+    """3.16 : un jour sans donnée reste vide, jamais un zéro (SAN-5)."""
+    params = {"moi": qui.id_utilisateur, "jours": max(1, min(jours, 365))}
+    return {
+        "jours": lister(
+            """SELECT jour, pas, fc_repos, vfc_ms::FLOAT AS vfc_ms, sommeil_minutes
+                 FROM sante_jour
+                WHERE id_utilisateur = %(moi)s AND jour > jour_de(now()) - %(jours)s
+                ORDER BY jour""", params),
+        "seances": lister(
+            """SELECT a.type, a.discipline, lower(a.periode) AS debut, a.duree_secondes,
+                      a.distance_m, a.fc_moyenne, a.fc_max, a.allure_s_km, a.energie_kcal
+                 FROM activite_sante a
+                WHERE a.id_utilisateur = %(moi)s
+                  AND lower(a.periode) > now() - make_interval(days => %(jours)s)
+                ORDER BY lower(a.periode) DESC""", params),
+    }
+
+
+@routeur.get("/appli/progression", summary="La progression des exercices, semaine par semaine")
+def progression(qui: Authentifie, exercice: str | None = None) -> list[dict]:
+    """3.17 : la meilleure charge et le volume de chaque semaine, sur douze semaines."""
+    return lister(
+        """SELECT code, libelle, lundi, meilleure_charge::FLOAT AS meilleure_charge,
+                  meilleures_repetitions, volume::FLOAT AS volume, series
+             FROM v_progression
+            WHERE id_utilisateur = %(moi)s
+              AND (%(c)s::TEXT IS NULL OR code = %(c)s::TEXT)
+              AND lundi > jour_de(now()) - 84
+            ORDER BY libelle, lundi""",
+        {"moi": qui.id_utilisateur, "c": exercice},
+    )
 
 
 # -----------------------------------------------------------------------------

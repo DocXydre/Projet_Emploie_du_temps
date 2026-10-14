@@ -2,7 +2,7 @@
 
 L'application du projet : le planning du foyer, la maison, le sport, la santé et HAL. Elle est décrite en partie C de [`cahier-des-charges-hal.md`](../../cahier-des-charges-hal.md), et dessinée dans la maquette Figma (fichier « Appli », page « V2 · Liquid Glass »).
 
-Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur, le **lot 6a** le sport et la séance. Sans compte, l'appli tourne sur des données fictives.
+Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur, les **lots 6a et 6b** le sport et la séance. Sans compte, l'appli tourne sur des données fictives.
 
 ## Lancer l'appli
 
@@ -46,7 +46,16 @@ HAL reste fictif jusqu'au lot 7.
 - La séance de musculation, prévue ou libre, se fait entièrement sans réseau : séries, « J'ai bloqué avant » et sa série intermédiaire (SAI-17, calculée sur le téléphone), changement d'exercice parmi les alternatives, repos avec retour haptique et notification, les quatre façons de terminer, le bilan. Chaque saisie porte sa clé d'appareil et part par la file : renvoyée après une coupure, elle ne crée rien de plus (SAI-9). Une séance libre ouverte sans réseau est désignée par sa clé tant que le serveur ne lui a pas donné de numéro.
 - Mesure demandée : saisir ou « pas possible ». Ajustement de HAL : accepter ou refuser.
 
-Le 6b ajoute la semaine à valider, les courses et la montre, les courbes, les objectifs et la séance à deux.
+## Ce que fait le lot 6b
+
+- La semaine à valider (3.2), d'un geste, avec « Demander un changement » qui ouvre HAL. Un bandeau la signale dans Sport.
+- Sommeil et récupération sur 7, 30 ou 90 jours (3.16), la fréquence cardiaque de la journée en face du planning (3.15), la progression de chaque exercice (3.17), les objectifs avec l'avis de HAL et la feuille de route (3.18).
+- Annoncer une séance libre (3.11) : HAL répond tout de suite.
+- La séance à deux (3.20) : « Je viens » ou « pas cette fois ».
+- Une course prévue ne se lance pas dans l'appli : elle partira sur la montre au lot 9. Faite, elle montre ce que la montre a enregistré, puis l'avis de HAL (3.14).
+- Les tests de course se notent au temps, les tests de force aux répétitions.
+
+Changer d'exercice avant de lancer (3.4) se fait pendant la séance, par le menu « Changer ».
 
 ## Ajouter une fonction
 
@@ -74,4 +83,4 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 ## La suite
 
-Le lot 6b, puis le lot 7 : HAL dans l'appli. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
+Le lot 7 : HAL dans l'appli. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
