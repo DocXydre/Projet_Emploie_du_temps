@@ -72,11 +72,11 @@ struct PanneauHAL: View {
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity)
         // Le panneau ne suit pas le réglage du verre : une conversation se lit
-        // sur un fond sombre et presque opaque, quelle que soit la photo.
+        // sur le verre dépoli, un peu plus dense que celui des widgets.
         .background {
             let forme = RoundedRectangle(cornerRadius: 32, style: .continuous)
-            forme.fill(Color(red: 0.07, green: 0.08, blue: 0.10).opacity(0.86))
-                .background(.ultraThinMaterial, in: forme)
+            forme.fill(Color.black.opacity(0.18))
+                .background(.thinMaterial, in: forme)
                 .overlay(forme.strokeBorder(Palette.verreBord, lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
         }

@@ -194,6 +194,7 @@ struct WidgetLancerSeance: View {
     @Environment(SeanceEnCours.self) private var seance
     @Environment(FileAttente.self) private var file
     @Environment(\.annoncer) private var annoncer
+    @State private var supprimer = false
 
     var body: some View {
         let jour = foyer.seanceAPrevoir ?? foyer.seance
@@ -209,14 +210,35 @@ struct WidgetLancerSeance: View {
                     }
                     .buttonStyle(.hal(.accent, pleineLargeur: true))
                     if !seance.enCours, let detail = foyer.seanceDuJour {
-                        Button("Déjà faite") {
-                            SeanceEnCours.dejaFaite(detail, file: file)
-                            annoncer("Séance comptée faite")
+                        if detail.seance.libre == true && detail.saisi.isEmpty {
+                            // SAI-19 : une séance libre ouverte par erreur, sans rien dedans.
+                            Button("Supprimer") { supprimer = true }
+                                .buttonStyle(.hal(.verre))
+                        } else {
+                            Button("Déjà faite") {
+                                SeanceEnCours.dejaFaite(detail, file: file)
+                                annoncer("Séance comptée faite")
+                            }
+                            .buttonStyle(.hal(.verre))
                         }
-                        .buttonStyle(.hal(.verre))
                     }
                 }
             }
+        }
+        .confirmationDialog("Supprimer cette séance libre ?", isPresented: $supprimer, titleVisibility: .visible) {
+            Button("Supprimer", role: .destructive) {
+                guard let id = foyer.seanceDuJour?.seance.idOccurrence else { return }
+                Task {
+                    do {
+                        try await foyer.agir("DELETE", "seances/\(id)/libre")
+                        annoncer("Séance libre supprimée")
+                    } catch {
+                        annoncer((error as? ErreurAPI)?.message ?? "Suppression impossible")
+                    }
+                }
+            }
+        } message: {
+            Text("Elle a été lancée par erreur : elle disparaît, sans rien laisser.")
         }
     }
 }
