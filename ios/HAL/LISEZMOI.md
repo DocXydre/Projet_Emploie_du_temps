@@ -95,6 +95,14 @@ La capacité Push (`aps-environment`) est dans `project.yml` : elle demande le c
 3. Passer les quatre écrans, ou en sauter avec « Plus tard ».
 4. Aujourd'hui montre « Pour bien démarrer » avec ce qui reste. Ajouter un calendrier le fait disparaître de la liste, et la journée s'affiche.
 
+## Ce que fait le lot 9
+
+- Des widgets iOS (IOS-1) : Sport (l'anneau de la semaine et la prochaine séance), Forme (la nuit, la FC au repos, les pas), Ta journée (maintenant et ensuite). Ils lisent ce que l'appli a gardé dans le dossier partagé du groupe `group.fr.docxydre.hal`, sans appel au serveur, et l'appli leur demande de se redessiner à chaque chargement.
+- Sur l'écran verrouillé (IOS-2) : l'anneau Sport, le prochain événement, et l'orbe qui ouvre directement le panneau de HAL.
+- La Live Activity de la séance (IOS-3) : l'exercice, la série et le repos, sur l'écran verrouillé et dans la Dynamic Island, compacte, minimale ou déployée avec « Passer ».
+- L'envoi à la montre (MON-1) : une course ou une séance de cardio prévue part dans l'app Exercice, à son heure, avec ses étapes (les lignes prévues par HAL, ou échauffement, corps de séance et retour au calme) et ses alertes (l'allure si HAL en donne une, sinon la zone cardiaque de l'intensité). Faite, elle revient par Santé et valide la séance (MON-2).
+- Toucher un widget ouvre l'appli au bon endroit : `hal://aujourdhui`, `hal://sport`, `hal://hal`, `hal://seance`.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :
@@ -119,7 +127,10 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 | `Sport` | La séance en cours, gardée sur le téléphone, et ses écrans |
 | `Sante` | La lecture de Santé et son envoi |
 | `PremierLancement` | Les quatre écrans d'après la connexion |
+| `Montre` | L'envoi d'une course à l'app Exercice de l'Apple Watch |
+| `../Partage` | Ce que l'appli partage avec ses widgets : l'instantané, la Live Activity |
+| `../HALWidgets` | Les widgets iOS et la Live Activity |
 
 ## La suite
 
-Le lot 9 : les widgets iOS, l'écran verrouillé, la Live Activity et l'envoi à la montre. La bêta `ios/CoachSante/` reste en service jusqu'à la bascule.
+Le lot 2, les retraits : le bot réservé à l'administrateur et l'ancien sport retiré. Puis le lot 10, la bascule : tout le monde sur HAL, la bêta `ios/CoachSante/` rangée.

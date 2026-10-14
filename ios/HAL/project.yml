@@ -16,20 +16,26 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
+    # L'équipe de signature, pour l'appli et ses widgets : plus besoin de la
+    # rechoisir dans Xcode après chaque xcodegen. Ce n'est pas un secret.
+    DEVELOPMENT_TEAM: HYZ7BT7P7B
+    CODE_SIGN_STYLE: Automatic
 targets:
   HAL:
     type: application
     platform: iOS
     sources:
       - HAL
+      # Ce que l'appli partage avec ses widgets : l'instantané et la Live Activity.
+      - Partage
+    dependencies:
+      - target: HALWidgets
+        embed: true
     settings:
       base:
         # Unique chez Apple. Si Xcode dit qu'il est déjà pris, change la fin.
         PRODUCT_BUNDLE_IDENTIFIER: fr.docxydre.hal
         PRODUCT_NAME: HAL
-        CODE_SIGN_STYLE: Automatic
-        # L'équipe se choisit dans Xcode, onglet Signing & Capabilities.
-        DEVELOPMENT_TEAM: ""
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: NO
@@ -55,6 +61,8 @@ targets:
           Le micro sert à dicter tes messages à HAL, seulement quand tu le demandes.
         NSSpeechRecognitionUsageDescription: >-
           Ta voix est transcrite en texte pour écrire ton message à HAL.
+        # IOS-3 : la séance en cours sur l'écran verrouillé et dans la Dynamic Island.
+        NSSupportsLiveActivities: true
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante]
         # 5.18 : la page d'un lien d'invitation ouvre l'appli par hal://rejoindre.
@@ -66,8 +74,39 @@ targets:
       properties:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
+        # IOS-1 : le dossier que l'appli partage avec ses widgets.
+        com.apple.security.application-groups: [group.fr.docxydre.hal]
         # NOT-16 : les notifications envoyées par le serveur, par le service
         # d'Apple. Elles demandent le compte développeur payant : une équipe
         # personnelle refuse de signer l'appli avec. Retirer le « # » de la
         # ligne suivante, puis relancer xcodegen, une fois le compte pris.
         # aps-environment: development
+
+  # IOS-1 à IOS-3 : les widgets de l'écran d'accueil et de l'écran verrouillé, et
+  # la Live Activity de la séance. Ils lisent ce que l'appli a gardé, sans appel
+  # au serveur.
+  HALWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - HALWidgets
+      - Partage
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.docxydre.hal.widgets
+        PRODUCT_NAME: HALWidgets
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    info:
+      path: HALWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: HAL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: HALWidgets/HALWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.fr.docxydre.hal]

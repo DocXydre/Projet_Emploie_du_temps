@@ -73,6 +73,7 @@ struct HALApp: App {
     /// Une invitation se lit sans compte : connecté, l'appli dit pourquoi elle
     /// ne s'en sert pas ; en démonstration, elle revient à la connexion.
     private func ouvrir(_ url: URL) {
+        if aiguillage.ouvrirUnWidget(url) { return }
         guard aiguillage.ouvrir(url) else { return }
         switch session.etat {
         case .connecte:

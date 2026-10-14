@@ -177,6 +177,7 @@ final class Foyer {
             appliquer(sport)
             Self.ecrire(sport, "etat-du-sport.json")
         }
+        publierPourLesWidgets()
     }
 
     /// La fréquence cardiaque du jour, lue dans Santé par l'appareil (3.15).

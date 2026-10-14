@@ -128,9 +128,31 @@ final class SeanceEnCours {
     /// La fin du repos en cours, s'il y en a un (SAI-18).
     private(set) var finDuRepos: Date?
     private(set) var dureeDuRepos: TimeInterval = 90
+    private var debutDuRepos: Date?
+    private let activite = ActiviteEnDirect()
 
     init() {
         seance = Self.lire()
+        PontSeance.passerLeRepos = { [weak self] in self?.passerLeRepos() }
+        publierLActivite()
+    }
+
+    /// IOS-3 : l'exercice, la série et le repos, sur l'écran verrouillé et dans la
+    /// Dynamic Island.
+    private func publierLActivite() {
+        guard let seance else {
+            activite.terminer()
+            return
+        }
+        let exercice = exerciceCourant
+        let etat = AttributsSeance.ContentState(
+            exercice: exercice?.libelle ?? "Choisis un exercice",
+            serie: (exercice.map { series(de: $0).filter { !$0.intermediaire }.count } ?? 0) + 1,
+            seriesPrevues: exercice?.series,
+            seriesFaites: seance.series.count,
+            debutDuRepos: finDuRepos == nil ? nil : debutDuRepos,
+            finDuRepos: finDuRepos)
+        activite.publier(titre: seance.titre, debut: seance.debut, etat: etat)
     }
 
     var enCours: Bool { seance != nil }
@@ -322,9 +344,11 @@ final class SeanceEnCours {
 
     private func lancerLeRepos(_ exercice: ExerciceDeSeance) {
         dureeDuRepos = TimeInterval(exercice.reposSecondes ?? 90)
+        debutDuRepos = .now
         finDuRepos = Date.now.addingTimeInterval(dureeDuRepos)
-        // Téléphone posé ou verrouillé : une notification sonne à la fin. La
-        // Live Activity viendra au lot 9 (IOS-3).
+        publierLActivite()
+        // Téléphone posé ou verrouillé : une notification sonne à la fin, et la
+        // Live Activity montre le compte à rebours (IOS-3).
         let contenu = UNMutableNotificationContent()
         contenu.title = "Repos terminé"
         contenu.body = "À toi : \(exercice.libelle)"
@@ -338,7 +362,9 @@ final class SeanceEnCours {
 
     func passerLeRepos() {
         finDuRepos = nil
+        debutDuRepos = nil
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["repos"])
+        publierLActivite()
     }
 
     private func demanderLesNotifications() {
@@ -420,6 +446,7 @@ final class SeanceEnCours {
     }
 
     private func enregistrer() {
+        defer { publierLActivite() }
         guard let seance else {
             try? FileManager.default.removeItem(at: Self.fichier)
             return
