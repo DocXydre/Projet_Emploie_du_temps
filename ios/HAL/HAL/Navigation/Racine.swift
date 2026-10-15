@@ -36,6 +36,18 @@ struct Racine: View {
             // La barre et le panneau flottent sur le contenu, qui défile dessous.
             .overlay(alignment: .bottom) {
                 VStack(spacing: 8) {
+                    if conversation.etatOrbe == .recap && !conversation.ouvert {
+                        // 2.5 : HAL a quelque chose à dire ; la bulle ouvre le panneau.
+                        Button { conversation.ouvrir() } label: {
+                            Text(conversation.cequIlADit)
+                                .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                .padding(.horizontal, 16)
+                                .frame(height: 38)
+                                .verreControle(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                     if conversation.ouvert {
                         PanneauHAL()
                             .frame(height: hauteurPanneau(geo))
@@ -73,6 +85,8 @@ struct Racine: View {
                 NavigationStack { FormulaireTache() }.feuilleEnVerre()
             case .inviter:
                 NavigationStack { EcranInvitation() }.feuilleEnVerre()
+            case .tacheFaite:
+                NavigationStack { FormulaireFaite() }.feuilleEnVerre()
             }
         }
         // FOY-3 : une invitation crée un compte. Connecté, on ne s'en sert pas.

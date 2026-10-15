@@ -51,6 +51,7 @@ struct CoquilleWidget<Contenu: View>: View {
     /// Un mot à droite de l'en-tête : « 1 sur 5 », « temps passé », « 30 jours ».
     var droite: String? = nil
     @ViewBuilder var contenu: Contenu
+    @Environment(\.fermerAgrandi) private var fermerAgrandi
 
     var body: some View {
         VStack(alignment: .leading, spacing: Espace.serre) {
@@ -63,6 +64,10 @@ struct CoquilleWidget<Contenu: View>: View {
                 if let droite {
                     Spacer(minLength: 4)
                     Text(droite).texte(.legende).foregroundStyle(Palette.texteTertiaire).lineLimit(1)
+                }
+                if let fermerAgrandi {
+                    Spacer(minLength: 4)
+                    BoutonRond("xmark", libelle: "Fermer") { fermerAgrandi.fermer() }
                 }
             }
             contenu

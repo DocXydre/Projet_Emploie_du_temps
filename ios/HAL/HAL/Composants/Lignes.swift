@@ -38,6 +38,9 @@ struct LigneTache: View {
     var avatar: (nom: String, couleur: Color)? = nil
     /// TAC-25 : l'icône du type, à sa couleur, devant le titre.
     var type: (icone: String, couleur: Color)? = nil
+    /// APP-10 : cochée mais pas encore envoyée. Jusqu'à cette heure, toucher la
+    /// tâche la décoche ; la ligne le dit à la place du détail.
+    var annulableJusqua: Date? = nil
     var action: () -> Void
     @Environment(\.theme) private var theme
 
@@ -70,7 +73,18 @@ struct LigneTache: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if let detail {
+                if let annulableJusqua, annulableJusqua > .now {
+                    TimelineView(.periodic(from: .now, by: 1)) { contexte in
+                        let reste = Int(annulableJusqua.timeIntervalSince(contexte.date).rounded(.up))
+                        if reste > 0 {
+                            Label("décocher · \(reste) s", systemImage: "arrow.uturn.backward")
+                                .labelStyle(.titleAndIcon)
+                                .texte(.legende).foregroundStyle(theme.principal)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                        }
+                    }
+                } else if let detail {
                     Text(detail).texte(.legende)
                         .foregroundStyle(detailEnAlerte ? Categorie.alerte.couleur : Palette.texteSecondaire)
                         .lineLimit(1)
@@ -84,7 +98,7 @@ struct LigneTache: View {
         .buttonStyle(.plain)
         .sensoryFeedback(.success, trigger: faite) { _, maintenant in maintenant }
         .accessibilityLabel(titre)
-        .accessibilityValue(faite ? "faite" : "à faire")
+        .accessibilityValue(faite ? (annulableJusqua != nil ? "faite, touche pour décocher" : "faite") : "à faire")
     }
 }
 
@@ -102,12 +116,20 @@ struct LigneReglage: View {
     let couleur: Color
     let libelle: String
     var accessoire: AccessoireReglage = .chevron()
+    /// Une ligne de détail sous le libellé, en plus petit (1.10).
+    var sousTitre: String? = nil
     @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 12) {
             Pastille(icone: icone, couleur: couleur)
-            Text(libelle).texte(.corps).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(libelle).texte(sousTitre == nil ? .corps : .corpsFort)
+                    .foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                if let sousTitre {
+                    Text(sousTitre).texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+                }
+            }
             Spacer(minLength: 8)
             switch accessoire {
             case .chevron(let valeur):

@@ -4,6 +4,7 @@ import SwiftUI
 /// disposition choisie (WID-6) ; la séance libre ferme la grille (WID-7).
 struct EcranAujourdhui: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(SeanceEnCours.self) private var seance
     @Environment(FileAttente.self) private var file
     @State private var edition = false
     @State private var galerie = false
@@ -13,31 +14,56 @@ struct EcranAujourdhui: View {
 
     var body: some View {
         PageDefilante {
-            EnTeteOnglet(surTitre: Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)
-                .locale(Locale(identifier: "fr_FR"))), titre: "Aujourd'hui") {
-                if edition {
-                    Button("OK") { withAnimation(.snappy) { edition = false } }.buttonStyle(.hal(.accent))
-                } else {
+            if edition {
+                // 1.9 : le mode édition ne montre que ce qui se déplace.
+                ZStack {
+                    Text("Modifier l'accueil").texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                        .surLaPhoto()
+                    HStack {
+                        BoutonRond("plus", libelle: "Ajouter un widget") { galerie = true }
+                        Spacer()
+                        Button("Terminé") { withAnimation(.snappy) { edition = false } }
+                            .buttonStyle(.hal(.accent))
+                    }
+                }
+                .frame(height: 44)
+                .padding(.bottom, 4)
+            } else {
+                EnTeteOnglet(surTitre: Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)
+                    .locale(Locale(identifier: "fr_FR"))), titre: "Aujourd'hui") {
                     BoutonRond("plus", libelle: "Ajouter") { ajoutRapide = true }
                     BoutonRond("pencil", libelle: "Modifier l'accueil") { withAnimation(.snappy) { edition = true } }
                 }
-            }
-            .padding(.bottom, 4)
+                .padding(.bottom, 4)
 
-            Bandeaux()
+                Bandeaux()
 
-            // 8.6 : ce qui manque à un compte neuf, tant que ça manque (PRE-3).
-            CarteDeDepart()
+                // 8.6 : ce qui manque à un compte neuf, tant que ça manque (PRE-3).
+                CarteDeDepart()
 
-            ForEach(prioritaires) { module in
-                module.widget(.moyen)
-                    .aspectRatio(2.07, contentMode: .fit)
-                    .onTapGesture { ouvrir(module) }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                ForEach(prioritaires) { module in
+                    module.widget(.moyen)
+                        .aspectRatio(2.07, contentMode: .fit)
+                        .onTapGesture { ouvrir(module) }
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
 
             TableauDeBord(edition: $edition, ouvrir: ouvrir, ajouter: { galerie = true })
 
+        }
+        .overlay(alignment: .bottom) {
+            if edition {
+                Label("Glisse pour déplacer · touche le coin pour la taille",
+                      systemImage: "arrow.up.and.down.and.arrow.left.and.right")
+                    .texte(.legende).foregroundStyle(Palette.textePrincipal)
+                    .padding(.horizontal, 14)
+                    .frame(height: 36)
+                    .verreControle(Capsule(), interactif: false)
+                    .padding(.bottom, 96)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
+            }
         }
         .refreshable { await foyer.charger() }
         .animation(.snappy, value: prioritaires.map(\.id))
@@ -55,12 +81,19 @@ struct EcranAujourdhui: View {
         if foyer.conflit != nil { liste.append(.conflit) }
         if foyer.ajustement != nil { liste.append(.ajustement) }
         if foyer.mesureDemandee != nil { liste.append(.mesureDemandee) }
-        if foyer.seanceAPrevoir != nil { liste.append(.lancerSeance) }
+        // Une séance lancée passe devant tout le reste, puis celle du jour à lancer.
+        if seance.enCours {
+            liste.insert(.seanceEnCours, at: 0)
+        } else if foyer.seanceAPrevoir != nil {
+            liste.append(.lancerSeance)
+        }
         return liste
     }
 
     private func ouvrir(_ module: Module) {
-        if module.ecran != nil {
+        if module.id == Module.seanceEnCours.id {
+            seance.affichee = true
+        } else if module.ecran != nil {
             ecranOuvert = module.id
         } else if module.agrandi != nil {
             withAnimation(.spring(duration: 0.35)) { agrandi = module }
@@ -79,6 +112,9 @@ struct EcranAujourdhui: View {
                     .accessibilityLabel("Fermer")
                     .accessibilityAddTraits(.isButton)
                 vue()
+                    .environment(\.fermerAgrandi, ActionFermer {
+                        withAnimation(.spring(duration: 0.3)) { agrandi = nil }
+                    })
                     .padding(.horizontal, Espace.marge)
                     .transition(.scale(scale: 0.85).combined(with: .opacity))
             }

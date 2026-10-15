@@ -40,8 +40,13 @@ struct PanneauHAL: View {
                         ForEach(conversation.messages) { message in
                             VStack(spacing: 8) {
                                 Bulle(message: message)
-                                ForEach(message.elements) { element in
-                                    CarteElement(element: element, ouvrir: ouvrir)
+                                ForEach(Self.regrouper(message.elements)) { bloc in
+                                    switch bloc {
+                                    case .seul(let element):
+                                        CarteElement(element: element, ouvrir: ouvrir)
+                                    case .semaine(let semaine, let seances):
+                                        CarteElement(element: semaine, seances: seances, ouvrir: ouvrir)
+                                    }
                                 }
                             }
                             .id(message.id)
@@ -95,6 +100,49 @@ struct PanneauHAL: View {
                 NavigationStack { EcranObjectifs() }.feuilleEnVerre()
             }
         }
+    }
+
+    /// 2.3 : une semaine à valider porte ses séances proposées dans une seule
+    /// carte, avec « Valider la semaine ». Le reste garde une carte chacun.
+    enum Bloc: Identifiable {
+        case seul(ElementHAL)
+        case semaine(ElementHAL, [ElementHAL])
+
+        var id: String {
+            switch self {
+            case .seul(let element): element.id
+            case .semaine(let semaine, _): semaine.id
+            }
+        }
+    }
+
+    static func regrouper(_ elements: [ElementHAL]) -> [Bloc] {
+        let semaines = elements.filter { $0.type == "semaine_a_valider" }
+        guard !semaines.isEmpty else { return elements.map(Bloc.seul) }
+        func lundi(de element: ElementHAL) -> String? {
+            guard let texte = element.jour ?? element.debut, let date = Dates.lire(texte) else { return nil }
+            let calendrier = Calendar.current
+            let debut = calendrier.date(from: calendrier.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date))
+            return debut.map(TexteHAL.jourISO)
+        }
+        var rattachees: [String: [ElementHAL]] = [:]
+        var blocs: [Bloc] = []
+        for element in elements where element.type == "seance_proposee" {
+            if let cle = lundi(de: element), semaines.contains(where: { $0.lundi?.prefix(10) == cle.prefix(10) }) {
+                rattachees[cle, default: []].append(element)
+            }
+        }
+        for element in elements {
+            if element.type == "semaine_a_valider" {
+                blocs.append(.semaine(element, rattachees[String(element.lundi?.prefix(10) ?? "")] ?? []))
+            } else if element.type == "seance_proposee", let cle = lundi(de: element),
+                      rattachees[cle]?.contains(element) == true {
+                continue
+            } else {
+                blocs.append(.seul(element))
+            }
+        }
+        return blocs
     }
 
     private func descendre(_ defilement: ScrollViewProxy) {
@@ -159,11 +207,21 @@ struct PanneauHAL: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(choix, id: \.texte) { proposition in
-                        Button(proposition.texte) {
+                        Button {
                             conversation.envoyer(proposition.texte, moment: proposition.moment,
                                                  horsReseau: foyer.essais.horsReseau)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Orbe(etat: .repos, taille: 14)
+                                Text(proposition.texte).texte(.legende).foregroundStyle(Palette.textePrincipal)
+                            }
+                            .padding(.leading, 6)
+                            .padding(.trailing, 12)
+                            .frame(height: 30)
+                            .background(Categorie.ia.voile, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Palette.verreBord, lineWidth: 0.5))
                         }
-                        .buttonStyle(.hal(.verre))
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -229,7 +287,7 @@ private struct Bulle: View {
         HStack(alignment: .bottom, spacing: 6) {
             if message.auteur == .moi { Spacer(minLength: 48) }
             VStack(alignment: message.auteur == .moi ? .trailing : .leading, spacing: 3) {
-                Text(message.texte)
+                Text(Self.enForme(message.texte))
                     .texte(.corps)
                     .foregroundStyle(Palette.textePrincipal)
                     .fixedSize(horizontal: false, vertical: true)
@@ -243,6 +301,15 @@ private struct Bulle: View {
             }
             if message.auteur != .moi { Spacer(minLength: 48) }
         }
+    }
+
+    /// HAL écrit en markdown : le gras, l'italique et les listes s'affichent,
+    /// pas leurs signes. Un texte qui ne se lit pas ainsi reste tel quel.
+    static func enForme(_ texte: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        let puces = texte.replacingOccurrences(of: #"(?m)^\s*[-*] "#, with: "• ", options: .regularExpression)
+        return (try? AttributedString(markdown: puces, options: options)) ?? AttributedString(texte)
     }
 
     private var fond: Color {
@@ -271,6 +338,8 @@ enum OuvertureDepuisHAL {
 /// Un élément de la réponse, avec ses boutons (COA-17, ORB-6).
 private struct CarteElement: View {
     let element: ElementHAL
+    /// Les séances proposées d'une semaine à valider, une ligne chacune (2.3).
+    var seances: [ElementHAL] = []
     let ouvrir: (OuvertureDepuisHAL) -> Void
     @Environment(ConversationHAL.self) private var conversation
     @Environment(\.annoncer) private var annoncer
@@ -282,6 +351,16 @@ private struct CarteElement: View {
             ForEach(lignes, id: \.self) { ligne in
                 Text(ligne).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(seances) { seance in
+                HStack(spacing: 10) {
+                    Text(TexteHAL.jour(seance.jour ?? seance.debut).map { String($0.split(separator: " ").prefix(2).joined(separator: " ")) } ?? "")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        .frame(width: 58, alignment: .leading)
+                    Text([seance.typeSeance ?? Discipline.nom(seance.discipline), TexteHAL.heure(seance.debut)]
+                            .compactMap { $0 }.joined(separator: " · "))
+                        .texte(.corps).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                }
             }
             if let regle = conversation.faits[element.id] ?? element.regle {
                 Label(regle, systemImage: "checkmark.circle.fill")
@@ -348,6 +427,7 @@ private struct CarteElement: View {
                         .compactMap { $0 }.joined(separator: " · "),
                     element.motif].compactMap { $0 }.filter { !$0.isEmpty }
         case "semaine_a_valider":
+            guard seances.isEmpty else { return [] }
             return element.seances.map { ["\($0) séance\($0 > 1 ? "s" : "") proposée\($0 > 1 ? "s" : "")"] } ?? []
         case "fenetre_mesure":
             return [["Du", TexteHAL.jour(element.du), "au", TexteHAL.jour(element.au)].compactMap { $0 }
@@ -391,7 +471,7 @@ private struct CarteElement: View {
         case "semaine_a_valider":
             let lundi = element.lundi.flatMap(Dates.lire)
             return [differe("Valider la semaine", "Semaine validée"),
-                    Bouton(libelle: "Voir") { ouvrir(.semaine(lundi)) }].compactMap { $0 }
+                    Bouton(libelle: "Ouvrir") { ouvrir(.semaine(lundi)) }].compactMap { $0 }
         case "ajustement":
             return [differe("Accepter", "Ajustement accepté"),
                     differe("Refuser", "Ajustement refusé")].compactMap { $0 }

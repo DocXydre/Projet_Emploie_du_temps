@@ -32,7 +32,7 @@ Réglages, Essais, **États à forcer** permet de voir les cas sans serveur : co
 
 - La connexion : l'adresse du serveur, le pseudo et le mot de passe rendent la clé d'API, gardée dans le trousseau (CNX-1, CNX-2). Un code d'invitation crée le compte et le connecte (FOY-3). « Essayer sans serveur » garde les données fictives.
 - Aujourd'hui et Maison lisent `GET /appli/aujourdhui` : la journée, les tâches des deux, le conflit, les absences, le mode allégé, le chat, l'équilibre et les week-ends proposés. La réponse est gardée sur le téléphone : hors réseau, l'appli montre la dernière reçue. Tirer vers le bas recharge, et l'appli recharge seule toutes les deux minutes.
-- Cocher une tâche se confirme en haut de l'écran, avec cinq secondes pour annuler, puis part par la file d'attente (APP-3). Un appui long sur une tâche la repousse.
+- Cocher une tâche se confirme en haut de l'écran. Elle ne part qu'au bout de trente secondes : jusque-là, la toucher de nouveau la décoche (APP-10). Elle part ensuite par la file d'attente (APP-3). Un appui long sur une tâche la repousse.
 - Le « + » : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, le mode allégé. La séance libre et la mesure arrivent avec le sport.
 - Le conflit de cours se tranche dans son widget. Un week-end proposé ouvre les trains : l'aller, le retour, et l'absence se pose toute seule.
 - Réglages, Serveur et mot de passe : changer de mot de passe, se déconnecter.

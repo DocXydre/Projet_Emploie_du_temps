@@ -59,6 +59,8 @@ extension View {
 extension EnvironmentValues {
     /// Ferme toute la feuille du « + », pas seulement le formulaire ouvert dedans.
     @Entry var fermerFeuille: ActionFermer? = nil
+    /// Ferme la vue agrandie d'un widget (WID-5) : la coquille montre alors son « × ».
+    @Entry var fermerAgrandi: ActionFermer? = nil
 }
 
 /// Une fermeture rangée dans une structure : SwiftUI ne compare pas les
@@ -78,16 +80,20 @@ struct BoutonEnvoi: View {
     let enCours: Bool
     var action: () -> Void
 
+    /// Le grand bouton accent de la maquette, posé sous le formulaire, sans fond de ligne.
     var body: some View {
         Section {
             Button(action: action) {
                 HStack {
-                    Spacer()
-                    if enCours { ProgressView() } else { Text(titre).bold() }
-                    Spacer()
+                    if enCours { ProgressView() }
+                    Text(titre)
                 }
+                .frame(maxWidth: .infinity)
             }
+            .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
             .disabled(!actif || enCours)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         }
     }
 }
@@ -177,34 +183,60 @@ struct FormulaireCreneau: View {
     @State private var lieu = ""
     @State private var debut = Calendar.current.date(byAdding: .hour, value: 1, to: .now) ?? .now
     @State private var fin = Calendar.current.date(byAdding: .hour, value: 2, to: .now) ?? .now
+    /// Pour qui : un membre, ou tout le foyer (nil).
+    @State private var pour: Int?
+    @State private var pourTous = false
     @State private var enCours = false
     @State private var erreur: String?
 
+    /// 1.6 : un créneau posé à la main (COL-13). Le moteur n'y place rien.
     var body: some View {
         FormulaireVerre {
-            Section {
-                TextField("Rendez-vous chez le dentiste", text: $libelle)
+            Section("Titre") {
+                TextField("Rendez-vous banque", text: $libelle)
                 TextField("Lieu (facultatif)", text: $lieu)
             }
             Section {
-                DatePicker("Début", selection: $debut)
-                DatePicker("Fin", selection: $fin, in: debut...)
+                DatePicker("Jour", selection: $debut, displayedComponents: .date)
+                DatePicker("De", selection: $debut, displayedComponents: .hourAndMinute)
+                DatePicker("À", selection: $fin, in: debut..., displayedComponents: .hourAndMinute)
             } footer: {
                 Text("Le moteur ne place rien sur ce créneau, et déplace ce qui y était.")
             }
+            .environment(\.locale, Locale(identifier: "fr_FR"))
+            if foyer.membres.count > 1 {
+                Section("Pour qui") {
+                    HStack(spacing: 8) {
+                        PuceChoix(texte: "Moi", choisie: !pourTous && (pour ?? foyer.moi.id) == foyer.moi.id) {
+                            pourTous = false
+                            pour = foyer.moi.id
+                        }
+                        ForEach(foyer.membres.filter { $0 != foyer.moi }) { membre in
+                            PuceChoix(texte: membre.nom, choisie: !pourTous && pour == membre.id) {
+                                pourTous = false
+                                pour = membre.id
+                            }
+                        }
+                        PuceChoix(texte: "Les deux", choisie: pourTous) { pourTous = true }
+                    }
+                }
+            }
             LigneErreur(texte: erreur)
-            BoutonEnvoi(titre: "Poser le créneau",
+            BoutonEnvoi(titre: "Ajouter",
                         actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty && fin > debut,
                         enCours: enCours) { Task { await envoyer() } }
         }
-        .navigationTitle("Poser un créneau")
+        .navigationTitle("Nouveau créneau")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: debut) { _, nouveau in
-            if fin <= nouveau { fin = nouveau.addingTimeInterval(3600) }
+        .onChange(of: debut) { ancien, nouveau in
+            // Changer le jour ou l'heure de début emporte la fin avec, à durée égale.
+            let duree = max(900, fin.timeIntervalSince(ancien))
+            fin = nouveau.addingTimeInterval(duree)
         }
     }
 
     private struct Demande: Encodable {
+        let idUtilisateur: Int?
         let type: String
         let libelle: String
         let debut: Date
@@ -216,10 +248,15 @@ struct FormulaireCreneau: View {
         enCours = true
         erreur = nil
         defer { enCours = false }
+        let pourQui: [Int?] = pourTous ? foyer.membres.map(\.id) : [pour]
         do {
-            try await foyer.agir("POST", "occupations?replacer=true", corps: ClientAPI.corps(Demande(
-                type: "autre", libelle: libelle.trimmingCharacters(in: .whitespaces),
-                debut: debut, fin: fin, lieu: lieu.isEmpty ? nil : lieu)))
+            for (rang, qui) in pourQui.enumerated() {
+                // Le placement ne repart qu'une fois, avec le dernier créneau.
+                let replacer = rang == pourQui.count - 1
+                try await foyer.agir("POST", "occupations?replacer=\(replacer)", corps: ClientAPI.corps(Demande(
+                    idUtilisateur: qui, type: "autre", libelle: libelle.trimmingCharacters(in: .whitespaces),
+                    debut: debut, fin: fin, lieu: lieu.isEmpty ? nil : lieu)))
+            }
             annoncer("Créneau posé")
             (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
@@ -394,82 +431,175 @@ struct EcranTrains: View {
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @Environment(\.fermerFeuille) private var fermerFeuille
+    @Environment(\.openURL) private var ouvrirLien
     @Environment(\.annoncer) private var annoncer
 
+    private enum Sens: Hashable { case aller, retour }
+
     @State private var rang = 1
+    @State private var sens = Sens.aller
     @State private var allers: [Train]?
     @State private var aller: Train?
     @State private var retours: [Train]?
+    @State private var retour: Train?
     @State private var enCours = false
     @State private var erreur: String?
 
+    /// 1.13 : les départs conseillés selon le planning, l'aller puis le retour ;
+    /// les retenir pose l'absence. L'achat se fait dans l'app SNCF (TRJ-8).
     var body: some View {
         NavigationStack {
-            FormulaireVerre {
-                Section {
-                    Text("Un week-end à \(proposition.lieu), du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin))")
-                        .foregroundStyle(Palette.textePrincipal)
-                }
-                LigneErreur(texte: erreur)
-                if let aller {
-                    Section("Aller retenu") { ligne(aller, choisi: true) }
-                    Section("Retour") {
-                        if let retours {
-                            if retours.isEmpty { Text("Aucun retour trouvé.").foregroundStyle(Palette.texteSecondaire) }
-                            ForEach(retours) { train in
-                                Button { Task { await retenir(retour: train) } } label: { ligne(train, choisi: false) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                    ZStack {
+                        Text("Week-end à \(proposition.lieu)").texte(.titreWidget)
+                            .foregroundStyle(Palette.textePrincipal).surLaPhoto()
+                        HStack {
+                            BoutonRond("chevron.left", libelle: "Fermer") { fermer() }
+                            Spacer()
+                            Menu {
+                                Button("Créneau suivant") { rang += 1 }
+                                if aller != nil {
+                                    Button("Retenir sans retour") { Task { await retenir(retour: nil) } }
+                                }
+                                Button("Pas ce week-end", role: .destructive) { Task { await decliner() } }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Palette.textePrincipal)
+                                    .frame(width: 36, height: 36)
+                                    .verreControle(Circle())
                             }
-                            Button("Sans retour pour l'instant") { Task { await retenir(retour: nil) } }
-                        } else {
-                            ProgressView().frame(maxWidth: .infinity)
+                            .accessibilityLabel("Plus")
                         }
                     }
-                } else {
-                    Section {
-                        if let allers {
-                            if allers.isEmpty { Text("Aucun train sur ce créneau.").foregroundStyle(Palette.texteSecondaire) }
-                            ForEach(allers) { train in
-                                Button { Task { await choisirAller(train) } } label: { ligne(train, choisi: false) }
-                            }
-                            Button("Créneau suivant") { rang += 1 }
-                        } else {
-                            ProgressView().frame(maxWidth: .infinity)
-                        }
-                    } header: {
-                        Text("Aller")
-                    } footer: {
-                        Text("Le premier train qu'on peut attraper après le dernier cours.")
+                    .frame(height: 44)
+                    HStack(alignment: .top, spacing: 10) {
+                        Orbe(etat: .repos, taille: 22)
+                        Text("Libre du \(Self.jour(proposition.debut)) au \(Self.jour(proposition.fin)). Voici les trains qui tiennent dans le planning.")
+                            .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    .padding(Espace.interne)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .carte(rayon: Rayon.controle)
+                    Segmente(choix: [(Sens.aller, "Aller · \(Self.jourCourt(proposition.debut))"),
+                                     (Sens.retour, "Retour · \(Self.jourCourt(proposition.fin))")],
+                             selection: $sens)
+                    if let erreur {
+                        Label(erreur, systemImage: "exclamationmark.circle")
+                            .texte(.corps).foregroundStyle(Categorie.alerte.couleur)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    liste(sens == .aller ? allers : retours, choisi: sens == .aller ? aller : retour)
+                    Button(boutonPrincipal) { Task { await agir() } }
+                        .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                        .disabled(sens == .aller ? aller == nil : retour == nil)
+                    Button("Ouvrir SNCF Connect") {
+                        if let lien = URL(string: "https://www.sncf-connect.com") { ouvrirLien(lien) }
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
                 }
-                Section {
-                    Button("Pas ce week-end") { Task { await decliner() } }
-                        .foregroundStyle(Palette.texteSecondaire)
-                        .frame(maxWidth: .infinity)
-                }
+                .padding(.horizontal, Espace.marge)
+                .padding(.bottom, 40)
             }
-            .navigationTitle("Partir")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fermer") { fermer() } }
-            }
+            .ecranHAL()
             .task(id: rang) { await chercherAllers() }
+            .onChange(of: sens) { _, nouveau in
+                if nouveau == .retour, retours == nil, let aller { Task { await chercherRetours(aller) } }
+            }
         }
         .disabled(enCours)
         .feuilleEnVerre()
     }
 
-    private func ligne(_ train: Train, choisi: Bool) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(Self.heure(train.depart)) → \(Self.heure(train.arrivee))")
-                    .foregroundStyle(Palette.textePrincipal)
-                Text(train.resume ?? Self.jour(train.depart))
-                    .font(.footnote).foregroundStyle(Palette.texteSecondaire)
-            }
-            Spacer()
-            if choisi { Image(systemName: "checkmark").foregroundStyle(Categorie.sport.couleur) }
+    private var boutonPrincipal: String {
+        switch sens {
+        case .aller: aller.map { "Choisir le \(Self.heureSeule($0.depart)), puis le retour" } ?? "Choisis un aller"
+        case .retour: retour == nil ? "Choisis un retour" : "Ajouter les trains au planning"
         }
     }
+
+    private func agir() async {
+        switch sens {
+        case .aller:
+            sens = .retour
+        case .retour:
+            await retenir(retour: retour)
+        }
+    }
+
+    @ViewBuilder
+    private func liste(_ trains: [Train]?, choisi: Train?) -> some View {
+        if let trains {
+            if trains.isEmpty {
+                Text(sens == .aller ? "Aucun train sur ce créneau." : "Aucun retour trouvé.")
+                    .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    .frame(maxWidth: .infinity, minHeight: 80)
+                    .carte(rayon: Rayon.controle)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(trains.enumerated()), id: \.element.id) { rangTrain, train in
+                        Button {
+                            withAnimation(.snappy) {
+                                if sens == .aller {
+                                    aller = train
+                                    retours = nil
+                                    retour = nil
+                                } else {
+                                    retour = train
+                                }
+                            }
+                        } label: {
+                            ligne(train, conseille: rangTrain == 0, choisi: train == choisi)
+                        }
+                        .buttonStyle(.plain)
+                        if rangTrain < trains.count - 1 { Divider().overlay(Palette.verreBord) }
+                    }
+                }
+                .carte(rayon: Rayon.controle)
+            }
+        } else {
+            ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+        }
+    }
+
+    /// « 09:12 → 10:36 Conseillé », puis « 1 h 24 · TER · direct ».
+    private func ligne(_ train: Train, conseille: Bool, choisi: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    Text("\(Self.heureSeule(train.depart)) → \(Self.heureSeule(train.arrivee))")
+                        .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    if conseille { Puce("Conseillé", categorie: .sport) }
+                }
+                Text(detail(train)).texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: choisi ? "checkmark.circle.fill" : "chevron.right")
+                .font(.system(size: choisi ? 20 : 13, weight: .semibold))
+                .foregroundStyle(choisi ? Categorie.sport.couleur : Palette.texteTertiaire)
+        }
+        .padding(.horizontal, Espace.interne)
+        .padding(.vertical, 12)
+        .background(choisi ? Palette.verreTeinte : .clear)
+        .contentShape(Rectangle())
+    }
+
+    private func detail(_ train: Train) -> String {
+        var morceaux = [EnFrancais.duree(minutes: Int(train.arrivee.timeIntervalSince(train.depart) / 60))]
+        if let resume = train.resume, !resume.isEmpty { morceaux.append(resume) }
+        let correspondances = train.correspondances ?? 0
+        morceaux.append(correspondances == 0 ? "direct"
+                        : "\(correspondances) changement\(correspondances > 1 ? "s" : "")")
+        return morceaux.joined(separator: " · ")
+    }
+
+    static func jourCourt(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated).locale(Locale(identifier: "fr_FR")))
+    }
+
+    static func heureSeule(_ date: Date) -> String { EnFrancais.heure(date) }
 
     static func jour(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(Locale(identifier: "fr_FR")))
@@ -491,8 +621,7 @@ struct EcranTrains: View {
         }
     }
 
-    private func choisirAller(_ train: Train) async {
-        aller = train
+    private func chercherRetours(_ train: Train) async {
         retours = nil
         do {
             let choix: ChoixDeTrains = try await foyer.demander("POST", "trajets/retour?aller=\(train.id)")

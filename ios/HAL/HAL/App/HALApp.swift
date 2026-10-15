@@ -56,6 +56,9 @@ struct HALApp: App {
                 await rafraichirEnContinu()
             }
             .onChange(of: phase) { _, nouvelle in
+                // APP-10 : une tâche cochée n'attend pas ses trente secondes si
+                // l'appli quitte l'écran.
+                if nouvelle == .background { envoyerAvantLaSuspension() }
                 guard nouvelle == .active else { return }
                 Task {
                     await foyer.charger()
@@ -72,6 +75,19 @@ struct HALApp: App {
         // SAN-10 : iOS réveille l'appli de temps en temps pour envoyer Santé.
         .backgroundTask(.appRefresh(EnvoiSante.idTache)) {
             await sante.envoyerEnFond()
+        }
+    }
+
+    /// APP-10 : ce qui attendait part tout de suite, et iOS laisse à l'appli
+    /// quelques secondes pour finir l'envoi avant de la suspendre. Ce qui n'a
+    /// pas pu partir reste dans la file et part au retour (APP-3).
+    private func envoyerAvantLaSuspension() {
+        foyer.envoyerSansAttendre()
+        guard !file.enAttente.isEmpty else { return }
+        let sursis = UIApplication.shared.beginBackgroundTask(withName: "fr.docxydre.hal.envoi")
+        Task {
+            await file.vider()
+            UIApplication.shared.endBackgroundTask(sursis)
         }
     }
 

@@ -190,6 +190,20 @@ enum EnFrancais {
         (Double(metres) / 1000).formatted(.number.precision(.fractionLength(0...2)).locale(francais)) + " km"
     }
 
+    /// Le matériel d'un exercice, tel que le catalogue le code.
+    static func materiel(_ code: String) -> String {
+        switch code {
+        case "barre": "Barre"
+        case "halteres": "Haltères"
+        case "machine": "Machine"
+        case "poulie": "Poulie"
+        case "poids_du_corps": "Poids du corps"
+        case "cardio": "Cardio"
+        case "aucun": "Sans matériel"
+        default: code.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
     /// « 8 412 »
     static func nombre(_ valeur: Int) -> String {
         valeur.formatted(.number.locale(francais))

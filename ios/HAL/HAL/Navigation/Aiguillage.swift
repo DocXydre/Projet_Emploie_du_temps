@@ -14,6 +14,8 @@ final class Aiguillage {
         case ajouterTache
         /// Inviter quelqu'un dans le foyer (5.16).
         case inviter
+        /// Déclarer une tâche faite, même en plus (4.4).
+        case tacheFaite
 
         var id: String { rawValue }
     }
