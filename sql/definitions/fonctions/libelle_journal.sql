@@ -28,6 +28,22 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
         WHEN 'foyer'       THEN p_ligne ->> 'nom'
         WHEN 'allegement'  THEN 'Mode allégé'
         WHEN 'plan'        THEN 'Plan d''entraînement'
+        -- TAC-27 : un lien se lit par les deux tâches qu'il relie.
+        WHEN 'enchainement' THEN
+            (SELECT a.libelle || ' → ensuite ' || b.libelle
+               FROM tache a, tache b
+              WHERE a.id_tache = (p_ligne ->> 'id_tache_source')::INTEGER
+                AND b.id_tache = (p_ligne ->> 'id_tache_suivante')::INTEGER)
+        WHEN 'accompagnement' THEN
+            (SELECT a.libelle || ' → le même jour ' || b.libelle
+               FROM tache a, tache b
+              WHERE a.id_tache = (p_ligne ->> 'id_tache')::INTEGER
+                AND b.id_tache = (p_ligne ->> 'id_tache_jointe')::INTEGER)
+        WHEN 'remplacement' THEN
+            (SELECT a.libelle || ' vaut aussi ' || b.libelle
+               FROM tache a, tache b
+              WHERE a.id_tache = (p_ligne ->> 'id_tache_faite')::INTEGER
+                AND b.id_tache = (p_ligne ->> 'id_tache_couverte')::INTEGER)
         ELSE p_ligne ->> 'libelle'
     END
 $$;

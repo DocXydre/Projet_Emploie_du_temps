@@ -64,6 +64,7 @@ struct WidgetACocher: View {
                         LigneTache(titre: tache.titre,
                                    pourQui: taille == .petit ? nil : tache.pourQui.nom,
                                    faite: tache.faite,
+                                   type: tache.type.map { ($0.icone, tache.couleur) }) {
                                    annulableJusqua: foyer.departDeLEnvoi(tache)) {
                             cocher(tache)
                         }

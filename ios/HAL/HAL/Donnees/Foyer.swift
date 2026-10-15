@@ -43,6 +43,8 @@ final class Foyer {
     private(set) var propositions: [Proposition] = []
     private(set) var minutesFaites: [Int: Int] = [:]
     private(set) var droits = Droits(ajouter: true, modifier: true)
+    /// TAC-25 : les types de tâches du foyer, gardés avec le reste.
+    private(set) var types: [TypeTache] = Foyer.typesDeDemonstration
     private(set) var orbeADire = false
     private(set) var chat: EtatChat
     /// L'onglet Sport tel que le serveur l'a rendu (lot 6).
@@ -264,8 +266,11 @@ final class Foyer {
                   debut: lue.debut,
                   journeeEntiere: lue.journeeEntiere ?? false,
                   code: lue.code,
-                  reportable: lue.actionsPossibles?.contains("reportee") ?? false)
+                  reportable: lue.actionsPossibles?.contains("reportee") ?? false,
+                  idTache: lue.idTache,
+                  type: lue.type)
         }
+        if let lus = etat.types { types = lus }
         conflitDuServeur = etat.conflit.map { lu in
             Conflit(id: lu.id, jour: Self.jour(lu.jour),
                     premier: Self.cours(lu.existante), second: Self.cours(lu.nouvelle))
@@ -498,6 +503,21 @@ final class Foyer {
         }
         try await agir("POST", "ajustements/\(premier.idAjustement)/\(accepte ? "accepter" : "refuser")")
     }
+
+    /// TAC-25 : relit les types après un ajout ou une retouche.
+    func rechargerTypes() async {
+        guard let client, let lus: [TypeTache] = try? await client.requete("GET", "types-taches") else { return }
+        types = lus
+    }
+
+    /// Les types d'origine, pour l'appli sans serveur.
+    static let typesDeDemonstration: [TypeTache] = [
+        TypeTache(id: 1, libelle: "Ménage", couleur: "#FFD166", icone: "house", dureeMinutes: 10, priorite: 4),
+        TypeTache(id: 2, libelle: "Linge", couleur: "#B794F6", icone: "tshirt", dureeMinutes: 15, priorite: 2),
+        TypeTache(id: 3, libelle: "Vaisselle", couleur: "#6FD3F2", icone: "fork.knife", dureeMinutes: 5, priorite: 2),
+        TypeTache(id: 4, libelle: "Sassy", couleur: "#FF9BCB", icone: "pawprint", dureeMinutes: 5, priorite: 1),
+        TypeTache(id: 5, libelle: "Administratif", couleur: "#AEB8C8", icone: "doc.text", dureeMinutes: 15, priorite: 2),
+    ]
 
     /// Une action qui demande une réponse du serveur : elle n'attend pas dans la
     /// file, et son refus s'affiche dans le formulaire qui l'a lancée.

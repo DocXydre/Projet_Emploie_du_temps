@@ -38,7 +38,7 @@ Aujourd'hui :
 | **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
 | **Répartition** | Les tâches alternent entre nous deux, et la balance reprend la main quand l'écart se creuse. N'importe qui coche n'importe quoi, l'autre est prévenu |
 | **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
-| **Tâches ajoutées** | Un cycle long ou une chose à faire avant une date, créés depuis Telegram en cinq questions |
+| **Tâches ajoutées** | Une tâche pour aujourd'hui, entre deux dates, à une heure ou dans une plage, oubliée ou reportée si elle n'est pas faite ; régulière ; ou née d'une autre, comme vider le lave-vaisselle. Des types que le foyer nomme et colore, et des liens posés depuis l'application |
 | **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
 | **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |

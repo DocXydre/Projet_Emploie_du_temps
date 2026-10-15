@@ -41,6 +41,8 @@ struct EcranReglages: View {
                 lien("Calendriers à suivre", "calendar", Categorie.travail.couleur,
                      valeur: foyer.sansCalendrier ? "À ajouter" : nil) { EcranCalendriersSuivis() }
                 lien("Calendriers abonnés", "calendar.badge.plus", Categorie.travail.couleur) { EcranCalendriersAbonnes() }
+                lien("Types de tâches", "paintpalette", Categorie.menage.couleur,
+                     valeur: "\(foyer.types.count)") { EcranTypesTaches() }
                 lien("Historique", "clock", Categorie.travail.couleur) { EcranHistorique() }
             }
 

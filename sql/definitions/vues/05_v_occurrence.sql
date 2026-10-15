@@ -8,6 +8,7 @@ SELECT
     t.code            AS tache_code,
     t.libelle         AS tache_libelle,
     t.categorie,
+    t.id_type_tache,
     t.priorite,
     t.duree_minutes,
     o.id_utilisateur,
