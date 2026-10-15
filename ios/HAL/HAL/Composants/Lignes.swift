@@ -36,6 +36,8 @@ struct LigneTache: View {
     var detailEnAlerte = false
     /// L'initiale et la couleur de la personne, tout à droite (4.1).
     var avatar: (nom: String, couleur: Color)? = nil
+    /// TAC-25 : l'icône du type, à sa couleur, devant le titre.
+    var type: (icone: String, couleur: Color)? = nil
     /// APP-10 : cochée mais pas encore envoyée. Jusqu'à cette heure, toucher la
     /// tâche la décoche ; la ligne le dit à la place du détail.
     var annulableJusqua: Date? = nil
@@ -55,6 +57,12 @@ struct LigneTache: View {
                     }
                 }
                 .frame(width: 22, height: 22)
+                if let type {
+                    Image(systemName: type.icone)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(type.couleur)
+                        .frame(width: 16)
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(titre)
                         .texte(.corps)

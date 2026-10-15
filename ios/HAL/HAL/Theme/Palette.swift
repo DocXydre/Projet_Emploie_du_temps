@@ -56,6 +56,22 @@ enum Categorie: String, Codable, CaseIterable, Identifiable {
 }
 
 extension Color {
+    /// TAC-25 : la couleur d'un type, telle que la base la garde : « #FF9BCB ».
+    init?(hexa: String) {
+        let chiffres = hexa.hasPrefix("#") ? String(hexa.dropFirst()) : hexa
+        guard chiffres.count == 6, let valeur = UInt32(chiffres, radix: 16) else { return nil }
+        self.init(hex: valeur)
+    }
+
+    /// L'inverse, pour l'envoyer : le sélecteur d'iOS rend n'importe quelle teinte.
+    var hexa: String {
+        let c = UIColor(self).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let canal = { (x: CGFloat) in Int((min(max(x, 0), 1) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", canal(r), canal(g), canal(b))
+    }
+
     /// Une couleur écrite comme dans la maquette : `Color(hex: 0x5CE1C5)`.
     init(hex: UInt32, opacite: Double = 1) {
         self.init(.sRGB,

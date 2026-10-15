@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 /// Ce que l'appli affiche. `Foyer` les remplit depuis l'API, ou depuis `Apercu`
 /// en démonstration.
@@ -46,6 +46,13 @@ struct Tache: Identifiable, Hashable {
     /// Le code de la tâche récurrente, « ASPIRATEUR ».
     var code: String = ""
     var reportable: Bool = true
+    /// La tâche dont elle est une fois, pour ouvrir son détail (4.2).
+    var idTache: Int? = nil
+    /// TAC-25 : son type, qui donne sa couleur et son icône.
+    var type: TypeTache? = nil
+
+    /// La couleur du type, sinon celle de la famille.
+    var couleur: Color { type.flatMap { Color(hexa: $0.couleur) } ?? categorie.couleur }
 }
 
 /// Une absence d'un membre : ses tâches passent aux autres (ABS).

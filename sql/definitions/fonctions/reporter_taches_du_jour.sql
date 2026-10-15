@@ -1,5 +1,8 @@
 -- -----------------------------------------------------------------------------
 -- Le report de minuit ne reporte pas une séance                        (SPT-25)
+--
+-- Et n'abandonne pas sans raison une tâche ponctuelle (TAC-20), sauf celle
+-- qu'on a demandé d'oublier une fois sa dernière date passée (TAC-24).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION reporter_taches_du_jour()
  RETURNS jsonb
@@ -9,6 +12,7 @@ DECLARE
     o             RECORD;
     v_reportees   INTEGER := 0;
     v_abandonnees INTEGER := 0;
+    v_oubliees    INTEGER := 0;
     v_alertes     INTEGER := 0;
     v_demain      DATE := jour_de(now()) + 1;
 BEGIN
@@ -17,7 +21,7 @@ BEGIN
         SELECT oc.id_occurrence, oc.id_utilisateur, oc.creneau, oc.fenetre,
                oc.rappel_journee,
                t.reportable, t.libelle, t.abandon_apres_jours, t.categorie,
-               v.jours_de_retard
+               t.si_pas_faite, v.jours_de_retard
           FROM occurrence oc
           JOIN tache t        ON t.id_tache = oc.id_tache
           JOIN v_occurrence v ON v.id_occurrence = oc.id_occurrence
@@ -25,6 +29,13 @@ BEGIN
            AND oc.creneau IS NOT NULL
            AND upper(oc.creneau) <= now()
     LOOP
+        -- TAC-24 : sa dernière date est passée, on a demandé de l'oublier.
+        IF o.si_pas_faite = 'oublier' AND upper(o.fenetre) <= now() THEN
+            PERFORM oublier_occurrence(o.id_occurrence);
+            v_oubliees := v_oubliees + 1;
+            CONTINUE;
+        END IF;
+
         IF o.abandon_apres_jours > 0 AND o.jours_de_retard >= o.abandon_apres_jours THEN
             PERFORM abandonner_occurrence(o.id_occurrence, o.jours_de_retard);
             v_abandonnees := v_abandonnees + 1;
@@ -64,8 +75,22 @@ BEGIN
         v_reportees := v_reportees + 1;
     END LOOP;
 
-    -- 2. Ce qui n'a jamais trouvé de place et dont l'échéance est passée. Sans
-    -- cette passe, une occurrence jamais posée n'était jamais vue par le report
+    -- 2. Ce qui n'a jamais trouvé de place et dont l'échéance est passée.
+    --
+    -- Une tâche à oublier l'est d'abord, sans attendre de délai de retard.
+    FOR o IN
+        SELECT oc.id_occurrence
+          FROM occurrence oc
+          JOIN tache t ON t.id_tache = oc.id_tache
+         WHERE oc.statut IN ('a_placer', 'planifiee', 'notifiee')
+           AND t.si_pas_faite = 'oublier'
+           AND upper(oc.fenetre) <= now()
+    LOOP
+        PERFORM oublier_occurrence(o.id_occurrence);
+        v_oubliees := v_oubliees + 1;
+    END LOOP;
+
+    -- Le reste attend son délai d'abandon. Sans cette passe, une occurrence jamais posée n'était jamais vue par le report
     -- et restait indéfiniment dans la liste.
     FOR o IN
         SELECT oc.id_occurrence, v.jours_de_retard
@@ -83,10 +108,12 @@ BEGIN
 
     RETURN jsonb_build_object('reportees',   v_reportees,
                               'abandonnees', v_abandonnees,
+                              'oubliees',    v_oubliees,
                               'alertes',     v_alertes);
 END $function$;
 
 COMMENT ON FUNCTION reporter_taches_du_jour IS
     'Report d''office de minuit. Reporte, abandonne au-delà du délai de la
-     tâche, ou alerte pour une tâche non reportable. Traite aussi ce qui n''a
-     jamais eu de créneau. Rend le compte des trois.';
+     tâche, oublie une tâche ponctuelle qui l''a demandé (TAC-24), ou alerte
+     pour une tâche non reportable. Traite aussi ce qui n''a jamais eu de
+     créneau. Rend le compte de chacun.';

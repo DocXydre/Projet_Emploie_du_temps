@@ -4,7 +4,7 @@ import SwiftUI
 // des Form d'iOS, sans fond à nous : la feuille reste en Liquid Glass.
 
 /// Ce qu'un formulaire montre quand le serveur refuse : son motif, tel quel.
-private struct LigneErreur: View {
+struct LigneErreur: View {
     let texte: String?
 
     var body: some View {
@@ -74,7 +74,7 @@ private func motif(_ erreur: Error) -> String {
 }
 
 /// Un bouton « Enregistrer » qui montre qu'il travaille.
-private struct BoutonEnvoi: View {
+struct BoutonEnvoi: View {
     let titre: String
     let actif: Bool
     let enCours: Bool
@@ -98,99 +98,7 @@ private struct BoutonEnvoi: View {
     }
 }
 
-// MARK: - Ajouter une tâche                                         (TAC-20, FOY-6)
-
-struct FormulaireTache: View {
-    @Environment(Foyer.self) private var foyer
-    @Environment(\.dismiss) private var fermer
-    @Environment(\.fermerFeuille) private var fermerFeuille
-    @Environment(\.annoncer) private var annoncer
-
-    private static let familles: [(String, String)] = [
-        ("menage", "Ménage"), ("linge", "Linge"), ("vaisselle", "Vaisselle"), ("animal", "Chat"),
-    ]
-
-    @State private var libelle = ""
-    @State private var famille = "menage"
-    @State private var duree = 15
-    @State private var tousLes = 7
-    @State private var pourQui: Int? = nil
-    @State private var enCours = false
-    @State private var erreur: String?
-
-    var body: some View {
-        FormulaireVerre {
-            if !foyer.droits.ajouter {
-                Section {
-                    Label("L'administrateur du foyer garde l'ajout des tâches pour lui.",
-                          systemImage: "lock")
-                }
-            }
-            Section("La tâche") {
-                TextField("Arroser les plantes", text: $libelle)
-                Picker("Famille", selection: $famille) {
-                    ForEach(Self.familles.indices, id: \.self) { rang in
-                        Text(Self.familles[rang].1).tag(Self.familles[rang].0)
-                    }
-                }
-                Stepper("Durée : \(duree) min", value: $duree, in: 5...180, step: 5)
-            }
-            Section {
-                Stepper(tousLes == 1 ? "Tous les jours" : "Tous les \(tousLes) jours",
-                        value: $tousLes, in: 1...60)
-                Picker("Pour qui", selection: $pourQui) {
-                    Text("Le moteur répartit").tag(Int?.none)
-                    ForEach(foyer.membres) { Text($0.nom).tag(Int?.some($0.id)) }
-                }
-            } header: {
-                Text("Quand")
-            } footer: {
-                Text("Le moteur la place dans un creux, à un jour près, et la répartit selon le temps passé par chacun.")
-            }
-            LigneErreur(texte: erreur)
-            BoutonEnvoi(titre: "Ajouter", actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty
-                        && foyer.droits.ajouter, enCours: enCours) { Task { await envoyer() } }
-        }
-        .navigationTitle("Ajouter une tâche")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private struct Demande: Encodable {
-        let code: String
-        let libelle: String
-        let categorie: String
-        let dureeMinutes: Int
-        let periodiciteMinJours: Int
-        let periodiciteMaxJours: Int
-        let idUtilisateurDefaut: Int?
-    }
-
-    /// « Arroser les plantes » devient « ARROSER_LES_PLANTES_4821 » : unique, et lisible au journal.
-    private var code: String {
-        let sansAccent = libelle.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .init(identifier: "fr_FR"))
-        let lettres = sansAccent.uppercased().map { $0.isLetter || $0.isNumber ? $0 : "_" }
-        let racine = String(lettres).split(separator: "_").joined(separator: "_").prefix(24)
-        return "\(racine.isEmpty ? "TACHE" : String(racine))_\(Int.random(in: 1000...9999))"
-    }
-
-    private func envoyer() async {
-        enCours = true
-        erreur = nil
-        defer { enCours = false }
-        let propre = libelle.trimmingCharacters(in: .whitespaces)
-        do {
-            try await foyer.agir("POST", "taches?replacer=true", corps: ClientAPI.corps(Demande(
-                code: code, libelle: propre, categorie: famille, dureeMinutes: duree,
-                periodiciteMinJours: max(1, tousLes - (tousLes > 2 ? 1 : 0)),
-                periodiciteMaxJours: tousLes + (tousLes > 2 ? 1 : 0),
-                idUtilisateurDefaut: pourQui)))
-            annoncer("« \(propre) » ajoutée")
-            (fermerFeuille?.fermer ?? { fermer() })()
-        } catch {
-            erreur = motif(error)
-        }
-    }
-}
+// L'ajout d'une tâche (TAC-20 à TAC-24) est dans Taches.swift, avec ses types et ses liens.
 
 // MARK: - C'est fait                                                     (EXE-15)
 
