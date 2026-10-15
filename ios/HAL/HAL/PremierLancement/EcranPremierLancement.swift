@@ -14,6 +14,7 @@ struct EcranPremierLancement: View {
     @State private var etape: Etape = .sante
     @State private var envoi = false
     @State private var ajout = false
+    @State private var calendriers: [CalendrierSuivi] = []
 
     enum Etape: Int, CaseIterable {
         case sante, notifications, calendriers, hal
@@ -49,6 +50,7 @@ struct EcranPremierLancement: View {
             NavigationStack {
                 FormulaireCalendrier {
                     await foyer.charger()
+                    await chargerCalendriers()
                 }
             }
             .feuilleEnVerre()
@@ -60,10 +62,10 @@ struct EcranPremierLancement: View {
     /// 8.1 : avant la fenêtre d'iOS (8.2), ce que HAL lit et pourquoi.
     private var pageSante: some View {
         PagePremierLancement(
-            icone: "heart.fill", couleur: Categorie.alerte.couleur,
-            titre: "Bienvenue, \(prenom)",
-            texte: "HAL lit ce que ta montre et ton iPhone mesurent, pour doser tes séances : une mauvaise nuit allège la journée, une semaine chargée aussi. Rien n'est écrit dans Santé, et rien n'en sort hors de ton compte.",
-            bouton: "Autoriser Santé", enCours: envoi,
+            icone: "heart", couleur: Categorie.alerte.couleur,
+            titre: "Relier Santé",
+            texte: "HAL lit ce que mesurent ta montre et ton iPhone pour adapter tes séances.",
+            bouton: "Autoriser l'accès à Santé", enCours: envoi,
             action: {
                 envoi = true
                 await sante.demanderAcces()
@@ -72,29 +74,24 @@ struct EcranPremierLancement: View {
             },
             plusTard: { suivante() }
         ) {
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(EnvoiSante.Donnee.allCases) { donnee in
-                    Label(donnee.libelle, systemImage: donnee.icone)
-                        .texte(.corps)
-                        .foregroundStyle(Palette.textePrincipal)
-                        .labelStyle(EtiquetteIcone(couleur: Categorie.alerte.couleur))
-                }
+            Points {
+                Point(icone: "shoeprints.fill", texte: "Pas, sommeil, fréquence cardiaque, VFC")
+                Point(icone: "waveform.path.ecg", texte: "Tes séances de la montre, pour valider les courses")
+                Point(icone: "lock", texte: "Tout reste sur ton serveur, jamais partagé")
             }
-            .padding(Espace.interne)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .carte(rayon: Rayon.controle)
-            Text("iOS ouvre ensuite sa fenêtre : touche « Tout activer », puis « Autoriser ». Tu pourras décocher une donnée dans Réglages, Santé.")
+            Text("iOS ouvre ensuite sa fenêtre : touche « Tout activer », puis « Autoriser ». Rien n'est écrit dans Santé.")
                 .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                .multilineTextAlignment(.center)
         }
     }
 
     /// 8.3 : les notifications, avant de les demander.
     private var pageNotifications: some View {
         PagePremierLancement(
-            icone: "bell.badge.fill", couleur: Categorie.menage.couleur,
-            titre: "Les notifications",
-            texte: "Le matin, ta journée. Le soir, ce qui reste à cocher. HAL te dit quand il ajuste une séance, et chaque changement du planning arrive avec sa raison. Rien pendant la nuit.",
-            bouton: notifications.etat == .aDemander ? "Activer les notifications" : "Continuer",
+            icone: "bell", couleur: Categorie.menage.couleur,
+            titre: "Être prévenu",
+            texte: "C'est par là que l'appli te parle, puisqu'il n'y a plus de bot.",
+            bouton: notifications.etat == .aDemander ? "Autoriser les notifications" : "Continuer",
             enCours: envoi,
             action: {
                 if notifications.etat == .aDemander {
@@ -106,50 +103,69 @@ struct EcranPremierLancement: View {
             },
             plusTard: notifications.etat == .aDemander ? { suivante() } : nil
         ) {
-            VStack(alignment: .leading, spacing: 10) {
-                ligne("sun.max", "Bilan du matin", "7 h")
-                ligne("moon", "Relance du soir", "21 h")
-                ligne("sparkle", "Récap de HAL", "23 h")
-                ligne("moon.zzz", "Silence", "23 h 30 à 7 h 30")
+            Points {
+                Point(orbe: true, texte: "Le récap du soir et les propositions de HAL")
+                Point(icone: "checklist",
+                      texte: foyer.autre.map { "Tes tâches du jour, et quand \($0.nom) fait la tienne" }
+                          ?? "Tes tâches du jour")
+                Point(icone: "calendar", texte: "Les changements de planning, avec la raison")
+                Point(icone: "moon", texte: "Rien entre 23:30 et 7:30")
             }
-            .padding(Espace.interne)
-            .carte(rayon: Rayon.controle)
-            Text(notifications.etat == .refusees
-                 ? "Elles sont refusées sur cet iPhone : iOS seul peut les rallumer, dans ses Réglages."
-                 : "Ces heures se changent dans Réglages, Notifications et heures.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+            if notifications.etat == .refusees {
+                Text("Elles sont refusées sur cet iPhone : iOS seul peut les rallumer, dans ses Réglages.")
+                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
-    /// 8.4 : un premier calendrier, pour que le planning ait de quoi s'organiser.
+    /// 8.4 : les calendriers suivis, et de quoi en ajouter un.
     private var pageCalendriers: some View {
-        let dejaSuivis = foyer.calendriersSuivis ?? 0
-        return PagePremierLancement(
+        PagePremierLancement(
             icone: "calendar", couleur: Categorie.travail.couleur,
             titre: "Ton emploi du temps",
-            texte: "Colle le lien de ta fac, de ton travail ou de ton agenda. Le ménage et le sport se placent dans tes creux, et le planning suit quand un cours bouge.",
-            bouton: dejaSuivis == 0 ? "Ajouter un calendrier" : "Continuer",
+            texte: "Colle le lien de tes calendriers : la fac, ton agenda perso. HAL place tout autour.",
+            bouton: calendriers.isEmpty ? "Ajouter un lien" : "Continuer",
             enCours: false,
             action: {
-                if dejaSuivis == 0 { ajout = true } else { suivante() }
+                if calendriers.isEmpty { ajout = true } else { suivante() }
             },
-            plusTard: dejaSuivis == 0 ? { suivante() } : nil
+            plusTard: { suivante() },
+            libellePlusTard: "Je le ferai plus tard"
         ) {
-            if dejaSuivis > 0 {
-                Label("Tu suis déjà \(dejaSuivis) calendrier\(dejaSuivis > 1 ? "s" : "").", systemImage: "checkmark.circle.fill")
-                    .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                    .labelStyle(EtiquetteIcone(couleur: Categorie.sport.couleur))
-                Button("Ajouter un autre calendrier") { ajout = true }.buttonStyle(.hal(.verre))
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    ligne("graduationcap", "Cours", "L'emploi du temps de la fac, de l'ADE")
-                    ligne("briefcase", "Travail", "Un planning publié en lien")
-                    ligne("calendar", "Perso", "Calendrier, Google Agenda, Outlook")
+            if !calendriers.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(Array(calendriers.enumerated()), id: \.element.id) { rang, calendrier in
+                        HStack(spacing: 12) {
+                            Image(systemName: calendrier.lienDonne ? "checkmark" : "plus")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(calendrier.lienDonne ? Categorie.sport.couleur : Palette.texteSecondaire)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(calendrier.libelle).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                Text(calendrier.lienDonne ? "\(calendrier.aVenir) à venir" : "à ajouter")
+                                    .texte(.legende)
+                                    .foregroundStyle(calendrier.lienDonne ? Categorie.sport.couleur : Palette.texteSecondaire)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 10)
+                        if rang < calendriers.count - 1 { Divider().overlay(Palette.verreBord) }
+                    }
                 }
-                .padding(Espace.interne)
+                .padding(.horizontal, Espace.interne)
                 .carte(rayon: Rayon.controle)
+                Button("Ajouter un lien") { ajout = true }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+            } else {
+                Points {
+                    Point(icone: "graduationcap", texte: "Les cours, depuis l'ADE de la fac")
+                    Point(icone: "briefcase", texte: "Un planning de travail publié en lien")
+                    Point(icone: "calendar", texte: "Ton agenda : Calendrier, Google, Outlook")
+                }
             }
         }
+        .task { await chargerCalendriers() }
     }
 
     /// 8.5 : rencontrer HAL, puis son démarrage, ou découvrir l'appli d'abord (PRE-4).
@@ -158,11 +174,11 @@ struct EcranPremierLancement: View {
         let aDemarrer = foyer.sportDuServeur.map { $0.demarrage != nil } ?? true
         return PagePremierLancement(
             orbe: true, couleur: Categorie.ia.couleur,
-            titre: aDemarrer ? "Rencontre HAL" : "HAL est prêt",
+            titre: aDemarrer ? "Et maintenant, HAL" : "HAL est prêt",
             texte: aDemarrer
-                ? "Ton coach sportif. Quelques questions sur toi, tes limites, tes lieux et ton objectif, et il te propose quatre semaines. Il ne touche qu'au sport : le ménage et le planning restent à vous."
+                ? "Ton coach sportif. Quatre minutes de questions et il te prépare un plan. Il ne touche qu'au sport : le ménage et le planning restent à vous."
                 : "Ton plan t'attend dans Sport. Touche l'orbe en bas de l'écran pour lui parler, d'où que tu sois.",
-            bouton: aDemarrer ? "Démarrer HAL" : "Ouvrir l'appli",
+            bouton: aDemarrer ? "Faire le démarrage de HAL" : "Ouvrir l'appli",
             enCours: false,
             action: {
                 session.accueilFait()
@@ -174,25 +190,14 @@ struct EcranPremierLancement: View {
             plusTard: aDemarrer ? { session.accueilFait() } : nil,
             libellePlusTard: "Découvrir l'appli d'abord"
         ) {
-            if aDemarrer {
-                Text("Cinq étapes, quelques minutes. Tu peux t'arrêter en route : Sport te proposera de reprendre là où tu en étais (DEM-4).")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-            }
+            EmptyView()
         }
     }
 
-    /// Le prénom du compte, une fois le serveur lu ; son pseudo en attendant.
-    private var prenom: String {
-        foyer.charge ? foyer.moi.nom : (session.pseudo ?? "").capitalized
-    }
-
-    private func ligne(_ icone: String, _ titre: String, _ detail: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icone).foregroundStyle(Categorie.ia.couleur).frame(width: 22)
-            Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-            Spacer(minLength: 8)
-            Text(detail).texte(.legende).foregroundStyle(Palette.texteSecondaire).multilineTextAlignment(.trailing)
-        }
+    private func chargerCalendriers() async {
+        guard foyer.connecte else { return }
+        let tous: [CalendrierSuivi] = (try? await foyer.demander("GET", "appli/calendriers")) ?? []
+        calendriers = tous.filter { $0.pour == foyer.moi.id || !foyer.charge }
     }
 
     private func suivante() {
@@ -207,12 +212,13 @@ struct EcranPremierLancement: View {
 /// Les quatre traits de l'avancée.
 private struct Avancee: View {
     let etape: EcranPremierLancement.Etape
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 6) {
             ForEach(EcranPremierLancement.Etape.allCases, id: \.rawValue) { candidate in
                 Capsule()
-                    .fill(candidate.rawValue <= etape.rawValue ? Categorie.ia.couleur : Palette.verreTeinteForte)
+                    .fill(candidate.rawValue <= etape.rawValue ? theme.principal : Palette.verreTeinteForte)
                     .frame(height: 5)
             }
         }
@@ -221,8 +227,9 @@ private struct Avancee: View {
     }
 }
 
-/// Un écran du premier lancement : une icône ou l'orbe, le titre, ce qu'on
-/// explique, puis le bouton qui agit et « Plus tard » en bas.
+/// Un écran du premier lancement [8.1 à 8.5] : une grande icône pleine ou
+/// l'orbe, le titre et ce qu'on explique, centrés, puis une carte de points, et
+/// en bas le bouton qui agit et « Plus tard ».
 private struct PagePremierLancement<Contenu: View>: View {
     var icone: String? = nil
     var orbe = false
@@ -238,33 +245,37 @@ private struct PagePremierLancement<Contenu: View>: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+            VStack(spacing: Espace.gouttiere) {
                 Group {
                     if orbe {
-                        Orbe(etat: .repos, taille: 84).frame(width: 84, height: 84)
+                        Orbe(etat: .repos, taille: 96).frame(width: 96, height: 96)
                     } else if let icone {
                         Image(systemName: icone)
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(couleur)
-                            .frame(width: 72, height: 72)
-                            .background(couleur.opacity(0.18), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            .font(.system(size: 36, weight: .semibold))
+                            .foregroundStyle(.black.opacity(0.85))
+                            .frame(width: 96, height: 96)
+                            .background(couleur, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
                     }
                 }
-                .padding(.top, 24)
+                .padding(.top, 40)
                 .accessibilityHidden(true)
                 Text(titre).texte(.grandTitre).foregroundStyle(Palette.textePrincipal)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .surLaPhoto()
                     .accessibilityAddTraits(.isHeader)
                 Text(texte).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .surLaPhoto()
                 contenu
             }
             .padding(Espace.marge)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 4) {
+            VStack(spacing: 10) {
                 Button {
                     Task { await action() }
                 } label: {
@@ -278,14 +289,46 @@ private struct PagePremierLancement<Contenu: View>: View {
                 .disabled(enCours)
                 if let plusTard {
                     Button(libellePlusTard, action: plusTard)
-                        .buttonStyle(.plain)
-                        .texte(.corpsFort)
-                        .foregroundStyle(Palette.texteSecondaire)
-                        .frame(height: 44)
+                        .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
                 }
             }
             .padding(.horizontal, Espace.marge)
             .padding(.bottom, 8)
+        }
+    }
+}
+
+/// La carte des points d'un écran du premier lancement.
+private struct Points<Contenu: View>: View {
+    @ViewBuilder var contenu: Contenu
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) { contenu }
+            .padding(Espace.interne)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .carte(rayon: Rayon.controle)
+    }
+}
+
+/// Un point : une icône, ou l'orbe pour ce qui vient de HAL, et une phrase.
+private struct Point: View {
+    var icone: String? = nil
+    var orbe = false
+    let texte: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Group {
+                if orbe {
+                    Orbe(etat: .repos, taille: 18)
+                } else if let icone {
+                    Image(systemName: icone).font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Palette.texteSecondaire)
+                }
+            }
+            .frame(width: 22, height: 20)
+            Text(texte).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
