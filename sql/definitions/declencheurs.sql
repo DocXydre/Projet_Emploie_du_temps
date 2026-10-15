@@ -97,7 +97,33 @@ CREATE OR REPLACE TRIGGER journal_tache
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'foyer', 'libelle', 'active', 'duree_minutes', 'periodicite_min_jours',
         'periodicite_max_jours', 'heure_min', 'heure_max', 'id_utilisateur_defaut',
-        'priorite', 'avant_depart');
+        'priorite', 'avant_depart', 'id_type_tache', 'si_pas_faite');
+
+
+-- TAC-25 à TAC-27 : les types et les liens se règlent dans l'appli, par l'un
+-- ou l'autre. Ils se lisent donc à deux, comme les tâches.
+CREATE OR REPLACE TRIGGER journal_type_tache
+    AFTER INSERT OR UPDATE OR DELETE ON type_tache
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'libelle', 'couleur', 'icone', 'duree_minutes', 'priorite');
+
+
+CREATE OR REPLACE TRIGGER journal_enchainement
+    AFTER INSERT OR UPDATE OR DELETE ON enchainement
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_tache_source', 'id_tache_suivante', 'delai_min_heures', 'delai_max_heures');
+
+
+CREATE OR REPLACE TRIGGER journal_accompagnement
+    AFTER INSERT OR UPDATE OR DELETE ON accompagnement
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_tache', 'id_tache_jointe', 'place', 'mention');
+
+
+CREATE OR REPLACE TRIGGER journal_remplacement
+    AFTER INSERT OR UPDATE OR DELETE ON remplacement
+    FOR EACH ROW EXECUTE FUNCTION trg_journal(
+        'foyer', 'id_tache_faite', 'id_tache_couverte');
 
 
 CREATE OR REPLACE TRIGGER journal_utilisateur
