@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from api import allegement
 from api.base import executer, lister, un_seul
 from api.routeurs.coach import Bilan, Serie
+from api.routeurs.types_taches import lire_types
 from api.securite import Authentifie
 
 routeur = APIRouter(tags=["Appli"])
@@ -92,8 +93,14 @@ def aujourdhui(qui: Authentifie) -> dict:
                {_categorie('o.categorie')} AS categorie, o.statut,
                o.statut = 'faite' AS faite, o.nb_relances AS reports,
                o.en_retard, o.debut, o.fin, o.rappel_journee AS journee_entiere,
-               o.duree_minutes, o.actions_possibles
+               o.duree_minutes, o.actions_possibles,
+               -- TAC-25 : la couleur et l'icône viennent du type, pas du code.
+               CASE WHEN y.id_type_tache IS NULL THEN NULL
+                    ELSE json_build_object('id', y.id_type_tache, 'libelle', y.libelle,
+                                           'couleur', y.couleur, 'icone', y.icone)
+               END AS type
           FROM v_occurrence o
+          LEFT JOIN type_tache y ON y.id_type_tache = o.id_type_tache
          WHERE o.categorie <> 'sport'
            AND o.id_utilisateur = ANY (%(ids)s)
            AND ((o.statut IN ('planifiee', 'notifiee')
@@ -229,6 +236,8 @@ def aujourdhui(qui: Authentifie) -> dict:
         "orbe": bool(orbe and orbe["a_dire"]),
         "droits": droits,
         "depart": depart,
+        # TAC-25 : les types du foyer, gardés sur le téléphone comme le reste.
+        "types": lire_types(),
     }
 
 
