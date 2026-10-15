@@ -80,8 +80,19 @@ final class Foyer {
     private(set) var calendriersSuivis: Int?
     private(set) var tachesDuFoyer: Int?
 
-    /// Les tâches cochées dont l'envoi attend encore la fin du délai d'annulation.
-    private var enSuspens: [Int: Task<Void, Never>] = [:]
+    /// Les tâches cochées dont l'envoi attend encore la fin du délai d'annulation
+    /// (APP-10) : l'attente, l'envoi à faire, et l'heure où il part.
+    private var enSuspens: [Int: TacheEnSuspens] = [:]
+
+    private struct TacheEnSuspens {
+        let attente: Task<Void, Never>
+        let envoyer: () -> Void
+        let depart: Date
+    }
+
+    /// APP-10 : le temps pendant lequel une tâche cochée se décoche d'un geste,
+    /// avant de partir au serveur.
+    static let delaiAvantEnvoi: TimeInterval = 30
 
     private let apercu: Apercu
 
@@ -410,25 +421,51 @@ final class Foyer {
 
     // MARK: Ce que l'utilisateur fait
 
-    /// Coche une tâche, même celle de l'autre (EXE-14). L'envoi part après cinq
-    /// secondes, le temps d'annuler (ORB-6), puis passe par la file d'attente,
-    /// qui le garde si le réseau manque (APP-3). Rend de quoi annuler.
+    /// Coche une tâche, même celle de l'autre (EXE-14). L'envoi part après
+    /// trente secondes (APP-10) : jusque-là, toucher la tâche de nouveau la
+    /// décoche, et rien ne part. Il passe ensuite par la file d'attente, qui le
+    /// garde si le réseau manque (APP-3). Rend de quoi annuler.
     @discardableResult
     func cocher(_ tache: Tache, file: FileAttente) -> (() -> Void)? {
         guard let rang = taches.firstIndex(where: { $0.id == tache.id }), !taches[rang].faite else { return nil }
         taches[rang].faite = true
         let id = tache.id
-        enSuspens[id] = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(5))
-            guard !Task.isCancelled, let self else { return }
+        let connecte = connecte
+        let envoyer = { if connecte { file.ajouter(methode: "POST", chemin: "occurrences/\(id)/valider") } }
+        let attente = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.delaiAvantEnvoi))
+            guard !Task.isCancelled, let self, self.enSuspens[id] != nil else { return }
             self.enSuspens[id] = nil
-            if self.connecte { file.ajouter(methode: "POST", chemin: "occurrences/\(id)/valider") }
+            envoyer()
         }
-        return { [weak self] in
-            guard let self else { return }
-            self.enSuspens[id]?.cancel()
-            self.enSuspens[id] = nil
-            if let rang = self.taches.firstIndex(where: { $0.id == id }) { self.taches[rang].faite = false }
+        enSuspens[id] = TacheEnSuspens(attente: attente, envoyer: envoyer,
+                                       depart: .now.addingTimeInterval(Self.delaiAvantEnvoi))
+        return { [weak self] in _ = self?.decocher(tache) }
+    }
+
+    /// APP-10 : décoche une tâche cochée dont l'envoi n'est pas encore parti.
+    /// Rend faux si elle est déjà partie : il n'y a plus rien à défaire ici.
+    @discardableResult
+    func decocher(_ tache: Tache) -> Bool {
+        guard let attente = enSuspens.removeValue(forKey: tache.id) else { return false }
+        attente.attente.cancel()
+        if let rang = taches.firstIndex(where: { $0.id == tache.id }) { taches[rang].faite = false }
+        return true
+    }
+
+    /// L'heure où part la tâche cochée, tant qu'on peut encore la décocher.
+    func departDeLEnvoi(_ tache: Tache) -> Date? {
+        enSuspens[tache.id]?.depart
+    }
+
+    /// L'appli passe en arrière-plan : ce qui attendait part tout de suite,
+    /// pour qu'une tâche cochée ne se perde pas si iOS ferme l'appli.
+    func envoyerSansAttendre() {
+        let enAttente = enSuspens
+        enSuspens = [:]
+        for attente in enAttente.values {
+            attente.attente.cancel()
+            attente.envoyer()
         }
     }
 

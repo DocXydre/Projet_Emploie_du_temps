@@ -105,7 +105,7 @@ struct EcranSport: View {
                 .onTapGesture { prevue = detail }
         }
         if let semaine = foyer.sportDuServeur?.semaineAValider {
-            NavigationLink { EcranSemaine() } label: {
+            NavigationLink { EcranSemaine(lundi: semaine.lundi) } label: {
                 BandeauEtat(icone: "calendar.badge.checkmark", titre: "Semaine à valider",
                             detail: "\(semaine.seances) séance\(semaine.seances > 1 ? "s" : "") proposée\(semaine.seances > 1 ? "s" : "") par HAL",
                             categorie: .ia)

@@ -5,7 +5,7 @@ extension Module {
         id: "aCocher", nom: "À cocher", icone: "checklist", categorie: .menage,
         tailles: [.petit, .moyen],
         widget: { taille in AnyView(WidgetACocher(taille: taille)) },
-        agrandi: { AnyView(WidgetACocher(taille: .grand).frame(height: 360)) },
+        agrandi: { AnyView(VueACocher()) },
         pourHAL: { foyer in "\(foyer.tachesDuJour.filter { !$0.faite }.count) tâches à faire" }
     )
 
@@ -65,6 +65,7 @@ struct WidgetACocher: View {
                                    pourQui: taille == .petit ? nil : tache.pourQui.nom,
                                    faite: tache.faite,
                                    type: tache.type.map { ($0.icone, tache.couleur) }) {
+                                   annulableJusqua: foyer.departDeLEnvoi(tache)) {
                             cocher(tache)
                         }
                         .contextMenu {
@@ -84,9 +85,15 @@ struct WidgetACocher: View {
         }
     }
 
-    /// Cocher se confirme en haut de l'écran, avec cinq secondes pour annuler (ORB-6).
+    /// Cocher se confirme en haut de l'écran ; l'envoi attend trente secondes (APP-10).
     private func cocher(_ tache: Tache) {
-        guard !tache.faite else { return }
+        // APP-10 : une tâche cochée se décoche d'un geste tant qu'elle n'est pas partie.
+        guard !tache.faite else {
+            var decochee = false
+            withAnimation(.snappy) { decochee = foyer.decocher(tache) }
+            if decochee { annoncer("« \(tache.titre) » décochée") }
+            return
+        }
         var annuler: (() -> Void)?
         withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
         if let annuler {
@@ -99,6 +106,97 @@ struct WidgetACocher: View {
         case .petit: 3
         case .moyen: 3
         case .grand: 10
+        }
+    }
+}
+
+/// 1.8 : les tâches du jour des deux, par personne, avec l'avancée. Cocher
+/// celle de l'autre la crédite à qui l'a faite, et l'autre est prévenu (EXE-14, EXE-16).
+struct VueACocher: View {
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+    @Environment(Aiguillage.self) private var aiguillage
+    @Environment(\.annoncer) private var annoncer
+    @Environment(\.fermerAgrandi) private var fermerAgrandi
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        let taches = foyer.tachesDuJour
+        let faites = taches.filter(\.faite).count
+        CoquilleWidget(titre: "À cocher · Aujourd'hui", icone: "checklist", couleur: Categorie.menage.couleur) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("\(faites) sur \(taches.count) faite\(faites > 1 ? "s" : "")")
+                    .texte(.titre).foregroundStyle(Palette.textePrincipal)
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Palette.verreTeinteForte)
+                        Capsule().fill(theme.principal)
+                            .frame(width: geo.size.width * CGFloat(faites) / CGFloat(max(1, taches.count)))
+                    }
+                }
+                .frame(height: 6)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(foyer.membres) { membre in
+                            let siennes = taches.filter { $0.pourQui == membre }
+                            if !siennes.isEmpty {
+                                HStack(spacing: 8) {
+                                    Avatar(nom: membre.nom, couleur: foyer.couleur(de: membre), taille: 24)
+                                    Text(membre.nom).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                }
+                                ForEach(siennes) { tache in
+                                    LigneTache(titre: tache.titre, faite: tache.faite,
+                                               detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
+                                               annulableJusqua: foyer.departDeLEnvoi(tache)) {
+                                        cocher(tache)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+                HStack {
+                    Button("Tâche faite en plus") {
+                        fermerAgrandi?.fermer()
+                        aiguillage.feuille = .tacheFaite
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                    Button("Ouvrir Maison") {
+                        fermerAgrandi?.fermer()
+                        aiguillage.onglet = .maison
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                }
+            }
+        }
+        .frame(maxHeight: 600)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// « 21:00 », « Fait », ou « En retard de 2 jours ».
+    private func detail(_ tache: Tache) -> String? {
+        if tache.faite { return "Fait" }
+        if tache.enRetard, let fin = tache.fin {
+            let jours = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: fin),
+                                                        to: Calendar.current.startOfDay(for: .now)).day ?? 0
+            return jours > 0 ? "En retard de \(jours) jour\(jours > 1 ? "s" : "")" : "En retard"
+        }
+        guard !tache.journeeEntiere, let debut = tache.debut else { return nil }
+        return EnFrancais.heure(debut)
+    }
+
+    private func cocher(_ tache: Tache) {
+        guard !tache.faite else {
+            var decochee = false
+            withAnimation(.snappy) { decochee = foyer.decocher(tache) }
+            if decochee { annoncer("« \(tache.titre) » décochée") }
+            return
+        }
+        var annuler: (() -> Void)?
+        withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
+        if let annuler {
+            annoncer("« \(tache.titre) » faite", annuler: { withAnimation(.snappy) { annuler() } })
         }
     }
 }

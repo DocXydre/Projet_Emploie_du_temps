@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Un compteur à gros boutons, pour la charge et les répétitions pendant la séance.
+/// Un compteur à gros boutons, pour la charge et les répétitions pendant la
+/// séance (3.5) : le nombre en grand, son unité dessous, « − » et « + » en verre.
 struct Compteur: View {
     let titre: String
     @Binding var valeur: Double
@@ -10,19 +11,23 @@ struct Compteur: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text(titre.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-            HStack(spacing: 12) {
-                bouton("minus") { valeur = max(bornes.lowerBound, valeur - pas) }
-                Text(enClair)
-                    .texte(.chiffre)
+        HStack(spacing: 12) {
+            bouton("minus") { valeur = max(bornes.lowerBound, valeur - pas) }
+            VStack(spacing: 0) {
+                Text(nombre)
+                    .font(.system(size: 38, weight: .bold).monospacedDigit())
                     .foregroundStyle(Palette.textePrincipal)
-                    .frame(minWidth: 84)
                     .contentTransition(.numericText(value: valeur))
-                bouton("plus") { valeur = min(bornes.upperBound, valeur + pas) }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text(unite.isEmpty ? titre.lowercased() : unite)
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
             }
+            .frame(maxWidth: .infinity)
+            bouton("plus") { valeur = min(bornes.upperBound, valeur + pas) }
         }
-        .padding(Espace.interne)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .carte(rayon: Rayon.controle)
         .animation(.snappy, value: valeur)
@@ -38,21 +43,24 @@ struct Compteur: View {
         }
     }
 
-    private var enClair: String {
-        let nombre = valeur.formatted(.number.precision(.fractionLength(0...1))
+    private var nombre: String {
+        valeur.formatted(.number.precision(.fractionLength(0...1))
             .grouping(.never).locale(Locale(identifier: "fr_FR")))
-        return unite.isEmpty ? nombre : "\(nombre) \(unite)"
+    }
+
+    private var enClair: String {
+        unite.isEmpty ? nombre : "\(nombre) \(unite)"
     }
 
     private func bouton(_ icone: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icone)
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(theme.surPrincipal)
-                .frame(width: 56, height: 56)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Palette.textePrincipal)
+                .frame(width: 52, height: 52)
         }
         .buttonStyle(.plain)
-        .verreControle(Circle(), teinte: theme.principal)
+        .verreControle(Circle())
         .sensoryFeedback(.selection, trigger: valeur)
     }
 }
