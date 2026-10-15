@@ -241,8 +241,12 @@ def creer(demande: DemandeTache, qui: Authentifie, replacer: bool = False) -> di
 @routeur.patch("/{id_tache}", summary="Modifier une tâche")
 def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dict:
     _exiger_droit(qui, "modifier")
-    champs = demande.model_dump(exclude_none=True,
-                                exclude={"id_type_tache", "sans_heure", "heure_min", "heure_max"})
+    # Un « pour qui » envoyé vide veut dire « à tour de rôle » : il passe, même
+    # nul. Les autres champs vides ne changent rien.
+    champs = {nom: valeur for nom, valeur in demande.model_dump(
+                  exclude_unset=True,
+                  exclude={"id_type_tache", "sans_heure", "heure_min", "heure_max"}).items()
+              if valeur is not None or nom == "id_utilisateur_defaut"}
     change_l_heure = demande.sans_heure or demande.heure_min is not None
     if not champs and demande.id_type_tache is None and not change_l_heure:
         raise HTTPException(
@@ -253,6 +257,8 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
 
     # Une seule transaction : un type ou une heure refusés n'en laissent pas la
     # moitié en base.
+    # La durée part avec l'heure : « à 18h30 » dure exactement la tâche (TAC-23).
+    duree = champs.pop("duree_minutes", None) if change_l_heure else None
     with connexion() as conn:
         if champs:
             affectations = ", ".join(f"{nom} = %({nom})s" for nom in champs)
@@ -262,10 +268,11 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
             conn.execute("SELECT changer_type_tache(%(t)s, %(y)s)",
                          {"t": id_tache, "y": demande.id_type_tache})
         if change_l_heure:
-            conn.execute("SELECT regler_heure_tache(%(t)s, %(hmin)s, %(hmax)s)",
+            conn.execute("SELECT regler_heure_tache(%(t)s, %(hmin)s, %(hmax)s, %(duree)s)",
                          {"t": id_tache,
                           "hmin": None if demande.sans_heure else demande.heure_min,
-                          "hmax": None if demande.sans_heure else demande.heure_max})
+                          "hmax": None if demande.sans_heure else demande.heure_max,
+                          "duree": duree})
     if change_l_heure or "duree_minutes" in champs:
         _replacer()
     return _une_tache(id_tache)

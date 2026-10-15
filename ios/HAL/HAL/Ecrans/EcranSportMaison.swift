@@ -48,6 +48,15 @@ struct EcranMaison: View {
             // Ici les tuiles prennent la hauteur de leur contenu, comme la maquette :
             // pas de carré ni de format moyen imposé.
             TachesDuJourDesDeux()
+            // 4.12 : toutes les tâches du foyer, rangées par type ; chacune s'ouvre (4.2).
+            NavigationLink { EcranToutesLesTaches() } label: {
+                LigneReglage(icone: "checklist", couleur: Categorie.menage.couleur,
+                             libelle: "Toutes les tâches", accessoire: .chevron(nil))
+                    .padding(.horizontal, Espace.interne)
+                    .padding(.vertical, Espace.serre)
+                    .carte(rayon: Rayon.controle)
+            }
+            .buttonStyle(.plain)
             Module.equilibre.widget(.moyen).fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .top, spacing: Espace.gouttiere) {
                 Module.chat.widget(.petit)
@@ -83,7 +92,8 @@ private struct TachesDuJourDesDeux: View {
                         LigneTache(titre: tache.titre, faite: tache.faite,
                                    detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
                                    avatar: foyer.membres.count > 1
-                                       ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil) {
+                                       ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil,
+                                   type: tache.type.map { ($0.icone, tache.couleur) }) {
                             cocher(tache)
                         }
                         .contextMenu {

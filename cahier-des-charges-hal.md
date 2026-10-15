@@ -283,7 +283,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | TAC-24 | M | Une tâche ponctuelle dit, à sa création, ce qu'elle devient si sa dernière date passe sans qu'elle soit faite. « La reporter » : elle revient chaque jour, en retard, jusqu'à être faite ou refusée (TAC-20). « L'oublier » : le report de minuit qui suit sa dernière date l'abandonne, et la personne à qui elle revenait en est prévenue (EXE-12). Arroser une plante avant de partir n'a plus de sens le lendemain ; rendre un colis en a toujours. Tant que sa dernière date n'est pas passée, elle se reporte comme les autres dans sa fenêtre |
 | TAC-25 | D | Les types de tâches sont des données du foyer, pas une liste du code : un nom, une couleur, une icône, une durée et une priorité par défaut. Les familles d'origine en deviennent : Ménage, Linge, Vaisselle, Chat, Administratif. Ils se renomment (« Chat » devient « Sassy ») et se recolorent ; on en crée autant qu'on veut (« Cours » pour les devoirs, « Plantes »). Une tâche nouvelle prend la durée et la priorité de son type, qu'on peut changer. Le sport n'est pas un type : il a son onglet et ses règles (SPT) |
 | TAC-26 | M | Un type se crée depuis le formulaire d'une tâche, en un geste, ou dans Réglages, Planning, Types de tâches [4.9, 4.10]. Il se modifie au même endroit, et se supprime seulement s'il ne porte plus aucune tâche active : on déplace d'abord ses tâches vers un autre type. Deux types d'un foyer ne portent pas le même nom, sans égard à la casse ni aux accents. Créer, modifier et supprimer un type suivent le droit de modifier les tâches (FOY-6) |
-| TAC-27 | M | Les liens entre tâches se posent dans l'appli, depuis le détail d'une tâche [4.2, 4.11], sans passer par la base. Trois sortes, qui existaient déjà : « Ensuite », faire celle-ci fait naître l'autre dans un délai, le jour même, le lendemain ou entre deux nombres d'heures (TAC-7, EXE-2) ; « Le même jour », quand celle-ci est prévue l'autre vient le même jour, avant ou après, pour la même personne (TAC-15) ; « Vaut aussi », la faire solde l'autre (TAC-10, TAC-19). Une tâche créée « après une autre » n'a pas de rythme propre : elle ne naît que du lien, comme vider le lave-vaisselle (TAC-8, TAC-14) |
+| TAC-27 | M | Les liens entre tâches se posent dans l'appli, depuis le détail d'une tâche [4.2, 4.11], sans passer par la base. Trois sortes, qui existaient déjà : « Ensuite », faire celle-ci fait naître l'autre dans un délai : le jour même (dans les 12 h), le lendemain (de 12 à 36 h après) ou entre deux nombres d'heures, deux semaines au plus (TAC-7, EXE-2) ; « Le même jour », quand celle-ci est prévue l'autre vient le même jour, avant ou après, pour la même personne (TAC-15) ; « Vaut aussi », la faire solde l'autre (TAC-10, TAC-19). Une tâche créée « après une autre » n'a pas de rythme propre : elle ne naît que du lien, comme vider le lave-vaisselle (TAC-8, TAC-14) |
 | TAC-28 | T | Un lien se refuse avec son motif : vers la tâche elle-même, vers une tâche arrêtée ou un sport, en double, en boucle (A fait naître B qui fait naître A), ou réciproque pour « Vaut aussi » (A vaut B et B vaut A s'annuleraient). Retirer le dernier « Ensuite » d'une tâche qui n'existe que par lui est refusé : elle ne reviendrait plus jamais. On lui donne d'abord un rythme, ou on l'arrête |
 
 #### A.3.4 Placement : `PLA`
@@ -598,11 +598,11 @@ erDiagram
         boolean  utilise_machine
         integer  id_utilisateur_defaut FK
         integer  ajoutee_par FK
-        integer  id_type FK
+        integer  id_type_tache FK
         varchar  si_pas_faite
     }
     TYPE_TACHE {
-        serial   id_type PK
+        serial   id_type_tache PK
         varchar  libelle UK
         varchar  couleur
         varchar  icone
@@ -885,7 +885,7 @@ Un conflit caduc n'a pas été tranché : la question ne se pose plus. `motif_ca
 | avant_depart | BOOLEAN | non | | | FALSE | | |
 | au_retour_apres_jours | SMALLINT | oui | > 0 | | | | |
 | ajoutee_par | INTEGER | oui | | | | | Utilisateur |
-| id_type | INTEGER | oui | obligatoire hors sport, vide pour un sport | | | | TypeTache |
+| id_type_tache | INTEGER | oui | obligatoire pour une tâche active hors sport, vide pour un sport | | | | TypeTache (mise à nul) |
 | si_pas_faite | VARCHAR(8) | non | 'reporter', 'oublier' | | 'reporter' | | |
 
 La priorité 1 est la plus forte. Elle est réservée à ce qui n'attend pas : les animaux et le linge à étendre (PLA-14).
@@ -894,13 +894,13 @@ La priorité 1 est la plus forte. Elle est réservée à ce qui n'attend pas : l
 
 `recurrente` à faux dit qu'une tâche ne revient pas d'elle-même : elle naît d'un enchaînement (TAC-8) ou d'un ajout ponctuel (TAC-20). `quota_hebdomadaire` remplace la périodicité pour le sport (SPT-5). `abandon_apres_jours` est le délai au bout duquel un retard est oublié (EXE-12). `ajoutee_par` distingue les tâches ajoutées par un membre de celles du départ. Depuis octobre 2026, toutes se modifient et s'arrêtent dans l'appli, selon les droits du foyer (TAC-21, FOY-6).
 
-`categorie` reste la famille technique, celle que lisent les règles : le sport (SPT), le chat (widget Chat), la machine. L'utilisateur ne la voit plus : il voit le type, `id_type`, qui porte le nom, la couleur et l'icône (TAC-25). Une tâche créée dans un type d'origine prend sa famille ; une tâche d'un type créé par le foyer est de la famille « menage », celle des tâches domestiques qui entrent dans la répartition (PLA-10). `si_pas_faite` dit ce que devient une tâche ponctuelle dont la dernière date est passée (TAC-24). « À une heure » n'a pas de colonne : c'est une plage horaire de la longueur exacte de la tâche (TAC-23).
+`categorie` reste la famille technique, celle que lisent les règles : le sport (SPT), le chat (widget Chat), la machine. L'utilisateur ne la voit plus : il voit le type, `id_type_tache`, qui porte le nom, la couleur et l'icône (TAC-25). Une tâche créée dans un type d'origine prend sa famille ; une tâche d'un type créé par le foyer est de la famille « menage », celle des tâches domestiques qui entrent dans la répartition (PLA-10). `si_pas_faite` dit ce que devient une tâche ponctuelle dont la dernière date est passée (TAC-24). « À une heure » n'a pas de colonne : c'est une plage horaire de la longueur exacte de la tâche (TAC-23).
 
 #### Table : TypeTache
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
-| id_type | SERIAL | non | | oui | | oui | |
+| id_type_tache | SERIAL | non | | oui | | oui | |
 | libelle | VARCHAR(40) | non | de 1 à 40 caractères | oui, sans égard à la casse ni aux accents | | | |
 | couleur | VARCHAR(7) | non | `#RRGGBB` | | | | |
 | icone | VARCHAR(60) | non | nom d'un symbole SF | | 'checklist' | | |
@@ -1276,11 +1276,15 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | TAC-20 | Une tâche ponctuelle a `abandon_apres_jours` à zéro : le report d'office ne l'abandonne jamais au nom du retard (EXE-12) | Dynamique forte |
 | TAC-22 | `creer_tache()` refuse une date passée et une fin avant le début. La fenêtre de l'occurrence va du début du premier jour à la fin du second | Dynamique forte |
 | TAC-23 | Une plage horaire déclarée tient dans la journée et contient la durée : contrainte `tache_plage_contient_la_duree`. « À une heure » s'écrit `heure_max = heure_min + duree_minutes` | Statique forte |
-| TAC-23 | `regler_heure_tache()` change la nature de la tâche et remet à placer ses occurrences ni faites, ni annoncées, ni épinglées : leur drapeau `rappel_journee` suit la tâche (TAC-2) | Dynamique forte |
-| TAC-24 | `si_pas_faite` appartient à {reporter, oublier}. `reporter_taches_du_jour()` abandonne une occurrence d'une tâche à oublier dès que sa fenêtre est passée, avant tout report | Statique forte, dynamique forte |
-| TAC-25 | `type_tache` : nom de 1 à 40 caractères, unique sans égard à la casse ni aux accents ; couleur `#RRGGBB` ; durée de 1 à 480 minutes ; priorité de 1 à 5 | Statique forte |
-| TAC-25 | Toute tâche hors sport a un type ; un sport n'en a pas : contrainte `tache_type_hors_sport` | Statique forte |
-| TAC-26 | `supprimer_type_tache()` refuse un type qui porte une tâche active ; les tâches arrêtées qu'il porte perdent leur type et gardent leur historique | Dynamique forte |
+| TAC-23 | `verifier_plage_horaire()` refuse une plage à moitié donnée, qui passe minuit, ou plus courte que la tâche, avant que la contrainte ne le fasse | Dynamique forte |
+| TAC-23 | `regler_heure_tache()` change l'heure et la durée d'une même mise à jour, puis remet à placer les occurrences ni faites, ni annoncées, ni épinglées : leur drapeau `rappel_journee` suit la tâche (TAC-2) | Dynamique forte |
+| TAC-24 | `si_pas_faite` appartient à {reporter, oublier} | Statique forte |
+| TAC-24 | `reporter_taches_du_jour()` passe une occurrence d'une tâche à oublier à `oublier_occurrence()` dès que sa fenêtre est passée, avant tout report : abandonnée, avec un message qui ne parle pas de retard | Dynamique forte |
+| TAC-25 | `type_tache` : nom de 1 à 40 caractères, unique sans égard à la casse (index `type_tache_libelle_unique`) ; couleur `#RRGGBB` ; durée de 1 à 480 minutes ; priorité de 1 à 5 ; famille parmi les cinq domestiques | Statique forte |
+| TAC-25 | Toute tâche active hors sport a un type ; un sport n'en a pas : contrainte `tache_type_hors_sport` | Statique forte |
+| TAC-25 | `changer_type_tache()` range une tâche dans un autre type, et sa famille technique suit | Dynamique forte |
+| TAC-26 | `enregistrer_type_tache()` crée ou modifie un type ; il compare les noms sans accents, par `cle_de_libelle()`, ce qu'un index ne sait pas faire sans l'extension unaccent | Dynamique forte |
+| TAC-26 | `supprimer_type_tache()` refuse un type qui porte une tâche active, et le dernier type de ménage ; les tâches arrêtées qu'il porte perdent leur type et gardent leur historique | Dynamique forte |
 | TAC-27 | `lier_taches()` pose l'une des trois sortes de lien et rend son numéro ; `delier_taches()` le retire | Dynamique forte |
 | TAC-28 | `lier_taches()` refuse un lien réflexif, vers une tâche arrêtée ou un sport, en double, réciproque pour « Vaut aussi », ou qui ferme une boucle d'« Ensuite » : recherche récursive sur `enchainement` | Dynamique forte |
 | TAC-28 | `delier_taches()` refuse de retirer le dernier « Ensuite » vers une tâche active et non récurrente | Dynamique forte |
@@ -1601,7 +1605,7 @@ Les modules venus après la première version ont leurs propres opérations. Ell
 
 #### A.9.1 Endpoints
 
-Les 64 routes du planning, telles que la documentation interactive les liste sur `/documentation`. HAL en ajoute 63, listées en section B.9.1, et le foyer celles de la section D.4. Ce que l'appli demande en plus est en C.13.
+Les 65 routes du planning, telles que la documentation interactive les liste sur `/documentation`. HAL en ajoute 63, listées en section B.9.1, et le foyer celles de la section D.4. Ce que l'appli demande en plus est en C.13.
 
 ```
 Planning
@@ -3806,7 +3810,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 
 Les écrans 5.15 à 5.18 et les heures de 5.11 viennent des décisions d'octobre 2026. L'écran 5.1 a gagné l'Historique dans le groupe Planning et le foyer dans le groupe Foyer et compte.
 
-Les écrans 4.9 à 4.12, et les nouvelles versions de 4.2 et 4.3, viennent des tâches datées, des types et des liens (TAC-22 à TAC-28, annexe 6). Une tâche s'affiche partout dans la couleur et avec l'icône de son type : ligne de tâche, À cocher, planning. Les catégories fixes de C.4 restent pour ce qui n'est pas une tâche : cours, travail, sport, perso, HAL, alerte.
+Les écrans 4.9 à 4.12, et les nouvelles versions de 4.2 et 4.3, viennent des tâches datées, des types et des liens (TAC-22 à TAC-28, annexe 6). Une tâche montre l'icône de son type, à sa couleur, dans Maison, le widget À cocher, Toutes les tâches et son détail. Le planning [1.12] et le flux iCalendar gardent pour l'instant les familles de C.4, qui restent pour ce qui n'est pas une tâche : cours, travail, sport, perso, HAL, alerte.
 
 ### C.8 La séance de musculation, pas à pas
 
