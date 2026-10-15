@@ -79,7 +79,7 @@ struct WidgetSemaine: View {
 
     private func legende(_ elements: [ElementPlanning]) -> some View {
         let familles = [Categorie.cours, .travail, .sport, .menage, .linge, .chat]
-            .filter { famille in elements.contains { $0.famille == famille } }
+            .filter { famille in elements.contains { $0.famille == famille && $0.journeeEntiere != true } }
         return HStack(spacing: 10) {
             ForEach(familles) { famille in
                 HStack(spacing: 4) {
@@ -98,6 +98,7 @@ struct WidgetSemaine: View {
 /// en couleurs par catégorie (NOT-17 : la raison d'un changement en dessous).
 struct EcranPlanning: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(\.dismiss) private var fermer
     @State private var jour = Calendar.current.startOfDay(for: .now)
     @State private var qui: Int?
     @State private var semaine: [ElementPlanning]?
@@ -106,6 +107,7 @@ struct EcranPlanning: View {
 
     var body: some View {
         PageDefilante {
+            BoutonRond("chevron.left", libelle: "Retour") { fermer() }
             EnTeteOnglet(surTitre: "Semaine du \(lundi.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "fr_FR"))))",
                          titre: "Planning") {
                 BoutonRond("plus", libelle: "Ajouter") { ajoutRapide = true }
