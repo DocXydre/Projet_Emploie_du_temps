@@ -63,7 +63,8 @@ struct WidgetACocher: View {
                     ForEach(taches.prefix(limite)) { tache in
                         LigneTache(titre: tache.titre,
                                    pourQui: taille == .petit ? nil : tache.pourQui.nom,
-                                   faite: tache.faite) {
+                                   faite: tache.faite,
+                                   type: tache.type.map { ($0.icone, tache.couleur) }) {
                             cocher(tache)
                         }
                         .contextMenu {
