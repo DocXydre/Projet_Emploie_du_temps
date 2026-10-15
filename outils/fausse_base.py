@@ -229,20 +229,24 @@ def exo(code: str) -> int:
 
 
 HAUT = [{"code": "developpe_couche_barre", "series": 4, "repetitions_min": 6,
-         "repetitions_max": 8},
+         "repetitions_max": 8, "charge_kg": 67.5, "repos_secondes": 120},
         {"code": "tractions_pronation", "series": 3, "repetitions_min": 6,
-         "repetitions_max": 10},
+         "repetitions_max": 10, "repos_secondes": 90},
         {"code": "developpe_militaire_barre", "series": 3, "repetitions_min": 8,
-         "repetitions_max": 10},
+         "repetitions_max": 10, "charge_kg": 42.5, "repos_secondes": 90},
         {"code": "rowing_haltere_un_bras", "series": 3, "repetitions_min": 10,
-         "repetitions_max": 12},
-        {"code": "curl_marteau", "series": 2, "repetitions_min": 10, "repetitions_max": 12}]
-BAS = [{"code": "squat_barre", "series": 4, "repetitions_min": 6, "repetitions_max": 8},
+         "repetitions_max": 12, "charge_kg": 32, "repos_secondes": 90},
+        {"code": "curl_marteau", "series": 2, "repetitions_min": 10, "repetitions_max": 12,
+         "charge_kg": 16, "repos_secondes": 60}]
+BAS = [{"code": "squat_barre", "series": 4, "repetitions_min": 6, "repetitions_max": 8,
+        "charge_kg": 90, "repos_secondes": 150},
        {"code": "souleve_de_terre_roumain", "series": 3, "repetitions_min": 8,
-        "repetitions_max": 10},
-       {"code": "fentes_halteres", "series": 3, "repetitions_min": 10, "repetitions_max": 12},
-       {"code": "mollets_debout", "series": 3, "repetitions_min": 12, "repetitions_max": 15},
-       {"code": "planche", "series": 3, "repetitions_min": 1, "repetitions_max": 1}]
+        "repetitions_max": 10, "charge_kg": 80, "repos_secondes": 120},
+       {"code": "fentes_halteres", "series": 3, "repetitions_min": 10, "repetitions_max": 12,
+        "charge_kg": 20, "repos_secondes": 90},
+       {"code": "mollets_debout", "series": 3, "repetitions_min": 12, "repetitions_max": 15,
+        "charge_kg": 70, "repos_secondes": 60},
+       {"code": "planche", "series": 3, "duree_secondes": 60, "repos_secondes": 60}]
 COURSE_EF = [{"code": "course_echauffement", "series": 1, "duree_secondes": 600},
              {"code": "course_endurance", "series": 1, "duree_secondes": 1800},
              {"code": "course_retour_au_calme", "series": 1, "duree_secondes": 300}]

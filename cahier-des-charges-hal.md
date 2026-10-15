@@ -3501,6 +3501,7 @@ La barre d'onglets compte quatre onglets et l'orbe de HAL au milieu.
 | APP-7 | M | Les tâches, le planning, les absences et le mode allégé se modifient à la main. HAL ne touche qu'au sport (COA-32). L'appli ne propose jamais de « demander à HAL » pour une tâche |
 | APP-8 | D | Chaque écran est fait des composants de C.4. Une couleur, un arrondi ou une taille de texte se change à un seul endroit, et toute l'appli suit |
 | APP-9 | M | Le « + » en haut d'Aujourd'hui et de Maison ouvre l'ajout rapide : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, une séance libre, une mesure, ou passer en mode allégé [1.5]. Tout se fait à la main, sans HAL |
+| APP-10 | M | Une tâche cochée attend trente secondes avant de partir au serveur. Jusque-là, la toucher de nouveau la décoche et rien ne part ; la ligne montre le temps qui reste. Si l'appli passe en arrière-plan, l'envoi part tout de suite, par la file d'attente (APP-3) |
 
 ### C.3 Thème et fond : `THM`
 

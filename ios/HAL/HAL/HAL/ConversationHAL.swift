@@ -66,6 +66,16 @@ final class ConversationHAL {
         [contexte, detail].compactMap { $0 }.joined(separator: " · ")
     }
 
+    /// 2.5 : ce que dit la bulle au-dessus de l'orbe, selon le dernier mot de HAL.
+    var cequIlADit: String {
+        guard let dernier = messages.last(where: { $0.auteur == .hal }) else { return "HAL a quelque chose à te dire" }
+        if dernier.moment == "synthese" { return "HAL a fait le point de ta journée" }
+        if dernier.elements.contains(where: { $0.type == "ajustement" && $0.regle == nil }) {
+            return "HAL propose un ajustement"
+        }
+        return "HAL t'a répondu"
+    }
+
     var etatOrbe: EtatOrbe {
         if reflechit { return .active }
         if aQuelqueChoseADire && !ouvert { return .recap }

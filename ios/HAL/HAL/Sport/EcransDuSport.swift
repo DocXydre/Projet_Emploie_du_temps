@@ -83,86 +83,140 @@ struct EcranSemaine: View {
         _lundi = State(initialValue: lundi)
     }
 
+    @Environment(\.dismiss) private var fermer
+
+    /// 3.2 : sur la photo. L'avis de HAL et le rôle de la semaine, les sept jours
+    /// dans une carte, puis « Valider la semaine » d'un geste (PLN-6) et
+    /// « Demander un changement à HAL » (COA-32).
     var body: some View {
-        FormulaireVerre {
-            if let semaine {
-                Section {
-                    HStack {
-                        Button { decaler(-7) } label: { Image(systemName: "chevron.left") }
-                        Spacer()
-                        Text("Semaine du \(jourCourt(semaine.lundi))").bold()
-                        Spacer()
-                        Button { decaler(7) } label: { Image(systemName: "chevron.right") }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                barre
+                if let semaine {
+                    resume(semaine)
+                    jours(semaine)
+                    if let erreur {
+                        Label(erreur, systemImage: "exclamationmark.circle")
+                            .texte(.corps).foregroundStyle(Categorie.alerte.couleur)
                     }
-                    .buttonStyle(.borderless)
-                    if let intention = semaine.intention, !intention.isEmpty {
-                        AvisDeHAL(texte: intention)
-                    }
-                }
-                ForEach(jours(semaine), id: \.self) { jour in
-                    Section(jourCourt(jour)) {
-                        ForEach(semaine.seances.filter { Calendar.current.isDate($0.jour, inSameDayAs: jour) }) { seance in
-                            Button { Task { await ouvrir(seance.idOccurrence) } } label: { ligne(seance) }
-                                .buttonStyle(.plain)
-                        }
-                    }
-                }
-                if semaine.seances.isEmpty {
-                    Section { Text("Aucune séance cette semaine.").foregroundStyle(Palette.texteSecondaire) }
-                }
-                if let charge = semaine.charge, charge.chargeSeptJours != nil {
-                    Section {
-                        LabeledContent("Sur 7 jours", value: charge.chargeSeptJours.map { "\(Int($0))" } ?? "–")
-                        LabeledContent("Moyenne par semaine sur 28 jours",
-                                       value: charge.chargeQuatreSemaines.map { "\(Int($0 / 4))" } ?? "–")
-                        if let rapport = charge.rapport {
-                            LabeledContent("Rapport", value: rapport.formatted(
-                                .number.precision(.fractionLength(2)).locale(francais)))
-                        }
-                        if let sans = charge.seancesSansBilan, sans > 0 {
-                            Text("\(sans) séance\(sans > 1 ? "s" : "") sans bilan ne compte\(sans > 1 ? "nt" : "") pas.")
-                                .font(.footnote).foregroundStyle(Palette.texteSecondaire)
-                        }
-                    } header: {
-                        Text("Charge d'entraînement")
-                    } footer: {
-                        Text("La charge d'une séance, c'est l'effort noté au bilan multiplié par sa durée. Le rapport compare ta semaine à ta moyenne : il apparaît après quatre semaines.")
-                    }
-                }
-                if let erreur {
-                    Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
-                }
-                Section {
                     if semaine.aValider {
                         Button { Task { await valider() } } label: {
-                            Text("Valider la semaine").bold().frame(maxWidth: .infinity)
+                            HStack {
+                                if envoi { ProgressView() }
+                                Text("Valider la semaine")
+                            }
+                            .frame(maxWidth: .infinity)
                         }
+                        .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
                         .disabled(envoi)
                     } else if semaine.validee != nil {
-                        Label("Semaine validée", systemImage: "checkmark.seal").foregroundStyle(Categorie.sport.couleur)
+                        Label("Semaine validée", systemImage: "checkmark.seal.fill")
+                            .texte(.corpsFort).foregroundStyle(Categorie.sport.couleur)
+                            .frame(maxWidth: .infinity)
                     }
-                    Button("Demander un changement") {
+                    Button("Demander un changement à HAL") {
                         conversation.demanderUnChangement(ElementJoint(
                             genre: .semaine, lundi: semaine.lundi,
                             libelle: "Semaine du \(jourCourt(semaine.lundi))"))
                     }
-                    .frame(maxWidth: .infinity)
-                } footer: {
-                    Text("Une validation pour toute la semaine. Un changement se demande à HAL : il refait la semaine et te la repropose.")
+                    .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                } else if let erreur {
+                    Text(erreur).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
-            } else if let erreur {
-                Section { Text(erreur).foregroundStyle(Palette.texteSecondaire) }
-            } else {
-                Section { ProgressView().frame(maxWidth: .infinity) }
             }
+            .padding(.horizontal, Espace.marge)
+            .padding(.bottom, 40)
         }
-        .navigationTitle("La semaine")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollIndicators(.hidden)
+        .ecranHAL()
         .vuParHAL(semaine.map { "Semaine du \(jourCourt($0.lundi))" } ?? "La semaine")
         .task(id: lundi) { await charger() }
         .sheet(item: $ouverte, onDismiss: { Task { await charger() } }) { detail in
             EcranSeancePrevue(detail: detail)
         }
+    }
+
+    /// Retour, « Semaine du 19 oct. », et les flèches vers la semaine d'avant et d'après.
+    private var barre: some View {
+        ZStack {
+            Text(semaine.map { "Semaine du \($0.lundi.formatted(.dateTime.day().month(.abbreviated).locale(francais)))" }
+                 ?? "La semaine")
+                .texte(.titreWidget).foregroundStyle(Palette.textePrincipal).surLaPhoto()
+            HStack(spacing: 8) {
+                BoutonRond("chevron.left", libelle: "Retour") { fermer() }
+                Spacer()
+                BoutonRond("arrow.left", libelle: "Semaine d'avant") { decaler(-7) }
+                BoutonRond("arrow.right", libelle: "Semaine d'après") { decaler(7) }
+            }
+        }
+        .frame(height: 44)
+        .padding(.top, Espace.serre)
+    }
+
+    /// L'avis de HAL : l'intention de la semaine, ou son résumé, et son rôle.
+    private func resume(_ semaine: SemaineDeSport) -> some View {
+        let actives = semaine.seances.filter { !["retiree", "remplacee"].contains($0.situation ?? "") }
+        let minutes = actives.compactMap(\.dureeMinutes).reduce(0, +)
+        let role = TexteHAL.role(semaine.role)
+        let texte = semaine.intention.flatMap { $0.isEmpty ? nil : $0 }
+            ?? "Semaine\(role.isEmpty ? "" : " de \(role)") : \(actives.count) séance\(actives.count > 1 ? "s" : ""), \(EnFrancais.duree(minutes: minutes)) au total."
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Orbe(etat: .repos, taille: 22)
+                Text(texte).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 6) {
+                if !role.isEmpty { Puce(role.prefix(1).uppercased() + role.dropFirst(), categorie: .sport) }
+                if semaine.aValider {
+                    Puce(texte: "À valider")
+                } else if let validee = semaine.validee {
+                    Puce(texte: "Validée le \(jourCourt(validee))")
+                }
+            }
+        }
+        .padding(Espace.interne)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .carte(rayon: Rayon.controle)
+    }
+
+    /// Les sept jours, du lundi au dimanche ; un jour sans séance est un repos.
+    private func jours(_ semaine: SemaineDeSport) -> some View {
+        let calendrier = Calendar.current
+        let lesSept = (0..<7).compactMap { calendrier.date(byAdding: .day, value: $0, to: semaine.lundi) }
+        return VStack(spacing: 0) {
+            ForEach(Array(lesSept.enumerated()), id: \.offset) { rang, jour in
+                let seances = semaine.seances.filter {
+                    calendrier.isDate($0.jour, inSameDayAs: jour) && !["retiree", "remplacee"].contains($0.situation ?? "")
+                }
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(spacing: 0) {
+                        Text(jour.formatted(.dateTime.weekday(.abbreviated).locale(francais)).capitalized)
+                            .texte(.legende)
+                        Text(jour.formatted(.dateTime.day())).texte(.corpsFort)
+                    }
+                    .foregroundStyle(seances.isEmpty ? Palette.texteTertiaire : Palette.textePrincipal)
+                    .frame(width: 40)
+                    if seances.isEmpty {
+                        Text("Repos").texte(.corps).foregroundStyle(Palette.texteTertiaire)
+                            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(seances) { seance in
+                                Button { Task { await ouvrir(seance.idOccurrence) } } label: { ligne(seance) }
+                                    .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, Espace.interne)
+                .padding(.vertical, 10)
+                if rang < 6 { Divider().overlay(Palette.verreBord) }
+            }
+        }
+        .carte(rayon: Rayon.controle)
     }
 
     private func ouvrir(_ id: Int) async {
@@ -174,20 +228,24 @@ struct EcranSemaine: View {
     }
 
     private func ligne(_ seance: SemaineDeSport.SeanceDeLaSemaine) -> some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
                 let type = seance.typeSeance ?? ""
                 Text(type.isEmpty || type == "libre" ? Discipline.nom(seance.discipline)
                      : type.prefix(1).uppercased() + type.dropFirst())
-                    .foregroundStyle(Palette.textePrincipal)
-                Text([seance.debut?.formatted(date: .omitted, time: .shortened),
-                      seance.dureeMinutes.map { "\($0) min" }, seance.lieu,
-                      seance.intensite].compactMap { $0 }.joined(separator: " · "))
-                    .font(.footnote).foregroundStyle(Palette.texteSecondaire)
+                    .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                Text([seance.debut.map(EnFrancais.heure), seance.lieu,
+                      seance.dureeMinutes.map { EnFrancais.duree(minutes: $0) }].compactMap { $0 }
+                        .joined(separator: " · "))
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer()
-            Text(Self.situation(seance.situation)).font(.footnote).foregroundStyle(Palette.texteSecondaire)
-            Image(systemName: "chevron.right").font(.footnote).foregroundStyle(Palette.texteTertiaire)
+            Spacer(minLength: 4)
+            if seance.situation == "faite" {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(Categorie.sport.couleur)
+            } else if seance.situation != "proposee" {
+                Puce(texte: Self.situation(seance.situation))
+            }
         }
         .contentShape(Rectangle())
     }
@@ -203,16 +261,6 @@ struct EcranSemaine: View {
         case "retiree": "retirée"
         default: code ?? ""
         }
-    }
-
-    private func jours(_ semaine: SemaineDeSport) -> [Date] {
-        let calendrier = Calendar.current
-        var vus: [Date] = []
-        for seance in semaine.seances {
-            let jour = calendrier.startOfDay(for: seance.jour)
-            if !vus.contains(jour) { vus.append(jour) }
-        }
-        return vus
     }
 
     private func decaler(_ jours: Int) {
