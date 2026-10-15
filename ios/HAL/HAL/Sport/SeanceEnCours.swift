@@ -79,9 +79,14 @@ struct SerieLocale: Codable, Hashable, Identifiable {
     var id: UUID { cle }
 
     var enClair: String {
-        if let dureeSecondes { return "\(dureeSecondes) s" }
-        if let distanceM { return "\(distanceM) m" }
-        switch (chargeKg, repetitions) {
+        Self.texte(charge: chargeKg, reps: repetitions, duree: dureeSecondes, distance: distanceM)
+    }
+
+    /// « 62,5 kg × 6 », « 8 reps », « 45 s ».
+    static func texte(charge: Double?, reps: Int?, duree: Int?, distance: Int?) -> String {
+        if let duree { return "\(duree) s" }
+        if let distance { return "\(distance) m" }
+        switch (charge, reps) {
         case let (charge?, reps?): return "\(Poids.texte(charge)) × \(reps)"
         case let (nil, reps?): return "\(reps) reps"
         case let (charge?, nil): return Poids.texte(charge)
@@ -358,6 +363,34 @@ final class SeanceEnCours {
         centre.add(UNNotificationRequest(
             identifier: "repos", content: contenu,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: dureeDuRepos, repeats: false)))
+    }
+
+    /// 3.7 : « −15 s » et « +30 s » sur le repos en cours.
+    func ajusterLeRepos(_ secondes: TimeInterval) {
+        guard let fin = finDuRepos else { return }
+        let nouvelle = fin.addingTimeInterval(secondes)
+        guard nouvelle > .now else { passerLeRepos(); return }
+        finDuRepos = nouvelle
+        dureeDuRepos = max(1, dureeDuRepos + secondes)
+        let centre = UNUserNotificationCenter.current()
+        centre.removePendingNotificationRequests(withIdentifiers: ["repos"])
+        if let exercice = exerciceCourant {
+            let contenu = UNMutableNotificationContent()
+            contenu.title = "Repos terminé"
+            contenu.body = "À toi : \(exercice.libelle)"
+            contenu.sound = .default
+            centre.add(UNNotificationRequest(
+                identifier: "repos", content: contenu,
+                trigger: UNTimeIntervalNotificationTrigger(timeInterval: nouvelle.timeIntervalSinceNow, repeats: false)))
+        }
+        publierLActivite()
+    }
+
+    /// 3.6 : « Annuler » la série intermédiaire proposée ; on reprend la suite prévue.
+    func renoncerALIntermediaire() {
+        guard seance?.proposition?.intermediaire == true else { return }
+        seance?.proposition = nil
+        enregistrer()
     }
 
     func passerLeRepos() {

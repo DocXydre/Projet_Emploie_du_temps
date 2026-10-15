@@ -243,13 +243,102 @@ struct WidgetLancerSeance: View {
     }
 }
 
-/// La séance du jour en grand : ses exercices et la consigne de HAL.
+/// 1.7 : la séance du jour en grand. Son titre et son jour, la durée,
+/// l'intensité et les groupes, chaque exercice avec son matériel, son repos, ses
+/// séries et sa charge, la consigne de HAL. « Commencer » la lance ; « Déplacer »
+/// passe par HAL, qui seul change une séance (COA-32).
 struct VueSeanceDuJour: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(SeanceEnCours.self) private var seance
+    @Environment(ConversationHAL.self) private var conversation
+    @Environment(\.fermerAgrandi) private var fermerAgrandi
 
     var body: some View {
-        let jour = foyer.seanceAPrevoir ?? foyer.seance
-        CoquilleWidget(titre: "Séance du jour", icone: "dumbbell", couleur: Categorie.sport.couleur) {
+        if let detail = foyer.seanceDuJour {
+            detaillee(detail)
+        } else {
+            apercu(foyer.seanceAPrevoir ?? foyer.seance)
+        }
+    }
+
+    private func detaillee(_ detail: DetailSeance) -> some View {
+        CoquilleWidget(titre: "Sport · Séance du jour", icone: "waveform.path.ecg", couleur: Categorie.sport.couleur) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 8) {
+                        Text(detail.titre).texte(.titre).foregroundStyle(Palette.textePrincipal)
+                        if detail.seance.cle == true {
+                            Puce("Clé", categorie: .sport)
+                        }
+                    }
+                    Text(sousTitre(detail.seance)).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    Flux(espacement: 6) {
+                        if let minutes = detail.seance.dureeMinutes {
+                            puce("timer", EnFrancais.duree(minutes: minutes))
+                        }
+                        if let intensite = detail.seance.intensite {
+                            puce("flame", Self.intensite(intensite))
+                        }
+                        if let groupes = detail.seance.groupes, !groupes.isEmpty {
+                            let texte = groupes.prefix(3).map(Self.groupe).joined(separator: ", ")
+                            puce("scope", texte.prefix(1).uppercased() + texte.dropFirst())
+                        }
+                    }
+                    Divider().overlay(Palette.verreBord)
+                    ForEach(Array(detail.prevu.enumerated()), id: \.element.id) { rang, ligne in
+                        exercice(rang + 1, ligne)
+                    }
+                    if let consigne = detail.seance.consigne, !consigne.isEmpty {
+                        Divider().overlay(Palette.verreBord)
+                        HStack(alignment: .top, spacing: 10) {
+                            Orbe(etat: .repos, taille: 22)
+                            Text(consigne).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            HStack {
+                Button(seance.enCours ? "Reprendre la séance" : "Commencer la séance") {
+                    fermerAgrandi?.fermer()
+                    seance.lancer(detail)
+                }
+                .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                Button("Déplacer") {
+                    fermerAgrandi?.fermer()
+                    conversation.demanderUnChangement(ElementJoint(
+                        genre: .seance, idOccurrence: detail.seance.idOccurrence, libelle: detail.titre))
+                }
+                .buttonStyle(.hal(.verre, grand: true))
+            }
+        }
+        .frame(maxHeight: 620)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func exercice(_ numero: Int, _ ligne: LignePrevue) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(numero)").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                .frame(width: 24, height: 24)
+                .background(Palette.verreTeinte, in: Circle())
+            VStack(alignment: .leading, spacing: 1) {
+                Text(ligne.libelle).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    .lineLimit(1).minimumScaleFactor(0.85)
+                Text(sousLigne(ligne)).texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(volume(ligne)).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                Text(ligne.chargeKg.map(Poids.texte) ?? "au ressenti")
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            }
+        }
+    }
+
+    /// Avant que le serveur ait répondu, ou sans serveur : le résumé des données fictives.
+    private func apercu(_ jour: SeanceDuJour) -> some View {
+        CoquilleWidget(titre: "Sport · Séance du jour", icone: "waveform.path.ecg", couleur: Categorie.sport.couleur) {
             VStack(alignment: .leading, spacing: 10) {
                 Text(jour.titre).texte(.titre).foregroundStyle(Palette.textePrincipal)
                 ForEach(jour.exercices.indices, id: \.self) { rang in
@@ -264,6 +353,68 @@ struct VueSeanceDuJour: View {
             }
         }
         .frame(height: 340)
+    }
+
+    private func puce(_ icone: String, _ texte: String) -> some View {
+        Label(texte, systemImage: icone)
+            .texte(.legende).foregroundStyle(Palette.textePrincipal)
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(Palette.verreTeinte, in: Capsule())
+            .overlay(Capsule().strokeBorder(Palette.verreBord, lineWidth: 0.5))
+    }
+
+    /// « Jeu. 15 oct. · 18:30 · Salle de musculation »
+    private func sousTitre(_ seance: DetailSeance.Seance) -> String {
+        var morceaux: [String] = []
+        if let jour = seance.jour ?? seance.debut {
+            let texte = EnFrancais.jour(jour)
+            morceaux.append(texte.prefix(1).uppercased() + texte.dropFirst())
+        }
+        if let debut = seance.debut { morceaux.append(EnFrancais.heure(debut)) }
+        if let lieu = seance.lieu { morceaux.append(lieu) }
+        return morceaux.joined(separator: " · ")
+    }
+
+    /// « Barre · repos 2 min »
+    private func sousLigne(_ ligne: LignePrevue) -> String {
+        var morceaux: [String] = []
+        if let materiel = ligne.materiel { morceaux.append(EnFrancais.materiel(materiel)) }
+        if let repos = ligne.reposSecondes {
+            morceaux.append(repos % 60 == 0 && repos >= 60 ? "repos \(repos / 60) min" : "repos \(repos) s")
+        }
+        return morceaux.joined(separator: " · ")
+    }
+
+    /// « 4 × 6 », « 3 × 8-10 », « 1 × 30 min »
+    private func volume(_ ligne: LignePrevue) -> String {
+        let series = ligne.series ?? 1
+        if let minimum = ligne.repetitionsMin, let maximum = ligne.repetitionsMax {
+            return minimum == maximum ? "\(series) × \(minimum)" : "\(series) × \(minimum)-\(maximum)"
+        }
+        if let secondes = ligne.dureeSecondes { return "\(series) × \(EnFrancais.duree(minutes: secondes / 60))" }
+        if let metres = ligne.distanceM { return "\(series) × \(EnFrancais.distance(metres))" }
+        return "\(series) séries"
+    }
+
+    static func intensite(_ code: String) -> String {
+        switch code {
+        case "legere": "Légère"
+        case "moderee": "Modérée"
+        case "dure": "Dure"
+        default: code.capitalized
+        }
+    }
+
+    static func groupe(_ code: String) -> String {
+        switch code {
+        case "pectoraux": "Pecs"
+        case "epaules": "épaules"
+        case "abdominaux": "abdos"
+        case "avant_bras": "avant-bras"
+        case "ischios": "ischios"
+        default: code.replacingOccurrences(of: "_", with: " ")
+        }
     }
 }
 

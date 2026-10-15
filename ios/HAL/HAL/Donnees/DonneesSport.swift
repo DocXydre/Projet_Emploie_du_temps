@@ -205,6 +205,11 @@ struct DetailSeance: Codable, Hashable, Sendable {
         let effort: Int?
         let commentaire: String?
         let avisLibre: String?
+        /// Une séance clé du plan, que HAL protège en priorité.
+        var cle: Bool? = nil
+        var estTest: Bool? = nil
+        /// Les groupes travaillés : « pectoraux », « dos ».
+        var groupes: [String]? = nil
     }
 
     /// SAN-2 : ce que la montre a enregistré pour cette séance.
@@ -250,6 +255,8 @@ struct LignePrevue: Codable, Hashable, Identifiable, Sendable {
     let idExercice: Int
     let code: String
     let libelle: String
+    /// « barre », « haltères », « machine ».
+    var materiel: String? = nil
     let mesure: String?
     let series: Int?
     let repetitionsMin: Int?

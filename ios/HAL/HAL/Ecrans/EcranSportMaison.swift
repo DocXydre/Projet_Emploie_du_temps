@@ -83,7 +83,8 @@ private struct TachesDuJourDesDeux: View {
                         LigneTache(titre: tache.titre, faite: tache.faite,
                                    detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
                                    avatar: foyer.membres.count > 1
-                                       ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil) {
+                                       ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil,
+                                   annulableJusqua: foyer.departDeLEnvoi(tache)) {
                             cocher(tache)
                         }
                         .contextMenu {
@@ -114,7 +115,13 @@ private struct TachesDuJourDesDeux: View {
     }
 
     private func cocher(_ tache: Tache) {
-        guard !tache.faite else { return }
+        // APP-10 : une tâche cochée se décoche d'un geste tant qu'elle n'est pas partie.
+        guard !tache.faite else {
+            var decochee = false
+            withAnimation(.snappy) { decochee = foyer.decocher(tache) }
+            if decochee { annoncer("« \(tache.titre) » décochée") }
+            return
+        }
         var annuler: (() -> Void)?
         withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
         if let annuler {
