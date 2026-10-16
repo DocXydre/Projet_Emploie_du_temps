@@ -84,24 +84,35 @@ struct EcranDemarrage: View {
 
 /// Un écran du démarrage : l'avancée, le titre, le contenu, un champ libre, et
 /// le bouton pour continuer en bas.
-private struct Page<Contenu: View>: View {
+private struct Page<Contenu: View, Entete: View>: View {
     let titre: String
     var texte: String? = nil
     var note: String? = nil
     var bouton: String? = "Continuer"
     var actif = true
     @ViewBuilder var contenu: Contenu
+    /// Ce qui passe au-dessus du titre : la grande orbe de la bienvenue (7.1).
+    @ViewBuilder var entete: Entete
     @Environment(ModeleDemarrage.self) private var modele
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                if let etape = modele.page.etape { Avancee(etape: etape) }
-                Text(titre).texte(.grandTitre).foregroundStyle(Palette.textePrincipal)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let texte {
-                    Text(texte).texte(.corps).foregroundStyle(Palette.texteSecondaire)
-                        .fixedSize(horizontal: false, vertical: true)
+                entete
+                if let etape = modele.page.etape {
+                    Avancee(etape: etape)
+                    Text(modele.page.repere).texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                }
+                HStack(alignment: .top, spacing: 12) {
+                    if modele.page.etape != nil { Orbe(etat: .repos, taille: 34).padding(.top, 2) }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(titre).texte(.titre).foregroundStyle(Palette.textePrincipal)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let texte {
+                            Text(texte).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
                 contenu
                 if let note { ChampLibre(cle: note) }
@@ -133,6 +144,14 @@ private struct Page<Contenu: View>: View {
     }
 }
 
+extension Page where Entete == EmptyView {
+    init(titre: String, texte: String? = nil, note: String? = nil, bouton: String? = "Continuer",
+         actif: Bool = true, @ViewBuilder contenu: () -> Contenu) {
+        self.init(titre: titre, texte: texte, note: note, bouton: bouton, actif: actif,
+                  contenu: contenu, entete: { EmptyView() })
+    }
+}
+
 /// Les cinq étapes, et celle où l'on est.
 private struct Avancee: View {
     let etape: Int
@@ -153,6 +172,8 @@ private struct Avancee: View {
 private struct ChoixUnique<Valeur: Hashable>: View {
     var titre: String? = nil
     let choix: [(Valeur, String)]
+    /// Une ligne sous chaque réponse, si elle aide à choisir (7.3, 7.5, 7.6).
+    var details: [Valeur: String] = [:]
     @Binding var selection: Valeur?
 
     var body: some View {
@@ -160,20 +181,51 @@ private struct ChoixUnique<Valeur: Hashable>: View {
             if let titre { Text(titre.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteSecondaire) }
             ForEach(choix.indices, id: \.self) { rang in
                 let valeur = choix[rang].0
+                let choisi = selection == valeur
                 Button { selection = valeur } label: {
                     HStack {
-                        Text(choix[rang].1).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(choix[rang].1).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                            if let detail = details[valeur] {
+                                Text(detail).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                            }
+                        }
                         Spacer()
-                        Image(systemName: selection == valeur ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(selection == valeur ? Categorie.ia.couleur : Palette.texteTertiaire)
+                        if choisi {
+                            Image(systemName: "checkmark").font(.body.weight(.semibold))
+                                .foregroundStyle(Categorie.sport.couleur)
+                        }
                     }
                     .padding(.horizontal, Espace.interne)
+                    .padding(.vertical, 10)
                     .frame(minHeight: 52)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .carte(rayon: Rayon.controle)
-                .accessibilityAddTraits(selection == valeur ? .isSelected : [])
+                .overlay(RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous)
+                    .strokeBorder(choisi ? Categorie.sport.couleur : .clear, lineWidth: 1.5))
+                .accessibilityAddTraits(choisi ? .isSelected : [])
+            }
+        }
+    }
+}
+
+/// Une question à réponses courtes : des pastilles côte à côte.
+private struct ChoixEnPuces<Valeur: Hashable>: View {
+    var titre: String? = nil
+    let choix: [(Valeur, String)]
+    @Binding var selection: Valeur?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let titre { Text(titre.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteSecondaire) }
+            Flux(espacement: 8) {
+                ForEach(choix.indices, id: \.self) { rang in
+                    PuceChoix(texte: choix[rang].1, choisie: selection == choix[rang].0) {
+                        selection = choix[rang].0
+                    }
+                }
             }
         }
     }
@@ -187,8 +239,8 @@ private struct ChampLibre: View {
     var body: some View {
         let texte = Binding { modele.notes[cle] ?? "" } set: { modele.notes[cle] = $0 }
         VStack(alignment: .leading, spacing: 6) {
-            Text("AUTRE CHOSE À DIRE À HAL ?").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-            TextField("Facultatif", text: texte, axis: .vertical)
+            Text("AUTRE CHOSE À DIRE À HAL ? (FACULTATIF)").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+            TextField("Écris ici…", text: texte, axis: .vertical)
                 .lineLimit(1...4)
                 .texte(.corps)
                 .foregroundStyle(Palette.textePrincipal)
@@ -202,30 +254,41 @@ private struct ChampLibre: View {
 
 private struct Bienvenue: View {
     var body: some View {
-        Page(titre: "Faisons connaissance", texte: "HAL a besoin de quelques réponses pour te proposer quatre semaines d'entraînement autour de ton emploi du temps. Tout se corrige ensuite.", bouton: "Commencer") {
-            VStack(alignment: .leading, spacing: 14) {
-                ligne(1, "Ton profil", "Âge, niveau, disponibilités, alimentation")
-                ligne(2, "Douleurs et limitations", "S'il y a un geste à éviter")
-                ligne(3, "Tes lieux de sport", "Salle, dehors, à la maison")
-                ligne(4, "Ton objectif", "Force, muscle, endurance, ou une course")
-                ligne(5, "Ton plan", "L'avis de HAL et la première semaine à valider")
+        Page(titre: "Je suis HAL, ton coach", texte: "Avant de te proposer un plan, j'ai besoin de te connaître. Cinq étapes, environ quatre minutes. Tu pourras tout changer ensuite dans Réglages.", bouton: "Commencer") {
+            VStack(spacing: 0) {
+                ligne(1, "Profil", "âge, taille, niveaux, disponibilités", "person")
+                Divider().overlay(Palette.verreBord)
+                ligne(2, "Limitation", "une douleur ou une gêne qui dure", "exclamationmark.circle")
+                Divider().overlay(Palette.verreBord)
+                ligne(3, "Lieux", "où tu fais chaque sport", "mappin.and.ellipse")
+                Divider().overlay(Palette.verreBord)
+                ligne(4, "Objectif", "ce que tu veux atteindre", "scope")
+                Divider().overlay(Palette.verreBord)
+                ligne(5, "Plan", "HAL construit tes 4 semaines", "calendar")
             }
-            .padding(Espace.interne)
             .carte()
             Text("Rien de médical ici : HAL est un coach sportif. Pour une douleur qui inquiète, vois un médecin.")
                 .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+        } entete: {
+            Orbe(etat: .repos, taille: 110)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
         }
     }
 
-    private func ligne(_ rang: Int, _ titre: String, _ detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(rang)").texte(.corpsFort).foregroundStyle(Palette.texteSurAccent)
-                .frame(width: 28, height: 28).background(Categorie.ia.couleur, in: Circle())
-            VStack(alignment: .leading, spacing: 2) {
+    private func ligne(_ rang: Int, _ titre: String, _ detail: String, _ icone: String) -> some View {
+        HStack(spacing: 12) {
+            Text("\(rang)").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                .frame(width: 28, height: 28).background(Palette.verreTeinteForte, in: Circle())
+            VStack(alignment: .leading, spacing: 1) {
                 Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
                 Text(detail).texte(.legende).foregroundStyle(Palette.texteSecondaire)
             }
+            Spacer()
+            Image(systemName: icone).foregroundStyle(Palette.texteSecondaire)
         }
+        .padding(.horizontal, Espace.interne)
+        .padding(.vertical, 10)
     }
 }
 
@@ -236,18 +299,28 @@ private struct Identite: View {
 
     var body: some View {
         @Bindable var modele = modele
-        Page(titre: "Toi", texte: "HAL ne s'active qu'à partir de 18 ans.", note: "identite", actif: modele.sexe != nil) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("DATE DE NAISSANCE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                DatePicker("Date de naissance", selection: $modele.naissance, in: ...Date.now, displayedComponents: .date)
-                    .datePickerStyle(.wheel)
-                    .labelsHidden()
-                    .environment(\.locale, Locale(identifier: "fr_FR"))
-                    .frame(maxWidth: .infinity)
-                    .carte(rayon: Rayon.controle)
+        Page(titre: "Parle-moi un peu de toi", texte: "Ça sert à doser l'effort et les charges. HAL ne s'active qu'à partir de 18 ans.",
+             note: "identite", actif: modele.sexe != nil) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Date de naissance").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    DatePicker("Date de naissance", selection: $modele.naissance, in: ...Date.now,
+                               displayedComponents: .date)
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "fr_FR"))
+                }
+                ChoixEnPuces(titre: "Sexe", choix: LibellesHAL.sexes, selection: $modele.sexe)
+                HStack {
+                    Text("Taille").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    Compteur(titre: "Taille", valeur: $modele.taille, pas: 1, bornes: 100...250, unite: "cm",
+                             compact: true)
+                        .frame(width: 160)
+                }
             }
-            ChoixUnique(titre: "Sexe", choix: LibellesHAL.sexes, selection: $modele.sexe)
-            Compteur(titre: "Taille", valeur: $modele.taille, pas: 1, bornes: 100...250, unite: "cm")
+            .padding(Espace.interne)
+            .carte()
         }
     }
 }
@@ -255,12 +328,17 @@ private struct Identite: View {
 private struct Niveaux: View {
     @Environment(ModeleDemarrage.self) private var modele
 
+    private static let details = ["debutant": "moins de 6 mois",
+                                  "intermediaire": "régulier depuis plus de 6 mois",
+                                  "avance": "plusieurs années, programmes suivis"]
+
     var body: some View {
         @Bindable var modele = modele
-        Page(titre: "Ton niveau", note: "niveaux",
+        Page(titre: "Ton niveau ?", texte: "Pour que les premières séances soient justes.", note: "niveaux",
              actif: modele.niveauMusculation != nil && modele.niveauCourse != nil) {
-            ChoixUnique(titre: "En musculation", choix: LibellesHAL.niveaux, selection: $modele.niveauMusculation)
-            ChoixUnique(titre: "En course à pied", choix: LibellesHAL.niveaux, selection: $modele.niveauCourse)
+            ChoixUnique(titre: "Musculation", choix: LibellesHAL.niveaux, details: Self.details,
+                        selection: $modele.niveauMusculation)
+            ChoixEnPuces(titre: "Course à pied", choix: LibellesHAL.niveaux, selection: $modele.niveauCourse)
         }
     }
 }
@@ -271,38 +349,49 @@ private struct Disponibilites: View {
     var body: some View {
         @Bindable var modele = modele
         let moment = Binding<String?> { modele.moment } set: { modele.moment = $0 ?? "indifferent" }
-        Page(titre: "Tes disponibilités", texte: "HAL place les séances autour de tes cours et de ton travail.", note: "disponibilites") {
-            ChoixUnique(titre: "Quand préfères-tu t'entraîner ?", choix: LibellesHAL.moments, selection: moment)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LES JOURS SANS SPORT, JAMAIS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                HStack(spacing: 6) {
-                    ForEach(1...7, id: \.self) { jour in
-                        let pris = modele.joursSansSport.contains(jour)
-                        Button {
-                            if pris { modele.joursSansSport.remove(jour) } else { modele.joursSansSport.insert(jour) }
-                        } label: {
-                            Text(LibellesHAL.jours[jour - 1]).texte(.corpsFort)
-                                .foregroundStyle(pris ? Palette.texteSurAccent : Palette.textePrincipal)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                                .background(pris ? Categorie.ia.couleur : Palette.verreTeinte,
-                                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        Page(titre: "Quand tu peux t'entraîner ?", texte: "HAL lit déjà ton emploi du temps : il place les séances dans tes trous.", note: "disponibilites") {
+            VStack(alignment: .leading, spacing: 14) {
+                ChoixEnPuces(titre: "Moment préféré", choix: LibellesHAL.moments, selection: moment)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("JOURS SANS SPORT").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                    HStack(spacing: 6) {
+                        ForEach(1...7, id: \.self) { jour in
+                            let pris = modele.joursSansSport.contains(jour)
+                            Button {
+                                if pris { modele.joursSansSport.remove(jour) } else { modele.joursSansSport.insert(jour) }
+                            } label: {
+                                Text(String(LibellesHAL.jours[jour - 1].prefix(1))).texte(.corpsFort)
+                                    .foregroundStyle(Palette.textePrincipal)
+                                    .frame(maxWidth: .infinity, minHeight: 36)
+                                    .background(pris ? Categorie.ia.voile : Palette.verreTeinte, in: Circle())
+                                    .overlay(Circle().strokeBorder(pris ? Categorie.ia.couleur : Palette.verreBord,
+                                                                   lineWidth: pris ? 1 : 0.5))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Pas de sport le \(LibellesHAL.jours[jour - 1])")
+                            .accessibilityAddTraits(pris ? .isSelected : [])
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(pris ? .isSelected : [])
+                    }
+                }
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Au plus par semaine").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                        Button(modele.maximum == nil ? "HAL décide · fixer un maximum" : "Laisser HAL décider") {
+                            modele.maximum = modele.maximum == nil ? 4 : nil
+                        }
+                        .texte(.legende)
+                        .foregroundStyle(Categorie.ia.couleur)
+                    }
+                    Spacer()
+                    if let maximum = modele.maximum {
+                        Compteur(titre: "Séances", valeur: Binding { Double(maximum) } set: { modele.maximum = Int($0) },
+                                 bornes: 1...7, unite: "séances", compact: true)
+                            .frame(width: 150)
                     }
                 }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("AU PLUS, PAR SEMAINE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                Picker("Séances par semaine", selection: $modele.maximum) {
-                    Text("HAL décide").tag(Int?.none)
-                    ForEach(2...7, id: \.self) { n in Text("\(n) séances").tag(Int?.some(n)) }
-                }
-                .pickerStyle(.menu)
-                .padding(.horizontal, Espace.interne)
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .carte(rayon: Rayon.controle)
-            }
+            .padding(Espace.interne)
+            .carte()
         }
     }
 }
@@ -312,9 +401,11 @@ private struct Alimentation: View {
 
     var body: some View {
         @Bindable var modele = modele
-        Page(titre: "Ton alimentation", note: "alimentation", actif: modele.complements != nil) {
-            ChoixUnique(titre: "HAL peut-il te parler de compléments (protéines, créatine) ?",
-                        choix: [(true, "Oui"), (false, "Non")], selection: $modele.complements)
+        Page(titre: "On parle alimentation ?", texte: "Seulement des conseils simples autour des séances. Jamais de régime.",
+             note: "alimentation", actif: modele.complements != nil) {
+            ChoixUnique(choix: [(true, "Oui, ça m'intéresse"), (false, "Non merci")],
+                        details: [true: "repas avant et après l'effort, compléments", false: "HAL n'en parlera pas"],
+                        selection: $modele.complements)
             VStack(alignment: .leading, spacing: 6) {
                 Text("UN RÉGIME À RESPECTER").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
                 TextField("Végétarien, sans porc… ou rien", text: $modele.regime)
@@ -333,21 +424,42 @@ private struct QuestionLimitation: View {
     @Environment(ModeleDemarrage.self) private var modele
 
     var body: some View {
-        Page(titre: autre ? "Une autre ?" : "Une douleur qui dure ?",
-             texte: autre ? nil : "Une articulation fragile, une ancienne blessure, un geste que tu ne peux pas faire. HAL en tiendra compte dans chaque séance. La question n'est posée qu'une fois.",
+        Page(titre: autre ? "Une autre ?" : "Une douleur ou une gêne qui dure ?",
+             texte: autre ? nil : "Une blessure ancienne, une articulation fragile, un geste que tu ne peux pas faire. HAL en tient compte dans chaque séance. La question n'est posée qu'une fois.",
              bouton: nil) {
             if let deja = modele.etat?.limitations, !deja.isEmpty {
                 Text("Déjà notées : " + deja.map(\.libelle).joined(separator: ", "))
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             }
-            HStack(spacing: Espace.gouttiere) {
-                Button(autre ? "Non, c'est tout" : "Non") { Task { await modele.repondreLimitation(false) } }
-                    .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
-                Button("Oui") { Task { await modele.repondreLimitation(true) } }
-                    .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+            VStack(spacing: 8) {
+                reponse("Oui", "je te dis où") { await modele.repondreLimitation(true) }
+                reponse(autre ? "Non, c'est tout" : "Non, rien", "tu pourras en ajouter plus tard, dans Réglages") {
+                    await modele.repondreLimitation(false)
+                }
             }
             .disabled(modele.envoi)
         }
+    }
+}
+
+extension QuestionLimitation {
+    /// 7.6 : une réponse est une carte, et la toucher suffit.
+    fileprivate func reponse(_ titre: String, _ detail: String, action: @escaping () async -> Void) -> some View {
+        Button { Task { await action() } } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    Text(detail).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(Palette.texteTertiaire)
+            }
+            .padding(.horizontal, Espace.interne)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .carte(rayon: Rayon.controle)
     }
 }
 
@@ -356,24 +468,16 @@ private struct DetailLimitation: View {
 
     var body: some View {
         @Bindable var modele = modele
-        Page(titre: "Où, et quoi ?", note: nil,
+        Page(titre: "Où ça ?", note: nil,
              actif: modele.zone != nil && modele.cote != nil && modele.description.count >= 5) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("OÙ").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
-                    ForEach(LibellesHAL.zones, id: \.0) { zone in
-                        puce(zone.1, choisie: modele.zone == zone.0) { modele.zone = zone.0 }
-                    }
-                }
+            VStack(alignment: .leading, spacing: 14) {
+                ChoixEnPuces(titre: "Zone", choix: LibellesHAL.zones,
+                             selection: Binding { modele.zone } set: { modele.zone = $0 })
+                ChoixEnPuces(titre: "Côté", choix: LibellesHAL.cotes,
+                             selection: Binding { modele.cote } set: { modele.cote = $0 })
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("DE QUEL CÔTÉ").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                HStack(spacing: 8) {
-                    ForEach(LibellesHAL.cotes, id: \.0) { cote in
-                        puce(cote.1, choisie: modele.cote == cote.0) { modele.cote = cote.0 }
-                    }
-                }
-            }
+            .padding(Espace.interne)
+            .carte()
             VStack(alignment: .leading, spacing: 6) {
                 Text("DÉCRIS-LA").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
                 TextField("Ce qui fait mal, quand, et le geste que tu ne peux pas faire", text: $modele.description,
@@ -385,20 +489,6 @@ private struct DetailLimitation: View {
             }
         }
     }
-}
-
-/// Une petite réponse à toucher, dans une grille.
-private func puce(_ libelle: String, choisie: Bool, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-        Text(libelle).texte(.corpsFort)
-            .foregroundStyle(choisie ? Palette.texteSurAccent : Palette.textePrincipal)
-            .lineLimit(1).minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(choisie ? Categorie.ia.couleur : Palette.verreTeinte,
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-    .buttonStyle(.plain)
-    .accessibilityAddTraits(choisie ? .isSelected : [])
 }
 
 private struct ExercicesAEviter: View {
@@ -456,36 +546,36 @@ private struct Lieux: View {
     @Environment(ModeleDemarrage.self) private var modele
 
     var body: some View {
-        Page(titre: "Tes lieux de sport",
-             texte: "Pour chaque discipline, touche tes lieux dans ton ordre de préférence. Une discipline que tu ne fais pas reste vide.",
+        Page(titre: "Où tu fais chaque sport ?",
+             texte: "Touche tes lieux dans ton ordre de préférence. Une discipline que tu ne fais pas reste vide.",
              note: "lieux") {
             ForEach(LibellesHAL.disciplines, id: \.0) { discipline in
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(discipline.1.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                    VStack(spacing: 0) {
+                let rangs = modele.lieux[discipline.0] ?? []
+                VStack(alignment: .leading, spacing: 10) {
+                    Label(discipline.1.uppercased(), systemImage: icone(discipline.0))
+                        .texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                    Flux(espacement: 8) {
                         ForEach(modele.etat?.lieuxPossibles ?? []) { lieu in
-                            let rang = modele.lieux[discipline.0]?.firstIndex(of: lieu.idLieu)
-                            Button { modele.basculer(lieu.idLieu, pour: discipline.0) } label: {
-                                HStack {
-                                    Text(lieu.libelle).texte(.corps).foregroundStyle(Palette.textePrincipal)
-                                    Spacer()
-                                    if let rang {
-                                        Text("\(rang + 1)").texte(.corpsFort).foregroundStyle(Palette.texteSurAccent)
-                                            .frame(width: 26, height: 26).background(Categorie.ia.couleur, in: Circle())
-                                    } else {
-                                        Image(systemName: "circle").foregroundStyle(Palette.texteTertiaire)
-                                    }
-                                }
-                                .padding(.horizontal, Espace.interne)
-                                .frame(minHeight: 46)
-                                .contentShape(Rectangle())
+                            let rang = rangs.firstIndex(of: lieu.idLieu)
+                            PuceChoix(texte: rang.map { "\($0 + 1) · \(lieu.libelle)" } ?? lieu.libelle,
+                                      choisie: rang != nil) {
+                                modele.basculer(lieu.idLieu, pour: discipline.0)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .carte(rayon: Rayon.controle)
                 }
+                .padding(Espace.interne)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .carte()
             }
+        }
+    }
+
+    private func icone(_ discipline: String) -> String {
+        switch discipline {
+        case "musculation": "dumbbell"
+        case "course": "figure.run"
+        default: "heart"
         }
     }
 }
@@ -497,31 +587,62 @@ private struct ChoixObjectif: View {
 
     var body: some View {
         @Bindable var modele = modele
-        Page(titre: "Ton objectif principal",
-             texte: "Tu pourras en ajouter d'autres ensuite, dans Objectifs.",
+        Page(titre: "Ton objectif principal ?",
+             texte: "C'est lui qui commande le plan. Tu pourras en ajouter d'autres à côté, dans Objectifs.",
              note: "objectif", actif: modele.objectif != nil || modele.principal != nil) {
             if let principal = modele.principal, modele.objectif == nil {
                 AvisDeHAL(texte: "Tu as déjà un objectif : \(principal.libelle). Continue pour le garder, ou choisis-en un autre.")
             }
             VStack(spacing: 8) {
                 ForEach(LibellesHAL.objectifs, id: \.0) { choix in
+                    let choisi = modele.objectif == choix.0
                     Button { modele.objectif = choix.0 } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: choix.2).font(.system(size: 20))
-                                .foregroundStyle(Categorie.sport.couleur).frame(width: 32)
-                            Text(choix.1).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                            Image(systemName: choix.2).font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(Palette.texteSurAccent)
+                                .frame(width: 36, height: 36)
+                                .background(couleur(choix.0), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(choix.1).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                Text(detail(choix.0)).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                            }
                             Spacer()
-                            Image(systemName: modele.objectif == choix.0 ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(modele.objectif == choix.0 ? Categorie.ia.couleur : Palette.texteTertiaire)
+                            if choisi {
+                                Image(systemName: "checkmark").font(.body.weight(.semibold))
+                                    .foregroundStyle(Categorie.sport.couleur)
+                            }
                         }
                         .padding(.horizontal, Espace.interne)
-                        .frame(minHeight: 60)
+                        .padding(.vertical, 10)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .carte(rayon: Rayon.controle)
+                    .overlay(RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous)
+                        .strokeBorder(choisi ? Categorie.sport.couleur : .clear, lineWidth: 1.5))
+                    .accessibilityAddTraits(choisi ? .isSelected : [])
                 }
             }
+        }
+    }
+}
+
+extension ChoixObjectif {
+    fileprivate func detail(_ objectif: String) -> String {
+        switch objectif {
+        case "force": "soulever plus lourd"
+        case "physique": "prendre du volume"
+        case "endurance": "tenir plus longtemps, être en forme"
+        default: "une date et une distance"
+        }
+    }
+
+    fileprivate func couleur(_ objectif: String) -> Color {
+        switch objectif {
+        case "force": Categorie.menage.couleur
+        case "physique": Categorie.travail.couleur
+        case "endurance": Categorie.ia.couleur
+        default: Categorie.sport.couleur
         }
     }
 }
@@ -533,13 +654,13 @@ private struct Course: View {
         @Bindable var modele = modele
         let pret = (modele.distanceChoisie ?? 0) > 0
             && (modele.justeFinir || LibellesHAL.minutes(modele.tempsVise) != nil)
-        Page(titre: "Ta course", texte: "Le temps visé peut être ambitieux : HAL te dira ce qu'il en pense.",
+        Page(titre: "Quelle course ?", texte: "Le temps visé peut être ambitieux : HAL te dira ce qu'il en pense.",
              note: "course", actif: pret) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LA DISTANCE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("DISTANCE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                Flux(espacement: 8) {
                     ForEach(LibellesHAL.distances, id: \.0) { choix in
-                        puce(choix.1, choisie: modele.distance == choix.0) {
+                        PuceChoix(texte: choix.1, choisie: modele.distance == choix.0) {
                             modele.distance = choix.0
                             modele.autreDistance = ""
                         }
@@ -548,32 +669,34 @@ private struct Course: View {
                 TextField("Ou une autre, en km", text: $modele.autreDistance)
                     .keyboardType(.decimalPad)
                     .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                    .padding(Espace.interne)
-                    .carte(rayon: Rayon.controle)
+                    .padding(.horizontal, 14)
+                    .frame(height: 42)
+                    .verreControle(Capsule(), interactif: false)
                     .onChange(of: modele.autreDistance) { _, texte in if !texte.isEmpty { modele.distance = nil } }
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LE TEMPS VISÉ").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                TextField("50 min, ou 1h45", text: $modele.tempsVise)
-                    .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                    .padding(Espace.interne)
-                    .carte(rayon: Rayon.controle)
-                    .disabled(modele.justeFinir)
-                    .opacity(modele.justeFinir ? 0.5 : 1)
+                Divider().overlay(Palette.verreBord)
+                HStack {
+                    Text("Date").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    DatePicker("Date de la course", selection: $modele.dateCourse, in: Date.now..., displayedComponents: .date)
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "fr_FR"))
+                }
+                HStack {
+                    Text("Temps visé").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    TextField("1 h 55", text: $modele.tempsVise)
+                        .multilineTextAlignment(.trailing)
+                        .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                        .frame(width: 110)
+                        .disabled(modele.justeFinir)
+                        .opacity(modele.justeFinir ? 0.4 : 1)
+                }
                 Toggle("Juste la finir", isOn: $modele.justeFinir)
                     .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                    .padding(.horizontal, Espace.interne)
-                    .frame(minHeight: 48)
-                    .carte(rayon: Rayon.controle)
+                    .tint(Categorie.sport.couleur)
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("LA DATE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                DatePicker("Date de la course", selection: $modele.dateCourse, in: Date.now..., displayedComponents: .date)
-                    .environment(\.locale, Locale(identifier: "fr_FR"))
-                    .padding(.horizontal, Espace.interne)
-                    .frame(minHeight: 48)
-                    .carte(rayon: Rayon.controle)
-            }
+            .padding(Espace.interne)
+            .carte()
         }
     }
 }
@@ -585,43 +708,55 @@ private struct Recapitulatif: View {
 
     var body: some View {
         let fini = modele.etat?.manque == nil && modele.etat?.plan == true && modele.objectif == nil
-        Page(titre: fini ? "Ton démarrage" : "Tout est bon ?",
+        Page(titre: fini ? "Ton démarrage" : "Je résume, tu corriges si besoin",
              texte: fini ? "Tout est rempli et ton plan tourne. Chaque ligne se corrige." : "Touche une ligne pour la corriger.",
-             bouton: fini ? nil : "C'est bon, HAL peut construire mon plan",
+             bouton: fini ? nil : "Construire mon plan",
              actif: modele.objectif != nil || modele.principal != nil) {
-            VStack(spacing: 0) {
+            groupe("Profil") {
                 ligne("Toi", profil, .identite)
                 ligne("Niveaux", niveaux, .niveaux)
-                ligne("Disponibilités", disponibilites, .disponibilites)
-                ligne("Alimentation", alimentation, .alimentation)
-                ligne("Limitations", limitations, .limitationQuestion)
-                ligne("Lieux", lieux, .lieux)
-                ligne("Objectif", modele.objectifEnClair, .objectif)
+                ligne("Quand", disponibilites, .disponibilites)
+                ligne("Repas", alimentation, .alimentation)
             }
-            .carte()
+            groupe("Limitation") { ligne("Gênes", limitations, .limitationQuestion) }
+            groupe("Lieux") { ligne("Où", lieux, .lieux) }
+            groupe("Objectif") { ligne("Principal", modele.objectifEnClair, .objectif) }
             if !fini {
-                Text("HAL donne d'abord son avis sur l'objectif, puis construit quatre semaines. Ça prend quelques minutes.")
+                Text("Tes notes écrites partent aussi à HAL. Il donne d'abord son avis sur l'objectif, puis construit quatre semaines : ça prend quelques minutes.")
                     .texte(.legende).foregroundStyle(Palette.texteTertiaire)
             }
         }
     }
 
+    /// 7.13 : un bloc du démarrage, en carte.
+    private func groupe<Lignes: View>(_ titre: String, @ViewBuilder lignes: () -> Lignes) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(titre.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                .padding(.horizontal, Espace.interne)
+                .padding(.top, 12)
+            lignes()
+        }
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .carte()
+    }
+
     private func ligne(_ titre: String, _ valeur: String, _ page: PageDemarrage) -> some View {
         Button { modele.aller(page) } label: {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(titre.uppercased()).texte(.etiquette).foregroundStyle(Palette.texteTertiaire)
-                    Text(valeur).texte(.corps).foregroundStyle(Palette.textePrincipal)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                Image(systemName: "pencil").foregroundStyle(Palette.texteSecondaire)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(titre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .frame(width: 70, alignment: .leading)
+                Text(valeur).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 4)
+                Image(systemName: "pencil").font(.footnote).foregroundStyle(Palette.texteSecondaire)
             }
             .padding(.horizontal, Espace.interne)
-            .padding(.vertical, 10)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(titre) : \(valeur). Corriger")
     }
 
     private var profil: String {
@@ -670,7 +805,14 @@ private struct Construction: View {
     @Environment(ModeleDemarrage.self) private var modele
 
     var body: some View {
-        Page(titre: "HAL construit ton plan", bouton: modele.attendLePlan ? nil : "Continuer") {
+        Page(titre: "Je prépare tes 4 semaines…", bouton: modele.attendLePlan ? nil : "Continuer") {
+            VStack(alignment: .leading, spacing: 8) {
+                etape("Ton emploi du temps lu", faite: true)
+                etape("Tes lieux et trajets", faite: true)
+                etape("Avis sur ton objectif", faite: modele.avis != nil)
+                etape("Semaine de calibrage", faite: modele.plan != nil)
+            }
+            .frame(maxWidth: .infinity)
             if let avis = modele.avis {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("SON AVIS SUR TON OBJECTIF").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
@@ -692,6 +834,21 @@ private struct Construction: View {
                 Text("Le plan n'est pas encore là. Il arrivera en message dans HAL, et la semaine à valider apparaîtra dans Sport.")
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             }
+        } entete: {
+            Orbe(etat: modele.attendLePlan ? .active : .repos, taille: 110)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+        }
+    }
+}
+
+extension Construction {
+    fileprivate func etape(_ texte: String, faite: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: faite ? "checkmark" : "clock")
+                .foregroundStyle(faite ? Categorie.sport.couleur : Palette.texteSecondaire)
+                .frame(width: 20)
+            Text(texte).texte(.corps).foregroundStyle(faite ? Palette.textePrincipal : Palette.texteSecondaire)
         }
     }
 }

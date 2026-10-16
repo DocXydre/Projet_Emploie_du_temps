@@ -30,37 +30,45 @@ struct EcranReglagesSante: View {
                 }
             }
             Section {
-                LabeledContent("Dernier envoi réussi") {
-                    Text(sante.dernierEnvoi.map { $0.formatted(.relative(presentation: .named).locale(enFrancais)) }
-                         ?? "jamais")
+                HStack(spacing: 12) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Categorie.alerte.couleur, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Envoi automatique").texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                        Text(sante.dernierEnvoi.map { "dernier envoi \($0.formatted(.relative(presentation: .named).locale(enFrancais)))" }
+                             ?? "jamais envoyé")
+                            .texte(.legende)
+                            .foregroundStyle(sante.dernierEnvoi == nil ? Palette.texteSecondaire : Categorie.sport.couleur)
+                    }
+                    Spacer(minLength: 0)
+                    if sante.enCours { ProgressView() }
                 }
                 if let bilan = sante.dernierBilan {
                     Text(bilan).font(.footnote).foregroundStyle(Palette.texteSecondaire)
                 }
-                Button {
+                Button("Envoyer maintenant") {
                     Task {
                         await sante.envoyer(raison: "à la demande")
                         foyer.poserLaFrequence(sante.frequenceDuJour)
                     }
-                } label: {
-                    HStack {
-                        Text("Envoyer maintenant")
-                        Spacer()
-                        if sante.enCours { ProgressView() }
-                    }
                 }
                 .disabled(sante.enCours || !sante.disponible || !foyer.connecte)
-            } header: {
-                Text("Envoi automatique")
             } footer: {
-                Text("L'appli envoie à chaque ouverture, puis quand iOS la réveille, à peu près toutes les trois heures. Téléphone verrouillé, Santé ne se lit pas : l'envoi attend la prochaine ouverture.")
+                Text("L'appli lit Santé à chaque ouverture, puis quand iOS la réveille, à peu près toutes les trois heures. Téléphone verrouillé, Santé ne se lit pas : l'envoi attend la prochaine ouverture. Rien à lancer à la main.")
             }
 
             Section {
                 ForEach(EnvoiSante.Donnee.allCases) { donnee in
                     Toggle(isOn: coche(donnee)) {
-                        Label(donnee.libelle, systemImage: donnee.icone).foregroundStyle(Palette.textePrincipal)
+                        HStack(spacing: 12) {
+                            Pastille(icone: donnee.icone, couleur: couleur(donnee))
+                            Text(donnee.libelle).foregroundStyle(Palette.textePrincipal)
+                        }
                     }
+                    .tint(Categorie.sport.couleur)
                 }
             } header: {
                 Text("Ce qui est lu")
@@ -91,6 +99,14 @@ struct EcranReglagesSante: View {
         }
         .navigationTitle("Santé")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func couleur(_ donnee: EnvoiSante.Donnee) -> Color {
+        switch donnee {
+        case .sommeil: Categorie.ia.couleur
+        case .seances, .pas: Categorie.sport.couleur
+        default: Categorie.alerte.couleur
+        }
     }
 
     private func coche(_ donnee: EnvoiSante.Donnee) -> Binding<Bool> {

@@ -21,12 +21,15 @@ struct LigneErreur: View {
 /// voile clair posés sur le verre de la feuille ou sur la photo de fond.
 struct FormulaireVerre<Contenu: View>: View {
     @ViewBuilder var contenu: Contenu
+    /// La barre d'onglets flotte au-dessus : le bas du formulaire doit pouvoir passer au-dessus d'elle.
+    @Environment(\.margeBasse) private var margeBasse
 
     var body: some View {
         Form {
             Group { contenu }
                 .listRowBackground(FondDeLigne())
         }
+        .contentMargins(.bottom, margeBasse, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .containerBackground(.clear, for: .navigation)
     }
@@ -102,53 +105,281 @@ struct BoutonEnvoi: View {
 
 // MARK: - C'est fait                                                     (EXE-15)
 
+/// 4.4 : ce qui est fait, aujourd'hui, hier ou un autre jour, même pour
+/// l'autre (EXE-14, EXE-16). On coche une ou plusieurs tâches prévues ; une
+/// tâche qui n'était pas prévue se déclare à part (EXE-17).
 struct FormulaireFaite: View {
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @Environment(\.fermerFeuille) private var fermerFeuille
     @Environment(\.annoncer) private var annoncer
+    @State private var recherche = ""
+    @State private var jour = Jour.aujourdhui
+    @State private var autreJour = Calendar.current.date(byAdding: .day, value: -2, to: .now) ?? .now
+    @State private var choisies: Set<Int> = []
+    @State private var enCours = false
+    @State private var erreur: String?
+
+    private enum Jour: Hashable { case aujourdhui, hier, autre }
+
+    /// Une tâche prévue qu'on peut déclarer faite.
+    private struct Prevue: Identifiable {
+        let id: Int
+        let titre: String
+        let debut: Date?
+        let pour: Membre?
+        let journee: Bool
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Palette.texteSecondaire)
+                    TextField("Qu'est-ce que tu as fait ?", text: $recherche)
+                        .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 46)
+                .verreControle(Capsule(), interactif: false)
+                Segmente(choix: [(Jour.aujourdhui, "Aujourd'hui"), (Jour.hier, "Hier"), (Jour.autre, "Autre jour")],
+                         selection: $jour)
+                if jour == .autre {
+                    HStack {
+                        Text("Le").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                        Spacer()
+                        DatePicker("Jour", selection: $autreJour, in: ...Date.now, displayedComponents: .date)
+                            .labelsHidden()
+                    }
+                    .padding(.horizontal, Espace.interne)
+                    .padding(.vertical, 8)
+                    .carte(rayon: Rayon.controle)
+                }
+                let liste = prevues
+                if liste.isEmpty {
+                    Text(recherche.isEmpty ? "Rien de prévu dans les jours qui viennent." : "Aucune tâche prévue ne correspond.")
+                        .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(liste.enumerated()), id: \.element.id) { rang, tache in
+                            ligne(tache)
+                            if rang < liste.count - 1 { Divider().overlay(Palette.verreBord) }
+                        }
+                    }
+                    .carte(rayon: Rayon.controle)
+                }
+                Text("La suite repart de la date que tu donnes, le planning se refait tout de suite.")
+                    .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
+                NavigationLink { FaiteEnPlus(quand: quand) } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Categorie.sport.couleur)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Une tâche en plus, pas prévue").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                            Text("une tâche du foyer faite en avance, ou en dehors du planning")
+                                .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(Espace.interne)
+                    .background {
+                        RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous)
+                            .strokeBorder(Palette.verreBord, style: StrokeStyle(lineWidth: 1, dash: [6, 5]))
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if let erreur {
+                    Label(erreur, systemImage: "exclamationmark.circle")
+                        .texte(.corps).foregroundStyle(Categorie.alerte.couleur)
+                }
+                Button { Task { await valider() } } label: {
+                    HStack {
+                        if enCours { ProgressView() }
+                        Text(choisies.isEmpty ? "Valider" : "Valider (\(choisies.count))")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                .disabled(choisies.isEmpty || enCours)
+            }
+            .padding(Espace.marge)
+        }
+        .scrollIndicators(.hidden)
+        .margeDeLaBarre()
+        .scrollDismissesKeyboard(.interactively)
+        .containerBackground(.clear, for: .navigation)
+        .navigationTitle("C'est fait")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Les tâches du jour pas encore faites, puis celles des prochains jours.
+    private var prevues: [Prevue] {
+        let aujourdhui = foyer.tachesDuJour.filter { !$0.faite }.map {
+            Prevue(id: $0.id, titre: $0.titre, debut: $0.debut, pour: $0.pourQui, journee: $0.journeeEntiere)
+        }
+        let ensuite = foyer.bientot.map {
+            Prevue(id: $0.id, titre: $0.libelle, debut: $0.debut, pour: foyer.membre(numero: $0.idUtilisateur),
+                   journee: $0.journeeEntiere == true)
+        }
+        var vus = Set<Int>()
+        let toutes = (aujourdhui + ensuite).filter { vus.insert($0.id).inserted }
+        guard !recherche.isEmpty else { return toutes }
+        let cle = recherche.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        return toutes.filter {
+            $0.titre.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).contains(cle)
+        }
+    }
+
+    private func ligne(_ tache: Prevue) -> some View {
+        let choisie = choisies.contains(tache.id)
+        let autre = tache.pour.map { $0 != foyer.moi } ?? false
+        return Button {
+            withAnimation(.snappy) {
+                if choisie { choisies.remove(tache.id) } else { choisies.insert(tache.id) }
+            }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().strokeBorder(choisie ? Categorie.sport.couleur : Palette.texteSecondaire, lineWidth: 1.5)
+                    if choisie {
+                        Circle().fill(Categorie.sport.couleur)
+                        Image(systemName: "checkmark").font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.black.opacity(0.8))
+                    }
+                }
+                .frame(width: 22, height: 22)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tache.titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
+                    Text(sousTitre(tache, autre: autre)).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if autre, let pour = tache.pour {
+                    Avatar(nom: pour.nom, couleur: foyer.couleur(de: pour), taille: 26)
+                }
+            }
+            .padding(.horizontal, Espace.interne)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(choisie ? .isSelected : [])
+    }
+
+    /// « prévue ce soir pour toi », « prévue mer. pour Lorette · elle sera prévenue ».
+    private func sousTitre(_ tache: Prevue, autre: Bool) -> String {
+        var quand = "prévue"
+        if let debut = tache.debut, debut < Calendar.current.startOfDay(for: .now) {
+            quand = "en retard depuis " + EnFrancais.jourCourt(debut).lowercased()
+        } else if let debut = tache.debut {
+            if Calendar.current.isDateInToday(debut) {
+                quand += tache.journee ? " aujourd'hui" : (Calendar.current.component(.hour, from: debut) >= 18
+                    ? " ce soir" : " à \(EnFrancais.heure(debut))")
+            } else {
+                quand += " " + EnFrancais.jourCourt(debut).lowercased()
+                if !tache.journee { quand += " \(EnFrancais.heure(debut))" }
+            }
+        }
+        if autre, let pour = tache.pour { return "\(quand) pour \(pour.nom) · \(pour.nom) le saura" }
+        return "\(quand) pour toi"
+    }
+
+    /// L'heure déclarée : maintenant, hier soir, ou le jour choisi en soirée.
+    private var quand: Date {
+        let calendrier = Calendar.current
+        switch jour {
+        case .aujourdhui: return .now
+        case .hier:
+            let hier = calendrier.date(byAdding: .day, value: -1, to: .now) ?? .now
+            return calendrier.date(bySettingHour: 20, minute: 0, second: 0, of: hier) ?? hier
+        case .autre:
+            return calendrier.date(bySettingHour: 20, minute: 0, second: 0, of: autreJour) ?? autreJour
+        }
+    }
+
+    private struct Validation: Encodable { let dateReelle: Date }
+
+    private func valider() async {
+        enCours = true
+        erreur = nil
+        defer { enCours = false }
+        let date = min(quand, .now)
+        var faites = 0
+        for id in choisies {
+            do {
+                try await foyer.agir("POST", "occurrences/\(id)/valider",
+                                     corps: ClientAPI.corps(Validation(dateReelle: date)))
+                faites += 1
+            } catch {
+                erreur = motif(error)
+            }
+        }
+        if faites > 0 {
+            await foyer.charger()
+            annoncer(faites == 1 ? "Tâche faite" : "\(faites) tâches faites")
+        }
+        if erreur == nil { (fermerFeuille?.fermer ?? { fermer() })() }
+    }
+}
+
+/// EXE-17 : une tâche du foyer faite sans être prévue. La suivante repart de là.
+private struct FaiteEnPlus: View {
+    let quand: Date
+    @Environment(Foyer.self) private var foyer
+    @Environment(\.dismiss) private var fermer
+    @Environment(\.fermerFeuille) private var fermerFeuille
+    @Environment(\.annoncer) private var annoncer
     @State private var taches: [TacheRecurrente] = []
-    @State private var quand = Date.now
     @State private var enCours: Int?
     @State private var erreur: String?
 
     var body: some View {
-        FormulaireVerre {
-            Section {
-                DatePicker("Quand", selection: $quand, in: ...Date.now)
-            } footer: {
-                Text("Prévue ou non : la suivante repart de ce moment-là.")
-            }
-            LigneErreur(texte: erreur)
-            Section("Ce que tu as fait") {
-                if taches.isEmpty {
-                    ProgressView().frame(maxWidth: .infinity)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                Text("Toutes les tâches du foyer. Celle que tu touches compte faite \(EnFrancais.jour(quand)), et la suivante repart de là.")
+                    .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let erreur {
+                    Label(erreur, systemImage: "exclamationmark.circle")
+                        .texte(.corps).foregroundStyle(Categorie.alerte.couleur)
                 }
-                ForEach(taches) { tache in
-                    Button {
-                        Task { await declarer(tache) }
-                    } label: {
-                        HStack {
-                            Text(tache.libelle).foregroundStyle(Palette.textePrincipal)
-                            Spacer()
-                            if enCours == tache.id { ProgressView() }
+                if taches.isEmpty {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(taches.enumerated()), id: \.element.id) { rang, tache in
+                            Button { Task { await declarer(tache) } } label: {
+                                HStack {
+                                    Text(tache.libelle).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                                    Spacer()
+                                    if enCours == tache.id { ProgressView() }
+                                }
+                                .padding(.horizontal, Espace.interne)
+                                .padding(.vertical, 12)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(enCours != nil)
+                            if rang < taches.count - 1 { Divider().overlay(Palette.verreBord) }
                         }
                     }
-                    .disabled(enCours != nil)
+                    .carte(rayon: Rayon.controle)
                 }
             }
+            .padding(Espace.marge)
         }
-        .navigationTitle("C'est fait")
+        .containerBackground(.clear, for: .navigation)
+        .navigationTitle("Une tâche en plus")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await lire() }
-    }
-
-    private func lire() async {
-        do {
-            let toutes: [TacheRecurrente] = try await foyer.demander("GET", "taches")
-            taches = toutes.filter { $0.categorie != "sport" }
-        } catch {
-            erreur = motif(error)
+        .task {
+            do {
+                let toutes: [TacheRecurrente] = try await foyer.demander("GET", "taches")
+                taches = toutes.filter { $0.categorie != "sport" }
+            } catch {
+                erreur = motif(error)
+            }
         }
     }
 
@@ -163,7 +394,7 @@ struct FormulaireFaite: View {
         defer { enCours = nil }
         do {
             try await foyer.agir("POST", "occurrences/faite",
-                                 corps: ClientAPI.corps(Demande(codeTache: tache.code, quand: quand)))
+                                 corps: ClientAPI.corps(Demande(codeTache: tache.code, quand: min(quand, .now))))
             annoncer("« \(tache.libelle) » faite")
             (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
@@ -362,37 +593,110 @@ struct FormulaireAllege: View {
     @State private var erreur: String?
 
     var body: some View {
-        FormulaireVerre {
-            Section {
-                if let etat {
-                    Text(etat.texte).foregroundStyle(Palette.textePrincipal)
-                } else {
-                    ProgressView().frame(maxWidth: .infinity)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                HStack(spacing: 12) {
+                    Image(systemName: "moon.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Categorie.ia.couleur, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("En faire moins quelques jours").texte(.titreWidget)
+                            .foregroundStyle(Palette.textePrincipal)
+                        Text(etat?.enCours == true ? etat?.texte ?? "" : "Examens, fatigue, grosse semaine de travail.")
+                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    }
+                    Spacer(minLength: 0)
                 }
-            }
-            Section {
-                Stepper(jours == 1 ? "Aujourd'hui seulement" : "\(jours) jours", value: $jours, in: 1...14)
-            } header: {
-                Text(etat?.enCours == true ? "Changer la durée, à partir d'aujourd'hui" : "Pour combien de temps")
-            } footer: {
-                Text("Tu fais un quart des tâches partagées, l'autre trois quarts. Ce qui t'est réservé reste à toi.")
-            }
-            LigneErreur(texte: erreur)
-            BoutonEnvoi(titre: etat?.enCours == true ? "Changer" : "Passer en mode allégé",
-                        actif: etat != nil, enCours: enCours) { Task { await activer() } }
-            if etat?.enCours == true {
-                Section {
+                .padding(Espace.interne)
+                .carte()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text(etat?.enCours == true ? "Encore" : "Pendant").texte(.corps)
+                            .foregroundStyle(Palette.textePrincipal)
+                        Spacer()
+                        Compteur(titre: "Jours", valeur: duree, bornes: 1...14,
+                                 unite: jours == 1 ? "jour" : "jours", compact: true)
+                            .frame(width: 150)
+                            .padding(.vertical, 6)
+                            .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    }
+                    Text(jusquau).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                }
+                .padding(Espace.interne)
+                .carte()
+
+                partage
+
+                LigneErreur(texte: erreur)
+                Button { Task { await activer() } } label: {
+                    HStack {
+                        if enCours { ProgressView() }
+                        Text(etat?.enCours == true ? "Changer pour \(libelleJours)" : "Activer pour \(libelleJours)")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                .disabled(etat == nil || enCours)
+                if etat?.enCours == true {
                     Button("Arrêter le mode allégé") { Task { await arreter() } }
-                        .foregroundStyle(Palette.texteSecondaire)
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.hal(.verre, pleineLargeur: true))
                 }
             }
+            .padding(Espace.marge)
         }
+        .scrollIndicators(.hidden)
+        .margeDeLaBarre()
+        .scrollBounceBehavior(.basedOnSize)
+        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Mode allégé")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             do { etat = try await foyer.demander("GET", "allegement") } catch { erreur = motif(error) }
         }
+    }
+
+    private var duree: Binding<Double> {
+        Binding(get: { Double(jours) }, set: { jours = Int($0) })
+    }
+
+    private var libelleJours: String { jours == 1 ? "aujourd'hui" : "\(jours) jours" }
+
+    /// Le dernier jour compris : aujourd'hui plus la durée, moins un.
+    private var jusquau: String {
+        guard jours > 1,
+              let dernier = Calendar.current.date(byAdding: .day, value: jours - 1, to: .now) else {
+            return "Aujourd'hui seulement"
+        }
+        return "Jusqu'au \(dernier.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "fr_FR")))) inclus"
+    }
+
+    /// PLA-16 : un quart pour moi, trois quarts pour l'autre.
+    private var partage: some View {
+        let autres = foyer.membres.filter { $0.id != foyer.moi.id }
+        let nomAutre = autres.count == 1 ? autres[0].nom : "Les autres"
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("TÂCHES PARTAGÉES PENDANT CE TEMPS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    Capsule().fill(foyer.couleur(de: foyer.moi)).frame(width: geo.size.width * 0.25)
+                    Capsule().fill(autres.first.map { foyer.couleur(de: $0) } ?? Palette.texteTertiaire)
+                }
+            }
+            .frame(height: 8)
+            HStack {
+                Text("Toi · 25 %").texte(.corpsFort)
+                Spacer()
+                Text("\(nomAutre) · 75 %").texte(.corpsFort)
+            }
+            .foregroundStyle(Palette.textePrincipal)
+            Text("Ce qui t'est réservé (ta séance, tes tâches perso) reste à toi. Si vous l'activez le même jour, il s'annule ce jour-là. \(nomAutre) \(autres.count == 1 ? "le saura" : "le sauront").")
+                .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+        }
+        .padding(Espace.interne)
+        .carte()
     }
 
     private struct Demande: Encodable { let jours: Int }

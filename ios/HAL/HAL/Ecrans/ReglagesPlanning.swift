@@ -110,9 +110,13 @@ private struct LigneEvenementLu: View {
 /// calendrier ouvre ses réglages : groupe de TD, UE écartées, lien, arrêt.
 struct EcranCalendriersSuivis: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(\.annoncer) private var annoncer
     @State private var calendriers: [CalendrierSuivi]?
     @State private var erreur: String?
     @State private var ajout = false
+    @State private var collecte = false
+    @State private var ecartAFaire: CalendrierSuivi?
+    @State private var nouvelleUE = ""
 
     var body: some View {
         FormulaireVerre {
@@ -137,10 +141,17 @@ struct EcranCalendriersSuivis: View {
                         ForEach(groupe.calendriers) { ligne($0) }
                     }
                 }
+                ForEach(miens.filter { $0.ade && $0.active }) { fac($0) }
                 Section {
-                    Button { ajout = true } label: {
-                        Label("Ajouter un calendrier", systemImage: "plus")
+                    HStack(spacing: 10) {
+                        Button(collecte ? "Collecte…" : "Collecter maintenant") { Task { await collecter(miens) } }
+                            .buttonStyle(.hal(.verre, pleineLargeur: true))
+                            .disabled(collecte || !miens.contains { $0.active && $0.lienDonne })
+                        Button("Ajouter un calendrier") { ajout = true }
+                            .buttonStyle(.hal(.verre, pleineLargeur: true))
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
             } else if let erreur {
                 LigneRefus(texte: erreur)
@@ -156,6 +167,97 @@ struct EcranCalendriersSuivis: View {
         .sheet(isPresented: $ajout) {
             NavigationStack { FormulaireCalendrier { await charger() } }.feuilleEnVerre()
         }
+        .alert("Écarter un cours", isPresented: Binding { ecartAFaire != nil } set: { if !$0 { ecartAFaire = nil } }) {
+            TextField("Traitement d'images", text: $nouvelleUE)
+            Button("Écarter") {
+                if let calendrier = ecartAFaire {
+                    let propre = nouvelleUE.trimmingCharacters(in: .whitespaces)
+                    if !propre.isEmpty {
+                        Task { await regler(calendrier, Reglage(coursEcartes: calendrier.coursEcartes + [propre])) }
+                    }
+                }
+                nouvelleUE = ""
+            }
+            Button("Annuler", role: .cancel) { nouvelleUE = "" }
+        } message: {
+            Text("Un extrait du nom suffit (COL-17).")
+        }
+    }
+
+    /// 5.3 : le groupe de TD et les UE écartées d'un calendrier de la fac, sous la main.
+    private func fac(_ calendrier: CalendrierSuivi) -> some View {
+        Section {
+            HStack {
+                Text("Groupe de TD").foregroundStyle(Palette.textePrincipal)
+                Spacer()
+                ForEach(1...3, id: \.self) { numero in
+                    let choisi = calendrier.groupe == numero
+                    Button {
+                        Task { await regler(calendrier, Reglage(groupe: choisi ? 0 : numero)) }
+                    } label: {
+                        Text("\(numero)").texte(.corpsFort)
+                            .foregroundStyle(Palette.textePrincipal)
+                            .frame(width: 34, height: 34)
+                            .background(choisi ? Categorie.ia.voile : Palette.verreTeinte, in: Circle())
+                            .overlay(Circle().strokeBorder(choisi ? Categorie.ia.couleur : Palette.verreBord, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Groupe \(numero)")
+                    .accessibilityAddTraits(choisi ? .isSelected : [])
+                }
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                Text("UE AU CHOIX QUE JE NE SUIS PAS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                Flux(espacement: 8) {
+                    ForEach(calendrier.coursEcartes, id: \.self) { cours in
+                        PuceChoix(texte: "\(cours) ×", choisie: false) {
+                            Task { await regler(calendrier, Reglage(coursEcartes: calendrier.coursEcartes.filter { $0 != cours })) }
+                        }
+                        .accessibilityLabel("Reprendre \(cours)")
+                    }
+                    PuceChoix(texte: "+ Écarter un cours", choisie: false) { ecartAFaire = calendrier }
+                }
+            }
+            .padding(.vertical, 4)
+        } header: {
+            Text(calendrier.libelle)
+        }
+    }
+
+    private struct Reglage: Encodable {
+        var groupe: Int? = nil
+        var coursEcartes: [String]? = nil
+    }
+
+    private func regler(_ calendrier: CalendrierSuivi, _ reglage: Reglage) async {
+        do {
+            let rendu: CalendrierEtCollecte = try await foyer.demander(
+                "PATCH", "appli/calendriers/\(calendrier.id)", corps: ClientAPI.corps(reglage))
+            annoncer(rendu.collecte?.enClair ?? "Filtre changé")
+            await charger()
+            await foyer.charger()
+        } catch {
+            erreur = motifDe(error)
+        }
+    }
+
+    /// CNX-5 : forcer une collecte ne passe que par le réseau privé ; ailleurs,
+    /// le serveur refuse et son motif s'affiche tel quel.
+    private func collecter(_ miens: [CalendrierSuivi]) async {
+        collecte = true
+        defer { collecte = false }
+        erreur = nil
+        var lus = 0
+        for calendrier in miens where calendrier.active && calendrier.lienDonne {
+            do {
+                try await foyer.agir("POST", "sources/\(calendrier.code)/collecter")
+                lus += 1
+            } catch {
+                erreur = motifDe(error)
+            }
+        }
+        if lus > 0 { annoncer(lus == 1 ? "Calendrier relu" : "\(lus) calendriers relus") }
+        await charger()
     }
 
     private struct DeMembre: Identifiable {
@@ -184,8 +286,22 @@ struct EcranCalendriersSuivis: View {
                         .font(.footnote)
                         .foregroundStyle(calendrier.enPanne ? Categorie.alerte.couleur : Palette.texteSecondaire)
                 }
+                Spacer(minLength: 4)
+                badge(calendrier)
             }
         }
+    }
+
+    /// OK, Inactif ou En panne, d'un coup d'œil (COL-9).
+    private func badge(_ calendrier: CalendrierSuivi) -> some View {
+        let (texte, couleur): (String, Color) =
+            !calendrier.active || !calendrier.lienDonne ? ("Inactif", Palette.texteSecondaire)
+            : calendrier.enPanne ? ("En panne", Categorie.alerte.couleur)
+            : ("OK", Categorie.sport.couleur)
+        return Text(texte).texte(.legende).fontWeight(.semibold)
+            .foregroundStyle(couleur)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(couleur.opacity(0.18), in: Capsule())
     }
 
     private func charger() async {
@@ -592,61 +708,59 @@ struct FormulaireCalendrier: View {
 struct EcranCalendriersAbonnes: View {
     @Environment(Foyer.self) private var foyer
     @Environment(\.annoncer) private var annoncer
+    @Environment(\.openURL) private var ouvrir
     @State private var complet: LienAbonnement?
     @State private var composes: [CalendrierCompose]?
     @State private var erreur: String?
     @State private var renouveler = false
     @State private var composition = false
+    @State private var aSupprimer: CalendrierCompose?
 
     var body: some View {
-        FormulaireVerre {
-            if !foyer.connecte {
-                SansServeur(texte: "Connecte-toi à ton serveur pour t'abonner à ton planning.")
-            } else {
-                Section {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                if !foyer.connecte {
+                    Text("Connecte-toi à ton serveur pour t'abonner à ton planning.")
+                        .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                } else {
                     if let complet {
-                        Text(complet.url).font(.system(.footnote, design: .monospaced))
-                            .foregroundStyle(Palette.texteSecondaire).lineLimit(2).textSelection(.enabled)
-                        boutonsDuLien(complet.url)
-                        Button("Renouveler le lien", role: .destructive) { renouveler = true }
+                        carte(titre: "Tout mon planning", sousTitre: foyer.moi.nom,
+                              contenus: FamilleCalendrier.allCases.map(\.rawValue), url: complet.url, compose: nil)
                     } else {
-                        ProgressView().frame(maxWidth: .infinity)
+                        ProgressView().frame(maxWidth: .infinity, minHeight: 120)
                     }
-                } header: {
-                    Text("Ton planning complet")
-                } footer: {
-                    Text("Cours, travail, perso, tâches, sport et week-ends. Sur l'iPhone : Réglages, Apps, Calendrier, Comptes, Ajouter un compte, Autre, « Ajouter un calendrier avec abonnement », puis colle le lien. Il ne donne que la lecture (UTI-2).")
-                }
-                Section {
-                    if let composes {
-                        if composes.isEmpty {
-                            Text("Aucun. Un calendrier composé montre certaines personnes et certains contenus : les cours de l'autre, vos tâches à tous les deux.")
-                                .foregroundStyle(Palette.texteSecondaire)
-                        }
-                        ForEach(composes) { compose in
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(compose.libelle).foregroundStyle(Palette.textePrincipal)
-                                Text(resume(compose)).font(.footnote).foregroundStyle(Palette.texteSecondaire)
-                                if let url = compose.url { boutonsDuLien(url) }
+                    ForEach(composes ?? []) { compose in
+                        carte(titre: compose.libelle, sousTitre: (compose.noms ?? []).joined(separator: " et "),
+                              contenus: compose.contenus, url: compose.url, compose: compose)
+                    }
+                    Button("Nouveau calendrier") { composition = true }
+                        .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+                    Button { renouveler = true } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Renouveler mon lien personnel").texte(.corps)
+                                    .foregroundStyle(Categorie.alerte.couleur)
+                                Text("coupe les anciens abonnements, rien d'autre").texte(.legende)
+                                    .foregroundStyle(Palette.texteSecondaire)
                             }
-                            .padding(.vertical, 2)
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(Palette.texteTertiaire)
                         }
-                        .onDelete { rangs in
-                            for rang in rangs { Task { await supprimer(composes[rang]) } }
-                        }
+                        .padding(Espace.interne)
+                        .carte(rayon: Rayon.controle)
                     }
-                    Button { composition = true } label: {
-                        Label("Composer un calendrier", systemImage: "plus")
-                    }
-                } header: {
-                    Text("Calendriers composés")
-                } footer: {
-                    Text("Chacun a son adresse. En supprimer un coupe la sienne et rien d'autre (NOT-7). Glisse vers la gauche pour supprimer.")
+                    .buttonStyle(.plain)
+                    Text("Le lien ne s'affiche jamais : il porte une clé personnelle. Il ne donne que la lecture (UTI-2). Sur l'iPhone, « Ajouter à Calendrier » l'abonne directement.")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                    LigneErreur(texte: erreur)
                 }
-                LigneRefus(texte: erreur)
             }
+            .padding(Espace.marge)
         }
-        .navigationTitle("Calendriers abonnés")
+        .scrollIndicators(.hidden)
+        .margeDeLaBarre()
+        .containerBackground(.clear, for: .navigation)
+        .navigationTitle("Calendriers")
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL("Réglages, calendriers abonnés")
         .task { await charger() }
@@ -655,24 +769,70 @@ struct EcranCalendriersAbonnes: View {
         } message: {
             Text("Les abonnements en place cessent de se mettre à jour : il faudra recoller le nouveau lien partout (UTI-3). Les calendriers composés ne changent pas.")
         }
+        .confirmationDialog("Supprimer « \(aSupprimer?.libelle ?? "") » ?",
+                            isPresented: Binding { aSupprimer != nil } set: { if !$0 { aSupprimer = nil } },
+                            titleVisibility: .visible) {
+            Button("Supprimer", role: .destructive) {
+                if let compose = aSupprimer { Task { await supprimer(compose) } }
+            }
+        } message: {
+            Text("Son adresse est coupée, rien d'autre (NOT-7).")
+        }
         .sheet(isPresented: $composition) {
             NavigationStack { FormulaireComposition { await charger() } }.feuilleEnVerre()
         }
     }
 
-    @ViewBuilder
-    private func boutonsDuLien(_ url: String) -> some View {
-        HStack(spacing: 10) {
-            Button("Copier", systemImage: "doc.on.doc") {
-                UIPasteboard.general.string = url
-                annoncer("Lien copié")
+    /// 5.12 : un calendrier, ses familles allumées, et de quoi s'y abonner.
+    private func carte(titre: String, sousTitre: String, contenus: [String], url: String?,
+                       compose: CalendrierCompose?) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Pastille(icone: "calendar", couleur: Categorie.travail.couleur)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    Text(sousTitre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                }
+                Spacer()
+                if let compose {
+                    Menu {
+                        Button("Supprimer", systemImage: "trash", role: .destructive) { aSupprimer = compose }
+                    } label: {
+                        Image(systemName: "ellipsis").foregroundStyle(Palette.texteSecondaire)
+                            .frame(width: 32, height: 32)
+                    }
+                    .accessibilityLabel("Options de \(titre)")
+                }
             }
-            .buttonStyle(.hal(.verre))
-            if let lien = URL(string: url) {
-                ShareLink(item: lien) { Label("Partager", systemImage: "square.and.arrow.up") }
-                    .buttonStyle(.hal(.verre))
+            Flux(espacement: 6) {
+                ForEach(FamilleCalendrier.allCases) { famille in
+                    let dedans = contenus.contains(famille.rawValue)
+                    Text(famille.libelle).texte(.legende)
+                        .foregroundStyle(dedans ? Palette.textePrincipal : Palette.texteTertiaire)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(dedans ? famille.categorie.voile : Palette.verreTeinte, in: Capsule())
+                }
+            }
+            .accessibilityElement(children: .combine)
+            if let url {
+                HStack(spacing: 10) {
+                    Button("Copier le lien") {
+                        UIPasteboard.general.string = url
+                        annoncer("Lien copié")
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                    Button("Ajouter à Calendrier") {
+                        if let lien = URL(string: url.replacingOccurrences(
+                            of: #"^https?://"#, with: "webcal://", options: .regularExpression)) {
+                            ouvrir(lien)
+                        }
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                }
             }
         }
+        .padding(Espace.interne)
+        .carte()
     }
 
     private func resume(_ compose: CalendrierCompose) -> String {

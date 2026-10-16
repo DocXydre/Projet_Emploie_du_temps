@@ -43,6 +43,10 @@ targets:
       path: HAL/Info.plist
       properties:
         CFBundleDisplayName: HAL
+        # L'appli n'existe qu'en français : les dates et les nombres suivent,
+        # même sur un iPhone réglé dans une autre langue.
+        CFBundleDevelopmentRegion: fr
+        CFBundleLocalizations: [fr]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:

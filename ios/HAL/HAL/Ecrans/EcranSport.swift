@@ -22,14 +22,29 @@ struct EcranSport: View {
             .padding(.bottom, 4)
             BandeauServeur()
             etats
-            Segmente(choix: [(7, "Semaine"), (30, "Mois"), (90, "3 mois")], selection: $periode)
-            FormeDuJour(periode: periode)
-            NavigationLink { EcranObjectifs() } label: { CartePlan() }.buttonStyle(.plain)
-            CetteSemaine()
-            CarteCharge()
-            CarteEvolution(periode: periode)
-            NavigationLink { EcranProgression() } label: { CarteProgres() }.buttonStyle(.plain)
-            NavigationLink { EcranSeancesMontre() } label: { CarteMontre() }.buttonStyle(.plain)
+            if aDesDonneesDeSante {
+                Segmente(choix: [(7, "Semaine"), (30, "Mois"), (90, "3 mois")], selection: $periode)
+                FormeDuJour(periode: periode)
+            }
+            if sansPlan {
+                // 8.7 : sans plan, Sport dit ce qui manque et comment l'obtenir (WID-8).
+                CarteVide(icone: "trophy", categorie: .menage, titre: "Aucun objectif",
+                          texte: "Une course, une perf, une mesure : HAL construit le plan à partir de là.",
+                          bouton: "Choisir un objectif") { conversation.demarrageOuvert = true }
+                HStack(spacing: Espace.gouttiere) {
+                    WidgetFixe(module: .seanceLibre)
+                    Color.clear.aspectRatio(1, contentMode: .fit)
+                }
+            } else {
+                NavigationLink { EcranObjectifs() } label: { CartePlan() }.buttonStyle(.plain)
+                CetteSemaine()
+                CarteCharge()
+                CarteEvolution(periode: periode)
+                CarteProgres()
+            }
+            if !foyer.seancesDeLaMontre.isEmpty {
+                NavigationLink { EcranSeancesMontre() } label: { CarteMontre() }.buttonStyle(.plain)
+            }
             if foyer.mesureDemandee != nil { WidgetFixe(module: .mesureDemandee) }
             if let bilan = sante.dernierBilan {
                 Text("Santé : \(bilan)").texte(.legende).foregroundStyle(Palette.texteTertiaire)
@@ -47,9 +62,25 @@ struct EcranSport: View {
         }
     }
 
+    /// Connecté sans plan (HAL pas démarré, ou plan clos) : l'état vide de 8.7.
+    private var sansPlan: Bool {
+        foyer.connecte && (foyer.sportDuServeur?.demarrage != nil
+                           || (foyer.complements.plan != nil && foyer.complements.plan?.plan == nil))
+    }
+
+    /// Au moins un jour de Santé reçu : la forme du jour a quelque chose à montrer.
+    private var aDesDonneesDeSante: Bool {
+        !foyer.connecte || !(foyer.complements.sante?.jours.isEmpty ?? true)
+            || !(foyer.sportDuServeur?.forme.isEmpty ?? true)
+    }
+
     /// « Semaine 2 sur 4 · charge », ou « En pause ».
     private var surTitre: String {
-        if enPause { return "En pause" }
+        if enPause {
+            guard let fin = foyer.sportDuServeur?.pause?.jusquAu else { return "En pause" }
+            return "Pause jusqu'au \(fin.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "fr_FR"))))"
+        }
+        if sansPlan { return "Pas encore de plan" }
         guard let semaines = foyer.complements.plan?.plan?.semaines,
               let rang = semaines.firstIndex(where: { Calendar.current.isDate($0.lundi, equalTo: .now, toGranularity: .weekOfYear) })
         else { return "Cette semaine" }
@@ -65,16 +96,19 @@ struct EcranSport: View {
     @ViewBuilder private var etats: some View {
         if foyer.connecte && sante.disponible && !sante.accesDemande {
             // 8.7 : sans Santé, la forme, le sommeil et les séances de la montre restent vides.
-            CarteVide(icone: "heart", categorie: .alerte, titre: "Santé n'est pas encore lue",
-                      texte: "Ton sommeil, ta fréquence cardiaque et les séances de ta montre remplissent cet onglet, et aident HAL à doser tes séances.",
-                      bouton: "Autoriser Santé") {
+            CarteVide(icone: "heart", categorie: .alerte, titre: "Pas encore de données Santé",
+                      texte: "Elles arrivent toutes seules après l'autorisation. Les premiers chiffres apparaissent dans quelques minutes.",
+                      bouton: "Relier Santé") {
                 Task { await sante.demanderAcces() }
             }
         }
         if enPause {
             // PAU-1 : la pause se lève d'ici, ou depuis Réglages.
-            BandeauEtat(icone: "pause", titre: "HAL est en pause",
-                        detail: "Les séances se posent à la main ; le récap passe un soir sur trois",
+            let pause = foyer.sportDuServeur?.pause
+            BandeauEtat(icone: "pause",
+                        titre: "HAL est en pause" + (pause?.motif.map { " · \($0.lowercased())" } ?? ""),
+                        detail: (pause?.jusquAu.map { "jusqu'au \(EnFrancais.jour($0)) · " } ?? "")
+                            + "récap un soir sur trois",
                         categorie: .ia, bouton: foyer.connecte ? "Reprendre" : nil) {
                 Task {
                     do {
@@ -86,7 +120,7 @@ struct EcranSport: View {
                 }
             }
         }
-        if let bloc = foyer.sportDuServeur?.demarrage {
+        if let bloc = foyer.sportDuServeur?.demarrage, bloc != "profil" {
             // DEM-1, 7.18 : le démarrage, ou sa reprise là où on s'était arrêté.
             Button { conversation.demarrageOuvert = true } label: {
                 BandeauEtat(icone: "sparkle",
@@ -286,6 +320,7 @@ private struct CartePlan: View {
 private struct CetteSemaine: View {
     @Environment(Foyer.self) private var foyer
     @Environment(\.annoncer) private var annoncer
+    @State private var ouverte: DetailSeance?
 
     var body: some View {
         let seances = (foyer.complements.semaine?.seances ?? [])
@@ -298,7 +333,8 @@ private struct CetteSemaine: View {
                     Text("Rien de prévu cette semaine.").texte(.corps).foregroundStyle(Palette.texteSecondaire)
                 }
                 ForEach(Array(seances.enumerated()), id: \.element.id) { rang, seance in
-                    NavigationLink { EcranSemaine() } label: { ligne(seance) }
+                    // Une séance s'ouvre elle-même : prévue [3.3, 3.12] ou faite [3.14].
+                    Button { Task { await ouvrir(seance.idOccurrence) } } label: { ligne(seance) }
                         .buttonStyle(.plain)
                     if rang < seances.count - 1 { Divider().overlay(Palette.verreBord) }
                 }
@@ -320,6 +356,15 @@ private struct CetteSemaine: View {
                     .padding(.top, 10)
                 }
             }
+        }
+        .sheet(item: $ouverte) { detail in EcranSeancePrevue(detail: detail) }
+    }
+
+    private func ouvrir(_ id: Int) async {
+        do {
+            ouverte = try await foyer.demander("GET", "seances/\(id)")
+        } catch {
+            annoncer((error as? ErreurAPI)?.message ?? "Séance introuvable")
         }
     }
 
@@ -565,6 +610,7 @@ private struct CarteProgres: View {
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(lignes.enumerated()), id: \.offset) { rang, ligne in
+                        NavigationLink { EcranExercice(code: ligne.code, libelle: ligne.libelle) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(ligne.nom).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
@@ -578,14 +624,28 @@ private struct CarteProgres: View {
                                 .font(.system(size: 12, weight: .semibold))
                         }
                         .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                         if rang < lignes.count - 1 { Divider().overlay(Palette.verreBord) }
                     }
+                    NavigationLink { EcranProgression() } label: {
+                        HStack(spacing: 4) {
+                            Text("Tous les exercices")
+                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                        }
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 6)
                 }
             }
         }
     }
 
     private struct Ligne {
+        let code: String
+        let libelle: String
         let nom: String
         let valeur: String
         let ecart: String?
@@ -618,7 +678,7 @@ private struct CarteProgres: View {
                         ecart = "\(apres > avant ? "+" : "−")\(abs(apres - avant)) reps en \(semaines) sem."
                     }
                 }
-                return Ligne(nom: nom, valeur: valeur, ecart: ecart)
+                return Ligne(code: derniere.code, libelle: derniere.libelle, nom: nom, valeur: valeur, ecart: ecart)
             }
     }
 

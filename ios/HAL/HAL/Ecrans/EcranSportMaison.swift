@@ -93,7 +93,7 @@ private struct TachesDuJourDesDeux: View {
                                    detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
                                    avatar: foyer.membres.count > 1
                                        ? (tache.pourQui.nom, foyer.couleur(de: tache.pourQui)) : nil,
-                                   type: tache.type.map { ($0.icone, tache.couleur) }) {
+                                   type: tache.type.map { ($0.icone, tache.couleur) },
                                    annulableJusqua: foyer.departDeLEnvoi(tache)) {
                             cocher(tache)
                         }
@@ -222,7 +222,7 @@ struct AjoutRapide: View {
                 case .tache: FormulaireTache()
                 case .faite: FormulaireFaite()
                 case .creneau: FormulaireCreneau()
-                case .absence: FormulaireAbsence()
+                case .absence: EcranAbsences()
                 case .allege: FormulaireAllege()
                 case .seanceLibre: FormulaireAnnonce()
                 case .mesure: EcranMesures()

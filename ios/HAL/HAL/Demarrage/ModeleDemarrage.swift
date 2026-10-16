@@ -20,6 +20,17 @@ enum PageDemarrage: String, CaseIterable, Sendable {
     }
 
     static let duProfil: [PageDemarrage] = [.identite, .niveaux, .disponibilites, .alimentation]
+
+    /// « ÉTAPE 1 SUR 5 · PROFIL · 2/4 », au-dessus du titre.
+    var repere: String {
+        guard let etape else { return "" }
+        let blocs = ["PROFIL", "LIMITATION", "LIEUX", "OBJECTIF", "PLAN"]
+        var texte = "ÉTAPE \(etape) SUR 5 · \(blocs[etape - 1])"
+        if let rang = Self.duProfil.firstIndex(of: self) {
+            texte += " · \(rang + 1)/\(Self.duProfil.count)"
+        }
+        return texte
+    }
 }
 
 /// Le démarrage de HAL, écran par écran (DEM-1 à DEM-6). Les réponses en cours

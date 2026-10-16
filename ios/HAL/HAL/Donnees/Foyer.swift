@@ -277,7 +277,7 @@ final class Foyer {
         }
         absences = etat.absences.map { lue in
             Absence(id: lue.id, pour: membre(lue.pour, parmi: lus),
-                    debut: lue.debut, fin: lue.fin, lieu: lue.lieu)
+                    debut: lue.debut, fin: lue.fin, lieu: lue.lieu, origine: lue.origine)
         }
         allegements = etat.allegements.map { lu in
             Allegement(pour: membre(lu.pour, parmi: lus), debut: lu.debut, fin: lu.fin)

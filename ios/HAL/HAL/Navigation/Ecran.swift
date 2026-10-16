@@ -11,6 +11,20 @@ extension View {
     }
 }
 
+/// La barre d'onglets flotte au-dessus des écrans : le bas d'une page qui
+/// défile doit pouvoir passer au-dessus d'elle.
+private struct MargeDeLaBarre: ViewModifier {
+    @Environment(\.margeBasse) private var margeBasse
+
+    func body(content: Content) -> some View {
+        content.contentMargins(.bottom, margeBasse, for: .scrollContent)
+    }
+}
+
+extension View {
+    func margeDeLaBarre() -> some View { modifier(MargeDeLaBarre()) }
+}
+
 /// Un écran qui défile, avec les marges de la maquette.
 struct PageDefilante<Contenu: View>: View {
     @ViewBuilder var contenu: Contenu

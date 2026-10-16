@@ -150,6 +150,9 @@ def planning(t: int, lo: int) -> None:
               AND lower(oc.periode) = %(debut)s AND s.code = 'PERSO_THOMAS'""",
         u=t, l=titre, debut=a(jour, h1, m1),
         d=a(jour, h1, m1) + timedelta(minutes=30), f=a(jour, h2, m2) + timedelta(minutes=30))
+    # NOT-5 : un calendrier composé, pour l'écran 5.12.
+    sql("SELECT creer_calendrier(%(u)s, 'Le stage de Lorette', %(p)s, %(c)s)",
+        u=t, p=[lo], c=["travail", "taches"])
     dire("cours et stage sur six semaines, un conflit de cours à trancher")
 
 
@@ -333,11 +336,16 @@ def course_de_la_montre(u: int, cle: str, debut: datetime, minutes: int, km: flo
                         fc: int, discipline="course") -> None:
     secondes = minutes * 60
     allure = int(secondes / km) if km else None
+    # details, comme l'appli les lit dans Santé : le temps de chaque kilomètre,
+    # le temps passé dans chaque zone cardiaque, et la FC minute par minute.
+    zones = [round(secondes * part) for part in (0.04, 0.18, 0.52, 0.22, 0.04)]
+    frequence = [int(fc - 30 + 30 * (1 - math.exp(-m / 6)) + 4 * math.sin(m / 3))
+                 for m in range(minutes)]
     donnees = {"duree_secondes": secondes, "distance_m": int(km * 1000),
                "denivele_m": 42, "energie_kcal": int(minutes * 11), "fc_moyenne": fc,
                "fc_max": fc + 22, "allure_s_km": allure, "cadence": 168,
                "details": {"kilometres": [allure + d for d in (12, 4, -3, 0, -8, 6)][:int(km)],
-                           "zones": [4, 18, 52, 22, 4]}}
+                           "zones": zones, "frequence": frequence}}
     sql("""SELECT recevoir_activite(%(u)s, %(k)s, %(t)s, %(d)s, %(a)s, %(b)s,
                                     %(j)s::JSONB)""",
         u=u, k=cle, t="running" if discipline == "course" else "walking", d=discipline,
@@ -388,9 +396,14 @@ def sport(t: int, lo: int) -> None:
     sql("SELECT activer_coach(%(u)s)", u=t)
     sql("""INSERT INTO demarrage_coach (id_utilisateur, etape, reponses)
            VALUES (%(u)s, 'fini', '{"_limitations_faites": true}')""", u=t)
-    sql("""INSERT INTO limitation (id_utilisateur, libelle, zone, cote, description)
-           VALUES (%(u)s, 'Épaule qui accroche', 'epaule', 'droite',
-                   'Pas de développé derrière la nuque')""", u=t)
+    limitation = un("""INSERT INTO limitation (id_utilisateur, libelle, zone, cote, description)
+                       VALUES (%(u)s, 'Épaule qui accroche', 'epaule', 'droite',
+                               'Pas de bras au-dessus de la tête en rotation')
+                       RETURNING id_limitation""", u=t)
+    # EXO-8 : les exercices que la limitation interdit, grisés dans la recherche (SEC-1).
+    for code in ("elevations_frontales", "developpe_arnold"):
+        sql("INSERT INTO exercice_interdit VALUES (%(l)s, %(e)s, 'épaule droite')",
+            l=limitation, e=exo(code))
 
     # Avant le plan, trois semaines de séances libres et de courses de la
     # montre : de quoi tracer une progression.
@@ -540,6 +553,23 @@ def sport(t: int, lo: int) -> None:
             "séances de musculation. Valide-la si elle te convient.",
             a(J, 8, 11), op=op.identifiant)
     dire("plan sur quatre semaines, ajustement, deux fenêtres de mesure, semaine à valider")
+
+    # La mémoire de HAL : quelques versions par étage, pour l'écran 5.8.
+    for niveau, texte, auteur in [
+        ("semaine", "- L'épaule tire un peu au développé couché depuis lundi.\n"
+                    "- Séance libre de jambes avec Lorette prévue dimanche.", "coach"),
+        ("semaine", "- L'épaule tire un peu au développé couché depuis lundi.\n"
+                    "- Séance libre de jambes avec Lorette prévue dimanche.\n"
+                    "- Préfère courir le midi les jours de TD l'après-midi.", "utilisateur"),
+        ("semaine", "- L'épaule tire un peu au développé couché depuis lundi.\n"
+                    "- Séance libre de jambes avec Lorette prévue dimanche.\n"
+                    "- Préfère courir le midi les jours de TD l'après-midi.\n"
+                    "- Nuit courte mardi : course de mercredi allégée.", "coach"),
+        ("mois", "Trois semaines régulières. La charge monte doucement, la course suit.", "resume"),
+        ("globale", "Vise 10 km en moins de 50 minutes. Aime les séances courtes et denses. "
+                    "Évite les mouvements au-dessus de la tête (épaule).", "coach"),
+    ]:
+        sql("SELECT ecrire_memoire(%(u)s, %(n)s, %(t)s, %(a)s)", u=t, n=niveau, t=texte, a=auteur)
 
 
 def sante(t: int) -> None:

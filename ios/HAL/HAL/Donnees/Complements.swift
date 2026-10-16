@@ -204,6 +204,27 @@ enum EnFrancais {
         }
     }
 
+    /// Le groupe musculaire d'un exercice, tel que le catalogue le code.
+    static func groupe(_ code: String) -> String {
+        switch code {
+        case "abdominaux": "Abdominaux"
+        case "adducteurs": "Adducteurs"
+        case "avant_bras": "Avant-bras"
+        case "biceps": "Biceps"
+        case "cardio": "Cardio"
+        case "dos": "Dos"
+        case "epaules": "Épaules"
+        case "fessiers": "Fessiers"
+        case "ischios": "Ischio-jambiers"
+        case "lombaires": "Lombaires"
+        case "mollets": "Mollets"
+        case "pectoraux": "Pectoraux"
+        case "quadriceps": "Quadriceps"
+        case "triceps": "Triceps"
+        default: code.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+    }
+
     /// « 8 412 »
     static func nombre(_ valeur: Int) -> String {
         valeur.formatted(.number.locale(francais))

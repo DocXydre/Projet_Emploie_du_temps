@@ -52,13 +52,14 @@ struct PanneauHAL: View {
                             .id(message.id)
                         }
                         if conversation.reflechit { Reflexion(texte: conversation.regarde).id("reflexion") }
-                        if conversation.echec { Echec() }
+                        if conversation.echec { Echec().id("echec") }
                     }
                     .padding(.horizontal, Espace.interne)
                 }
                 .scrollIndicators(.hidden)
                 .onChange(of: conversation.messages.count) { descendre(defilement) }
                 .onChange(of: conversation.reflechit) { descendre(defilement) }
+                .onChange(of: conversation.echec) { descendre(defilement) }
                 .onAppear { descendre(defilement) }
             }
             if conversation.dictee {
@@ -146,7 +147,8 @@ struct PanneauHAL: View {
     }
 
     private func descendre(_ defilement: ScrollViewProxy) {
-        let cible = conversation.reflechit ? "reflexion" : conversation.messages.last?.id
+        let cible = conversation.reflechit ? "reflexion"
+            : conversation.echec ? "echec" : conversation.messages.last?.id
         guard let cible else { return }
         withAnimation { defilement.scrollTo(cible, anchor: .bottom) }
     }
