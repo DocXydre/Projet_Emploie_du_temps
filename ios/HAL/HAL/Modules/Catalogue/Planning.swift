@@ -162,10 +162,14 @@ struct WidgetConflit: View {
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 12)
-                    .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: Rayon.ligne))
+                    .background(choix == cours ? Categorie.sport.voile : Palette.verreTeinte,
+                                in: RoundedRectangle(cornerRadius: Rayon.ligne))
+                    .overlay(RoundedRectangle(cornerRadius: Rayon.ligne)
+                        .strokeBorder(choix == cours ? Categorie.sport.couleur : .clear, lineWidth: 1.5))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(choix == cours ? .isSelected : [])
             }
             HStack {
                 Button("Garder ce cours") { if let choix { garder(choix) } }

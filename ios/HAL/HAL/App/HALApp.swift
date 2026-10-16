@@ -47,6 +47,9 @@ struct HALApp: App {
             .environment(sante)
             .environment(aiguillage)
             .environment(delegue.notifications)
+            // L'appli est en français, quelle que soit la langue de l'iPhone :
+            // les dates des graphiques et des sélecteurs suivent.
+            .environment(\.locale, Locale(identifier: "fr_FR"))
             .environment(\.theme, apparence.theme)
             .environment(\.verre, apparence.verre)
             .tint(apparence.theme.principal)

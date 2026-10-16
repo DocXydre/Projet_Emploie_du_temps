@@ -28,7 +28,7 @@ struct WidgetSeanceEnCours: View {
                     }
                     Spacer(minLength: 0)
                     VStack(alignment: .trailing, spacing: 6) {
-                        Label("\(seance.minutesEcoulees) min", systemImage: "circle.fill")
+                        Label(EnFrancais.duree(minutes: seance.minutesEcoulees), systemImage: "circle.fill")
                             .labelStyle(EtiquetteIcone(couleur: Categorie.alerte.couleur))
                             .texte(.legende).foregroundStyle(Palette.texteSecondaire)
                         repos

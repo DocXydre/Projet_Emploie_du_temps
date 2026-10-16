@@ -66,25 +66,55 @@ struct EcranProfilSportif: View {
                 }
                 Section {
                     Picker("Moment préféré", selection: $moment) { options(LibellesHAL.moments) }
-                    ForEach(1...7, id: \.self) { jour in
-                        Toggle("Jamais le \(Calendar.current.weekdaySymbolsFrancais[jour - 1])", isOn: Binding {
-                            jours.contains(jour)
-                        } set: { oui in
-                            if oui { jours.insert(jour) } else { jours.remove(jour) }
-                        })
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Jours sans sport").foregroundStyle(Palette.textePrincipal)
+                            Spacer()
+                            Text(joursEnClair).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+                        }
+                        HStack(spacing: 6) {
+                            ForEach(1...7, id: \.self) { jour in
+                                let sans = jours.contains(jour)
+                                Button {
+                                    if sans { jours.remove(jour) } else { jours.insert(jour) }
+                                } label: {
+                                    Text(String(Calendar.current.weekdaySymbolsFrancais[jour - 1].prefix(1)).uppercased())
+                                        .texte(.corpsFort)
+                                        .foregroundStyle(sans ? Palette.textePrincipal : Palette.texteSecondaire)
+                                        .frame(maxWidth: .infinity, minHeight: 36)
+                                        .background(sans ? Categorie.alerte.voile : Palette.verreTeinte, in: Circle())
+                                        .overlay(Circle().strokeBorder(sans ? Categorie.alerte.couleur : Palette.verreBord,
+                                                                       lineWidth: sans ? 1 : 0.5))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Jamais le \(Calendar.current.weekdaySymbolsFrancais[jour - 1])")
+                                .accessibilityAddTraits(sans ? .isSelected : [])
+                            }
+                        }
                     }
-                    Picker("Au plus par semaine", selection: $maximum) {
-                        Text("HAL décide").tag(Int?.none)
-                        ForEach(1...14, id: \.self) { n in Text("\(n) séances").tag(Int?.some(n)) }
-                    }
+                    .padding(.vertical, 4)
                 } header: {
                     Text("Disponibilités")
-                } footer: {
-                    Text("Le maximum borne ce que HAL propose (PLN-14). Sans maximum, il décide selon ta forme et ton emploi du temps.")
                 }
                 Section("Alimentation") {
-                    Toggle("Me parler de compléments", isOn: $complements)
+                    Toggle("Parler alimentation et compléments", isOn: $complements)
                     TextField("Régime à respecter", text: $regime)
+                }
+                Section {
+                    Toggle("Laisser HAL décider", isOn: Binding { maximum == nil } set: { maximum = $0 ? nil : 4 })
+                    if let valeur = maximum {
+                        HStack {
+                            Text("Séances par semaine au plus").foregroundStyle(Palette.textePrincipal)
+                            Spacer()
+                            Compteur(titre: "Max", valeur: Binding { Double(valeur) } set: { maximum = Int($0) },
+                                     bornes: 1...14, unite: "max", compact: true)
+                                .frame(width: 150)
+                        }
+                    }
+                } header: {
+                    Text("Réglages du plan")
+                } footer: {
+                    Text("Le maximum borne ce que HAL propose (PLN-14). HAL propose de revoir ton profil toutes les huit semaines (PRO-9).")
                 }
                 Refus(texte: erreur)
                 Section {
@@ -151,6 +181,15 @@ struct EcranProfilSportif: View {
     }
 }
 
+extension EcranProfilSportif {
+    /// « Dimanche », « Samedi, dimanche » ou « Aucun ».
+    fileprivate var joursEnClair: String {
+        guard !jours.isEmpty else { return "Aucun" }
+        let noms = jours.sorted().map { Calendar.current.weekdaySymbolsFrancais[$0 - 1] }
+        return noms.joined(separator: ", ").prefix(1).uppercased() + noms.joined(separator: ", ").dropFirst()
+    }
+}
+
 private extension Calendar {
     /// Lundi d'abord, en français : « lundi », « mardi »…
     var weekdaySymbolsFrancais: [String] {
@@ -177,26 +216,52 @@ struct EcranLimitations: View {
                 }
                 ForEach(limitations) { limitation in
                     Section {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(limitation.libelle).bold().foregroundStyle(Palette.textePrincipal)
-                            if let description = limitation.description, !description.isEmpty {
-                                Text(description.components(separatedBy: "<!-- complet -->")[0])
-                                    .font(.footnote).foregroundStyle(Palette.texteSecondaire)
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 40, height: 40)
+                                .background((limitation.active ?? true) ? Categorie.alerte.couleur : Palette.texteTertiaire,
+                                            in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(limitation.libelle).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                                if let description = limitation.description, !description.isEmpty {
+                                    Text(description.components(separatedBy: "<!-- complet -->")[0])
+                                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                                }
                             }
+                            Spacer(minLength: 4)
+                            Toggle("Active", isOn: Binding {
+                                limitation.active ?? true
+                            } set: { oui in
+                                Task { await activer(limitation, oui) }
+                            })
+                            .labelsHidden()
                         }
-                        Toggle("Active", isOn: Binding {
-                            limitation.active ?? true
-                        } set: { oui in
-                            Task { await activer(limitation, oui) }
-                        })
-                        Button {
-                            aRegler = limitation
-                        } label: {
-                            LabeledContent("Exercices interdits", value: "\(limitation.interdits?.count ?? 0)")
+                        let interdits = limitation.interdits ?? []
+                        if !interdits.isEmpty {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("EXERCICES INTERDITS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                                ForEach(interdits, id: \.code) { interdit in
+                                    HStack(spacing: 10) {
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(interdit.libelle ?? interdit.code).foregroundStyle(Palette.textePrincipal)
+                                            if let motif = interdit.motif, !motif.isEmpty, motif != limitation.description {
+                                                Text(motif).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                                                    .lineLimit(1)
+                                            }
+                                        }
+                                        Spacer()
+                                        BoutonRond("xmark", libelle: "Ne plus interdire \(interdit.libelle ?? interdit.code)") {
+                                            Task { await retirer(interdit, de: limitation) }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
                         }
-                        ForEach(limitation.interdits ?? [], id: \.code) { interdit in
-                            Text(interdit.libelle ?? interdit.code).font(.footnote).foregroundStyle(Palette.texteSecondaire)
-                        }
+                        Button("Interdire un autre exercice") { aRegler = limitation }
+                            .buttonStyle(.hal(.verre, pleineLargeur: true))
                     }
                 }
                 Refus(texte: erreur)
@@ -233,6 +298,25 @@ struct EcranLimitations: View {
     }
 
     private struct Activation: Encodable { let active: Bool }
+
+    private struct Interdit: Encodable {
+        let code: String
+        let motif: String
+    }
+
+    /// Le × d'un exercice interdit : la liste renvoyée sans lui (EXO-8).
+    private func retirer(_ interdit: LimitationHAL.Interdit, de limitation: LimitationHAL) async {
+        let defaut = String((limitation.description ?? limitation.libelle).prefix(200))
+        let restants = (limitation.interdits ?? []).filter { $0.code != interdit.code }
+            .map { Interdit(code: $0.code, motif: $0.motif ?? defaut) }
+        do {
+            try await foyer.agir("PUT", "limitations/\(limitation.idLimitation)/interdits",
+                                 corps: ClientAPI.corps(restants))
+            await charger()
+        } catch {
+            erreur = raison(error)
+        }
+    }
 
     private func activer(_ limitation: LimitationHAL, _ oui: Bool) async {
         do {
@@ -373,27 +457,52 @@ struct EcranLieux: View {
                 Section { ProgressView().frame(maxWidth: .infinity) }
             }
             ForEach(LibellesHAL.disciplines, id: \.0) { discipline in
-                Section(discipline.1) {
-                    ForEach(possibles) { lieu in
-                        let rang = choisis[discipline.0]?.firstIndex(of: lieu.idLieu)
-                        Button { basculer(lieu.idLieu, discipline.0) } label: {
-                            HStack {
-                                Text(lieu.libelle).foregroundStyle(Palette.textePrincipal)
-                                Spacer()
-                                if let rang {
-                                    Text("\(rang + 1)").bold().foregroundStyle(Palette.texteSurAccent)
-                                        .frame(width: 24, height: 24).background(Categorie.ia.couleur, in: Circle())
+                let rangs = choisis[discipline.0] ?? []
+                Section {
+                    ForEach(Array(rangs.enumerated()), id: \.element) { rang, idLieu in
+                        HStack(spacing: 12) {
+                            Text("\(rang + 1)").texte(.corpsFort)
+                                .foregroundStyle(rang == 0 ? Palette.texteSurAccent : Palette.textePrincipal)
+                                .frame(width: 26, height: 26)
+                                .background(rang == 0 ? Categorie.sport.couleur : Palette.verreTeinteForte, in: Circle())
+                            Text(nom(idLieu)).foregroundStyle(Palette.textePrincipal)
+                            Spacer()
+                            Menu {
+                                if rang > 0 {
+                                    Button("Monter", systemImage: "arrow.up") { deplacer(idLieu, discipline.0, de: -1) }
                                 }
+                                if rang < rangs.count - 1 {
+                                    Button("Descendre", systemImage: "arrow.down") { deplacer(idLieu, discipline.0, de: 1) }
+                                }
+                                Button("Retirer", systemImage: "minus.circle", role: .destructive) {
+                                    basculer(idLieu, discipline.0)
+                                }
+                            } label: {
+                                Image(systemName: "slider.horizontal.3").foregroundStyle(Palette.texteSecondaire)
+                                    .frame(width: 32, height: 32)
                             }
+                            .accessibilityLabel("Régler \(nom(idLieu))")
                         }
                     }
+                    let restants = possibles.filter { !rangs.contains($0.idLieu) }
+                    if !restants.isEmpty {
+                        Menu {
+                            ForEach(restants) { lieu in
+                                Button(lieu.libelle) { basculer(lieu.idLieu, discipline.0) }
+                            }
+                        } label: {
+                            Text("Ajouter un lieu").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.hal(.verre, pleineLargeur: true))
+                    }
+                } header: {
+                    Label(discipline.1, systemImage: icone(discipline.0))
                 }
             }
             Refus(texte: erreur)
             Section {
-                Button("Enregistrer") { Task { await enregistrer() } }.frame(maxWidth: .infinity)
             } footer: {
-                Text("Touche les lieux dans ton ordre de préférence. HAL prend le premier quand il n'a pas de raison d'en choisir un autre (LIE-2).")
+                Text("Le premier est celui que HAL prend quand il n'a pas de raison d'en choisir un autre (LIE-2).")
             }
         }
         .navigationTitle("Lieux de sport")
@@ -406,6 +515,27 @@ struct EcranLieux: View {
         var liste = choisis[discipline] ?? []
         if let rang = liste.firstIndex(of: lieu) { liste.remove(at: rang) } else { liste.append(lieu) }
         choisis[discipline] = liste
+        Task { await enregistrer(discipline) }
+    }
+
+    private func deplacer(_ lieu: Int, _ discipline: String, de pas: Int) {
+        var liste = choisis[discipline] ?? []
+        guard let rang = liste.firstIndex(of: lieu), liste.indices.contains(rang + pas) else { return }
+        liste.swapAt(rang, rang + pas)
+        withAnimation(.snappy) { choisis[discipline] = liste }
+        Task { await enregistrer(discipline) }
+    }
+
+    private func nom(_ idLieu: Int) -> String {
+        possibles.first { $0.idLieu == idLieu }?.libelle ?? "Lieu \(idLieu)"
+    }
+
+    private func icone(_ discipline: String) -> String {
+        switch discipline {
+        case "musculation": "dumbbell"
+        case "course": "figure.run"
+        default: "heart"
+        }
     }
 
     private func charger() async {
@@ -417,14 +547,12 @@ struct EcranLieux: View {
         }
     }
 
-    private func enregistrer() async {
+    /// Chaque changement part tout de suite : l'ordre est la préférence (LIE-2).
+    private func enregistrer(_ discipline: String) async {
         erreur = nil
         do {
-            for discipline in LibellesHAL.disciplines.map(\.0) {
-                try await foyer.agir("PUT", "disciplines/\(discipline)/lieux",
-                                     corps: ClientAPI.corps(choisis[discipline] ?? []))
-            }
-            annoncer("Lieux enregistrés")
+            try await foyer.agir("PUT", "disciplines/\(discipline)/lieux",
+                                 corps: ClientAPI.corps(choisis[discipline] ?? []))
         } catch {
             erreur = raison(error)
         }
@@ -437,9 +565,12 @@ struct EcranLieux: View {
 /// n'importe lequel, et on remet une ancienne version : rien n'est effacé.
 struct EcranMemoire: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(\.annoncer) private var annoncer
     @State private var memoire: MemoireHAL?
     @State private var erreur: String?
     @State private var aCorriger: EtageACorriger?
+    @State private var niveau = "semaine"
+    @State private var versions: [VersionMemoire]?
 
     struct EtageACorriger: Identifiable {
         let niveau: String
@@ -449,71 +580,188 @@ struct EcranMemoire: View {
     }
 
     var body: some View {
-        FormulaireVerre {
-            if let memoire {
-                etage("semaine", "Cette semaine", memoire.semaine,
-                      "Ce que HAL retient au fil de la semaine. Versé dans le mois le lundi.")
-                etage("mois", "Ce mois-ci", memoire.mois, "Le résumé des semaines finies du mois.")
-                Section {
-                    if (memoire.troisMois ?? []).isEmpty {
-                        Text("Rien encore.").foregroundStyle(Palette.texteSecondaire)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                Segmente(choix: [("semaine", "Semaine"), ("mois", "Mois"), ("trois", "3 mois"), ("globale", "Globale")],
+                         selection: $niveau.animation(.smooth))
+                if let memoire {
+                    if niveau == "trois" {
+                        troisMois(memoire.troisMois ?? [])
+                    } else {
+                        etage(memoire)
+                        dernieresVersions
                     }
-                    ForEach(memoire.troisMois ?? [], id: \.self) { archive in
-                        VStack(alignment: .leading, spacing: 4) {
-                            if let periode = archive.periode {
-                                Text(periode.formatted(.dateTime.month(.wide).year().locale(enFrancais)).capitalized)
-                                    .bold().foregroundStyle(Palette.textePrincipal)
-                            }
-                            Text(archive.texte ?? "").font(.footnote).foregroundStyle(Palette.texteSecondaire)
-                        }
-                    }
-                } header: {
-                    Text("Les trois derniers mois")
-                } footer: {
-                    Text("Résumés chaque nuit. Ils ne se corrigent pas ici : corrige plutôt la mémoire globale.")
+                } else if let erreur {
+                    Text(erreur).texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 160)
                 }
-                etage("globale", "Ce qui dure", memoire.globale,
-                      "Ce que HAL garde sur le long terme : tes habitudes, ce qui marche pour toi.")
-                Refus(texte: erreur)
-            } else if let erreur {
-                Section { Text(erreur).foregroundStyle(Palette.texteSecondaire) }
-            } else {
-                Section { ProgressView().frame(maxWidth: .infinity) }
             }
+            .padding(Espace.marge)
         }
+        .scrollIndicators(.hidden)
+        .margeDeLaBarre()
+        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Mémoire de HAL")
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL("Réglages, mémoire de HAL")
         .task { await charger() }
-        .sheet(item: $aCorriger, onDismiss: { Task { await charger() } }) { etage in
+        .task(id: niveau) { await chargerVersions() }
+        .sheet(item: $aCorriger, onDismiss: { Task { await charger(); await chargerVersions() } }) { etage in
             NavigationStack { CorrigerMemoire(etage: etage) }.feuilleEnVerre()
         }
     }
 
-    @ViewBuilder
-    private func etage(_ niveau: String, _ titre: String, _ contenu: MemoireHAL.Etage?, _ aide: String) -> some View {
-        Section {
-            let texte = contenu?.texte ?? ""
+    private var titre: String {
+        switch niveau {
+        case "semaine": "Cette semaine"
+        case "mois": "Ce mois-ci"
+        default: "Ce qui dure"
+        }
+    }
+
+    private func contenu(_ memoire: MemoireHAL) -> MemoireHAL.Etage? {
+        switch niveau {
+        case "semaine": memoire.semaine
+        case "mois": memoire.mois
+        default: memoire.globale
+        }
+    }
+
+    /// « Semaine du 12 octobre », « Octobre 2026 » ou « Ce qui dure ».
+    private func entete(_ etage: MemoireHAL.Etage?) -> String {
+        guard let periode = etage?.periode else { return titre }
+        return niveau == "semaine"
+            ? "Semaine du \(periode.formatted(.dateTime.day().month(.wide).locale(enFrancais)))"
+            : periode.formatted(.dateTime.month(.wide).year().locale(enFrancais)).capitalized
+    }
+
+    private func etage(_ memoire: MemoireHAL) -> some View {
+        let etage = contenu(memoire)
+        let texte = etage?.texte ?? ""
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(entete(etage)).texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                Spacer()
+                if let longueur = etage?.longueur, let limite = etage?.limite {
+                    Text("\(EnFrancais.nombre(longueur)) / \(EnFrancais.nombre(limite))")
+                        .texte(.legende).monospacedDigit().foregroundStyle(Palette.texteTertiaire)
+                }
+            }
             Text(texte.isEmpty ? "Vide pour l'instant." : texte)
-                .font(.callout)
+                .texte(.corps)
                 .foregroundStyle(texte.isEmpty ? Palette.texteSecondaire : Palette.textePrincipal)
                 .textSelection(.enabled)
-            if let longueur = contenu?.longueur, let limite = contenu?.limite {
-                Text("\(longueur) sur \(limite) caractères").font(.footnote).foregroundStyle(Palette.texteTertiaire)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(aide).texte(.legende).foregroundStyle(Palette.texteTertiaire)
+            HStack(spacing: 10) {
+                Button("Corriger") { aCorriger = EtageACorriger(niveau: niveau, titre: titre, texte: texte) }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                NavigationLink {
+                    VersionsMemoire(niveau: niveau, titre: titre)
+                } label: {
+                    Text(versions.map { "Versions (\($0.count))" } ?? "Versions")
+                }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
             }
-            Button("Corriger") { aCorriger = EtageACorriger(niveau: niveau, titre: titre, texte: texte) }
-            NavigationLink("Versions") { VersionsMemoire(niveau: niveau, titre: titre) }
-        } header: {
-            Text(titre)
-        } footer: {
-            Text(aide)
         }
+        .padding(Espace.interne)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .carte()
+    }
+
+    private var aide: String {
+        switch niveau {
+        case "semaine": "Ce que HAL retient au fil de la semaine. Versé dans le mois le lundi."
+        case "mois": "Le résumé des semaines finies du mois."
+        default: "Ce que HAL garde sur le long terme : tes habitudes, ce qui marche pour toi."
+        }
+    }
+
+    /// MEM-5 : les trois dernières versions, à remettre d'un bouton.
+    @ViewBuilder private var dernieresVersions: some View {
+        if let versions, versions.count > 1 {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("DERNIÈRES VERSIONS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                ForEach(versions.dropFirst().prefix(3)) { version in
+                    HStack(spacing: 10) {
+                        Text(Self.qui(version.auteur)).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                        Spacer()
+                        if let quand = version.quand {
+                            Text("\(Self.quel(quand)) \(EnFrancais.heure(quand))")
+                                .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        }
+                        Button("Remettre") { Task { await restaurer(version) } }
+                            .buttonStyle(.hal(.verre))
+                    }
+                }
+            }
+            .padding(Espace.interne)
+            .carte()
+        }
+    }
+
+    /// « aujourd'hui », « hier » ou « lun. ».
+    private static func quel(_ date: Date) -> String {
+        let calendrier = Calendar.current
+        if calendrier.isDateInToday(date) { return "aujourd'hui" }
+        if calendrier.isDateInYesterday(date) { return "hier" }
+        return EnFrancais.jourCourt(date).lowercased()
+    }
+
+    private static func qui(_ auteur: String?) -> String {
+        switch auteur {
+        case "coach": "HAL"
+        case "utilisateur": "Toi"
+        case "resume": "Résumé de la nuit"
+        case "reprise": "Anciennes notes"
+        default: auteur ?? "—"
+        }
+    }
+
+    private func troisMois(_ archives: [MemoireHAL.Etage]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if archives.isEmpty {
+                Text("Rien encore.").texte(.corps).foregroundStyle(Palette.texteSecondaire)
+            }
+            ForEach(archives, id: \.self) { archive in
+                VStack(alignment: .leading, spacing: 4) {
+                    if let periode = archive.periode {
+                        Text(periode.formatted(.dateTime.month(.wide).year().locale(enFrancais)).capitalized)
+                            .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    }
+                    Text(archive.texte ?? "").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                }
+            }
+            Text("Résumés chaque nuit. Ils ne se corrigent pas ici : corrige plutôt la mémoire globale.")
+                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+        }
+        .padding(Espace.interne)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .carte()
     }
 
     private func charger() async {
         do {
             memoire = try await foyer.demander("GET", "coach/memoire")
             erreur = nil
+        } catch {
+            erreur = raison(error)
+        }
+    }
+
+    private func chargerVersions() async {
+        guard niveau != "trois" else { return }
+        versions = nil
+        versions = try? await foyer.demander("GET", "coach/memoire/\(niveau)/versions")
+    }
+
+    private func restaurer(_ version: VersionMemoire) async {
+        do {
+            try await foyer.agir("POST", "coach/memoire/versions/\(version.idMemoire)/restaurer")
+            annoncer("Version remise en vigueur")
+            await charger()
+            await chargerVersions()
         } catch {
             erreur = raison(error)
         }
@@ -631,51 +879,130 @@ struct EcranPause: View {
     @State private var pause: PauseHAL?
     @State private var charge = false
     @State private var motif = ""
-    @State private var avecFin = false
+    @State private var avecFin = true
     @State private var fin = Calendar.current.date(byAdding: .day, value: 7, to: .now) ?? .now
     @State private var erreur: String?
 
     private struct Reponse: Decodable, Sendable { let pause: PauseHAL? }
 
+    private static let motifs = ["Examens", "Vacances", "Malade", "Blessure"]
+    @State private var autreMotif = false
+
     var body: some View {
-        FormulaireVerre {
-            if !charge {
-                Section { ProgressView().frame(maxWidth: .infinity) }
-            } else if let pause {
-                Section {
-                    LabeledContent("Depuis", value: pause.depuis?.formatted(date: .abbreviated, time: .omitted) ?? "")
-                    LabeledContent("Jusqu'au", value: pause.jusquAu?.formatted(date: .abbreviated, time: .omitted) ?? "sans date")
-                    if let motif = pause.motif, !motif.isEmpty { LabeledContent("Motif", value: motif) }
-                } header: {
-                    Text("HAL est en pause")
-                }
-                Refus(texte: erreur)
-                Section {
-                    Button("Reprendre maintenant") { Task { await lever() } }.frame(maxWidth: .infinity)
-                } footer: {
-                    Text("HAL relit ce qui s'est passé et te propose une semaine de reprise, par message.")
-                }
-            } else {
-                Section {
-                    TextField("Motif (vacances, examens, blessure…)", text: $motif)
-                    Toggle("Je connais la date de fin", isOn: $avecFin)
-                    if avecFin {
-                        DatePicker("Fin", selection: $fin, in: Date.now..., displayedComponents: .date)
-                            .environment(\.locale, enFrancais)
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                HStack(spacing: 12) {
+                    Orbe(etat: .repos, taille: 40)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pause == nil ? "HAL se met en retrait" : "HAL est en pause")
+                            .texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                        Text(sousTitre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     }
-                } footer: {
-                    Text("Pendant la pause, HAL ne propose aucune séance. Les séances proposées sont retirées ; les validées restent, à toi de les garder ou non. Tu peux toujours lui écrire, et faire des séances libres.")
+                    Spacer(minLength: 0)
                 }
-                Refus(texte: erreur)
-                Section {
-                    Button("Mettre HAL en pause") { Task { await mettre() } }.frame(maxWidth: .infinity)
+                .padding(Espace.interne)
+                .carte()
+
+                if !charge {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+                } else if pause != nil {
+                    LigneErreur(texte: erreur)
+                    Button("Reprendre maintenant") { Task { await lever() } }
+                        .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+                    Text("HAL relit ce qui s'est passé et te propose une semaine de reprise (PAU-6).")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                } else {
+                    EnTeteGroupe(texte: "Motif")
+                    Flux(espacement: 8) {
+                        ForEach(Self.motifs, id: \.self) { choix in
+                            PuceChoix(texte: choix, choisie: !autreMotif && motif == choix) {
+                                autreMotif = false
+                                motif = motif == choix ? "" : choix
+                            }
+                        }
+                        PuceChoix(texte: "Autre", choisie: autreMotif) {
+                            autreMotif.toggle()
+                            motif = ""
+                        }
+                    }
+                    if autreMotif {
+                        TextField("Le motif, en quelques mots", text: $motif)
+                            .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                            .padding(.horizontal, 14)
+                            .frame(height: 46)
+                            .verreControle(Capsule(), interactif: false)
+                    }
+
+                    EnTeteGroupe(texte: "Fin")
+                    VStack(spacing: 0) {
+                        HStack(spacing: 12) {
+                            Pastille(icone: "calendar", couleur: Categorie.travail.couleur)
+                            Text("Jusqu'au").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                            Spacer()
+                            DatePicker("Jusqu'au", selection: $fin, in: Date.now..., displayedComponents: .date)
+                                .labelsHidden()
+                                .environment(\.locale, enFrancais)
+                                .disabled(!avecFin)
+                                .opacity(avecFin ? 1 : 0.4)
+                        }
+                        .padding(.horizontal, Espace.interne)
+                        .padding(.vertical, 10)
+                        Divider().overlay(Palette.verreBord)
+                        HStack(spacing: 12) {
+                            Pastille(icone: "clock", couleur: Palette.texteSecondaire)
+                            Toggle("Je ne sais pas encore", isOn: Binding { !avecFin } set: { avecFin = !$0 })
+                                .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                        }
+                        .padding(.horizontal, Espace.interne)
+                        .padding(.vertical, 10)
+                    }
+                    .carte(rayon: Rayon.controle)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("PENDANT LA PAUSE").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                        ForEach(Self.pendant, id: \.self) { ligne in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Circle().fill(Categorie.ia.couleur).frame(width: 6, height: 6)
+                                Text(ligne).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                    .padding(Espace.interne)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .carte(rayon: Rayon.controle)
+
+                    LigneErreur(texte: erreur)
+                    Button("Mettre en pause") { Task { await mettre() } }
+                        .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
                 }
             }
+            .padding(Espace.marge)
         }
+        .scrollIndicators(.hidden)
+        .margeDeLaBarre()
+        .containerBackground(.clear, for: .navigation)
         .navigationTitle("Pause")
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL("Réglages, pause")
         .task { await charger() }
+    }
+
+    /// PAU-2 à PAU-6, en clair.
+    private static let pendant = [
+        "Aucune séance proposée, les proposées sont retirées",
+        "Les séances validées restent, à toi de les garder",
+        "Un récap un soir sur trois",
+        "Séance libre et questions à HAL toujours possibles",
+        "Au retour, une semaine de reprise",
+    ]
+
+    private var sousTitre: String {
+        if let pause {
+            let fin = pause.jusquAu.map { "jusqu'au \(EnFrancais.jour($0))" } ?? "sans date de fin"
+            return [pause.motif, fin].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+        return "Maladie, vacances, semaine d'examens."
     }
 
     private func charger() async {

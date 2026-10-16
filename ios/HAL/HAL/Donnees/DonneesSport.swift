@@ -61,7 +61,8 @@ struct EtatSport: Codable, Sendable {
     }
 
     struct PauseAPI: Codable, Sendable {
-        let fin: Date?
+        /// Le dernier jour de la pause, compris (PAU-1).
+        let jusquAu: Date?
         let motif: String?
     }
 
@@ -184,7 +185,32 @@ struct ObjectifDetaille: Codable, Hashable, Identifiable, Sendable {
     let avis: String?
     let avisDetail: String?
     let feuilleDeRoute: String?
+    var pilier: String? = nil
+    var distanceM: Int? = nil
+    /// Le serveur rend un NUMERIC en texte : « 50.00 ».
+    var cibleValeur: NombreSouple? = nil
+    var cibleUnite: String? = nil
+    var dateCreation: Date? = nil
     var id: Int { idObjectif }
+}
+
+/// Un nombre que le serveur rend tantôt en nombre, tantôt en texte (NUMERIC).
+struct NombreSouple: Codable, Hashable, Sendable {
+    let valeur: Double
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let nombre = try? c.decode(Double.self) {
+            valeur = nombre
+        } else {
+            valeur = Double(try c.decode(String.self)) ?? 0
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(valeur)
+    }
 }
 
 /// Une séance telle que le serveur la décrit : ce qui est prévu, avec les
@@ -223,6 +249,24 @@ struct DetailSeance: Codable, Hashable, Sendable {
         let fcMax: Int?
         let allureSKm: Int?
         let cadence: Int?
+        var periode: Periode? = nil
+        var details: Details? = nil
+
+        struct Periode: Codable, Hashable, Sendable {
+            let du: Date?
+            let au: Date?
+        }
+
+        /// SAN-2 : ce que l'appli a lu dans Santé en plus des colonnes. Chaque
+        /// partie peut manquer : l'écran ne montre que ce qui est là.
+        struct Details: Codable, Hashable, Sendable {
+            /// Le temps de chaque kilomètre, en secondes.
+            var kilometres: [Int]? = nil
+            /// Le temps passé dans chacune des cinq zones cardiaques, en secondes.
+            var zones: [Int]? = nil
+            /// La fréquence cardiaque minute par minute.
+            var frequence: [Int]? = nil
+        }
     }
 
     let seance: Seance

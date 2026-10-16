@@ -142,10 +142,21 @@ struct WidgetObjectif: View {
 
 struct WidgetFrequence: View {
     @Environment(Foyer.self) private var foyer
+    @Environment(EnvoiSante.self) private var sante
 
     var body: some View {
         CoquilleWidget(.frequenceDuJour) {
             let valeurs = foyer.frequenceDuJour.compactMap(\.valeur)
+            // WID-8 : sans données, le widget dit d'où elles viennent, et comment les avoir.
+            if valeurs.isEmpty {
+                if sante.disponible && !sante.accesDemande {
+                    VideWidget(texte: "La fréquence cardiaque vient de Santé.", bouton: "Autoriser Santé") {
+                        Task { await sante.demanderAcces() }
+                    }
+                } else {
+                    VideWidget(texte: "Pas encore de fréquence cardiaque aujourd'hui. La montre la remplit au fil de la journée.")
+                }
+            } else {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(valeurs.last.map { String(Int($0)) } ?? "—").texte(.chiffre).foregroundStyle(Palette.textePrincipal)
@@ -156,6 +167,7 @@ struct WidgetFrequence: View {
                     }
                 }
                 Courbe(points: foyer.frequenceDuJour, hauteur: 70)
+            }
             }
         }
     }
@@ -406,14 +418,13 @@ struct VueSeanceDuJour: View {
         }
     }
 
+    /// Court, pour tenir dans une puce : « Pecs, dos, épaules ».
     static func groupe(_ code: String) -> String {
         switch code {
-        case "pectoraux": "Pecs"
-        case "epaules": "épaules"
+        case "pectoraux": "pecs"
         case "abdominaux": "abdos"
-        case "avant_bras": "avant-bras"
         case "ischios": "ischios"
-        default: code.replacingOccurrences(of: "_", with: " ")
+        default: EnFrancais.groupe(code).lowercased()
         }
     }
 }

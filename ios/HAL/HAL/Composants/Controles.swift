@@ -8,14 +8,16 @@ struct Compteur: View {
     var pas: Double = 1
     var bornes: ClosedRange<Double> = 0...999
     var unite: String = ""
+    /// Des boutons plus petits, pour tenir à côté d'un libellé (3.9).
+    var compact = false
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: compact ? 6 : 12) {
             bouton("minus") { valeur = max(bornes.lowerBound, valeur - pas) }
             VStack(spacing: 0) {
                 Text(nombre)
-                    .font(.system(size: 38, weight: .bold).monospacedDigit())
+                    .font(.system(size: compact ? 30 : 38, weight: .bold).monospacedDigit())
                     .foregroundStyle(Palette.textePrincipal)
                     .contentTransition(.numericText(value: valeur))
                     .lineLimit(1)
@@ -55,9 +57,9 @@ struct Compteur: View {
     private func bouton(_ icone: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icone)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: compact ? 16 : 20, weight: .semibold))
                 .foregroundStyle(Palette.textePrincipal)
-                .frame(width: 52, height: 52)
+                .frame(width: compact ? 40 : 52, height: compact ? 40 : 52)
         }
         .buttonStyle(.plain)
         .verreControle(Circle())
@@ -162,17 +164,19 @@ struct PastilleTheme: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                ZStack {
-                    Circle().fill(combinaison.secondaire).frame(width: 44, height: 44).offset(x: 9)
-                    Circle().fill(combinaison.principal).frame(width: 44, height: 44).offset(x: -9)
+                HStack(spacing: 0) {
+                    Rectangle().fill(combinaison.principal)
+                    Rectangle().fill(combinaison.secondaire)
                 }
-                .frame(width: 64, height: 48)
+                .frame(width: 52, height: 52)
+                .clipShape(Circle())
                 .overlay {
                     if choisie {
-                        Capsule().strokeBorder(Palette.textePrincipal, lineWidth: 2).padding(-4)
+                        Circle().strokeBorder(Palette.textePrincipal, lineWidth: 2).padding(-4)
                     }
                 }
-                Text(combinaison.nom)
+                .padding(4)
+                Text(combinaison.nom.replacingOccurrences(of: " · ", with: "\n"))
                     .texte(.legende)
                     .foregroundStyle(choisie ? Palette.textePrincipal : Palette.texteSecondaire)
                     .multilineTextAlignment(.center)

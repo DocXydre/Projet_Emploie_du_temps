@@ -113,24 +113,27 @@ struct EcranFondCouleurs: View {
     var body: some View {
         @Bindable var apparence = apparence
         PagePoussee(titre: "Fond et couleurs") {
-            Fond()
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: Rayon.widget, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Rayon.widget, style: .continuous)
-                    .strokeBorder(Palette.verreBord, lineWidth: 0.5))
-
-            HStack {
-                PhotosPicker(selection: $choix, matching: .images) {
-                    Text("Choisir une photo")
+            HStack(alignment: .center, spacing: 16) {
+                ApercuTelephone()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ta photo").texte(.titreWidget).foregroundStyle(Palette.textePrincipal)
+                    Text(apparence.photo == nil
+                         ? "Celle d'origine. Le texte reste lisible grâce au voile."
+                         : "Le texte reste lisible grâce au voile.")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        .fixedSize(horizontal: false, vertical: true)
+                    PhotosPicker(selection: $choix, matching: .images) {
+                        Text("Choisir une photo")
+                    }
+                    .buttonStyle(.hal(.verre))
+                    if apparence.photo != nil {
+                        Button("Photo d'origine") { apparence.changerPhoto(nil) }
+                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    }
                 }
-                .buttonStyle(.hal(.accent, pleineLargeur: true))
-                if apparence.photo != nil {
-                    Button("Photo d'origine") { apparence.changerPhoto(nil) }
-                        .buttonStyle(.hal(.verre, pleineLargeur: true))
-                }
+                Spacer(minLength: 0)
             }
 
-            EnTeteGroupe(texte: "Lisibilité")
             VStack(spacing: 14) {
                 curseur("Flou", valeur: $apparence.flou)
                 curseur("Assombrissement", valeur: $apparence.assombrissement, bornes: 0...0.7)
@@ -140,9 +143,31 @@ struct EcranFondCouleurs: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                curseur("Couleurs de la photo", valeur: $apparence.saturation, bornes: 0...1.2)
+                curseur("Saturation", valeur: $apparence.saturation, bornes: 0...1.2)
+                Toggle(isOn: $apparence.couleursDeLaPhoto.animation(.smooth)) {
+                    Text("Couleurs tirées de la photo").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                }
+                .tint(apparence.theme.principal)
+                .disabled(apparence.photo == nil)
                 Button("Réglages d'origine") { apparence.revenirAuxReglagesParDefaut() }
                     .buttonStyle(.hal(.verre))
+            }
+            .padding(Espace.interne)
+            .carte(rayon: Rayon.controle)
+
+            VStack(alignment: .leading, spacing: 14) {
+                Text("COULEURS DES BOUTONS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+                HStack(alignment: .top) {
+                    ForEach(Combinaison.allCases) { combinaison in
+                        PastilleTheme(combinaison: combinaison,
+                                      choisie: !apparence.couleursDeLaPhoto && apparence.combinaison == combinaison) {
+                            withAnimation(.smooth) {
+                                apparence.couleursDeLaPhoto = false
+                                apparence.combinaison = combinaison
+                            }
+                        }
+                    }
+                }
             }
             .padding(Espace.interne)
             .carte(rayon: Rayon.controle)
@@ -160,27 +185,6 @@ struct EcranFondCouleurs: View {
             .padding(Espace.interne)
             .carte(rayon: Rayon.controle)
 
-            EnTeteGroupe(texte: "Couleurs des boutons")
-            VStack(spacing: 14) {
-                HStack(alignment: .top) {
-                    ForEach(Combinaison.allCases) { combinaison in
-                        PastilleTheme(combinaison: combinaison,
-                                      choisie: !apparence.couleursDeLaPhoto && apparence.combinaison == combinaison) {
-                            withAnimation(.smooth) {
-                                apparence.couleursDeLaPhoto = false
-                                apparence.combinaison = combinaison
-                            }
-                        }
-                    }
-                }
-                Toggle(isOn: $apparence.couleursDeLaPhoto.animation(.smooth)) {
-                    Text("Déduire les couleurs de la photo").texte(.corps).foregroundStyle(Palette.textePrincipal)
-                }
-                .tint(apparence.theme.principal)
-                .disabled(apparence.photo == nil)
-            }
-            .padding(Espace.interne)
-            .carte(rayon: Rayon.controle)
         }
         .onChange(of: choix) {
             guard let choix else { return }
@@ -196,9 +200,52 @@ struct EcranFondCouleurs: View {
 
     private func curseur(_ titre: String, valeur: Binding<Double>, bornes: ClosedRange<Double> = 0...1) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(titre).texte(.corps).foregroundStyle(Palette.textePrincipal)
+            HStack {
+                Text(titre).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                Spacer()
+                Text("\(Int((valeur.wrappedValue * 100).rounded())) %")
+                    .texte(.corps).monospacedDigit().foregroundStyle(Palette.texteSecondaire)
+            }
             Slider(value: valeur, in: bornes).tint(apparence.theme.principal)
         }
+    }
+}
+
+/// Le fond en vignette de téléphone, avec deux cartes de verre posées dessus,
+/// pour juger la lisibilité d'un coup d'œil (5.2).
+private struct ApercuTelephone: View {
+    var body: some View {
+        ZStack(alignment: .top) {
+            Fond()
+            VStack(alignment: .leading, spacing: 6) {
+                carte(lignes: 2, accent: Categorie.travail.couleur)
+                HStack(spacing: 6) {
+                    carte(lignes: 3, accent: Categorie.menage.couleur)
+                    carte(lignes: 3, accent: Categorie.sport.couleur)
+                }
+                carte(lignes: 1, accent: Categorie.ia.couleur)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 22)
+        }
+        .frame(width: 112, height: 220)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous)
+            .strokeBorder(Palette.verreBord, lineWidth: 1))
+        .accessibilityHidden(true)
+    }
+
+    private func carte(lignes: Int, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Capsule().fill(accent).frame(width: 22, height: 3)
+            ForEach(0..<lignes, id: \.self) { rang in
+                Capsule().fill(Palette.textePrincipal.opacity(rang == 0 ? 0.8 : 0.4))
+                    .frame(height: 3).padding(.trailing, CGFloat(rang * 8))
+            }
+        }
+        .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

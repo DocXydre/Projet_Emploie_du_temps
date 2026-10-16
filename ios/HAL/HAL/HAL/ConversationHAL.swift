@@ -139,7 +139,15 @@ final class ConversationHAL {
             messages = suite
             if enAttente != nil && !reflechit { await envoyerLAttente() }
         } catch {
-            // Hors réseau : on garde ce qu'on a.
+            // Hors réseau : on garde ce qu'on a, et le message en attente reste
+            // visible en bas, avec de quoi le renvoyer (8.11).
+            if let enAttente {
+                if !messages.contains(where: { $0.id == enAttente.cleClient.uuidString }) {
+                    messages.append(MessageHAL(id: enAttente.cleClient.uuidString, auteur: .moi,
+                                               texte: enAttente.texte, enAttente: true))
+                }
+                echec = true
+            }
         }
     }
 

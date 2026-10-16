@@ -62,6 +62,10 @@ struct Absence: Identifiable, Hashable {
     let debut: Date
     let fin: Date
     let lieu: String?
+    /// « trajet » quand elle vient d'un billet SNCF, « manuelle » sinon.
+    var origine: String? = nil
+
+    var enCours: Bool { debut <= .now && fin > .now }
 }
 
 /// Un mode allégé en cours ou à venir (PLA-16).

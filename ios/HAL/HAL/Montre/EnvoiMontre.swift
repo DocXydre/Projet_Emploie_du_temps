@@ -40,6 +40,16 @@ enum EnvoiMontre {
         await WorkoutScheduler.shared.schedule(plan, at: composants)
     }
 
+    /// 3.13 : l'alerte qui partira, en clair : « allure 6:30 /km ± 5 % » ou « zone 3 ».
+    static func alerteEnClair(_ detail: DetailSeance) -> (titre: String, detail: String) {
+        if let allure = allureVisee(detail) {
+            let bas = Int(Double(allure) / 1.05)
+            let haut = Int(Double(allure) / 0.95)
+            return ("Alerte d'allure", "\(EnFrancais.chrono(bas)) – \(EnFrancais.chrono(haut)) /km")
+        }
+        return ("Alerte de fréquence cardiaque", "zone \(zoneCardiaque(detail.seance.intensite))")
+    }
+
     /// Un identifiant stable par séance : « HAL » puis le numéro de la séance.
     private static func identifiant(_ id: Int) -> UUID {
         let hex = String(format: "%012x", id)
@@ -110,7 +120,7 @@ enum EnvoiMontre {
         return HeartRateZoneAlert(zone: zone)
     }
 
-    private static func zoneCardiaque(_ intensite: String?) -> Int {
+    static func zoneCardiaque(_ intensite: String?) -> Int {
         switch intensite {
         case "legere": 2
         case "dure": 4
@@ -119,7 +129,7 @@ enum EnvoiMontre {
     }
 
     /// « 6:30/km », « 6'30 /km » dans la consigne de HAL : des secondes au kilomètre.
-    private static func allureVisee(_ detail: DetailSeance) -> Int? {
+    static func allureVisee(_ detail: DetailSeance) -> Int? {
         let textes = [detail.seance.consigne] + detail.prevu.map(\.consigne)
         for texte in textes.compactMap({ $0 }) {
             if let trouve = texte.firstMatch(of: #/(\d{1,2})\s*[:'’]\s*(\d{2})\s*(?:min)?\s*/\s*km/#),

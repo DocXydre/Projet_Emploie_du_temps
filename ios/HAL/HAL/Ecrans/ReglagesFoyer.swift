@@ -435,19 +435,22 @@ struct EcranNotifications: View {
                 }
             } else if let heures {
                 Section {
-                    selecteur("Bilan du matin", \.bilan, heures)
-                    selecteur("Relance du soir", \.relance, heures)
-                    selecteur("Récap de HAL", \.recap, heures)
+                    selecteur("Bilan du matin", \.bilan, heures, icone: "bell", couleur: Categorie.menage.couleur)
+                    selecteur("Relance du soir", \.relance, heures, icone: "checklist", couleur: Categorie.sport.couleur)
+                    selecteur("Récap de HAL", \.recap, heures, icone: "sparkle", couleur: Categorie.ia.couleur)
                 } header: {
                     Text("Mes heures")
                 } footer: {
                     Text("Elles valent dès le lendemain. Les séances du jour se closent à l'heure du récap (PLN-9) ; le placement du matin et le report de minuit restent communs.")
                 }
                 Section {
-                    selecteur("De", \.silenceDebut, heures)
-                    selecteur("À", \.silenceFin, heures)
+                    HStack(spacing: 10) {
+                        tuile("De", \.silenceDebut, heures)
+                        tuile("À", \.silenceFin, heures)
+                    }
+                    .padding(.vertical, 4)
                 } header: {
-                    Text("Silence")
+                    Text("Silence de nuit")
                 } footer: {
                     Text("Rien ne part pendant le silence : tout attend sa fin. Une seule exception, la réponse de HAL quand tu viens de lui écrire (NOT-14).")
                 }
@@ -495,14 +498,35 @@ struct EcranNotifications: View {
         }
     }
 
-    private func selecteur(_ titre: String, _ chemin: WritableKeyPath<HeuresLues, String>,
-                           _ actuelles: HeuresLues) -> some View {
-        DatePicker(titre, selection: Binding {
+    private func lien(_ chemin: WritableKeyPath<HeuresLues, String>, _ actuelles: HeuresLues) -> Binding<Date> {
+        Binding {
             Heure.date(actuelles[keyPath: chemin])
         } set: { date in
             heures?[keyPath: chemin] = Heure.texte(date)
-        }, displayedComponents: .hourAndMinute)
-        .environment(\.locale, enFrancais)
+        }
+    }
+
+    private func selecteur(_ titre: String, _ chemin: WritableKeyPath<HeuresLues, String>,
+                           _ actuelles: HeuresLues, icone: String, couleur: Color) -> some View {
+        HStack(spacing: 12) {
+            Pastille(icone: icone, couleur: couleur)
+            DatePicker(titre, selection: lien(chemin, actuelles), displayedComponents: .hourAndMinute)
+                .environment(\.locale, enFrancais)
+        }
+    }
+
+    /// 5.11 : le début et la fin du silence, en deux tuiles.
+    private func tuile(_ titre: String, _ chemin: WritableKeyPath<HeuresLues, String>,
+                       _ actuelles: HeuresLues) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(titre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            DatePicker(titre, selection: lien(chemin, actuelles), displayedComponents: .hourAndMinute)
+                .labelsHidden()
+                .environment(\.locale, enFrancais)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private func charger() async {

@@ -12,7 +12,9 @@ extension Module {
     static let enRetard = Module(
         id: "enRetard", nom: "En retard", icone: "exclamationmark.circle", categorie: .alerte,
         tailles: [.petit],
-        widget: { _ in AnyView(WidgetEnRetard()) }
+        widget: { _ in AnyView(WidgetEnRetard()) },
+        // WID-5 : le widget ouvre tout ce qui traîne [4.5].
+        ecran: { AnyView(EcranCeQuiTraine()) }
     )
 
     static let chat = Module(
@@ -64,7 +66,7 @@ struct WidgetACocher: View {
                         LigneTache(titre: tache.titre,
                                    pourQui: taille == .petit ? nil : tache.pourQui.nom,
                                    faite: tache.faite,
-                                   type: tache.type.map { ($0.icone, tache.couleur) }) {
+                                   type: tache.type.map { ($0.icone, tache.couleur) },
                                    annulableJusqua: foyer.departDeLEnvoi(tache)) {
                             cocher(tache)
                         }
@@ -147,6 +149,7 @@ struct VueACocher: View {
                                 ForEach(siennes) { tache in
                                     LigneTache(titre: tache.titre, faite: tache.faite,
                                                detail: detail(tache), detailEnAlerte: tache.enRetard && !tache.faite,
+                                               type: tache.type.map { ($0.icone, tache.couleur) },
                                                annulableJusqua: foyer.departDeLEnvoi(tache)) {
                                         cocher(tache)
                                     }
@@ -371,6 +374,107 @@ struct WidgetBientot: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// 4.5 : ce qui traîne, avec son retard et ses reports ; « Fait », « Demain »
+/// ou « Refuser », pour soi comme pour l'autre (EXE-4, EXE-6, EXE-12).
+struct EcranCeQuiTraine: View {
+    @Environment(Foyer.self) private var foyer
+    @Environment(FileAttente.self) private var file
+    @Environment(\.dismiss) private var fermer
+    @Environment(\.annoncer) private var annoncer
+    @State private var envoi: Int?
+
+    var body: some View {
+        let taches = foyer.tachesEnRetard
+        ScrollView {
+            VStack(alignment: .leading, spacing: Espace.gouttiere) {
+                BarrePoussee(titre: "Ce qui traîne") { fermer() }
+                if taches.isEmpty {
+                    CarteVide(icone: "checkmark.circle", categorie: .sport, titre: "Rien ne traîne",
+                              texte: "Tout ce qui était prévu est fait, ou à venir.")
+                }
+                ForEach(taches) { tache in
+                    carte(tache)
+                }
+                if !taches.isEmpty {
+                    Text("Une tâche ordinaire est abandonnée après 5 jours de retard, une séance de sport après 3. La suivante repart normalement.")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.horizontal, Espace.marge)
+            .padding(.bottom, 40)
+        }
+        .scrollIndicators(.hidden)
+        .ecranHAL()
+        .refreshable { await foyer.charger() }
+    }
+
+    private func carte(_ tache: Tache) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(tache.titre).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    Text(retard(tache)).texte(.legende)
+                        .foregroundStyle(jours(tache) >= 2 ? Categorie.alerte.couleur : Palette.texteSecondaire)
+                }
+                Spacer(minLength: 8)
+                if foyer.membres.count > 1 {
+                    Avatar(nom: tache.pourQui.nom, couleur: foyer.couleur(de: tache.pourQui), taille: 28)
+                }
+            }
+            HStack(spacing: 8) {
+                Button("Fait") { faire(tache) }.buttonStyle(.hal(.accent, pleineLargeur: true))
+                if tache.reportable {
+                    Button("Demain") { reporter(tache) }.buttonStyle(.hal(.verre, pleineLargeur: true))
+                }
+                Button("Refuser") { Task { await refuser(tache) } }.buttonStyle(.hal(.verre, pleineLargeur: true))
+            }
+            .disabled(envoi == tache.id)
+        }
+        .padding(Espace.interne)
+        .carte()
+    }
+
+    private func jours(_ tache: Tache) -> Int {
+        guard let fin = tache.fin else { return 0 }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: fin),
+                                               to: Calendar.current.startOfDay(for: .now)).day ?? 0
+    }
+
+    /// « En retard de 2 jours · reporté 1 fois »
+    private func retard(_ tache: Tache) -> String {
+        let n = jours(tache)
+        var texte = n <= 0 ? "Aujourd'hui" : n == 1 ? "En retard d'1 jour" : "En retard de \(n) jours"
+        if tache.reports > 0 { texte += " · reporté \(tache.reports) fois" }
+        return texte
+    }
+
+    private func faire(_ tache: Tache) {
+        var annuler: (() -> Void)?
+        withAnimation(.snappy) { annuler = foyer.cocher(tache, file: file) }
+        if let annuler {
+            annoncer("« \(tache.titre) » faite", annuler: { withAnimation(.snappy) { annuler() } })
+        }
+    }
+
+    private func reporter(_ tache: Tache) {
+        withAnimation(.snappy) { foyer.reporter(tache, file: file) }
+        annoncer("« \(tache.titre) » repoussée")
+    }
+
+    /// Refuser : elle est soldée, et l'autre peut la reprendre.
+    private func refuser(_ tache: Tache) async {
+        envoi = tache.id
+        defer { envoi = nil }
+        do {
+            try await foyer.agir("POST", "occurrences/\(tache.id)/refuser")
+            annoncer("« \(tache.titre) » refusée")
+        } catch {
+            annoncer((error as? ErreurAPI)?.message ?? "Refus impossible")
         }
     }
 }
