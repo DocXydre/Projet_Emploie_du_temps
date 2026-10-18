@@ -590,6 +590,9 @@ private struct CourseFaite: View {
 struct EcranSeanceEnCours: View {
     @Environment(SeanceEnCours.self) private var seance
     @Environment(FileAttente.self) private var file
+    @Environment(Foyer.self) private var foyer
+    /// SAI-20 : les records de chaque exercice déjà lus pendant la séance.
+    @State private var records: [String: RecordsExercice] = [:]
     @State private var charge: Double = 20
     @State private var reps: Double = 10
     @State private var duree: Double = 30
@@ -805,6 +808,9 @@ struct EcranSeanceEnCours: View {
             if let consigne = exercice.consigne, !consigne.isEmpty {
                 AvisDeHAL(texte: consigne, style: .legende, secondaire: true)
             }
+            if !exercice.enDuree && !exercice.enDistance {
+                troisPoids(exercice)
+            }
             ForEach(faites) { serie in
                 ligneFaite(serie)
             }
@@ -827,6 +833,51 @@ struct EcranSeanceEnCours: View {
         .padding(Espace.interne)
         .frame(maxWidth: .infinity, alignment: .leading)
         .carte()
+    }
+
+    /// SAI-20 : le poids prévu par HAL, le plus lourd jamais soulevé, et le
+    /// plus lourd tenu sur dix répétitions. Toucher l'un le met dans le compteur.
+    private func troisPoids(_ exercice: ExerciceDeSeance) -> some View {
+        let lus = records[exercice.code]
+        return HStack(spacing: 8) {
+            tuilePoids("Conseil HAL", exercice.chargeKg,
+                       detail: exercice.repetitionsVisees.map { "× \($0)" }, couleur: Categorie.ia.couleur)
+            tuilePoids("Ton max", lus?.max?.chargeKg,
+                       detail: lus?.max.map { "× \($0.repetitions)" }, couleur: Categorie.sport.couleur)
+            tuilePoids("Max à 10 reps", lus?.max10?.chargeKg,
+                       detail: lus?.max10.map { "× \($0.repetitions)" }, couleur: Categorie.travail.couleur)
+        }
+        .task(id: exercice.code) { await lireLesRecords(exercice.code) }
+    }
+
+    private func tuilePoids(_ titre: String, _ kilos: Double?, detail: String?, couleur: Color) -> some View {
+        Button {
+            if let kilos { charge = kilos }
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(titre.uppercased()).texte(.etiquette).foregroundStyle(couleur)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(kilos.map(Poids.texte) ?? "—").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                Text(detail ?? " ").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: Rayon.ligne, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(kilos == nil)
+        .accessibilityLabel("\(titre) : \(kilos.map(Poids.texte) ?? "aucun") \(detail ?? "")")
+        .accessibilityHint(kilos == nil ? "" : "Met ce poids dans le compteur")
+    }
+
+    /// Hors réseau, les records restent ceux déjà lus, ou un tiret (APP-4).
+    private func lireLesRecords(_ code: String) async {
+        guard foyer.connecte, records[code] == nil else { return }
+        if let lus: RecordsExercice = try? await foyer.demander("GET", "exercices/\(code)/records") {
+            records[code] = lus
+        }
     }
 
     private func ligneFaite(_ serie: SerieLocale) -> some View {
@@ -866,7 +917,7 @@ struct EcranSeanceEnCours: View {
             } else if exercice.enDistance {
                 Compteur(titre: "Distance", valeur: $distance, pas: 50, bornes: 10...50_000, unite: "m")
             } else {
-                Compteur(titre: "kg", valeur: $charge, pas: 2.5, bornes: 0...500)
+                Compteur(titre: "Charge", valeur: $charge, pas: 0.5, bornes: 0...500, unite: "kg", saisie: true)
                 Compteur(titre: "répétitions", valeur: $reps, pas: 1, bornes: 1...100)
             }
             Button {

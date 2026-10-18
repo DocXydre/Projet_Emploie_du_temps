@@ -101,6 +101,12 @@ def _recollecter(code: str) -> dict:
         return {"erreur": refus.message}
     except httpx.HTTPError:
         return {"erreur": "Le lien ne répond pas pour l'instant : la collecte réessaiera seule"}
+    except Exception:
+        # Le lien est déjà enregistré : une lecture qui casse ne doit pas faire
+        # croire à l'appli que rien n'a été pris en compte (une erreur 500).
+        LOG.exception("Lecture de %s impossible après un réglage", code)
+        return {"erreur": "Le lien est gardé, mais ce calendrier n'a pas pu être lu. "
+                          "La collecte réessaiera seule."}
     placer()
     return {"lues": bilan["lues"], "crees": bilan["crees"], "mis_a_jour": bilan["mis_a_jour"],
             "annules": bilan["annules"], "conflits": len(bilan["conflits"])}

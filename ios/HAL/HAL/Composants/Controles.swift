@@ -10,7 +10,12 @@ struct Compteur: View {
     var unite: String = ""
     /// Des boutons plus petits, pour tenir à côté d'un libellé (3.9).
     var compact = false
+    /// Toucher le nombre le fait taper au clavier : une charge de 62,5 kg ne
+    /// se règle pas à coups de 0,5.
+    var saisie = false
     @Environment(\.theme) private var theme
+    @State private var tape = ""
+    @State private var enSaisie = false
 
     var body: some View {
         HStack(spacing: compact ? 6 : 12) {
@@ -26,6 +31,12 @@ struct Compteur: View {
                     .texte(.legende).foregroundStyle(Palette.texteSecondaire)
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard saisie else { return }
+                tape = nombre
+                enSaisie = true
+            }
             bouton("plus") { valeur = min(bornes.upperBound, valeur + pas) }
         }
         .padding(.horizontal, 12)
@@ -33,6 +44,14 @@ struct Compteur: View {
         .frame(maxWidth: .infinity)
         .carte(rayon: Rayon.controle)
         .animation(.snappy, value: valeur)
+        .alert(titre.prefix(1).uppercased() + titre.dropFirst(), isPresented: $enSaisie) {
+            TextField(nombre, text: $tape)
+                .keyboardType(pas.truncatingRemainder(dividingBy: 1) == 0 ? .numberPad : .decimalPad)
+            Button("OK") { poser(tape) }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text(unite.isEmpty ? "Au pas de \(texte(pas))." : "En \(unite), au pas de \(texte(pas)).")
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(titre)
         .accessibilityValue(enClair)
@@ -45,9 +64,19 @@ struct Compteur: View {
         }
     }
 
-    private var nombre: String {
-        valeur.formatted(.number.precision(.fractionLength(0...1))
+    private var nombre: String { texte(valeur) }
+
+    private func texte(_ x: Double) -> String {
+        x.formatted(.number.precision(.fractionLength(0...1))
             .grouping(.never).locale(Locale(identifier: "fr_FR")))
+    }
+
+    /// « 62,5 » ou « 62.5 », ramené au pas et dans les bornes.
+    private func poser(_ saisi: String) {
+        let propre = saisi.replacingOccurrences(of: ",", with: ".").filter { $0.isNumber || $0 == "." }
+        guard let lu = Double(propre) else { return }
+        let arrondi = (lu / pas).rounded() * pas
+        valeur = min(bornes.upperBound, max(bornes.lowerBound, arrondi))
     }
 
     private var enClair: String {
@@ -62,6 +91,8 @@ struct Compteur: View {
                 .frame(width: compact ? 40 : 52, height: compact ? 40 : 52)
         }
         .buttonStyle(.plain)
+        // Rester appuyé fait défiler : de 40 à 60 kg sans quarante appuis.
+        .buttonRepeatBehavior(.enabled)
         .verreControle(Circle())
         .sensoryFeedback(.selection, trigger: valeur)
     }

@@ -577,7 +577,7 @@ struct FeuilleMesure: View {
         case "reps":
             Compteur(titre: "Répétitions", valeur: $valeur, pas: 1, bornes: 1...500)
         case "kg":
-            Compteur(titre: "Poids", valeur: $valeur, pas: 0.1, bornes: 20...300, unite: "kg")
+            Compteur(titre: "Poids", valeur: $valeur, pas: 0.1, bornes: 20...300, unite: "kg", saisie: true)
         default:
             Compteur(titre: TypeMesure.libelle(type), valeur: $valeur, pas: 0.5, bornes: 10...200, unite: "cm")
         }

@@ -74,7 +74,7 @@ struct EcranComposants: View {
                 Mesure(titre: "Sommeil", icone: "bed.double", valeur: "6 h 40", tendance: "semaine d'examens")
                 Mesure(titre: "VFC", icone: "waveform", valeur: nil)
             }
-            Compteur(titre: "Charge", valeur: $charge, pas: 2.5, unite: "kg")
+            Compteur(titre: "Charge", valeur: $charge, pas: 0.5, unite: "kg", saisie: true)
             Segmente(choix: [(7, "7 jours"), (30, "30 jours"), (90, "90 jours")], selection: $periode)
 
             EnTeteGroupe(texte: "Graphiques")

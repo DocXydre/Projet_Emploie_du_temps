@@ -1131,6 +1131,28 @@ def derniere_fois(qui: Authentifie, code: str, avant: int | None = None) -> dict
             "series": series}
 
 
+@routeur.get("/exercices/{code}/records", tags=["Coach : suivi"],
+             summary="La charge la plus lourde, et la plus lourde sur dix répétitions")
+def records(qui: Authentifie, code: str) -> dict:
+    """SAI-20 : ce que l'appli montre pendant l'exercice, à côté du poids prévu.
+
+    Lu dans les séries saisies, rien n'est stocké en plus. Une série à zéro
+    kilo (au poids du corps) n'est pas un record de charge.
+    """
+    def meilleure(repetitions_min: int) -> dict | None:
+        return un_seul(
+            """SELECT ss.charge_kg::FLOAT8 AS charge_kg, ss.repetitions, ss.saisie_le AS quand
+                 FROM serie_saisie ss
+                 JOIN occurrence o ON o.id_occurrence = ss.id_occurrence
+                 JOIN exercice e ON e.id_exercice = ss.id_exercice
+                WHERE o.id_utilisateur = %(u)s AND e.code = %(c)s
+                  AND ss.charge_kg > 0 AND ss.repetitions >= %(r)s
+                ORDER BY ss.charge_kg DESC, ss.repetitions DESC, ss.saisie_le DESC
+                LIMIT 1""", {"u": qui.id_utilisateur, "c": code, "r": repetitions_min})
+
+    return {"code": code, "max": meilleure(1), "max_10": meilleure(10)}
+
+
 @routeur.get("/limitations", tags=["Coach : suivi"],
              summary="Mes limitations et les exercices qu'elles interdisent")
 def lire_limitations(qui: Authentifie) -> list[dict]:
