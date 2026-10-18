@@ -4,6 +4,18 @@ import UserNotifications
 
 /// Un exercice de la séance en cours : une ligne prévue par HAL, ou un exercice
 /// ajouté dans une séance libre.
+/// `GET /exercices/{code}/records` : la charge la plus lourde, et la plus
+/// lourde tenue sur au moins dix répétitions (SAI-20).
+struct RecordsExercice: Decodable, Sendable {
+    struct Serie: Decodable, Sendable {
+        let chargeKg: Double
+        let repetitions: Int
+        let quand: Date
+    }
+    let max: Serie?
+    let max10: Serie?
+}
+
 struct ExerciceDeSeance: Codable, Hashable, Identifiable {
     let code: String
     let libelle: String

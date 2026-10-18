@@ -536,6 +536,10 @@ def sport(t: int, lo: int) -> None:
     with operation.ouvrir("fausse base : semaine", acteur="hal") as op:
         for decalage, quoi in ((0, "course"), (2, "haut"), (3, "bas"), (4, "course_frac")):
             jour = lundi + timedelta(days=decalage)
+            if jour <= J + timedelta(days=2):
+                # Un samedi ou un dimanche, demain et après-demain sont déjà pris
+                # par la course et le test : la base refuse deux courses le même jour.
+                continue
             if quoi == "haut":
                 proposer(t, "musculation", "Haut du corps", jour, HAUT)
             elif quoi == "bas":

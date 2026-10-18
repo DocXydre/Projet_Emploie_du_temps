@@ -14,7 +14,8 @@
   "alternatives": [
    "developpe_couche_halteres",
    "presse_pectoraux",
-   "developpe_couche_smith"
+   "developpe_couche_smith",
+   "developpe_decline_barre"
   ]
  },
  {
@@ -48,7 +49,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "presse_pectoraux",
-   "developpe_couche_barre"
+   "developpe_couche_barre",
+   "presse_pectoraux_unilaterale"
   ]
  },
  {
@@ -100,7 +102,10 @@
   "alternatives": [
    "developpe_couche_halteres",
    "developpe_couche_smith",
-   "pompes"
+   "pompes",
+   "developpe_decline_barre",
+   "presse_pectoraux_unilaterale",
+   "pompes_surelevees"
   ]
  },
  {
@@ -131,7 +136,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "ecartes_poulies",
-   "ecartes_halteres"
+   "ecartes_halteres",
+   "ecartes_poulies_basses"
   ]
  },
  {
@@ -145,7 +151,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "pec_deck",
-   "ecartes_poulies"
+   "ecartes_poulies",
+   "ecartes_poulies_basses"
   ]
  },
  {
@@ -159,7 +166,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "pec_deck",
-   "ecartes_halteres"
+   "ecartes_halteres",
+   "ecartes_poulies_basses"
   ]
  },
  {
@@ -176,7 +184,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "presse_pectoraux",
-   "developpe_couche_halteres"
+   "developpe_couche_halteres",
+   "pompes_surelevees"
   ]
  },
  {
@@ -261,7 +270,9 @@
   "alternatives": [
    "tirage_vertical_neutre",
    "tractions_assistees",
-   "tractions_pronation"
+   "tractions_pronation",
+   "tirage_vertical_unilateral",
+   "pull_over_haltere"
   ]
  },
  {
@@ -279,7 +290,8 @@
   "alternatives": [
    "tirage_vertical_large",
    "tractions_neutre",
-   "tractions_assistees"
+   "tractions_assistees",
+   "tirage_vertical_unilateral"
   ]
  },
  {
@@ -309,7 +321,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "tirage_unilateral_poulie",
-   "tirage_vertical_large"
+   "tirage_vertical_large",
+   "pull_over_haltere"
   ]
  },
  {
@@ -325,7 +338,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "tirage_vertical_neutre",
-   "rowing_haltere_un_bras"
+   "rowing_haltere_un_bras",
+   "tirage_vertical_unilateral"
   ]
  },
  {
@@ -343,7 +357,9 @@
   "alternatives": [
    "rowing_t_appui",
    "rowing_assis_machine",
-   "rowing_haltere_un_bras"
+   "rowing_haltere_un_bras",
+   "tirage_horizontal_large",
+   "rowing_pendlay"
   ]
  },
  {
@@ -378,7 +394,10 @@
   "alternatives": [
    "rowing_assis_machine",
    "rowing_poulie_basse",
-   "rowing_t_appui"
+   "rowing_t_appui",
+   "tirage_horizontal_unilateral",
+   "rowing_machine_unilateral",
+   "rowing_halteres_banc_incline"
   ]
  },
  {
@@ -411,7 +430,10 @@
   "alternatives": [
    "rowing_poulie_basse",
    "rowing_t_appui",
-   "rowing_haltere_un_bras"
+   "rowing_haltere_un_bras",
+   "tirage_horizontal_large",
+   "rowing_machine_unilateral",
+   "rowing_halteres_banc_incline"
   ]
  },
  {
@@ -428,7 +450,9 @@
   "alternatives": [
    "rowing_assis_machine",
    "rowing_haltere_un_bras",
-   "rowing_t_appui"
+   "rowing_t_appui",
+   "tirage_horizontal_unilateral",
+   "tirage_horizontal_large"
   ]
  },
  {
@@ -444,7 +468,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "rowing_assis_machine",
-   "rowing_poulie_basse"
+   "rowing_poulie_basse",
+   "rowing_halteres_banc_incline",
+   "rowing_pendlay"
   ]
  },
  {
@@ -491,7 +517,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "developpe_epaules_halteres",
-   "presse_epaules"
+   "presse_epaules",
+   "developpe_militaire_smith"
   ]
  },
  {
@@ -507,7 +534,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "presse_epaules",
-   "developpe_militaire_barre"
+   "developpe_militaire_barre",
+   "developpe_militaire_smith"
   ]
  },
  {
@@ -539,7 +567,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "developpe_epaules_halteres",
-   "developpe_militaire_barre"
+   "developpe_militaire_barre",
+   "developpe_militaire_smith"
   ]
  },
  {
@@ -553,7 +582,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "elevations_laterales_poulie",
-   "elevations_laterales_machine"
+   "elevations_laterales_machine",
+   "elevation_laterale_unilaterale_poulie"
   ]
  },
  {
@@ -567,7 +597,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "elevations_laterales_halteres",
-   "elevations_laterales_machine"
+   "elevations_laterales_machine",
+   "elevation_laterale_unilaterale_poulie"
   ]
  },
  {
@@ -581,7 +612,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "elevations_laterales_halteres",
-   "elevations_laterales_poulie"
+   "elevations_laterales_poulie",
+   "elevation_laterale_unilaterale_poulie"
   ]
  },
  {
@@ -610,7 +642,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "pec_deck_inverse",
-   "tirage_visage"
+   "tirage_visage",
+   "oiseau_poulies",
+   "elevations_y_banc_incline"
   ]
  },
  {
@@ -626,7 +660,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "tirage_visage",
-   "oiseau_halteres"
+   "oiseau_halteres",
+   "oiseau_poulies"
   ]
  },
  {
@@ -642,7 +677,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "pec_deck_inverse",
-   "oiseau_halteres"
+   "oiseau_halteres",
+   "oiseau_poulies",
+   "elevations_y_banc_incline"
   ]
  },
  {
@@ -700,7 +737,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_pupitre_marteau",
-   "curl_corde_poulie"
+   "curl_corde_poulie",
+   "curl_concentre",
+   "curl_araignee"
   ]
  },
  {
@@ -714,7 +753,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_pupitre_marteau",
-   "curl_corde_poulie"
+   "curl_corde_poulie",
+   "curl_concentre"
   ]
  },
  {
@@ -746,7 +786,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_marteau",
-   "curl_corde_poulie"
+   "curl_corde_poulie",
+   "curl_poulie_unilateral",
+   "curl_concentre"
   ]
  },
  {
@@ -776,7 +818,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_marteau_incline",
-   "curl_marteau"
+   "curl_marteau",
+   "curl_bayesien"
   ]
  },
  {
@@ -824,7 +867,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_marteau",
-   "curl_inverse_poulie"
+   "curl_inverse_poulie",
+   "curl_poulie_unilateral"
   ]
  },
  {
@@ -840,7 +884,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_corde_poulie",
-   "curl_marteau"
+   "curl_marteau",
+   "curl_bayesien"
   ]
  },
  {
@@ -870,7 +915,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_corde_poulie",
-   "curl_marteau"
+   "curl_marteau",
+   "curl_poulie_unilateral",
+   "curl_araignee"
   ]
  },
  {
@@ -886,7 +933,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "curl_inverse_poulie",
-   "curl_marteau"
+   "curl_marteau",
+   "flexion_poignets_barre"
   ]
  },
  {
@@ -918,7 +966,8 @@
   "unilateral": false,
   "mesure": "duree",
   "alternatives": [
-   "suspension_barre"
+   "suspension_barre",
+   "flexion_poignets_barre"
   ]
  },
  {
@@ -947,7 +996,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "extension_triceps_barre",
-   "extension_triceps_machine"
+   "extension_triceps_machine",
+   "extension_triceps_unilaterale_poulie",
+   "dips_banc"
   ]
  },
  {
@@ -1017,7 +1068,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "extension_triceps_corde",
-   "extension_triceps_barre"
+   "extension_triceps_barre",
+   "extension_triceps_unilaterale_poulie"
   ]
  },
  {
@@ -1034,7 +1086,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "dips_machine",
-   "extension_triceps_corde"
+   "extension_triceps_corde",
+   "developpe_decline_barre"
   ]
  },
  {
@@ -1050,7 +1103,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "dips",
-   "extension_triceps_corde"
+   "extension_triceps_corde",
+   "dips_banc"
   ]
  },
  {
@@ -1067,7 +1121,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "dips_machine",
-   "extension_triceps_corde"
+   "extension_triceps_corde",
+   "pompes_serrees"
   ]
  },
  {
@@ -1080,7 +1135,8 @@
   "unilateral": true,
   "mesure": "charge_reps",
   "alternatives": [
-   "extension_triceps_corde"
+   "extension_triceps_corde",
+   "extension_triceps_unilaterale_poulie"
   ]
  },
  {
@@ -1150,7 +1206,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "hack_squat",
-   "presse_cuisses"
+   "presse_cuisses",
+   "squat_sumo_haltere"
   ]
  },
  {
@@ -1166,7 +1223,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "hack_squat",
-   "presse_cuisses"
+   "presse_cuisses",
+   "pendulum_squat"
   ]
  },
  {
@@ -1183,7 +1241,8 @@
   "alternatives": [
    "presse_cuisses",
    "squat_smith",
-   "squat_goblet"
+   "squat_goblet",
+   "pendulum_squat"
   ]
  },
  {
@@ -1201,7 +1260,9 @@
   "alternatives": [
    "hack_squat",
    "squat_smith",
-   "squat_goblet"
+   "squat_goblet",
+   "presse_cuisses_unilaterale",
+   "pendulum_squat"
   ]
  },
  {
@@ -1214,7 +1275,8 @@
   "unilateral": false,
   "mesure": "charge_reps",
   "alternatives": [
-   "squat_goblet"
+   "squat_goblet",
+   "leg_extension_unilateral"
   ]
  },
  {
@@ -1230,7 +1292,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "squat_bulgare",
-   "presse_cuisses"
+   "presse_cuisses",
+   "fentes_marchees",
+   "fentes_arriere"
   ]
  },
  {
@@ -1246,7 +1310,10 @@
   "mesure": "charge_reps",
   "alternatives": [
    "fentes_halteres",
-   "presse_cuisses"
+   "presse_cuisses",
+   "fentes_marchees",
+   "fentes_arriere",
+   "presse_cuisses_unilaterale"
   ]
  },
  {
@@ -1261,7 +1328,8 @@
   "unilateral": true,
   "mesure": "charge_reps",
   "alternatives": [
-   "fentes_halteres"
+   "fentes_halteres",
+   "fentes_marchees"
   ]
  },
  {
@@ -1280,7 +1348,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "souleve_barre_hexagonale",
-   "souleve_de_terre_roumain"
+   "souleve_de_terre_roumain",
+   "souleve_de_terre_sumo"
   ]
  },
  {
@@ -1317,7 +1386,8 @@
   "unilateral": false,
   "mesure": "charge_reps",
   "alternatives": [
-   "souleve_de_terre"
+   "souleve_de_terre",
+   "souleve_de_terre_sumo"
   ]
  },
  {
@@ -1335,7 +1405,8 @@
   "alternatives": [
    "souleve_roumain_halteres",
    "leg_curl_assis",
-   "banc_lombaires_45"
+   "banc_lombaires_45",
+   "good_morning"
   ]
  },
  {
@@ -1352,7 +1423,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "souleve_de_terre_roumain",
-   "leg_curl_assis"
+   "leg_curl_assis",
+   "souleve_roumain_une_jambe"
   ]
  },
  {
@@ -1366,7 +1438,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "leg_curl_allonge",
-   "souleve_roumain_halteres"
+   "souleve_roumain_halteres",
+   "leg_curl_debout_unilateral",
+   "souleve_roumain_une_jambe"
   ]
  },
  {
@@ -1380,7 +1454,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "leg_curl_assis",
-   "souleve_roumain_halteres"
+   "souleve_roumain_halteres",
+   "leg_curl_debout_unilateral"
   ]
  },
  {
@@ -1411,7 +1486,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "extension_lombaire_machine",
-   "souleve_roumain_halteres"
+   "souleve_roumain_halteres",
+   "good_morning"
   ]
  },
  {
@@ -1440,7 +1516,9 @@
   "mesure": "charge_reps",
   "alternatives": [
    "hip_thrust_machine",
-   "pont_fessier"
+   "pont_fessier",
+   "souleve_de_terre_sumo",
+   "hip_thrust_une_jambe"
   ]
  },
  {
@@ -1471,7 +1549,8 @@
   "unilateral": false,
   "mesure": "charge_reps",
   "alternatives": [
-   "hip_thrust_machine"
+   "hip_thrust_machine",
+   "hip_thrust_une_jambe"
   ]
  },
  {
@@ -1526,7 +1605,8 @@
   "unilateral": false,
   "mesure": "charge_reps",
   "alternatives": [
-   "fente_laterale"
+   "fente_laterale",
+   "squat_sumo_haltere"
   ]
  },
  {
@@ -1556,7 +1636,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "mollets_presse",
-   "mollets_assis"
+   "mollets_assis",
+   "mollets_unilateral_haltere"
   ]
  },
  {
@@ -1570,7 +1651,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "mollets_debout",
-   "mollets_assis"
+   "mollets_assis",
+   "mollets_unilateral_haltere"
   ]
  },
  {
@@ -1640,7 +1722,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "releve_jambes_suspendu",
-   "crunch_machine"
+   "crunch_machine",
+   "crunch_inverse"
   ]
  },
  {
@@ -1656,7 +1739,8 @@
   "mesure": "charge_reps",
   "alternatives": [
    "releve_jambes_chaise",
-   "crunch_machine"
+   "crunch_machine",
+   "crunch_inverse"
   ]
  },
  {
@@ -1722,7 +1806,9 @@
   "unilateral": true,
   "mesure": "charge_reps",
   "alternatives": [
-   "planche_laterale"
+   "planche_laterale",
+   "rotations_russes",
+   "bucheron_poulie"
   ]
  },
  {
@@ -2091,5 +2177,621 @@
   "unilateral": false,
   "mesure": "duree",
   "alternatives": []
+ },
+ {
+  "code": "tirage_horizontal_unilateral",
+  "libelle": "Tirage horizontal unilatéral à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_haltere_un_bras",
+   "rowing_machine_unilateral",
+   "rowing_poulie_basse"
+  ]
+ },
+ {
+  "code": "tirage_horizontal_large",
+  "libelle": "Tirage horizontal à la poulie, prise large",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "epaules",
+   "biceps"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_poulie_basse",
+   "rowing_assis_machine",
+   "rowing_barre"
+  ]
+ },
+ {
+  "code": "rowing_machine_unilateral",
+  "libelle": "Rowing machine unilatéral",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_haltere_un_bras",
+   "tirage_horizontal_unilateral",
+   "rowing_assis_machine"
+  ]
+ },
+ {
+  "code": "rowing_halteres_banc_incline",
+  "libelle": "Rowing haltères sur banc incliné",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "epaules"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_t_appui",
+   "rowing_assis_machine",
+   "rowing_haltere_un_bras",
+   "rowing_pendlay"
+  ]
+ },
+ {
+  "code": "rowing_pendlay",
+  "libelle": "Rowing Pendlay",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "rowing_barre",
+   "rowing_t_appui",
+   "rowing_halteres_banc_incline"
+  ]
+ },
+ {
+  "code": "tirage_vertical_unilateral",
+  "libelle": "Tirage vertical unilatéral machine",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "biceps"
+  ],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_unilateral_poulie",
+   "tirage_vertical_neutre",
+   "tirage_vertical_large"
+  ]
+ },
+ {
+  "code": "pull_over_haltere",
+  "libelle": "Pull-over haltère",
+  "discipline": "musculation",
+  "groupe_principal": "dos",
+  "groupes_secondaires": [
+   "pectoraux",
+   "triceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "tirage_bras_tendus",
+   "tirage_vertical_large"
+  ]
+ },
+ {
+  "code": "developpe_decline_barre",
+  "libelle": "Développé décliné barre",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "dips",
+   "developpe_couche_barre",
+   "presse_pectoraux"
+  ]
+ },
+ {
+  "code": "ecartes_poulies_basses",
+  "libelle": "Écartés aux poulies basses, vers le haut",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "epaules"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "ecartes_poulies",
+   "pec_deck",
+   "ecartes_halteres"
+  ]
+ },
+ {
+  "code": "presse_pectoraux_unilaterale",
+  "libelle": "Presse à pectoraux unilatérale",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_pectoraux",
+   "developpe_couche_halteres"
+  ]
+ },
+ {
+  "code": "pompes_surelevees",
+  "libelle": "Pompes mains surélevées sur un banc",
+  "discipline": "musculation",
+  "groupe_principal": "pectoraux",
+  "groupes_secondaires": [
+   "triceps",
+   "epaules"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pompes",
+   "presse_pectoraux"
+  ]
+ },
+ {
+  "code": "elevation_laterale_unilaterale_poulie",
+  "libelle": "Élévation latérale un bras à la poulie basse",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "elevations_laterales_poulie",
+   "elevations_laterales_halteres",
+   "elevations_laterales_machine"
+  ]
+ },
+ {
+  "code": "developpe_militaire_smith",
+  "libelle": "Développé militaire au cadre guidé",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "triceps"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_epaules",
+   "developpe_epaules_halteres",
+   "developpe_militaire_barre"
+  ]
+ },
+ {
+  "code": "oiseau_poulies",
+  "libelle": "Oiseau aux poulies croisées",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "poulie",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pec_deck_inverse",
+   "oiseau_halteres",
+   "tirage_visage"
+  ]
+ },
+ {
+  "code": "elevations_y_banc_incline",
+  "libelle": "Élévations en Y sur banc incliné",
+  "discipline": "musculation",
+  "groupe_principal": "epaules",
+  "groupes_secondaires": [
+   "dos"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "oiseau_halteres",
+   "tirage_visage"
+  ]
+ },
+ {
+  "code": "curl_poulie_unilateral",
+  "libelle": "Curl un bras à la poulie basse",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_halteres",
+   "curl_corde_poulie",
+   "curl_machine",
+   "curl_bayesien"
+  ]
+ },
+ {
+  "code": "curl_concentre",
+  "libelle": "Curl concentré haltère",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_pupitre_barre",
+   "curl_pupitre_machine",
+   "curl_halteres",
+   "curl_araignee"
+  ]
+ },
+ {
+  "code": "curl_araignee",
+  "libelle": "Curl araignée sur banc incliné",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_pupitre_barre",
+   "curl_concentre",
+   "curl_machine"
+  ]
+ },
+ {
+  "code": "curl_bayesien",
+  "libelle": "Curl bayésien, dos à la poulie, un bras",
+  "discipline": "musculation",
+  "groupe_principal": "biceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_corde_dos_poulie",
+   "curl_incline",
+   "curl_poulie_unilateral"
+  ]
+ },
+ {
+  "code": "extension_triceps_unilaterale_poulie",
+  "libelle": "Extension triceps un bras à la poulie haute",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "extension_triceps_corde",
+   "kickback_triceps",
+   "extension_triceps_machine"
+  ]
+ },
+ {
+  "code": "dips_banc",
+  "libelle": "Dips entre deux bancs",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [
+   "pectoraux",
+   "epaules"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "dips_machine",
+   "extension_triceps_corde",
+   "pompes_serrees"
+  ]
+ },
+ {
+  "code": "pompes_serrees",
+  "libelle": "Pompes prise serrée",
+  "discipline": "musculation",
+  "groupe_principal": "triceps",
+  "groupes_secondaires": [
+   "pectoraux"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "developpe_couche_serre",
+   "dips_banc"
+  ]
+ },
+ {
+  "code": "fentes_marchees",
+  "libelle": "Fentes marchées haltères",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers",
+   "ischios"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "fentes_halteres",
+   "squat_bulgare",
+   "montee_sur_banc"
+  ]
+ },
+ {
+  "code": "fentes_arriere",
+  "libelle": "Fentes arrière haltères",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "fentes_halteres",
+   "squat_bulgare"
+  ]
+ },
+ {
+  "code": "presse_cuisses_unilaterale",
+  "libelle": "Presse à cuisses unilatérale",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "presse_cuisses",
+   "squat_bulgare"
+  ]
+ },
+ {
+  "code": "leg_extension_unilateral",
+  "libelle": "Leg extension unilatéral",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "leg_extension"
+  ]
+ },
+ {
+  "code": "pendulum_squat",
+  "libelle": "Pendulum squat",
+  "discipline": "musculation",
+  "groupe_principal": "quadriceps",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "machine",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hack_squat",
+   "presse_cuisses",
+   "squat_smith"
+  ]
+ },
+ {
+  "code": "leg_curl_debout_unilateral",
+  "libelle": "Leg curl debout unilatéral",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [],
+  "materiel": "machine",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "leg_curl_assis",
+   "leg_curl_allonge"
+  ]
+ },
+ {
+  "code": "souleve_de_terre_sumo",
+  "libelle": "Soulevé de terre sumo",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "adducteurs",
+   "ischios",
+   "lombaires"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_barre_hexagonale",
+   "souleve_de_terre",
+   "hip_thrust_barre"
+  ]
+ },
+ {
+  "code": "souleve_roumain_une_jambe",
+  "libelle": "Soulevé de terre roumain sur une jambe, haltère",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [
+   "fessiers"
+  ],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_roumain_halteres",
+   "leg_curl_assis"
+  ]
+ },
+ {
+  "code": "good_morning",
+  "libelle": "Good morning barre",
+  "discipline": "musculation",
+  "groupe_principal": "ischios",
+  "groupes_secondaires": [
+   "lombaires",
+   "fessiers"
+  ],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "souleve_de_terre_roumain",
+   "banc_lombaires_45"
+  ]
+ },
+ {
+  "code": "hip_thrust_une_jambe",
+  "libelle": "Hip thrust sur une jambe",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "ischios"
+  ],
+  "materiel": "poids_du_corps",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "hip_thrust_barre",
+   "pont_fessier"
+  ]
+ },
+ {
+  "code": "squat_sumo_haltere",
+  "libelle": "Squat sumo haltère",
+  "discipline": "musculation",
+  "groupe_principal": "fessiers",
+  "groupes_secondaires": [
+   "adducteurs",
+   "quadriceps"
+  ],
+  "materiel": "halteres",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "squat_goblet",
+   "adducteurs_machine"
+  ]
+ },
+ {
+  "code": "mollets_unilateral_haltere",
+  "libelle": "Mollets debout sur une jambe, haltère",
+  "discipline": "musculation",
+  "groupe_principal": "mollets",
+  "groupes_secondaires": [],
+  "materiel": "halteres",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "mollets_debout",
+   "mollets_presse"
+  ]
+ },
+ {
+  "code": "crunch_inverse",
+  "libelle": "Crunch inversé",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "releve_jambes_chaise",
+   "releve_jambes_suspendu"
+  ]
+ },
+ {
+  "code": "rotations_russes",
+  "libelle": "Rotations russes",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poids_du_corps",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "bucheron_poulie",
+   "pallof"
+  ]
+ },
+ {
+  "code": "bucheron_poulie",
+  "libelle": "Bûcheron à la poulie",
+  "discipline": "musculation",
+  "groupe_principal": "abdominaux",
+  "groupes_secondaires": [],
+  "materiel": "poulie",
+  "unilateral": true,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "pallof",
+   "rotations_russes"
+  ]
+ },
+ {
+  "code": "flexion_poignets_barre",
+  "libelle": "Flexion des poignets à la barre",
+  "discipline": "musculation",
+  "groupe_principal": "avant_bras",
+  "groupes_secondaires": [],
+  "materiel": "barre",
+  "unilateral": false,
+  "mesure": "charge_reps",
+  "alternatives": [
+   "curl_inverse_barre",
+   "marche_du_fermier"
+  ]
  }
 ]
