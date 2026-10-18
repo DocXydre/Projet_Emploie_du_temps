@@ -1,13 +1,10 @@
 # Planificateur personnel
 
-API qui croise les emplois du temps de deux personnes (cours, travail, calendriers personnels), en déduit les moments libres, et y place seule les tâches récurrentes : ménage, lessives, séances de sport. Un coach sportif, construit sur un modèle de langage, en écrit le contenu.
+Un serveur et une application iPhone, HAL, pour un foyer de deux personnes. Le serveur croise les emplois du temps de chacun (cours, calendriers personnels, saisies à la main), en déduit les moments libres, et y place seul les tâches de la maison en les répartissant entre les deux. HAL, un coach sportif construit sur un modèle de langage, écrit le contenu des séances de sport.
 
 Projet personnel, M1 MIAGE (Université de Lorraine).
 
-Spécification complète, en deux cahiers des charges :
-
-- [`cahier-des-charges.md`](cahier-des-charges.md) : le planning, la collecte, les tâches, les trajets, le bot, la connexion ;
-- [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md) : le coach sportif et l'application iPhone.
+La spécification complète est dans [`cahier-des-charges-hal.md`](cahier-des-charges-hal.md) : le planning du foyer (partie A), HAL (partie B), l'application (partie C), le foyer et l'administration (partie D), le plan de réalisation (partie E). Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), gardés pour l'historique.
 
 ---
 
@@ -15,18 +12,9 @@ Spécification complète, en deux cahiers des charges :
 
 Nous sommes deux dans l'appartement. Mes cours changent chaque semaine, j'ai longtemps travaillé en horaires variables chez McDonald's, et je pars régulièrement en train chez ma famille. Le ménage, les lessives et le sport passaient à la trappe. Pas par mauvaise volonté : les caser demande de croiser de tête plusieurs plannings qui bougent tout le temps.
 
-Le système fait ce croisement à notre place et rend deux choses : **un calendrier** à afficher sur le téléphone, et **un bot Telegram** pour cocher ce qui est fait. Pour le sport, **un coach** propose le contenu des séances, et **une application iPhone** lui envoie les données de la montre et les séries de musculation.
+Le système fait ce croisement à notre place. Tout passe par **l'application HAL**, dans le style Liquid Glass d'iOS 26 : quatre onglets, Aujourd'hui, Sport, Maison et Réglages, et l'orbe de HAL au milieu. On y voit sa journée, on coche ce qui est fait, on déclare une absence ou un départ en train. Pour le sport, **HAL** propose les séances, et l'appli lui envoie les données de l'Apple Watch et les séries de musculation. Le planning s'affiche aussi dans **un calendrier** que n'importe quelle application de calendrier peut lire.
 
-```
-Aujourd'hui :
-  08h00-11h00  Cours : Algo IA, Amphi 201
-  17h45-19h15  Sport : Salle de musculation
-  21h45-23h30  Lancer le lave-vaisselle
-
-  ○ Passer l'aspirateur (avant de récurer)
-  ○ Récurer
-  ○ Litière : ramassage
-```
+Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. Le bot Telegram du début ne sert plus qu'à l'administrateur du serveur.
 
 ---
 
@@ -36,22 +24,23 @@ Aujourd'hui :
 |---|---|
 | **Collecte** | Flux iCalendar de l'université et calendriers personnels publiés depuis l'app Calendrier ; un planning de travail se collecte de la même façon. Réconciliation par clé externe, arbitrage des conflits horaires |
 | **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
-| **Répartition** | Les tâches alternent entre nous deux, et la balance reprend la main quand l'écart se creuse. N'importe qui coche n'importe quoi, l'autre est prévenu |
+| **Répartition** | Les tâches alternent entre nous deux, et la balance reprend la main quand l'écart se creuse. N'importe qui coche n'importe quoi, l'autre est prévenu. Une tâche cochée attend trente secondes avant de partir : un geste raté se défait |
 | **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
 | **Tâches ajoutées** | Une tâche pour aujourd'hui, entre deux dates, à une heure ou dans une plage, oubliée ou reportée si elle n'est pas faite ; régulière ; ou née d'une autre, comme vider le lave-vaisselle. Des types que le foyer nomme et colore, et des liens posés depuis l'application |
 | **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
 | **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
 | **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
-| **Sport** | Sans coach, un minimum de séances par semaine, réglable par personne : salle, course ou piscine, dans les heures d'ouverture du lieu, trajet et battement compris. Trois semaines s'organisent d'avance, et une séance peut se proposer à l'autre |
-| **Coach** | Activé par compte. Un modèle de langage construit un plan de quatre semaines à partir d'objectifs, propose chaque séance avec ses exercices, suit ce qui est fait et ajuste : une synthèse chaque soir, une révision le dimanche, une réponse immédiate à un bilan ou à une douleur signalée. Il n'écrit jamais dans une table : il dispose d'une liste fermée d'outils, chacun une fonction SQL, et la base refuse ce qui ne tient pas. Une semaine se valide d'un bouton ; ensuite, il ne la change plus sans accord |
-| **Mémoire du coach** | Quatre étages, de la semaine en cours à tout ce qui précède les trois derniers mois, résumés seuls chaque nuit. Visible et corrigeable avec `/memoire` |
-| **Application iPhone** | Lit l'application Santé (sommeil, fréquence cardiaque, séances de la montre) et l'envoie. Sert aussi à saisir une séance de musculation série par série, avec la dernière fois de chaque exercice sous les yeux. Connexion par pseudo et mot de passe |
+| **Sport** | Les séances se posent dans les heures d'ouverture du lieu, salle, course ou piscine, trajet et battement compris, et une séance peut se proposer à l'autre. HAL en décide le nombre et le contenu, sur quatre semaines |
+| **HAL** | Personnel : chaque membre a le sien. Un modèle de langage construit un plan de quatre semaines à partir d'objectifs, propose chaque séance avec ses exercices, suit ce qui est fait et ajuste : un récap chaque soir, une révision le dimanche, une réponse immédiate à un bilan ou à une douleur signalée. Il n'écrit jamais dans une table : il dispose d'une liste fermée d'outils, chacun une fonction SQL, et la base refuse ce qui ne tient pas. Une semaine se valide d'un bouton ; ensuite, il ne la change plus sans accord. Il se met en pause pour des examens ou des vacances |
+| **Mémoire de HAL** | Quatre étages, de la semaine en cours à tout ce qui précède les trois derniers mois, résumés seuls chaque nuit. Visible et corrigeable dans Réglages, avec ses anciennes versions |
+| **Application HAL** | L'interface de tout le système : planning, maison, sport, santé et HAL. Un accueil fait de widgets qu'on choisit et range. Santé est lue et envoyée toute seule. Une séance de musculation se saisit série par série, sans réseau s'il le faut, avec le poids conseillé par HAL, le record et le record sur dix répétitions sous les yeux, la charge au demi-kilo. Une course part sur l'Apple Watch. Widgets iOS et Live Activity du repos |
+| **Foyer** | Un administrateur invite par un lien, règle qui peut ajouter et modifier les tâches, passe son rôle. Connexion par pseudo et mot de passe |
 | **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
-| **Journal** | Ce qui change, qui l'a déclenché et dans quelle action : `/pourquoi` répond en phrases |
-| **Sorties** | Flux iCalendar en lecture seule, bot Telegram avec menu à boutons, silencieux de 23h30 à 7h30 |
+| **Journal** | Ce qui change, qui l'a déclenché et dans quelle action. Chaque notification porte sa raison, en une phrase, et l'écran Historique remonte le fil |
+| **Sorties** | Notifications par Apple, aux heures que chacun règle, silencieuses la nuit ; flux iCalendar en lecture seule ; bot Telegram pour l'administrateur du serveur |
 
-Le stock d'uniforme, retiré avec la fin du contrat McDonald's, est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service.
+Ce qui a été retiré est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
 
 ---
 
@@ -73,7 +62,7 @@ L'API est une couche mince : elle appelle des fonctions et expose des vues. Elle
 | Un exercice interdit par une limitation n'entre dans aucune séance | Fonction `obstacle_sportif` et trigger à la saisie |
 | Une différence de charge entre les deux bras est impossible à écrire | Le schéma : une seule colonne de charge |
 | Deux séances dures d'un même groupe ne se collent pas | Fonction `obstacle_sportif` |
-| Le coach ne modifie pas seul une séance validée | Fonction `modifier_seance_proposee` |
+| HAL ne modifie pas seul une séance validée | Fonction `modifier_seance_proposee` |
 
 L'intérêt est concret : si un script, une saisie manuelle ou l'application iPhone contourne l'API, la base refuse quand même ce qui est incohérent. Et il n'existe qu'une seule définition de « en retard », donc aucun client ne peut en inventer une autre.
 
@@ -82,7 +71,7 @@ L'intérêt est concret : si un script, une saisie manuelle ou l'application iPh
 - `TSTZRANGE` et l'arithmétique de multirange : les disponibilités se calculent en une soustraction d'ensembles, sans boucle ;
 - `EXCLUDE USING gist` : le non-chevauchement est une contrainte, pas une vérification applicative ;
 - des fonctions PL/pgSQL pour le placement, appelées à l'identique par l'API et par l'ordonnanceur ;
-- les outils du coach : le modèle demande « propose cette séance jeudi », et c'est une fonction SQL qui vérifie le créneau, les limitations et le repos, puis accepte ou rend son motif.
+- les outils de HAL : le modèle demande « propose cette séance jeudi », et c'est une fonction SQL qui vérifie le créneau, les limitations et le repos, puis accepte ou rend son motif.
 
 ```sql
 -- Les moments libres : l'horizon, moins tout ce qui l'occupe.
@@ -105,18 +94,18 @@ Calendriers perso ─┼──▶ Collecteurs ──▶ ┌───────
    Boîte mail (IMAP) ──▶ Billets ──▶    └──────┬───────┘     fonctions
                                                │
                                     ┌──────────┴──────────┐      outils     ┌──────────────┐
-   Application iPhone ────────────▶ │   FastAPI (mince)   │ ◀─────────────▶ │  API Claude  │
-   (Santé, séries)                  │   module coach      │                 │  (Anthropic) │
-                                    └──────────┬──────────┘                 └──────────────┘
-                                               │
-                              ┌────────────────┴────────────────┐
-                         Flux iCalendar                  Bot Telegram
-                        (lecture seule)              (boutons, validation, coach)
+   Application HAL ◀──────────────▶ │   FastAPI (mince)   │ ◀─────────────▶ │  API Claude  │
+   (tout le quotidien, Santé,       │   module HAL        │                 │  (Anthropic) │
+    séries, Apple Watch)            └──────────┬──────────┘                 └──────────────┘
+          ▲                                    │
+          │ notifications       ┌──────────────┼─────────────────┐
+     Apple (APNs) ◀─────────────┘       Flux iCalendar      Bot Telegram
+                                       (lecture seule)   (administration)
 ```
 
-**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`. Docker Compose pour l'ensemble. L'application iPhone est en SwiftUI, avec HealthKit, et son projet Xcode se génère par XcodeGen.
+**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`. Docker Compose pour l'ensemble. L'application est en SwiftUI pour iOS 26, avec HealthKit, WidgetKit, ActivityKit et WorkoutKit, et son projet Xcode se génère par XcodeGen.
 
-**Le coach** est du Python dans le processus de l'API (`api/coach/`). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
+**HAL** est du Python dans le processus de l'API (`api/coach/` : les noms techniques ont gardé « coach »). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
 
 Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idée de mettre la logique dans la base.
 
@@ -124,7 +113,7 @@ Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idé
 
 ## Quelques problèmes rencontrés
 
-Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré. Il y en a d'autres : ils sont tous dans les cahiers des charges, section 11 de [l'un](cahier-des-charges.md) et de [l'autre](cahier-des-charges-coach.md).
+Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré. Il y en a d'autres : ils sont tous dans [le cahier des charges](cahier-des-charges-hal.md), sections A.11 et B.11.5.
 
 **Le flux de l'université publie chaque cours deux fois**, avec le même identifiant : une version vide et une version portant la salle et l'enseignant. Réconcilier naïvement par identifiant faisait gagner la dernière lue, donc parfois la version vide, et la salle disparaissait du calendrier. La fusion garde la version la plus informative.
 
@@ -136,13 +125,15 @@ Les points qui m'ont demandé le plus de réflexion, et ce que j'en ai tiré. Il
 
 **Une fonction existait en trois versions.** Modifier une fonction voulait dire recopier son corps entier dans une migration nouvelle : `placer_taches` vivait dans trois fichiers, et la version en vigueur était celle du dernier. Corriger un commentaire dans une vieille migration suffisait à réinstaller un placement vieux de quarante migrations, qui appelait une fonction supprimée. Les fonctions, les vues et les déclencheurs ont maintenant un fichier chacun dans `sql/definitions/`, rechargé en entier à chaque passage. Avant de basculer, j'ai vérifié que charger ce dossier sur une base construite par les 47 migrations la laissait identique, objet par objet.
 
-**Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « Thomas a déclaré une absence » et « l'aspirateur passe à Lorette » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
+**Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Un geste dans l'appli, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « Thomas a déclaré une absence » et « l'aspirateur passe à Lorette » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. Chaque notification en tire sa raison, en une phrase.
 
-**Le coach coûtait surtout avant de réfléchir.** Chaque appel commençait par plusieurs passages de lecture (la semaine, la santé, la forme), et chaque passage relisait toute la consigne. Ce que chaque moment lit à coup sûr lui est maintenant donné dans son premier message, plusieurs séances se posent en un seul appel d'outil, et le dossier part en paquets, en résumé ou en entier selon le sujet.
+**HAL coûtait surtout avant de réfléchir.** Chaque appel commençait par plusieurs passages de lecture (la semaine, la santé, la forme), et chaque passage relisait toute la consigne. Ce que chaque moment lit à coup sûr lui est maintenant donné dans son premier message, plusieurs séances se posent en un seul appel d'outil, et le dossier part en paquets, en résumé ou en entier selon le sujet.
 
-**Le coach répondait à 7h30 à des questions déjà réglées.** Le silence de la nuit retenait ses réponses jusqu'au matin. Elles partaient alors toutes ensemble, après d'autres qui les avaient rendues fausses : on aurait dit qu'il avait refait le plan. Pendant une conversation en cours, il répond maintenant tout de suite, même la nuit.
+**HAL répondait à 7h30 à des questions déjà réglées.** Le silence de la nuit retenait ses réponses jusqu'au matin. Elles partaient alors toutes ensemble, après d'autres qui les avaient rendues fausses : on aurait dit qu'il avait refait le plan. Pendant une conversation en cours, il répond maintenant tout de suite, même la nuit.
 
 **Les tâches de nuit tournaient deux heures trop tard.** Le conteneur vit en UTC, et l'ordonnanceur était bien configuré en `Europe/Paris`, mais un `CronTrigger` construit à la main fige son fuseau à la construction, et celui du scheduler ne s'applique qu'aux déclencheurs qu'il crée lui-même. Le « report de minuit » se déclenchait donc à 2 h, une fois la date déjà changée. Le fuseau est maintenant passé explicitement à chaque déclencheur.
+
+**Une dizaine de tests échouaient sans rien de cassé.** La configuration lit `.env` dans le dossier où l'on se trouve : lancés depuis le dépôt, les tests y trouvaient l'hôte public, la boîte de courriels et le jeton SNCF, alors qu'ils vérifient justement ce qui se passe sans eux. Ces faux échecs cachaient un vrai bug, une route qui plantait. `outils/tests.sh` les lance maintenant hors du dépôt, avec un environnement vide, sur une base à part.
 
 ---
 
@@ -167,7 +158,7 @@ docker compose restart api
 
 Tout le reste se fait dans l'application iPhone HAL : l'administrateur s'y connecte, puis invite les autres membres du foyer depuis Réglages ; une invitation donne un code, et chacun choisit son mot de passe en l'acceptant. Le bot Telegram ne sert plus qu'à l'administrateur du serveur : il s'y relie avec `/demarrer` suivi de sa clé d'API, et reçoit les alertes du serveur.
 
-HAL, le coach, demande une clé d'API Anthropic dans `.env` ; le nom du modèle est un réglage. Chacun le démarre dans l'appli : profil, limitations, lieux, objectif. L'installation de l'application est dans [`ios/HAL/LISEZMOI.md`](ios/HAL/LISEZMOI.md).
+HAL demande une clé d'API Anthropic dans `.env` ; le nom du modèle est un réglage. Chacun le démarre dans l'appli : profil, limitations, lieux, objectif. L'installation de l'application est dans [`ios/HAL/LISEZMOI.md`](ios/HAL/LISEZMOI.md).
 
 | | |
 |---|---|
@@ -195,7 +186,13 @@ git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
 
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
-Tout se fait sur `main`, et chaque push part en production. On teste donc en local avant : `outils/local.sh` lance une pile Docker sur une copie de la base, rejoue les scénarios du coach avec le vrai modèle et ouvre l'API au Wi-Fi pour l'application.
+Tout se fait sur `main`, et chaque push part en production. On vérifie donc en local avant :
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `./outils/tests.sh` | Les tests du serveur, sur une base `planif_test` à part : ils vident la base qu'on leur donne |
+| `./outils/fausse_base.sh` | Une base `planif_maquette` toute inventée, aux dates d'aujourd'hui, et l'API dessus : l'application tourne dans le simulateur d'iOS sans aucune donnée réelle, sans notification et sans appel payant à HAL |
+| `./outils/local.sh` | Une pile Docker sur une copie de la base, les scénarios de HAL avec le vrai modèle, l'API ouverte au Wi-Fi pour l'iPhone |
 
 ---
 
@@ -207,13 +204,13 @@ sql/definitions/            fonctions, vues et déclencheurs, un fichier par fon
 sql/apres/                  rattrapages de données qui appellent une fonction à jour
 sql/scenario_test.sql       une semaine type jouée à la main, pour voir les règles à l'œuvre
 api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion
-api/coach/                  le coach : consigne, outils, mémoire, boucle d'appel au modèle
-coach/                      son dossier (un fichier par chapitre), ses paquets, son catalogue,
-                            sa consigne, ses scénarios
+api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle
+coach/                      le dossier de HAL (un fichier par chapitre), ses paquets, le
+                            catalogue d'exercices, sa consigne, ses scénarios
 ios/HAL/                    l'application iPhone HAL : planning, maison, sport, santé, HAL,
                             ses widgets et sa Live Activity
-outils/                     déploiement, pile locale, démarrage d'un compte du coach,
-                            scénarios, diagnostics d'un flux et de la boîte mail
+outils/                     déploiement, tests, fausse base, pile locale, démarrage d'un
+                            compte de HAL, scénarios, diagnostics d'un flux et de la boîte mail
 anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre
 ```
 
@@ -227,15 +224,17 @@ Les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations 
 
 - **Il n'achète pas les billets de train.** Il propose des horaires et gèle le ménage en conséquence ; l'achat reste manuel.
 - **Il ne devine pas les fermetures de la piscine.** Les créneaux hebdomadaires sont relevés automatiquement sur le site du SUAPS, mais les vacances universitaires et les jours fériés se déclarent à la main dans une table dédiée.
-- **Il est prévu pour deux utilisateurs.** L'authentification par clé d'API en en-tête, obtenue une fois par mot de passe, suffit à cette échelle et ne conviendrait pas au-delà.
+- **Il est prévu pour un foyer de deux personnes.** Le modèle accueille d'autres foyers, mais les règles du ménage sont écrites pour deux. L'authentification par clé d'API en en-tête, obtenue une fois par mot de passe, suffit à cette échelle.
 - **L'administration n'est pas publique.** Les routes de l'application passent par `tailscale funnel`, derrière la clé ; celles de l'administrateur du serveur ne répondent que sur le réseau privé. C'est voulu pour des données personnelles.
-- **Le coach ne fait pas de médecine.** Ni questionnaire de santé, ni diagnostic. Il ne parle de médecin que pour une douleur dans la poitrine ou un malaise, et en une phrase pour un complément qui le demande.
-- **Il n'a pas de plafond de dépense.** Chaque appel au modèle garde ses tokens, et `/coach` dit ce qu'a coûté la semaine.
+- **HAL ne fait pas de médecine.** Ni questionnaire de santé, ni diagnostic. Il ne parle de médecin que pour une douleur dans la poitrine ou un malaise, et en une phrase pour un complément qui le demande.
+- **HAL n'a pas de plafond de dépense.** Chaque appel au modèle garde ses tokens, et `/hal`, dans le bot d'administration, dit ce qu'a coûté la semaine.
 
 ---
 
 ## Suite
 
-- Garder les séries saisies sans réseau dans l'application, et les envoyer quand il revient.
-- Afficher dans l'application la semaine du coach, ses ajustements et leurs boutons, qui ne passent aujourd'hui que par le bot.
-- Retirer pour de bon les réservations de sport « à déterminer », que le coach a remplacées (cahier du coach, section 10.3).
+Les onze lots du plan de réalisation sont faits, et l'application a été reprise écran par écran sur la maquette. Restent :
+
+- côté API, trois manques de l'appli : « Voir plus tard » sur un conflit de cours, qui doit revenir une semaine avant (COL-23) ; une tâche faite en plus qui n'existe pas encore (EXE-17) ; « Je m'en charge » sur une tâche en retard ;
+- vérifier sur un vrai iPhone ce que le simulateur ne montre pas : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre ;
+- deux semaines d'usage réel à deux, sans le bot (lot 10).

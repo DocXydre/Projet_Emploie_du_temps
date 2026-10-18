@@ -2,11 +2,11 @@
 
 L'application du projet : le planning du foyer, la maison, le sport, la santé et HAL. Elle est décrite en partie C de [`cahier-des-charges-hal.md`](../../cahier-des-charges-hal.md), et dessinée dans la maquette Figma (fichier « Appli », page « V2 · Liquid Glass »).
 
-Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur, les **lots 6a et 6b** le sport et la séance. Sans compte, l'appli tourne sur des données fictives.
+Le **lot 4** a posé le socle. Le **lot 5** branche Aujourd'hui et Maison sur le serveur, les **lots 6 à 9** le sport, HAL, les réglages et iOS. Tous les lots sont faits ; l'appli a ensuite été reprise écran par écran sur la maquette. Sans compte, elle tourne sur des données fictives.
 
 ## Lancer l'appli
 
-Il faut Xcode 26 et un iPhone sous iOS 26.
+Il faut Xcode 26 ou plus récent, et un iPhone sous iOS 26.
 
 ```
 brew install xcodegen      # une fois
@@ -15,7 +15,27 @@ xcodegen
 open HAL.xcodeproj
 ```
 
-Dans Xcode, onglet **Signing & Capabilities**, choisir son équipe, puis lancer sur l'iPhone. Le `.xcodeproj` n'entre pas dans le dépôt : il se régénère depuis `project.yml`.
+Dans Xcode, onglet **Signing & Capabilities**, choisir son équipe, puis lancer sur l'iPhone. Le `.xcodeproj` n'entre pas dans le dépôt : il se régénère depuis `project.yml`. Un fichier ajouté ou retiré demande de relancer `xcodegen`.
+
+## Essayer dans le simulateur, sur la fausse base
+
+Pour voir chaque écran avec des données, sans toucher à rien de réel :
+
+```
+./outils/fausse_base.sh          # depuis la racine du dépôt
+```
+
+Le script construit une base `planif_maquette` toute inventée, aux dates d'aujourd'hui, et lance l'API dessus sur `http://localhost:8000`, sans ordonnanceur ni bot : aucune notification ne part, et HAL n'est appelé que si on lui écrit. Deux comptes : `thomas` / `maquette-thomas` (administrateur, HAL démarré) et `lorette` / `maquette-lorette` (HAL pas démarré). Leurs clés d'API ne changent pas d'une fausse base à l'autre : l'appli reste connectée quand on refait la base.
+
+Le simulateur ne colle rien dans un champ de mot de passe. En Debug, sur l'écran de connexion, l'appli lit `HAL_CONNEXION` et se connecte seule :
+
+```
+SIMCTL_CHILD_HAL_CONNEXION="http://localhost:8000 thomas maquette-thomas" xcrun simctl launch "iPhone 15" fr.docxydre.hal
+```
+
+Pour sauter le premier lancement : `xcrun simctl spawn "iPhone 15" defaults write fr.docxydre.hal serveur.accueil_a_faire -bool NO`. Le trousseau du simulateur ne garde la clé que si l'appli est signée : en ligne de commande, une signature locale suffit (`xcodebuild … CODE_SIGN_IDENTITY=-`), mais `CODE_SIGNING_ALLOWED=NO` fait perdre la connexion à chaque lancement.
+
+Ce que le simulateur ne montre pas : Santé et l'Apple Watch, les notifications d'Apple, les widgets sur l'écran verrouillé. Ils se vérifient sur un iPhone.
 
 ## Ce que fait le lot 4
 
@@ -32,7 +52,7 @@ Réglages, Essais, **États à forcer** permet de voir les cas sans serveur : co
 
 - La connexion : l'adresse du serveur, le pseudo et le mot de passe rendent la clé d'API, gardée dans le trousseau (CNX-1, CNX-2). Un code d'invitation crée le compte et le connecte (FOY-3). « Essayer sans serveur » garde les données fictives.
 - Aujourd'hui et Maison lisent `GET /appli/aujourdhui` : la journée, les tâches des deux, le conflit, les absences, le mode allégé, le chat, l'équilibre et les week-ends proposés. La réponse est gardée sur le téléphone : hors réseau, l'appli montre la dernière reçue. Tirer vers le bas recharge, et l'appli recharge seule toutes les deux minutes.
-- Cocher une tâche se confirme en haut de l'écran. Elle ne part qu'au bout de trente secondes : jusque-là, la toucher de nouveau la décoche (APP-10). Elle part ensuite par la file d'attente (APP-3). Un appui long sur une tâche la repousse.
+- Cocher une tâche se confirme en haut de l'écran. Elle ne part qu'au bout de trente secondes : jusque-là, la toucher de nouveau la décoche, et la ligne montre le temps qui reste (APP-10). Mettre l'appli en arrière-plan envoie tout de suite ce qui attend. Elle part ensuite par la file d'attente (APP-3). Un appui long sur une tâche la repousse.
 - Le « + » : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, le mode allégé. La séance libre et la mesure arrivent avec le sport.
 - Le conflit de cours se tranche dans son widget. Un week-end proposé ouvre les trains : l'aller, le retour, et l'absence se pose toute seule.
 - Réglages, Serveur et mot de passe : changer de mot de passe, se déconnecter.
@@ -103,6 +123,20 @@ La capacité Push (`aps-environment`) est dans `project.yml` : elle demande le c
 - L'envoi à la montre (MON-1) : une course ou une séance de cardio prévue part dans l'app Exercice, à son heure, avec ses étapes (les lignes prévues par HAL, ou échauffement, corps de séance et retour au calme) et ses alertes (l'allure si HAL en donne une, sinon la zone cardiaque de l'intensité). Faite, elle revient par Santé et valide la séance (MON-2).
 - Toucher un widget ouvre l'appli au bon endroit : `hal://aujourdhui`, `hal://sport`, `hal://hal`, `hal://seance`.
 
+## Après les lots : la reprise sur la maquette
+
+Chaque écran a été comparé à la maquette dans le simulateur, sur la fausse base, puis corrigé ou ajouté. Quand le cahier et la maquette diffèrent, le cahier l'emporte.
+
+- **Aujourd'hui** : le mode édition avec sa barre « Modifier l'accueil » (1.9), la galerie (1.10), le planning de la semaine (1.12), les trains d'un week-end (1.13), le récap de HAL au-dessus de l'orbe (2.5), la séance en cours en tête tant qu'elle dure.
+- **Maison** : déclarer une tâche faite, aujourd'hui, hier ou un autre jour (4.4), ce qui traîne (4.5), le mode allégé avec son partage un quart, trois quarts (4.6), les absences et voyages (4.7), « Je pars », avec ce qui doit être fait avant (4.8).
+- **Sport** : l'onglet entier (3.1) et son état vide (8.7), la séance prévue et la course faite (3.3, 3.12, 3.14), la séance en cours et son repos plein écran (3.5 à 3.7), la fin et le bilan (3.8, 3.9). Pendant l'exercice, trois poids : celui que HAL a prévu, le record, et le record sur dix répétitions ; en toucher un le met dans le compteur. La charge se règle au demi-kilo, en restant appuyé sur + ou −, ou en touchant le nombre pour le taper (SAI-20).
+- **Réglages** : fond et couleurs avec l'aperçu du téléphone (5.2), les calendriers à suivre avec leur état et le filtre de la fac (5.3), les calendriers abonnés en cartes, le lien jamais affiché (5.12), le profil, les limitations, les lieux, la mémoire en onglets, la pause, Santé et les notifications (5.5 à 5.11).
+- **Démarrage de HAL** : l'avancée « Étape 1 sur 5 · Profil · 2/4 », les réponses en pastilles ou en cartes, le récapitulatif par blocs (7.1 à 7.13). L'attente du plan, avec la grande orbe (7.14), est redessinée mais ne se voit qu'avec un vrai appel à HAL.
+- **États** : serveur injoignable, HAL qui ne répond pas, HAL en pause avec son motif et sa date de fin, conflit agrandi, thèmes (8.9 à 8.17).
+- Partout, une marge en bas des pages pour que la barre d'onglets ne cache plus les derniers boutons.
+
+Ce qui reste côté serveur est en fin de section C.13 du cahier.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :
@@ -133,4 +167,8 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 ## La suite
 
-Tous les lots sont faits. Le bot ne sert plus qu'à l'administrateur du serveur, l'ancien sport est retiré (lot 2), et la bêta Coach Santé est rangée dans `anciennes_fonctionnalites/coach_sante/` (lot 10). Reste la vérification du lot 10 : deux semaines d'usage réel à deux, sans le bot.
+Tous les lots sont faits. Le bot ne sert plus qu'à l'administrateur du serveur, l'ancien sport est retiré (lot 2), et la bêta Coach Santé est rangée dans `anciennes_fonctionnalites/coach_sante/` (lot 10). Restent :
+
+- les trois manques côté API de la section C.13 du cahier : « Voir plus tard » sur un conflit, une tâche faite en plus qui n'existe pas encore, « Je m'en charge » sur une tâche en retard ;
+- sur un vrai iPhone : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre (6.1 à 6.4) ;
+- la vérification du lot 10 : deux semaines d'usage réel à deux, sans le bot.

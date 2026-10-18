@@ -4,13 +4,13 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version d'octobre 2026
+Version du 19 octobre 2026 (migration 068)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone et le foyer. Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont conservés pour l'historique.
 
 ## Comment lire ce document
 
-Chaque règle porte un code, que le code source cite en commentaire. **Les codes n'ont pas changé** : SPT-17 reste SPT-17, même réécrite. Un code n'est jamais réattribué. Une règle retirée ou réécrite par cette version garde son ancien texte en annexe 5.
+Chaque règle porte un code, que le code source cite en commentaire. **Les codes n'ont pas changé** : SPT-17 reste SPT-17, même réécrite. Un code n'est jamais réattribué. Une règle retirée ou réécrite garde son ancien texte en annexe : l'annexe 5 pour la version d'octobre 2026, les suivantes pour les retouches faites depuis.
 
 Trois types, selon la manière dont la règle est tenue : **D** pour une règle sur les données, garantie par le schéma ou par un réglage ; **T** pour un traitement, réalisé par une fonction, un trigger, le module HAL ou l'appli ; **M** pour un geste de l'utilisateur.
 
@@ -49,12 +49,12 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | HAL et le foyer | HAL est personnel : chaque membre a le sien | COA-1, FOY-8 |
 | Ancien sport | Réservations « à déterminer », minimum, habitudes, alerte du lundi, `/sport` et `/organiser` retirés pour tous les comptes | Annexe 2, SPT |
 | Changer une séance | Le jour même, l'heure se décale à la main, et le lieu se change à la main. Changer de jour, de durée, de contenu, ou supprimer, passe par HAL | PLN-11, LIE-5, COA-32 |
-| Tâches | Pas d'échange : on fait la tâche de l'autre, il est prévenu. Une tâche se modifie dans l'appli, une tâche faite en plus se déclare | EXE-16, TAC-21, EXE-17 |
+| Tâches | Pas d'échange : on fait la tâche de l'autre, il est prévenu. Une tâche se modifie dans l'appli, une tâche faite en plus se déclare. Une tâche cochée attend trente secondes avant de partir, pour pouvoir la décocher | EXE-16, TAC-21, EXE-17, APP-10 |
 | Conflits | En widget, en tête d'Aujourd'hui. « Voir plus tard » revient une semaine avant | COL-12, COL-23 |
 | Notifications | Par Apple, avec la raison de chaque changement ; le « ! » de l'orbe pour le récap et les ajustements ; heures réglables par chacun | NOT-15 à NOT-19 |
 | « Pourquoi ? » | Remplacé par la raison jointe aux notifications et l'écran Historique | NOT-17, JRN-9 |
 | Accès | Toutes les routes de l'appli par le funnel, derrière la clé ; l'administration reste privée | CNX-5 |
-| Séance de musculation | Arrêter en cours, faite sans saisie, série intermédiaire à −10 ou −20 %, repos en Live Activity | SAI-15 à SAI-18 |
+| Séance de musculation | Arrêter en cours, faite sans saisie, série intermédiaire à −10 ou −20 %, repos en Live Activity. Pendant l'exercice, le poids prévu par HAL, le record et le record sur dix répétitions ; la charge au demi-kilo | SAI-15 à SAI-18, SAI-20 |
 | Note d'effort | Seulement pour la musculation : la montre donne celle de la course | SAI-4 |
 | Course | Envoyée à la montre, sans bouton « Commencer », validée par Santé. Pas d'app Apple Watch. Pas d'export PDF ni JSON | MON |
 | Santé | Envoi automatique, sans Raccourcis ni bouton | SAN-10 |
@@ -69,6 +69,8 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 | Point | Valeur retenue | Règle |
 |---|---|---|
 | Série intermédiaire | −10 % s'il manque une ou deux répétitions, −20 % au-delà, arrondi à 2,5 kg | SAI-17 |
+| Charge saisie | Au demi-kilo, au clavier ou en restant appuyé sur + et − | SAI-20 |
+| Décocher une tâche | Trente secondes avant l'envoi | APP-10 |
 | Heure du récap | Quand elle change, la clôture des séances du jour suit la même heure | NOT-15, PLN-9 |
 | Silence de la nuit | Réglable comme les autres heures | NOT-15 |
 | Accueil modifiable | Aujourd'hui seulement ; Sport et Maison gardent un ordre fixe | WID-4 |
@@ -85,7 +87,7 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 
 ## Partie A. Le planning du foyer
 
-Cette partie reprend le cahier des charges du système de planification, mis à jour. Les codes n'ont pas bougé. Le dictionnaire de données et les contraintes d'intégrité (A.6, A.7) décrivent la base telle qu'elle est : les lignes qui citent une règle `SPT` retirée (annexe 2) disparaîtront avec elle, au lot 2 de la partie E.
+Cette partie reprend le cahier des charges du système de planification, mis à jour. Les codes n'ont pas bougé. Le dictionnaire de données et les contraintes d'intégrité (A.6, A.7) décrivent la base telle qu'elle est, depuis le retrait de l'ancien sport (migration 065, annexe 2).
 
 ### A.1 Rappel du sujet et choix effectués
 
@@ -769,7 +771,6 @@ Les tables sont rangées par domaine. Dans chaque table, les colonnes suivent l'
 | id_telegram | BIGINT | oui | | oui | | | |
 | actif | BOOLEAN | non | | | TRUE | | |
 | date_creation | DATE | non | | | CURRENT_DATE | | |
-| minimum_sport | SMALLINT | oui | entre 0 et 7 | | | | |
 | lieu_famille | VARCHAR(60) | oui | | | | | |
 | gare_famille | VARCHAR(40) | oui | | | | | |
 | mot_de_passe | TEXT | oui | empreinte scrypt, jamais le mot de passe | | | | |
@@ -1122,22 +1123,6 @@ Des jours pleins, saisis à la main : vacances universitaires, jours fériés (S
 
 Où une tâche peut se pratiquer, par ordre de préférence (SPT-8b). Un sport qu'on ne pratique plus prend un rang élevé au lieu d'être supprimé.
 
-#### Table : ChoixSport
-
-| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
-|---|---|---|---|---|---|---|---|
-| id_choix | SERIAL | non | | oui | | oui | |
-| id_utilisateur | INTEGER | non | | | | | Utilisateur |
-| id_occurrence | INTEGER | non | | oui | | | Occurrence (suppression en cascade) |
-| id_lieu | INTEGER | non | | | | | LieuSport |
-| jour_semaine | SMALLINT | non | entre 1 (lundi) et 7 | | | | |
-| heure | TIME | non | | | | | |
-| semaine | DATE | non | un lundi | | | | |
-| origine | VARCHAR(12) | non | 'proposition', 'habitude', 'modifiee', 'manuelle', 'reprise' | | 'proposition' | | |
-| date_choix | TIMESTAMPTZ | non | | | now() | | |
-
-Une ligne par séance choisie. Les habitudes n'ont pas de table : elles se calculent à la volée sur ces lignes, sur les huit dernières semaines, ce qui évite un compteur à tenir à jour et un pourcentage qui vieillirait mal (SPT-22).
-
 #### Table : InvitationSport
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
@@ -1401,15 +1386,10 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
 | SPT-7 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
 | SPT-8 | `preference` appartient à {tot, tard, apres} | Statique forte |
-| SPT-18 | `organiser_sport()` complète les trois semaines ouvertes au minimum de la tâche SPORT, par réservations d'origine « quota » | Dynamique forte |
 | SPT-18 | Une réservation n'est jamais épinglée : contrainte `occurrence_quota_non_epinglee` | Statique forte |
-| SPT-20 | `propositions_sport()` rend au plus `p_max` lignes, une par jour, hors jours déjà choisis | Dynamique forte |
 | SPT-21 | `obstacle_seance()` : stricte pour les propositions, souple pour un choix, qui ne refuse que cours, service, jour déjà pris et ce qui est annoncé ou épinglé | Dynamique forte |
-| SPT-22 | `choix_sport` suit sa séance : modifiée, elle est mise à jour ; supprimée, la ligne part avec elle (ON DELETE CASCADE) | Dynamique forte |
-| SPT-25 | `relance_du_soir()` ignore les réservations ; `seances_a_determiner_passees()` les clôt et notifie ; le report de minuit ne reporte pas une séance | Dynamique forte |
-| SPT-28 | `minimum_sport` est nul ou compris entre 0 et 7 : contrainte `utilisateur_minimum_sport_raisonnable` | Statique forte |
-| SPT-28 | `regler_minimum_sport()` refuse une valeur hors bornes et réorganise les trois semaines | Dynamique forte |
-| SPT-29 | `sportifs()` rend tous les comptes actifs ; une séance garde toujours son propriétaire | Dynamique forte |
+| SPT-25 | `relance_du_soir_de()` relance une séance sous le nom de son sport ; `reporter_taches_du_jour()` ne reporte jamais une séance | Dynamique forte |
+| SPT-29 | Une séance garde toujours son propriétaire | Dynamique forte |
 | SPT-30 | « À deux » se juge sur tous les calendriers de l'autre, cours comme rendez-vous | Dynamique forte |
 | SPT-30 | `seance_possible_a_deux()` : vrai seulement si un autre compte n'a aucun obstacle strict sur le même bloc | Dynamique forte |
 | SPT-31 | `invitation_sport` : une seule invitation par séance et par personne, statut parmi attente, acceptée, refusée | Statique forte |
@@ -1736,7 +1716,7 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 |---|---|---|---|
 | Déplacements | `TRJ`, `BIL`, `WKD`, ABS-6, ABS-7 | 008 à 010, 012, 039, 041 à 043, 046, 047 | Fenêtres libres, horaires de la SNCF, confirmations d'achat lues par courriel, propositions de week-end, départ et retour déclarés d'un mot. L'absence qui en découle libère les tâches et les redistribue. Tables `trajet`, `courriel`, `proposition` |
 | Calendriers personnels | COL-14 à COL-16 | 011, 020 | Chacun publie son calendrier depuis son application ; plusieurs calendriers par personne |
-| Sport | `SPT` | 013, 016 à 018, 023 à 026, 033, 034, 037, 038 | Un minimum de séances par semaine, heures d'ouverture relevées, trois semaines organisées d'avance, habitudes, séances à deux. Tables `lieu_sport`, `ouverture`, `fermeture`, `tache_lieu`, `choix_sport`, `invitation_sport` |
+| Sport | `SPT` | 013, 016 à 018, 023 à 026, 033, 034, 037, 038 | Un minimum de séances par semaine, heures d'ouverture relevées, trois semaines organisées d'avance, habitudes, séances à deux. Tables `lieu_sport`, `ouverture`, `fermeture`, `tache_lieu`, `choix_sport`, `invitation_sport`. Le minimum, les réservations et les habitudes sont retirés par la migration 065 : HAL propose les séances |
 | Oubli des retards | EXE-12 | 021, 032 | Un retard trop ancien est abandonné au lieu d'être reporté sans fin |
 | Conflits caducs, flux arrêtés | COL-19 à COL-21 | 028, 030 | Une question qui ne se pose plus est refermée ; un emploi du temps cesse d'être suivi sans perdre son passé |
 | Calendriers composés | NOT-5 à NOT-10 | 035 | Autant d'adresses d'abonnement qu'on veut, chacune avec ses personnes et ses contenus. Table `calendrier` |
@@ -1747,9 +1727,9 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 | Mode allégé, tâches ajoutées | PLA-16, TAC-20 | 050 | En faire moins pendant quelques jours ; ajouter une tâche depuis le bot. Table `allegement` |
 | HAL | Partie B | 051 à 058 | Un modèle de langage construit le contenu des séances, suit ce qui est fait et ajuste. Une application iPhone envoie les données de Santé et sert à saisir les séances de musculation. Tout est dans son cahier |
 | Connexion de l'application | `CNX`, NOT-14 | 059 | Le pseudo et un mot de passe rendent la clé d'API à l'application, qui passe par `tailscale funnel` sans le client Tailscale. La nuit, seul HAL d'une conversation en cours répond |
-| Application HAL et foyer | Parties C et D | 060 et suivantes | L'application iPhone devient l'interface de tout le système, le bot passe à l'administration, les deux comptes forment un foyer avec un administrateur qui invite. À construire : partie E |
+| Application HAL et foyer | Parties C et D | 060 à 066 | L'application iPhone devient l'interface de tout le système, le bot passe à l'administration, les deux comptes forment un foyer avec un administrateur qui invite. Le foyer (060), les notifications d'Apple (061), le moment « changement » de HAL (063), le bot d'administration (064), le retrait de l'ancien sport (065) ; construit en octobre 2026, partie E |
 | Tâches datées, types et liens | TAC-20 à TAC-28 | 067 | Une tâche pour aujourd'hui, entre deux dates, à une heure ou dans une plage ; oubliée ou reportée si elle n'est pas faite ; des types que le foyer crée et colore ; les liens entre tâches posés depuis l'appli. Table `type_tache` |
-| Exercices de plus | EXO-4 | 068 | 38 variantes courantes en salle ajoutées au catalogue : le tirage horizontal unilatéral, les versions à un bras, les fentes marchées, le soulevé de terre sumo… avec leurs alternatives |
+| Exercices de plus | EXO-4 | 068 | 38 variantes courantes en salle ajoutées au catalogue, qui passe à 179 exercices : le tirage horizontal unilatéral, les versions à un bras, les fentes marchées, le soulevé de terre sumo… avec leurs alternatives |
 
 Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests sont rangés dans `anciennes_fonctionnalites/stock_uniforme/`, avec de quoi le remettre en service.
 
@@ -1794,6 +1774,14 @@ Les points qui ont demandé le plus de réflexion, et ce qui en a été tiré. L
 **HAL répondait à 7h30 à des questions déjà réglées.** Le silence de la nuit retenait toutes les notifications jusqu'au matin, y compris les réponses de HAL à une conversation menée après 23h30. Elles partaient toutes à 7h30, dans le désordre de la veille : un avis sur un objectif déjà changé, une question à laquelle on avait déjà répondu. On aurait dit que HAL avait refait le plan. Le silence laisse maintenant passer HAL d'une conversation en cours (NOT-14), et une réponse déjà affichée par le bot n'est plus renvoyée en notification.
 
 **Chaque « pourquoi ça a fait ça ? » demandait de relire le code.** Pourquoi le lundi est resté en week-end, pourquoi cette tâche a changé de jour, pourquoi la relève des billets n'a rien dit : la réponse était dans la base, mais rien ne la gardait. Un journal note maintenant ce qui change, qui l'a déclenché, et dans quelle action. Une commande du bot, un appel de l'API ou un passage de l'ordonnanceur partagent un numéro d'opération, si bien que la cause se lit à côté de l'effet : « un membre a déclaré une absence » et « l'aspirateur passe à l'autre » sont deux lignes de la même action. Le placement défait puis repose une soixantaine de tâches à chaque passage ; le journal ne garde que l'état avant et après l'action, et une tâche revenue à sa place ne laisse aucune ligne. `/pourquoi poubelles` rend le tout en phrases.
+
+#### A.11.5 Tests
+
+**Une dizaine de tests échouaient sans rien de cassé.** La configuration lit `.env` dans le dossier où l'on se trouve. Lancés depuis le dépôt, sur le Mac, les tests y trouvaient l'hôte public, la boîte de courriels, le jeton SNCF et le modèle de HAL, alors qu'ils vérifient justement ce qui se passe sans eux. `outils/tests.sh` les lance maintenant dans le conteneur de l'API, avec un environnement vide, hors du dépôt et sur une base `planif_test` à part : les tests vident la base qu'on leur donne.
+
+**Créer une tâche par `POST /taches` renvoyait une erreur interne.** Le même paramètre servait de valeur à la colonne `categorie` et de texte comparé à `'sport'` : PostgreSQL en déduisait deux types et refusait la requête (42P08). Les types sont maintenant écrits dans la requête. Le test qui le montrait se perdait parmi les faux échecs du point précédent.
+
+**Un test échouait autour des changements d'heure.** La fenêtre de la fontaine de Sassy compte sept jours, plus un de marge. Quand elle passe l'heure d'hiver, elle dure une heure de plus en temps universel, et le test, qui comptait en heures, la jugeait trop longue. Il compte maintenant en jours de Paris, comme la base.
 
 ---
 
@@ -1980,6 +1968,8 @@ Un message de HAL suit le silence de la nuit, de 23h30 à 7h30, sauf pendant une
 Le module s'est développé sur une branche `coach`, fusionnée dans `main` en octobre 2026. Tout se fait maintenant sur `main` : chaque `git push` est déployé par le serveur (section A.2.3). On teste donc en local avant de pousser.
 
 En local, `outils/local.sh` lance un Docker avec une copie de la base de production, rejoue les scénarios du chapitre 10.5 du dossier (`./outils/local.sh scenarios`) et ouvre l'API au Wi-Fi pour l'application. Un deuxième bot Telegram sert au développement : deux instances sur le même jeton se disputent les messages. La relève des courriels et les envois planifiés sont coupés en local.
+
+Deux outils servent avant chaque push. `outils/tests.sh` lance les tests du serveur sur une base `planif_test` à part (section A.11.5). `outils/fausse_base.sh` construit une base `planif_maquette` toute inventée, aux dates d'aujourd'hui, avec deux comptes : l'application tourne dessus dans le simulateur d'iOS, sans données réelles, sans notification et sans appel payant à HAL.
 
 HAL s'active pour un compte par `coach_actif`, ce qui laisse un retour en arrière d'une ligne.
 
@@ -3267,6 +3257,7 @@ Suivi et lieux
   GET    /progression?objectif=&exercice=                 Les courbes d'un objectif ou d'un exercice
   GET    /exercices?discipline=&groupe=                   Le catalogue
   GET    /exercices/{code}/derniere-fois?avant=           Les séries de la dernière séance où l'exercice a été fait
+  GET    /exercices/{code}/records                        La charge la plus lourde, et la plus lourde sur dix répétitions (SAI-20)
   GET    /limitations                                     Mes limitations et les exercices qu'elles interdisent
   POST   /limitations                                     Déclarer une limitation
   PATCH  /limitations/{id_limitation}                     La modifier, la désactiver
@@ -3434,9 +3425,9 @@ La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la p
 
 #### B.10.3 Ce qui est retiré
 
-Prévus au retrait : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
+Retirés : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
 
-**Ce retrait est décidé pour tous les comptes depuis octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Il se fait au lot 2 de la partie E. Jusque-là, pour un compte qui a HAL, les réservations ne se créent plus et s'effacent ; le compte sans HAL garde son fonctionnement, et ses tests restent verts. Pour la même raison, `obstacle_seance()`, `bloc_de_seance()` et `duree_seance()` sont inchangées : HAL a les siennes, `obstacle_seance_coach()` et `bloc_seance_duree()`. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré est dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
+**Ce retrait vaut pour tous les comptes depuis le 14 octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré est dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
 
 #### B.10.4 Ordre de construction
 
@@ -3453,7 +3444,7 @@ Les migrations partent de 051. Les fonctions, les vues et les déclencheurs vont
 | 7. HAL complet | Tous les outils, les sept moments, la requalification, l'ordonnanceur, un appel à la fois, les essais qui reprennent, le journal privé | Une semaine entière jouée sur le Docker local, de l'objectif à la révision du dimanche |
 | 8. Mise en production | Fusion dans `main`, puis `coach_actif` pour un compte | Le planning domestique tourne comme avant ; la première synthèse arrive à 23 h |
 
-Les lots 1 à 8 sont faits ; la fin du lot 4 l'a été au lot 2 de la partie E (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059).
+Les lots 1 à 8 sont faits ; la fin du lot 4 l'a été au lot 2 de la partie E (section B.10.3). Sont venus ensuite : les paquets du dossier et la mémoire en quatre étages (migration 056), le démarrage dans le bot (057), le coût des appels (058), la connexion de l'application par mot de passe (059), puis l'application HAL (partie E) et 38 exercices de plus au catalogue (068).
 
 ---
 
@@ -3482,14 +3473,14 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 | Emploi du temps à quatre semaines | L'université ne publie pas toujours si loin | Les semaines lointaines sont placées sur ce qu'on sait, et la révision du dimanche les corrige |
 | Données de la montre à 23 h | iOS ne garantit pas l'heure d'une tâche de fond | La synthèse peut raisonner sur des données de la veille. Elle le dit (SAN-6) |
 | Appel à la demande | L'application attend jusqu'à 90 secondes (COA-16). À la salle, le réseau peut couper pendant l'attente | La réponse n'est pas perdue : elle est dans les échanges et arrive en notification |
-| Séries sans réseau | L'application bêta n'a pas de file d'attente (SAI-10) | À faire dans l'application HAL, lot 6 de la partie E (APP-3). D'ici là, une série envoyée sans réseau est perdue et se ressaisit |
+| Séries sans réseau | Réglé : l'application HAL garde les séries saisies sans réseau et les envoie au retour, sans doublon (SAI-9, SAI-10, APP-3) | Plus rien |
 | Coût | Aucun plafond (section B.1.2) | Rien n'arrête une dépense, mais elle se lit : chaque appel garde ses tours et ses tokens (COA-21). La borne de tours limite chaque appel |
 | Requalification | C'est le modèle qui décide qu'un texte du chat est un signalement (COA-25) | S'il se trompe, une douleur dite dans le chat attend la synthèse. À couvrir par des scénarios de sécurité |
 | Esquisses | Le ménage se place autour de séances qui bougeront encore à la révision | Un peu de replacement chaque dimanche. Le créneau reste pris, c'est le but |
 | Clôture de 23 h | Une séance faite sans montre et sans saisie est close comme pas faite | Elle se corrige par « faite, sans saisie » ou un bilan donné après coup (SAI-16, SAI-12), que HAL lit à la synthèse suivante |
 | Dépôt public | Le dossier et ce document y sont lisibles par tous | Rien de personnel n'y entre (EXO-9, COA-8). À vérifier à chaque ajout de chapitre |
 | Journal à 90 jours | Les décisions de HAL s'y lisent, puis sont purgées | Ce qui doit durer va en mémoire ou reste dans les échanges, qui ne sont pas purgés |
-| Catalogue initial | Il se remplit à la main d'après le dossier | Tant qu'un exercice manque, HAL ne peut pas le prescrire (EXO-5) |
+| Catalogue | 179 exercices depuis la migration 068. Il se complète à la main, par une migration nouvelle, d'après le dossier et l'usage | Tant qu'un exercice manque, HAL ne peut pas le prescrire (EXO-5) |
 | Modèle moins cher | `COACH_MODELE_SIMPLE` peut confier le chat et la synthèse d'un jour sans séance à Haiku (COA-31). Vide par défaut | À valider sur les scénarios (`./outils/local.sh scenarios-haiku`) avant de le régler |
 | Résumés de la mémoire | Ils n'ont pas encore tourné longtemps avec le vrai modèle | À relire à la fin du premier mois |
 
@@ -3685,7 +3676,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 1.5 Bouton + | L'ajout rapide | APP-9 |
 | 1.6 Ajouter un créneau | Une occupation à la main | COL-13 |
 | 1.7 Widget Sport agrandi | La séance du jour, ses exercices, la consigne de HAL | WID-5 |
-| 1.8 Widget À cocher agrandi | Les tâches des deux ; cocher celle de l'autre la crédite à qui l'a faite, et l'autre est prévenu | EXE-14, EXE-16 |
+| 1.8 Widget À cocher agrandi | Les tâches des deux ; cocher celle de l'autre la crédite à qui l'a faite, et l'autre est prévenu. Trente secondes pour décocher avant l'envoi | EXE-14, EXE-16, APP-10 |
 | 1.9 Mode édition | Déplacer, retirer, redimensionner | WID-3 |
 | 1.10 Ajouter un widget | La galerie des modules | WID-1, WID-3 |
 | 1.11 Autre disposition | Chacun compose son accueil | WID-4 |
@@ -3820,7 +3811,7 @@ Les écrans 4.9 à 4.12, et les nouvelles versions de 4.2 et 4.3, viennent des t
 1. Le jour d'une séance, « Lancer la séance » passe en tête d'Aujourd'hui (WID-6). On le touche, ou on passe par Sport.
 2. La séance prévue montre ses exercices [3.3]. On en change un d'un geste, sans HAL (SAI-3) [3.4], ou on les réordonne. Pour changer la séance elle-même, son jour, sa durée, son contenu, on demande à HAL (COA-32). Si elle est déjà faite sans l'appli : « Déjà faite, sans saisie » (SAI-16).
 3. « Lancer » ouvre le mode séance [3.5] : la séance du jour, ses exercices et leurs alternatives permises sont déjà sur le téléphone, tout marche sans réseau (SAI-10, APP-3).
-4. Chaque série se valide d'un bouton, la charge et les répétitions préremplies. Valider lance le repos [3.7] (SAI-18).
+4. Au-dessus de la série, trois poids : celui que HAL a prévu, le plus lourd jamais soulevé sur l'exercice, et le plus lourd tenu sur dix répétitions ; en toucher un le met dans le compteur (SAI-20). Chaque série se valide d'un bouton, la charge et les répétitions préremplies. La charge se règle au demi-kilo, en restant appuyé sur + ou −, ou en touchant le nombre pour le taper. Valider lance le repos [3.7] (SAI-18).
 5. Une série ratée : « J'ai bloqué avant », on dit où on s'est arrêté, la série intermédiaire s'ajoute [3.6] (SAI-17).
 6. « Bilan » ou la croix ouvre la fin de séance [3.8] : tout saisi, arrêter ici, faite sans rien saisir, pas faite (SAI-15).
 7. Le bilan [3.9] : note d'effort, durée réelle, commentaire (SAI-4). L'enregistrer valide la séance et appelle HAL tout de suite (SAI-7). Sa réponse s'affiche dessous et dans le panneau.
@@ -3868,9 +3859,9 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 
 Il n'y a pas d'écran du coût de HAL : il se lit par le bot d'administration (ADM-3).
 
-### C.13 Ce que l'API doit ajouter pour l'appli
+### C.13 Ce que l'API a ajouté pour l'appli
 
-L'API reste mince : chaque ajout appelle une fonction de la base. Le détail des routes se fixe au lot qui les construit.
+L'API reste mince : chaque ajout appelle une fonction de la base. Tout ce tableau est construit, sauf ce que dit la fin de la section.
 
 | Besoin | Ce qui change | Règles |
 |---|---|---|
@@ -3890,6 +3881,9 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Le détail des
 | Santé | La lecture automatique ne change pas les routes : `/donnees-sante` reçoit plus souvent | SAN-10 |
 | Accueil | Une route qui rend d'un coup ce qu'Aujourd'hui affiche, pour ne pas faire dix appels à l'ouverture | WID-8 |
 | Foyer | Les routes de la partie D | D.4 |
+| Records d'un exercice | `/exercices/{code}/records` : le plus lourd, et le plus lourd sur dix répétitions | SAI-20 |
+
+**Reste à faire côté API.** « Voir plus tard » sur un conflit ne fait que le cacher dans l'appli jusqu'au prochain chargement : la route qui le fait revenir sept jours avant manque (COL-23). « C'est fait » accepte une tâche du foyer faite sans être prévue, pas encore une tâche qui n'existe pas du tout (EXE-17). Une tâche en retard se dit « C'est fait » ; le bouton « Je m'en charge » de la maquette demande une route qui la prenne pour soi sans la valider.
 
 ---
 
@@ -3991,6 +3985,19 @@ Trois raisons fixent cet ordre :
 - **Le socle de l'appli ne dépend pas du serveur.** Il se construit sur des données fictives, et c'est lui qui précise ce que chaque écran demande à l'API.
 - **Les lots 1 et 3 ne font qu'ajouter.** Le foyer, les routes ouvertes à l'appli et les notifications d'Apple s'ajoutent à l'existant : le bot continue de servir pendant ce temps.
 - **Les retraits viennent en dernier.** Le lot 2 retire le bot des membres et l'ancien sport. Il ne se fait qu'une fois que l'appli remplace le bot pour tout l'usage quotidien, juste avant la bascule.
+
+### E.3 Où en est-on
+
+Les onze lots sont faits : les lots 2 et 10 le 14 octobre 2026, le lot 11 le 15. Les membres du foyer n'utilisent plus que l'appli, et le bot ne parle plus qu'à l'administrateur.
+
+Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simulateur d'iOS, sur la fausse base (section B.2.5) :
+
+- la Maison : déclarer une tâche faite [4.4], ce qui traîne [4.5], le mode allégé [4.6], les absences et voyages [4.7], « Je pars » [4.8] ;
+- les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
+- trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
+- le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20).
+
+Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
 ---
 
@@ -4188,3 +4195,14 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 | TAC-21 | Toute tâche du foyer se modifie dans l'appli : son nom, sa durée, sa fréquence, pour qui. Elle s'arrête aussi : désactivée, elle garde son historique. Qui peut ajouter, modifier et arrêter se règle par le foyer (FOY-6). L'autre est prévenu du changement (NOT-17) |
 
 **Ce qui ne change pas.** Les liens d'origine, posés par les migrations 005 et 049 (le linge, l'aspirateur, le bloc « Nettoyage », la litière, le lave-vaisselle), restent tels quels et s'affichent dans le détail de leurs tâches comme ceux qu'on pose dans l'appli : un lien est un lien, d'où qu'il vienne. La colonne `categorie` reste, et avec elle les règles qui la lisent ; seul l'affichage passe au type.
+
+### Annexe 7 : ce que change la version du 19 octobre 2026
+
+Migration 068. Deux règles sont nouvelles, aucune n'est réécrite.
+
+| Code | Ce qu'elle ajoute |
+|---|---|
+| APP-10 | Une tâche cochée attend trente secondes avant de partir au serveur : un geste raté se défait sans que l'autre en soit prévenu |
+| SAI-20 | Pendant un exercice, le poids prévu par HAL, le plus lourd soulevé et le plus lourd tenu sur dix répétitions ; la charge se règle au demi-kilo |
+
+Le catalogue passe de 141 à 179 exercices (EXO-4, section A.10). Les lignes des sections A.6 et A.7 qui décrivaient l'ancien sport (la table `choix_sport`, la colonne `minimum_sport`, `organiser_sport()`, `propositions_sport()`, `regler_minimum_sport()`, `sportifs()`) sont retirées : la migration 065 les avait déjà supprimés de la base.
