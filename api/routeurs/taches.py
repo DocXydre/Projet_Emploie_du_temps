@@ -199,13 +199,15 @@ def creer(demande: DemandeTache, qui: Authentifie, replacer: bool = False) -> di
                            rappel_journee, heure_min, heure_max, utilise_machine,
                            requiert_les_deux, reportable, id_utilisateur_defaut,
                            ajoutee_par, id_type_tache)
-        VALUES (%(code)s, %(libelle)s, %(categorie)s, %(priorite)s, %(duree)s,
+        VALUES (%(code)s, %(libelle)s, %(categorie)s::VARCHAR, %(priorite)s, %(duree)s,
                 %(min)s, %(max)s, %(rappel)s, %(hmin)s, %(hmax)s, %(machine)s,
                 %(duo)s, %(reportable)s, %(defaut)s, %(moi)s,
-                CASE WHEN %(categorie)s = 'sport' THEN NULL
-                     ELSE COALESCE(%(type)s,
+                -- Le même paramètre sert de colonne et de comparaison : sans
+                -- type écrit, PostgreSQL en déduit deux et refuse (42P08).
+                CASE WHEN %(categorie)s::VARCHAR = 'sport' THEN NULL
+                     ELSE COALESCE(%(type)s::INTEGER,
                                    (SELECT y.id_type_tache FROM type_tache y
-                                     WHERE y.categorie = %(categorie)s
+                                     WHERE y.categorie = %(categorie)s::VARCHAR
                                      ORDER BY y.ordre, y.id_type_tache LIMIT 1)) END)
         RETURNING *
         """,
