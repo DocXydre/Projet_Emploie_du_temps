@@ -1751,7 +1751,7 @@ Les points qui ont demandé le plus de réflexion, et ce qui en a été tiré. L
 
 **Une collecte muette effaçait deux semaines de planning.** La réconciliation supprime les occupations à venir qui ne sont plus dans le flux : c'est ce qu'il faut faire quand un cours ou un service est annulé. Mais un flux qui ne répond plus, ou qui renvoie une page de connexion, produit exactement le même signal : zéro événement. Le relevé des horaires de sport refuse désormais un résultat vide et conserve ce qu'il avait, plutôt que de vider le planning en silence.
 
-**Une adresse trop longue arrêtait un calendrier entier.** Un rendez-vous de garde d'enfants portait une adresse complète, sur deux lignes, plus longue que les 100 caractères de la colonne `lieu`. L'insertion échouait, la collecte s'arrêtait là, et la source ne se collectait plus du tout : le bot d'administration l'annonçait en panne toutes les heures, et changer son lien depuis l'appli renvoyait une erreur, alors que le lien était bon. La collecte coupe maintenant le titre et le lieu à la taille de leurs colonnes (COL-24), et une lecture qui échoue après un changement de lien est dite telle quelle, le lien gardé.
+**Une adresse trop longue arrêtait un calendrier entier.** Un rendez-vous de garde d'enfants portait une adresse complète, sur deux lignes, plus longue que les 100 caractères de la colonne `lieu`. L'insertion échouait, la collecte s'arrêtait là, et la source ne se collectait plus du tout : le bot d'administration l'annonçait en panne toutes les heures (une fois par jour depuis, ADM-4), et changer son lien depuis l'appli renvoyait une erreur, alors que le lien était bon. La collecte coupe maintenant le titre et le lieu à la taille de leurs colonnes (COL-24), et une lecture qui échoue après un changement de lien est dite telle quelle, le lien gardé.
 
 #### A.11.2 Placement
 
@@ -3928,7 +3928,7 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 | ADM-1 | D | Le bot ne parle qu'à l'administrateur du serveur. Un message d'un autre compte Telegram reçoit une seule phrase : le bot sert à l'administration, tout le reste est dans l'appli |
 | ADM-2 | T | Il prévient l'administrateur : une source en panne (COL-9), un déploiement raté (A.2.3), HAL injoignable après ses essais (COA-11), des notifications qu'Apple refuse, des erreurs répétées de l'API, une base ou un disque qui sature |
 | ADM-3 | M | Il garde quelques commandes : `/etat` (le serveur, les sources, le dernier déploiement), `/erreurs` (les dernières erreurs), `/collecter`, `/placer`, `/billets` et `/billets relire` (BIL-19), `/hal` (l'état de HAL par compte et ce qu'il a consommé, l'ancienne `/coach`), `/aide` |
-| ADM-4 | T | Une alerte qui dure ne se répète pas plus d'une fois par heure. Quand le problème est réglé, un message le dit |
+| ADM-4 | T | Une alerte qui dure ne se répète pas plus d'une fois par heure. Une source en panne ne se redit qu'une fois par jour : elle n'empêche rien de tourner, et la répéter toutes les heures noyait le reste. Quand le problème est réglé, un message le dit |
 | ADM-5 | D | Le bot ne transporte plus aucune notification d'un membre du foyer. Les comptes Telegram déjà reliés sont déliés, sauf celui de l'administrateur |
 
 ### D.4 Routes du foyer
@@ -4202,7 +4202,7 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 
 ### Annexe 7 : ce que change la version du 19 octobre 2026
 
-Migration 068. Trois règles sont nouvelles, une est précisée.
+Migration 068. Trois règles sont nouvelles, une est précisée, une est réécrite.
 
 | Code | Ce qu'elle ajoute |
 |---|---|
@@ -4211,5 +4211,7 @@ Migration 068. Trois règles sont nouvelles, une est précisée.
 | COL-24 | Un titre ou un lieu trop long est coupé, jamais refusé |
 
 TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. » Elle dit maintenant qu'un aspirateur passé la veille n'empêche pas d'en poser un le jour du récurage.
+
+ADM-4 est réécrite : une source en panne ne se redit plus qu'une fois par jour. Elle disait : « Une alerte qui dure ne se répète pas plus d'une fois par heure. Quand le problème est réglé, un message le dit. » Un calendrier en panne pendant six jours avait envoyé plusieurs dizaines de messages.
 
 Le catalogue passe de 141 à 179 exercices (EXO-4, section A.10). Les lignes des sections A.6 et A.7 qui décrivaient l'ancien sport (la table `choix_sport`, la colonne `minimum_sport`, `organiser_sport()`, `propositions_sport()`, `regler_minimum_sport()`, `sportifs()`) sont retirées : la migration 065 les avait déjà supprimés de la base.
