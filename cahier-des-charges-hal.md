@@ -4053,7 +4053,17 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
-La partie F est écrite le 19 octobre 2026. Le **lot 12** est fait le même jour (migration 070, `api/serveur_mcp/`, `coach/consigne_mcp.md`, Réglages, Intelligence). Vérifié sur la fausse base, avec le client du SDK et à la main, dans les deux versions du protocole : les vingt et un outils du profil externe répondent pour le titulaire de la clé ; la clé de l'appli, une clé révoquée ou pas de clé reçoivent 401 ; Lorette ne lit ni la mémoire de Thomas ni le lieu de ses absences ; un outil hors du catalogue est refusé ; le résumé déposé par un client se relit dans les derniers échanges de HAL et dans l'appli ; la soixante et unième requête d'une minute est refusée. L'écran Intelligence est écrit mais n'a pas encore été compilé ni essayé dans le simulateur. Les lots 13 à 15 sont à faire.
+La partie F est écrite le 19 octobre 2026. Le **lot 12** est fait le même jour (migration 070, `api/serveur_mcp/`, `coach/consigne_mcp.md`, Réglages, Intelligence). Vérifié sur la fausse base, avec le client du SDK et à la main, dans les deux versions du protocole : les vingt et un outils du profil externe répondent pour le titulaire de la clé ; la clé de l'appli, une clé révoquée ou pas de clé reçoivent 401 ; Lorette ne lit ni la mémoire de Thomas ni le lieu de ses absences ; un outil hors du catalogue est refusé ; le résumé déposé par un client se relit dans les derniers échanges de HAL et dans l'appli ; la soixante et unième requête d'une minute est refusée. L'écran Intelligence est écrit mais n'a pas encore été compilé ni essayé dans le simulateur.
+
+Les **lots 13 à 15** sont faits le même jour (migrations 071 et 072, `api/coach/fournisseurs.py`, `course.py`, `course_gemini.py`, `api/demandes.py`). Vérifiés sur la fausse base :
+
+- lot 13 : la chaîne et ses relais ; l'abonnement de côté jusqu'à l'heure de reprise annoncée ; un jeton refusé mis à reconnecter, avec une seule notification ; le plafond, qui coupe l'API jusqu'au premier du mois ; la requalification relancée dans la même opération ; l'environnement de Claude Code vidé des secrets du serveur. Le vrai Claude Code, lancé avec un faux jeton, joint `/mcp`, se voit refuser en trois secondes, et l'API répond à sa place, en le disant sous le message ;
+- lot 14 : le dépôt essayé dans une transaction annulée, qui ne laisse rien ; la notification au nom du client ; le refus au dépôt, avec le motif de la base ; l'accord par la route du geste, au journal sous le nom de l'utilisateur, « demande de claude-code » en origine ; une demande déjà décidée, expirée, ou que le planning a rendue impossible ; tout accepter, dans l'ordre du dépôt ; une demande de HAL dans l'appli, avec ses deux boutons et sans notification de plus ;
+- lot 15 : le vrai Gemini CLI (0.64), contre un faux point d'accès de l'API Gemini : sa consigne remplacée par celle de HAL, ses seuls outils ceux du moment, un outil de HAL appelé par `/mcp` sous le jeton de la course, la relecture dans la même session, le quota épuisé qui passe la main à l'API, l'identification refusée qui le met à reconnecter.
+
+Restent à faire avant de s'y fier : les scénarios du chapitre 10.5 avec le vrai modèle, par Claude Code puis par Gemini CLI (FOU-17), puisque la consigne parle maintenant des demandes ; la compilation de l'appli, où l'écran Demandes, la carte du panneau et les actions de la notification n'ont pas tourné ; l'image construite avec `GEMINI_CLI=1` ; le démarrage de Claude Code mesuré sur le portable (F.11). `GEMINI_CLI_VALIDE` reste à faux d'ici là.
+
+Ce qui a changé en route est reporté dans les règles : le jeton de course (FOU-12), les petits travaux (FOU-15), l'annulation d'un accord (ACC-7), la consigne des clients externes (FOU-10), la conduite de Gemini CLI (FOU-11, F.11).
 
 ---
 
@@ -4096,7 +4106,7 @@ Une contrainte ne bouge pas : **rien ne change sans l'accord de l'utilisateur.**
 | Claude Code, par le SDK Agent Python `claude-agent-sdk` | Le fournisseur « abonnement » : lance Claude Code sans écran, lui passe la consigne et le branche sur `/mcp` | Seule voie officielle pour faire travailler un abonnement Claude depuis un programme. Le SDK embarque Claude Code |
 | `claude setup-token` | Le jeton d'abonnement de longue durée, créé par chacun sur sa machine | Prévu pour faire tourner Claude Code sans navigateur |
 | `cryptography` (Fernet) | Chiffre en base les jetons d'abonnement et les clés d'API | Chiffrement symétrique authentifié, la clé vit dans `.env`, hors de la base |
-| Gemini CLI | Un fournisseur de plus, prévu, pas construit (lot 15) | Il parle MCP et a un mode sans écran ; la consigne est à revalider pour lui (FOU-17) |
+| Gemini CLI | Un fournisseur de plus (lot 15), et un client MCP | Il parle MCP et a un mode sans écran, où sa consigne se remplace (`GEMINI_SYSTEM_MD`). Il s'identifie avec le compte Google de l'utilisateur, ou une clé de l'API Gemini. La consigne est à revalider pour lui (FOU-17) |
 
 Sont volontairement écartés : l'authentification OAuth du serveur MCP, et avec elle les connecteurs de claude.ai dans le navigateur (section F.11) ; un serveur MCP à part, dans un troisième conteneur ; le SQL libre donné au modèle.
 
@@ -4200,7 +4210,7 @@ Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est
 | ACC-4 | T | Accepter une demande exécute la même fonction que le geste fait à la main, au nom de l'utilisateur : mêmes droits (FOY-6), mêmes refus, même journal. La raison jointe à la notification de l'autre membre dit « proposé par HAL » ou le nom du client (NOT-17). Si la base refuse à ce moment-là, parce que le planning a bougé depuis, la demande passe à échouée, avec son motif |
 | ACC-5 | M | Une demande s'accepte ou se refuse d'un bouton : dans la réponse de HAL (élément « demande », COA-17), dans le bandeau des demandes d'Aujourd'hui, ou depuis la notification. Jamais par un outil, jamais depuis un client externe |
 | ACC-6 | T | Plusieurs demandes d'une même réponse s'acceptent une à une, ou toutes d'un bouton. « Tout accepter » les exécute une par une, dans l'ordre du dépôt : une demande refusée par la base n'empêche pas les suivantes |
-| ACC-7 | T | Une demande acceptée s'annule dans les cinq secondes, comme une action du panneau (ORB-6) |
+| ACC-7 | T | Un accord part au bout de cinq secondes, comme une action du panneau (ORB-6) : « Annuler », dans ce délai, le retient dans l'appli. Une demande acceptée ne se défait pas par une route : on fait le geste inverse à la main. Accepter depuis la notification part tout de suite |
 | ACC-8 | T | Une demande sans réponse expire au bout de 48 heures, ou dès que la date qu'elle vise est passée |
 | ACC-9 | T | Une demande déposée par un client externe part en notification, avec Accepter et Refuser, même pendant le silence de la nuit : c'est une conversation en cours (NOT-14). Une demande déposée dans l'appli n'en crée pas : elle est déjà sous les yeux |
 | ACC-10 | D | Restent sans demande, comme aujourd'hui, ce qui ne touche que HAL ou qui est déjà soumis à validation : la mémoire (MEM-4), une mesure dite (MES-7), un avis, une fenêtre de mesure, une séance ou une semaine proposée (validée ensuite par l'utilisateur), un ajustement (accepté ensuite par l'utilisateur) |
@@ -4219,15 +4229,15 @@ Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est
 | FOU-7 | D | Le fournisseur `api` a un plafond mensuel, en dollars, réglé par le compte, de 10 $ par défaut. La dépense du mois se calcule sur ses appels (COA-21) et sur une table des tarifs. Plafond atteint, l'API est de côté jusqu'au premier du mois suivant |
 | FOU-8 | T | Quand tous les fournisseurs sont de côté, un appel à la demande reçoit le message fixe de COA-12, qui dit en plus jusqu'à quand. Un appel planifié suit COA-11 : ses nouveaux essais prendront le premier fournisseur revenu |
 | FOU-9 | D | Chaque appel et chaque échange gardent le fournisseur qui a répondu. La réponse le dit à l'appli, qui le montre discrètement sous le message quand ce n'est pas le premier de la liste : « par l'API, abonnement épuisé jusqu'à 18 h » |
-| FOU-10 | T | Avec Claude Code, la consigne est celle de l'API (B.2.3, rangs 1 à 5). Elle remplace la consigne de Claude Code, au lieu de s'y ajouter. Les bornes sont les mêmes : tours (COA-7), délai (COA-16), limite de sortie (COA-27) |
-| FOU-11 | D | Sur le serveur, Claude Code n'a aucun outil intégré : ni shell, ni lecture ou écriture de fichiers, ni web, ni sous-agents. Il tourne dans un dossier vide et jetable, sans `CLAUDE.md`, sans réglages de l'utilisateur, sans reprise de session. Ses seuls outils sont ceux de HAL permis pour le moment |
-| FOU-12 | D | Un jeton de course est signé par le serveur, pour un compte, un moment et une opération. Il vit le temps du délai de l'appel et n'est valable que depuis le conteneur (MCP-14). Il n'est pas gardé en base |
+| FOU-10 | T | Avec Claude Code ou Gemini CLI, la consigne est celle de l'API (B.2.3, rangs 1 à 5). Elle remplace la leur, au lieu de s'y ajouter. La consigne courte des clients externes (`coach/consigne_mcp.md`), que le serveur MCP annonce à la poignée de main, n'est pas donnée à une course. Les bornes sont les mêmes : tours (COA-7), délai (COA-16), limite de sortie (COA-27) |
+| FOU-11 | D | Sur le serveur, Claude Code et Gemini CLI n'ont aucun outil intégré : ni shell, ni lecture ou écriture de fichiers, ni web, ni sous-agents. Ils tournent dans un dossier vide et jetable, qui leur sert de maison : sans `CLAUDE.md` ni `GEMINI.md`, sans réglages de l'utilisateur, sans reprise d'une session passée. Leurs seuls outils sont ceux de HAL permis pour le moment. De l'environnement du serveur, ils ne reçoivent que ce qu'il faut pour joindre le réseau |
+| FOU-12 | D | Un jeton de course est tiré au hasard par le serveur pour un appel. Il désigne l'état de la course, tenu en mémoire : le compte, le moment, l'opération, les outils permis et les tours restants. Il disparaît avec la course, n'est valable que depuis le conteneur (MCP-14) et n'est jamais gardé en base. Rien n'est à signer : aucun secret de plus dans `.env` |
 | FOU-13 | T | La requalification (COA-25) termine la course. Le module en relance une avec le nouveau moment, dans la même opération : l'utilisateur ne reçoit qu'une réponse |
 | FOU-14 | T | Les tokens rendus par Claude Code sont enregistrés comme ceux de l'API (COA-21), avec le fournisseur. Ils ne comptent pas dans le plafond |
-| FOU-15 | T | Les petits travaux d'un compte suivent sa chaîne : le choix des paquets (DOS-4) et les résumés de sa mémoire (MEM-7). Les noms de modèle (`COACH_MODELE` et les autres) valent pour tous les fournisseurs Claude |
-| FOU-16 | D | Le serveur fait tourner au plus deux Claude Code à la fois. Un troisième attend, dans la limite de son délai |
+| FOU-15 | T | Les résumés de la mémoire d'un compte (MEM-7) suivent sa chaîne. Le choix des paquets (DOS-4) doit répondre en quelques secondes, plus vite que Claude Code ne démarre : il ne prend que l'API de la chaîne, et un délai dépassé ne la met pas de côté. Gemini CLI ne fait pas les petits travaux. Les noms de modèle (`COACH_MODELE` et les autres) valent pour tous les fournisseurs Claude ; Gemini CLI a le sien, `GEMINI_CLI_MODELE` |
+| FOU-16 | D | Le serveur fait tourner au plus deux courses à la fois, Claude Code et Gemini CLI ensemble (`CLAUDE_CODE_COURSES_MAX`). Une troisième attend, dans la limite de son délai |
 | FOU-17 | M | Avant de proposer un nouveau type de fournisseur, ou un nouveau modèle, les scénarios du chapitre 10.5 sont rejoués avec lui, ceux de sécurité en premier (COA-14) |
-| FOU-18 | M | Un fournisseur se branche, se range, se coupe et se retire dans Réglages, Intelligence. Un jeton ou une clé collés sont essayés par un appel minimal avant d'être gardés |
+| FOU-18 | M | Un fournisseur se branche, se range, se coupe et se retire dans Réglages, Intelligence. Un jeton ou une clé collés sont essayés par un appel minimal avant d'être gardés. Pour Gemini CLI, on colle le contenu de `~/.gemini/oauth_creds.json` (son compte Google), ou une clé de l'API Gemini ; des identifiants renouvelés pendant une course remplacent les anciens |
 
 ---
 
@@ -4251,8 +4261,8 @@ Les migrations partent de 070.
 | id_utilisateur | INTEGER | non | | avec `type` ; avec `rang` | | | Utilisateur |
 | type | VARCHAR(12) | non | 'claude_code', 'api', 'gemini_cli' | | | | |
 | rang | SMALLINT | non | > 0 | | | | |
-| secret | BYTEA | non | chiffré (FOU-3) | | | | |
-| secret_fin | CHAR(4) | non | les quatre derniers caractères | | | | |
+| secret | BYTEA | oui | chiffré (FOU-3) ; vide seulement pour l'API de l'administrateur, qui prend alors la clé du serveur (FOU-2) | | | | |
+| secret_fin | CHAR(4) | oui | les quatre derniers caractères (du `refresh_token` pour Gemini CLI) ; vide avec `secret` | | | | |
 | etat | VARCHAR(14) | non | 'actif', 'de_cote', 'a_reconnecter', 'coupe' | | 'actif' | | |
 | de_cote_jusqu_a | TIMESTAMPTZ | oui | renseigné si etat = 'de_cote' | | | | |
 | plafond_mensuel | NUMERIC(7,2) | oui | > 0 ; renseigné pour le type 'api' seul | | 10 | | |
@@ -4304,6 +4314,7 @@ Remplie par une migration, revue quand le fournisseur change ses prix. Un modèl
 | id_utilisateur | INTEGER | non | | | | | Utilisateur |
 | action | VARCHAR(30) | non | liste fermée, section F.8.2 | | | | |
 | parametres | JSONB | non | | | | | |
+| resume | TEXT | non | ce qui changerait, en une phrase, écrite par l'API depuis les paramètres et la base (ACC-12) | | | | |
 | motif | VARCHAR(300) | non | non vide | | | | |
 | origine | VARCHAR(8) | non | 'HAL', 'client' | | | | |
 | client | VARCHAR(60) | oui | renseigné si origine = 'client' | | | | |
@@ -4386,7 +4397,8 @@ Remplie par une migration, revue quand le fournisseur change ses prix. Un modèl
 | Route | Ce qu'elle fait | Règles |
 |---|---|---|
 | `GET /moi/fournisseurs` | Les fournisseurs du compte, rangés : type, état, quatre derniers caractères, de côté jusqu'à quand, dépense API du mois et plafond | FOU-1, FOU-7 |
-| `PUT /moi/fournisseurs/{type}` | Brancher ou remplacer un jeton ou une clé, après un essai ; régler le plafond | FOU-18 |
+| `PUT /moi/fournisseurs/{type}` | Brancher ou remplacer un jeton ou une clé, après un essai. Pour `gemini_cli`, 409 tant que `GEMINI_CLI_VALIDE` est faux | FOU-17, FOU-18 |
+| `PUT /moi/fournisseurs/api/plafond` | Régler le plafond mensuel de l'API | FOU-7 |
 | `PUT /moi/fournisseurs/ordre` | Ranger les fournisseurs | FOU-1 |
 | `POST /moi/fournisseurs/{type}/couper`, `/reprendre` | Mettre un fournisseur hors de la chaîne sans le retirer | FOU-18 |
 | `DELETE /moi/fournisseurs/{type}` | Retirer un fournisseur et effacer son secret | FOU-3 |
@@ -4395,7 +4407,6 @@ Remplie par une migration, revue quand le fournisseur change ses prix. Un modèl
 | `GET /demandes` | Les demandes du compte, en attente d'abord | ACC-5 |
 | `POST /demandes/{id}/accepter`, `/refuser` | Accepter ou refuser une demande | ACC-4, ACC-5 |
 | `POST /demandes/accepter` | Accepter plusieurs demandes, dans l'ordre du dépôt | ACC-6 |
-| `POST /demandes/{id}/annuler` | Défaire une demande acceptée, dans les cinq secondes | ACC-7 |
 | `/mcp` | Le serveur MCP | MCP-1 |
 
 #### F.8.2 Le catalogue MCP
@@ -4461,7 +4472,11 @@ claude mcp add --transport http hal https://<nom-du-serveur>.ts.net:8443/mcp \
     --header "X-Cle-Mcp: <la clé>"
 ```
 
-Pour Gemini CLI, le même serveur se déclare dans `~/.gemini/settings.json`, avec l'adresse et l'en-tête. L'appli affiche les deux.
+Pour Gemini CLI, la commande écrit le même serveur dans `~/.gemini/settings.json`. L'appli affiche les deux :
+
+```
+gemini mcp add --scope user --transport http hal https://<serveur>.ts.net:8443/mcp --header "X-Cle-Mcp: hal_…"
+```
 
 ### F.9 Dans l'application
 
@@ -4481,13 +4496,13 @@ Le groupe « HAL et sport » de Réglages (section C.12) reçoit la ligne Intell
 | Élément | Avant | Après | Règles |
 |---|---|---|---|
 | Fournisseur du modèle | L'API d'Anthropic, une clé pour le serveur | Une chaîne par compte : abonnement, puis API | FOU |
-| `api/coach/modele.py` | Le seul fichier qui connaît le SDK | Un fournisseur par fichier, derrière la même interface : un tour, ou une course entière pour Claude Code | FOU-10 |
+| `api/coach/modele.py` | Le seul fichier qui connaît le SDK | Reste l'API. Les courses ont leur fichier : `course.py` pour Claude Code, `course_gemini.py` pour Gemini CLI ; `fournisseurs.py` tient la chaîne | FOU-10 |
 | `api/coach/outils.py` | Déclare les outils au modèle et les exécute | Reste le catalogue ; le serveur MCP le sert, et la boucle de l'API continue de l'appeler en direct | MCP-5 |
 | Outils du chat, du signalement et du changement | Lecture, mémoire, séances selon le moment | En plus, les demandes | COA-5 |
 | Plafond de dépense | Aucun | Un plafond mensuel sur l'API, par compte | FOU-7 |
 | Report de 0h05 | Reporte, expire, roule la mémoire | Expire aussi les demandes restées sans réponse | ACC-8 |
-| Image Docker `api` | Python seul | Python et Claude Code, par le SDK Agent | F.2.1 |
-| `.env` | `ANTHROPIC_API_KEY` | En plus, `HAL_CLE_CHIFFREMENT` et `HAL_SECRET_COURSE`. La clé d'API du serveur reste le défaut d'un compte sans liste | FOU-1, FOU-3, FOU-12 |
+| Image Docker `api` | Python seul | Python et Claude Code, par le SDK Agent. Node.js et Gemini CLI en plus, seulement si `GEMINI_CLI=1` | F.2.1, FOU-17 |
+| `.env` | `ANTHROPIC_API_KEY` | En plus, `HAL_CLE_CHIFFREMENT`, `PLAFOND_API_DEFAUT`, `CLAUDE_CODE_COURSES_MAX`, et pour Gemini CLI `GEMINI_CLI`, `GEMINI_CLI_VALIDE`, `GEMINI_CLI_MODELE`. La clé d'API du serveur reste le défaut d'un compte sans liste | FOU-1, FOU-3, FOU-7, FOU-16, FOU-17 |
 
 Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire, les échanges rendus, le verrou du compte, les nouveaux essais, la forme de la réponse, l'ordonnanceur. Un compte sans fournisseur branché fonctionne exactement comme aujourd'hui.
 
@@ -4496,7 +4511,8 @@ Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire,
 | Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
 |---|---|---|
 | Conditions de l'abonnement | Faire travailler son abonnement Claude par un programme à soi, pour soi, est l'usage de `claude setup-token`. Les conditions d'Anthropic évoluent | À relire avant le lot 13, puis de temps en temps. Si elles l'interdisent, chaque compte repasse sur l'API en coupant un fournisseur : rien d'autre ne change. C'est pour cela que FOU-2 interdit de prêter son abonnement |
-| Limite d'usage | La forme du message de Claude Code quand l'abonnement est épuisé n'est pas une interface stable | Sa reconnaissance vit dans un seul fichier, couverte par un test. Un message non reconnu est traité comme une panne du fournisseur : on passe quand même au suivant |
+| Limite d'usage | La forme du message de Claude Code quand l'abonnement est épuisé n'est pas une interface stable | Reconnue dans `course.py` : l'événement de limite d'usage refusé du SDK, avec son heure de reprise, et les erreurs « rate_limit », « billing_error » et 429. Un message non reconnu est traité comme une panne du fournisseur : on passe quand même au suivant, pour cinq minutes |
+| Gemini CLI | Ses réglages et ses messages changent d'une version à l'autre. Il réessaie seul une erreur 429 pendant plus de trois minutes, et présente le résultat des outils MCP au modèle comme du texte « non fiable » | La version est fixée dans l'image (0.64). Les réessais sont coupés (`general.maxAttempts`) : un quota épuisé passe la main tout de suite. L'effet du marquage « non fiable » sur les réponses se jugera aux scénarios (FOU-17) |
 | Limites partagées | L'abonnement de l'administrateur sert aussi à son Claude Code de développement | Un soir de gros développement peut faire passer la synthèse sur l'API. Le plafond borne la dépense |
 | Délai | Claude Code met quelques secondes à démarrer | À mesurer au lot 13 sur le portable. Le délai de 90 secondes (COA-16) laisse de la marge |
 | Mémoire vive | Le portable est vieux, et chaque Claude Code est un processus | Deux au plus à la fois (FOU-16). À mesurer |

@@ -28,7 +28,11 @@ services:
       retries: 5
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        # FOU-17 : 1 pour avoir Gemini CLI dans l'image (Node.js compris).
+        GEMINI_CLI: ${GEMINI_CLI:-0}
     container_name: planif-api
     restart: unless-stopped
     depends_on:

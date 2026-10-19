@@ -216,6 +216,8 @@ class Passage:
     cache_ecrit: int = 0
     sortie: int = 0
     tours_modele: int = 0
+    # Gemini CLI : ses identifiants Google, s'il les a renouvelés pendant la course.
+    secret_neuf: str | None = None
 
 
 def _compter(passage: Passage, usage: dict | None) -> None:

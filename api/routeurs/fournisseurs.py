@@ -1,8 +1,9 @@
-"""Les fournisseurs du modèle, dans Réglages, Intelligence      (FOU-18, FOU-19)
+"""Les fournisseurs du modèle, dans Réglages, Intelligence      (FOU-17 à FOU-19)
 
-Brancher son abonnement Claude (le jeton de `claude setup-token`) ou une clé
-d'API, les ranger, en couper un, le retirer, régler le plafond de l'API. Un
-jeton ou une clé collés sont essayés par un appel minimal avant d'être gardés.
+Brancher son abonnement Claude (le jeton de `claude setup-token`), une clé
+d'API, ou son compte Google pour Gemini CLI ; les ranger, en couper un, le
+retirer, régler le plafond de l'API. Un secret collé est essayé par un appel
+minimal avant d'être gardé.
 """
 
 from typing import Literal
@@ -10,20 +11,22 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.coach import course, fournisseurs, modele
+from api.coach import course, course_gemini, fournisseurs, modele
 from api.config import configuration
 from api.securite import Authentifie
 
 routeur = APIRouter(prefix="/moi/fournisseurs", tags=["Fournisseurs du modèle"])
 
-TypeFournisseur = Literal["claude_code", "api"]
+TypeFournisseur = Literal["claude_code", "api", "gemini_cli"]
 
 
 class Branchement(BaseModel):
-    secret: str | None = Field(default=None, min_length=20, max_length=400,
-                               description="Le jeton de `claude setup-token`, ou une clé "
-                                           "d'API. Vide pour l'API : la clé du serveur, "
-                                           "pour son administrateur seulement")
+    secret: str | None = Field(default=None, min_length=20, max_length=8000,
+                               description="Le jeton de `claude setup-token`, une clé "
+                                           "d'API, ou pour Gemini CLI le contenu de "
+                                           "~/.gemini/oauth_creds.json (ou une clé Gemini). "
+                                           "Vide pour l'API : la clé du serveur, pour son "
+                                           "administrateur seulement")
     plafond: float | None = Field(default=None, gt=0, le=1000,
                                   description="FOU-7 : le plafond mensuel de l'API, en $")
 
@@ -45,12 +48,16 @@ def _essayer(type_: str, secret: str) -> None:
     try:
         if type_ == "claude_code":
             course.essayer(secret)
+        elif type_ == "gemini_cli":
+            course_gemini.essayer(secret)
         else:
             conf = configuration()
             modele.ecrire("Réponds seulement OK.", "OK ?",
                           conf.coach_modele_aiguillage or conf.coach_modele, 5, 30.0,
                           cle=secret)
     except fournisseurs.Indisponible as erreur:
+        if erreur.nature == "jeton" and type_ == "gemini_cli":
+            raise _refus("jeton_refuse", erreur.motif) from None
         if erreur.nature == "jeton":
             raise _refus("jeton_refuse", "Ce jeton est refusé : recopie-le en entier, "
                          "ou refais `claude setup-token`.") from None
@@ -84,9 +91,15 @@ def regler_plafond(plafond: Plafond, qui: Authentifie) -> dict:
     return fournisseurs.lister_pour(qui.id_utilisateur)
 
 
-@routeur.put("/{type_}", summary="Brancher mon abonnement Claude, ou une clé d'API")
+@routeur.put("/{type_}", summary="Brancher mon abonnement Claude, une clé d'API, ou Gemini CLI")
 def brancher(type_: TypeFournisseur, branchement: Branchement, qui: Authentifie) -> dict:
     secret = (branchement.secret or "").strip() or None
+    if type_ == "gemini_cli" and not fournisseurs.gemini_propose():
+        # FOU-17 : pas avant que les scénarios du coach soient passés avec lui.
+        raise _refus("gemini_pas_valide", "Gemini CLI n'est pas encore validé sur ce serveur",
+                     status.HTTP_409_CONFLICT)
+    if secret is None and type_ == "gemini_cli":
+        raise _refus("jeton_absent", "Colle le contenu de ~/.gemini/oauth_creds.json")
     if secret is None and type_ == "claude_code":
         raise _refus("jeton_absent", "Colle le jeton que donne `claude setup-token`")
     if secret is None and not qui.est_admin:

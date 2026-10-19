@@ -252,10 +252,20 @@ class PresentationDuClient:
     Le nom vient de `clientInfo`, dans la poignée de main. Un client qui n'en
     fait pas (le protocole de juillet 2026 s'en passe) prend son en-tête
     User-Agent, au premier outil.
+
+    Une course n'en ouvre pas : elle est l'appel de HAL lui-même. Elle ne reçoit
+    pas non plus la consigne des clients externes, que Claude Code et Gemini CLI
+    ajouteraient à celle de HAL (FOU-10).
     """
 
     async def __call__(self, ctx, call_next):
-        if ctx.method == "initialize" and _course(ctx) is None:
+        if _course(ctx) is not None:
+            resultat = await call_next(ctx)
+            if isinstance(resultat, dict) and "instructions" in resultat:
+                # Le SDK rend la poignée de main déjà prête pour le fil.
+                resultat = {k: v for k, v in resultat.items() if k != "instructions"}
+            return resultat
+        if ctx.method == "initialize":
             info = (ctx.params or {}).get("clientInfo") or {}
             nom = " ".join(str(x) for x in (info.get("name"), info.get("version")) if x)
             try:
