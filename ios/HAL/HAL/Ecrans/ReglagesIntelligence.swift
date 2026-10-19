@@ -1,9 +1,10 @@
 import SwiftUI
 import UIKit
 
-// Réglages, Intelligence (FOU-19, partie F) : qui fait réfléchir HAL (son
-// abonnement Claude, puis l'API en secours), et les clients MCP qui lisent HAL
-// depuis un ordinateur, leurs clés et leurs dernières sessions.
+// Réglages, Intelligence (FOU-18, partie F) : qui fait réfléchir HAL, en trois
+// options toujours affichées (abonnement Claude, API d'Anthropic, Gemini), chacune
+// avec son état et son interrupteur ; puis les clients MCP qui lisent HAL depuis
+// un ordinateur, leurs clés et leurs dernières sessions.
 
 private let enFrancais = Locale(identifier: "fr_FR")
 
@@ -85,6 +86,9 @@ struct EcranIntelligence: View {
     @State private var identifiantsGemini = ""
     @State private var plafond = ""
     @State private var aRetirer: FournisseurModele?
+    /// L'option dont le formulaire est ouvert sous sa ligne.
+    @State private var ouvert: String?
+    @State private var erreurModele: String?
 
     private struct NouvelleCle: Encodable { let nom: String }
     private struct Branchement: Encodable { let secret: String?; let plafond: Double? }
@@ -168,6 +172,7 @@ struct EcranIntelligence: View {
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL("Réglages, intelligence")
         .task { await charger() }
+        .refreshable { await charger() }
         .confirmationDialog("Révoquer « \(aRevoquer?.nom ?? "") » ?",
                             isPresented: Binding { aRevoquer != nil } set: { if !$0 { aRevoquer = nil } },
                             titleVisibility: .visible) {
@@ -190,74 +195,248 @@ struct EcranIntelligence: View {
 
     // MARK: - Qui fait réfléchir HAL (FOU-1 à FOU-9)
 
+    private struct Option: Hashable {
+        let type: String
+        let titre: String
+        let icone: String
+    }
+
+    /// Les trois façons de faire réfléchir HAL, toujours affichées, dans cet ordre.
+    private static let options = [
+        Option(type: "claude_code", titre: "Abonnement Claude", icone: "person.badge.key"),
+        Option(type: "api", titre: "API d'Anthropic", icone: "creditcard"),
+        Option(type: "gemini_cli", titre: "Gemini", icone: "sparkles"),
+    ]
+
     @ViewBuilder private var sectionModele: some View {
         EnTeteGroupe(texte: "Qui fait réfléchir HAL")
         if let modele {
-            if modele.fournisseurs.isEmpty {
-                Text("HAL passe par l'API du serveur. Branche ton abonnement Claude pour qu'il passe d'abord par lui, sans coût en plus.")
-                    .texte(.corps).foregroundStyle(Palette.texteSecondaire)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            ForEach(modele.fournisseurs) { ligne(fournisseur: $0, total: modele.fournisseurs.count) }
+            Text(resume(modele))
+                .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                .fixedSize(horizontal: false, vertical: true)
             if !modele.chiffrementRegle {
                 Text("Le serveur ne peut pas garder de jeton : HAL_CLE_CHIFFREMENT manque dans son .env.")
                     .texte(.legende).foregroundStyle(Categorie.alerte.couleur)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if !modele.fournisseurs.contains(where: { $0.type == "claude_code" }) || jetonARecoller {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Ton abonnement Claude").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                    Text("Sur ton ordinateur, lance `claude setup-token`, puis colle le jeton ici. Il n'est essayé qu'une fois, puis gardé chiffré.")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                        .fixedSize(horizontal: false, vertical: true)
-                    champSecret("Jeton d'abonnement", $jeton)
-                    Button("Brancher mon abonnement") {
-                        Task { await brancher("claude_code", jeton, nil) }
-                    }
-                    .buttonStyle(.hal(.accent, pleineLargeur: true))
-                    .disabled(jeton.trimmingCharacters(in: .whitespaces).count < 20 || envoi)
+            ForEach(Self.options, id: \.type) { option in
+                ligneOption(option.type, option.titre, option.icone, modele)
+                if ouvert == option.type || doitEtreRecolle(option.type, modele) {
+                    formulaire(option.type, modele)
                 }
-                .padding(Espace.interne)
-                .carte(rayon: Rayon.controle)
             }
-            if !modele.fournisseurs.contains(where: { $0.type == "api" }) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("L'API en secours").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                    Text("Quand l'abonnement est épuisé, HAL passe par l'API avec ta clé, jusqu'au plafond du mois.")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                        .fixedSize(horizontal: false, vertical: true)
-                    champSecret(foyer.moi.estAdministrateur ? "Clé d'API (vide : celle du serveur)" : "Clé d'API", $cleAPI)
-                    TextField("Plafond du mois, en $ (10 par défaut)", text: $plafond)
-                        .keyboardType(.decimalPad)
-                        .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                        .padding(.horizontal, 14).frame(height: 46)
-                        .verreControle(Capsule(), interactif: false)
-                    Button("Ajouter l'API en secours") {
-                        Task { await brancher("api", cleAPI, Double(plafond.replacingOccurrences(of: ",", with: "."))) }
-                    }
-                    .buttonStyle(.hal(.verre, pleineLargeur: true))
-                    .disabled(envoi || (cleAPI.isEmpty && !foyer.moi.estAdministrateur))
-                }
-                .padding(Espace.interne)
-                .carte(rayon: Rayon.controle)
-            }
-            if !modele.fournisseurs.contains(where: { $0.type == "gemini_cli" }) || aRecoller("gemini_cli") {
-                CarteGemini(texte: $identifiantsGemini,
-                            installe: modele.geminiInstalle ?? false,
-                            aRecoller: aRecoller("gemini_cli"),
-                            envoi: envoi,
-                            brancher: { Task { await brancher("gemini_cli", identifiantsGemini, nil) } },
-                            copier: copier)
-            }
+        } else if let erreurModele {
+            Text("Impossible de lire tes fournisseurs : \(erreurModele)")
+                .texte(.legende).foregroundStyle(Categorie.alerte.couleur)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Réessayer") { Task { await charger() } }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
         } else if foyer.connecte {
             ProgressView().frame(maxWidth: .infinity, minHeight: 60)
         }
     }
 
-    private var jetonARecoller: Bool { aRecoller("claude_code") }
+    /// FOU-4 : ce par quoi HAL passe en ce moment, en une phrase.
+    private func resume(_ modele: EtatDesFournisseurs) -> String {
+        if modele.cleDuServeur {
+            return "En ce moment, HAL passe par l'API d'Anthropic, avec la clé du serveur."
+        }
+        let actifs = modele.fournisseurs.filter { $0.etat == "actif" || $0.etat == "de_cote" }
+        if actifs.isEmpty {
+            return "Tout est coupé : HAL répond un message fixe tant qu'aucune option n'est activée."
+        }
+        let noms = actifs.map { f in
+            ["claude_code": "ton abonnement Claude", "api": "l'API d'Anthropic",
+             "gemini_cli": "Gemini"][f.type] ?? f.libelle
+        }
+        return "HAL passe par \(noms.joined(separator: ", puis par ")), dans cet ordre."
+    }
 
-    private func aRecoller(_ type: String) -> Bool {
-        modele?.fournisseurs.contains { $0.type == type && $0.etat == "a_reconnecter" } ?? false
+    private func fournisseur(_ type: String, _ modele: EtatDesFournisseurs) -> FournisseurModele? {
+        modele.fournisseurs.first { $0.type == type }
+    }
+
+    private func doitEtreRecolle(_ type: String, _ modele: EtatDesFournisseurs) -> Bool {
+        fournisseur(type, modele)?.etat == "a_reconnecter"
+    }
+
+    /// L'API passe par la clé du serveur tant que le compte n'a rien branché (FOU-1).
+    private func apiImplicite(_ type: String, _ modele: EtatDesFournisseurs) -> Bool {
+        type == "api" && modele.cleDuServeur
+    }
+
+    private func estActive(_ type: String, _ modele: EtatDesFournisseurs) -> Bool {
+        if apiImplicite(type, modele) { return true }
+        guard let f = fournisseur(type, modele) else { return false }
+        return f.etat == "actif" || f.etat == "de_cote"
+    }
+
+    private func ligneOption(_ type: String, _ titre: String, _ icone: String,
+                             _ modele: EtatDesFournisseurs) -> some View {
+        let f = fournisseur(type, modele)
+        let active = estActive(type, modele)
+        let alerte = f?.etat == "a_reconnecter" || (type == "gemini_cli" && f == nil && modele.geminiInstalle != true)
+        return HStack(spacing: 12) {
+            Pastille(icone: icone, couleur: active ? Categorie.ia.couleur : Palette.texteSecondaire)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(f.map { "\($0.rang). \(titre)" } ?? titre)
+                    .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                Label(etatOption(type, f, modele), systemImage: active ? "circle.fill" : "circle")
+                    .labelStyle(PuceEtat(couleur: alerte ? Categorie.alerte.couleur
+                                         : active ? Categorie.sport.couleur : Palette.texteTertiaire))
+                    .texte(.legende)
+                    .foregroundStyle(alerte ? Categorie.alerte.couleur : Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if let f {
+                Menu {
+                    if f.rang > 1 {
+                        Button("Passer devant", systemImage: "arrow.up") { Task { await monter(f) } }
+                    }
+                    Button(type == "api" ? "Changer la clé" : "Recoller le jeton", systemImage: "key") {
+                        withAnimation(.smooth) { ouvert = type }
+                    }
+                    if type == "api" {
+                        Button("Plafond à 5 $", systemImage: "dollarsign") { Task { await regler(5) } }
+                        Button("Plafond à 10 $", systemImage: "dollarsign") { Task { await regler(10) } }
+                        Button("Plafond à 20 $", systemImage: "dollarsign") { Task { await regler(20) } }
+                    }
+                    Button("Retirer", systemImage: "trash", role: .destructive) { aRetirer = f }
+                } label: {
+                    Image(systemName: "ellipsis").foregroundStyle(Palette.texteSecondaire)
+                        .frame(width: 32, height: 32)
+                }
+                .accessibilityLabel("Options de \(titre)")
+            }
+            Toggle(titre, isOn: Binding(
+                get: { active },
+                set: { voulu in Task { await basculer(type, voulu, modele) } }))
+                .labelsHidden()
+                .tint(Categorie.ia.couleur)
+                .disabled(envoi || (type == "gemini_cli" && f == nil && modele.geminiInstalle != true))
+        }
+        .padding(Espace.interne)
+        .carte(rayon: Rayon.controle)
+    }
+
+    /// Ce que l'option fait en ce moment, en clair.
+    private func etatOption(_ type: String, _ f: FournisseurModele?, _ modele: EtatDesFournisseurs) -> String {
+        if apiImplicite(type, modele) {
+            return String(format: "En marche · clé du serveur · %.2f $ ce mois-ci", modele.depenseApiDuMois)
+                .replacingOccurrences(of: ".", with: ",")
+        }
+        guard let f else {
+            if type == "gemini_cli" && modele.geminiInstalle != true {
+                return "Pas installé sur le serveur"
+            }
+            return "Pas branché"
+        }
+        var morceaux: [String] = []
+        switch f.etat {
+        case "actif": morceaux.append("En marche")
+        case "de_cote":
+            morceaux.append(f.deCoteJusquA.map {
+                "En pause jusqu'à \($0.formatted(.dateTime.hour().minute().locale(enFrancais)))"
+            } ?? "En pause")
+        case "a_reconnecter": morceaux.append("Jeton refusé : à recoller")
+        case "coupe": morceaux.append("Branché, désactivé")
+        default: morceaux.append(f.etat)
+        }
+        if let motif = f.motif, f.etat == "de_cote" { morceaux.append(motif) }
+        if type == "api" {
+            let plafond = f.plafondMensuel ?? 10
+            morceaux.append(String(format: "%.2f $ sur %.0f $ ce mois-ci", modele.depenseApiDuMois, plafond)
+                .replacingOccurrences(of: ".", with: ","))
+        }
+        if let fin = f.secretFin { morceaux.append("…\(fin)") } else if type == "api" { morceaux.append("clé du serveur") }
+        return morceaux.joined(separator: " · ")
+    }
+
+    /// L'interrupteur d'une option : la remettre dans la chaîne, l'en sortir, ou
+    /// ouvrir de quoi la brancher si elle ne l'est pas encore.
+    private func basculer(_ type: String, _ voulu: Bool, _ modele: EtatDesFournisseurs) async {
+        if let f = fournisseur(type, modele) {
+            if voulu, f.etat == "a_reconnecter" {
+                withAnimation(.smooth) { ouvert = type }
+            } else if voulu {
+                await modifier("POST", "moi/fournisseurs/\(type)/reprendre", nil, "Activé")
+            } else {
+                await modifier("POST", "moi/fournisseurs/\(type)/couper", nil, "Désactivé")
+            }
+            return
+        }
+        if voulu {
+            withAnimation(.smooth) { ouvert = ouvert == type ? nil : type }
+            return
+        }
+        // La clé du serveur, utilisée tant que rien n'est branché.
+        guard apiImplicite(type, modele) else { return }
+        if foyer.moi.estAdministrateur {
+            envoi = true
+            defer { envoi = false }
+            do {
+                let _: EtatDesFournisseurs = try await foyer.demander(
+                    "PUT", "moi/fournisseurs/api",
+                    corps: ClientAPI.corps(Branchement(secret: nil, plafond: nil)))
+                self.modele = try await foyer.demander("POST", "moi/fournisseurs/api/couper")
+                erreur = nil
+                annoncer("API désactivée")
+            } catch {
+                erreur = motifDe(error)
+            }
+        } else {
+            erreur = "La clé du serveur sert tant que tu n'as rien branché : active d'abord ton abonnement Claude ou Gemini."
+        }
+    }
+
+    /// Ce qu'il faut coller pour brancher une option, sous sa ligne.
+    @ViewBuilder
+    private func formulaire(_ type: String, _ modele: EtatDesFournisseurs) -> some View {
+        switch type {
+        case "claude_code":
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Sur ton ordinateur, lance `claude setup-token`, connecte-toi à ton compte Claude, puis colle ici le jeton qu'il affiche (sk-ant-oat01-…). Il est essayé une fois, puis gardé chiffré.")
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+                champSecret("Jeton d'abonnement", $jeton)
+                HStack(spacing: 10) {
+                    Button("Coller") { if let colle = UIPasteboard.general.string { jeton = colle } }
+                        .buttonStyle(.hal(.verre, pleineLargeur: true))
+                    Button("Brancher") { Task { await brancher("claude_code", jeton, nil) } }
+                        .buttonStyle(.hal(.accent, pleineLargeur: true))
+                        .disabled(!jeton.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("sk-ant-") || envoi)
+                }
+            }
+            .padding(Espace.interne)
+            .carte(rayon: Rayon.controle)
+        case "api":
+            VStack(alignment: .leading, spacing: 10) {
+                Text("HAL passe par l'API avec ta clé (console.anthropic.com), jusqu'au plafond du mois. Rangée après l'abonnement, elle ne sert que quand il est épuisé.")
+                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
+                champSecret(foyer.moi.estAdministrateur ? "Clé d'API (vide : celle du serveur)" : "Clé d'API", $cleAPI)
+                TextField("Plafond du mois, en $ (10 par défaut)", text: $plafond)
+                    .keyboardType(.decimalPad)
+                    .texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    .padding(.horizontal, 14).frame(height: 46)
+                    .verreControle(Capsule(), interactif: false)
+                Button("Brancher l'API") {
+                    Task { await brancher("api", cleAPI, Double(plafond.replacingOccurrences(of: ",", with: "."))) }
+                }
+                .buttonStyle(.hal(.accent, pleineLargeur: true))
+                .disabled(envoi || (cleAPI.isEmpty && !foyer.moi.estAdministrateur))
+            }
+            .padding(Espace.interne)
+            .carte(rayon: Rayon.controle)
+        default:
+            CarteGemini(texte: $identifiantsGemini,
+                        installe: modele.geminiInstalle ?? false,
+                        aRecoller: doitEtreRecolle("gemini_cli", modele),
+                        envoi: envoi,
+                        brancher: { Task { await brancher("gemini_cli", identifiantsGemini, nil) } },
+                        copier: copier)
+        }
     }
 
     private func champSecret(_ titre: String, _ valeur: Binding<String>) -> some View {
@@ -267,65 +446,6 @@ struct EcranIntelligence: View {
             .texte(.corps).foregroundStyle(Palette.textePrincipal)
             .padding(.horizontal, 14).frame(height: 46)
             .verreControle(Capsule(), interactif: false)
-    }
-
-    private func ligne(fournisseur f: FournisseurModele, total: Int) -> some View {
-        HStack(spacing: 12) {
-            Pastille(icone: f.type == "api" ? "creditcard" : f.type == "gemini_cli" ? "sparkles" : "person.badge.key",
-                     couleur: f.etat == "actif" ? Categorie.ia.couleur : Palette.texteSecondaire)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("\(f.rang). \(f.libelle)").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                Text(etat(f)).texte(.legende)
-                    .foregroundStyle(f.etat == "a_reconnecter" ? Categorie.alerte.couleur : Palette.texteSecondaire)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            Menu {
-                if f.rang > 1 {
-                    Button("Passer devant", systemImage: "arrow.up") { Task { await monter(f) } }
-                }
-                if f.etat == "coupe" {
-                    Button("Reprendre", systemImage: "play") {
-                        Task { await modifier("POST", "moi/fournisseurs/\(f.type)/reprendre", nil, "Repris") }
-                    }
-                } else {
-                    Button("Couper", systemImage: "pause") {
-                        Task { await modifier("POST", "moi/fournisseurs/\(f.type)/couper", nil, "Coupé") }
-                    }
-                }
-                if f.type == "api" {
-                    Button("Plafond à 5 $", systemImage: "dollarsign") { Task { await regler(5) } }
-                    Button("Plafond à 10 $", systemImage: "dollarsign") { Task { await regler(10) } }
-                    Button("Plafond à 20 $", systemImage: "dollarsign") { Task { await regler(20) } }
-                }
-                Button("Retirer", systemImage: "trash", role: .destructive) { aRetirer = f }
-            } label: {
-                Image(systemName: "ellipsis").foregroundStyle(Palette.texteSecondaire)
-                    .frame(width: 32, height: 32)
-            }
-            .accessibilityLabel("Options de \(f.libelle)")
-        }
-        .padding(Espace.interne)
-        .carte(rayon: Rayon.controle)
-    }
-
-    private func etat(_ f: FournisseurModele) -> String {
-        var morceaux: [String] = []
-        switch f.etat {
-        case "actif": morceaux.append("Prêt")
-        case "de_cote":
-            morceaux.append(f.deCoteJusquA.map { "De côté jusqu'à \($0.formatted(.dateTime.hour().minute().locale(enFrancais)))" } ?? "De côté")
-        case "a_reconnecter": morceaux.append("Jeton refusé : à recoller")
-        case "coupe": morceaux.append("Coupé")
-        default: morceaux.append(f.etat)
-        }
-        if f.type == "api", let modele {
-            let plafond = f.plafondMensuel ?? 10
-            morceaux.append(String(format: "%.2f $ sur %.0f $ ce mois-ci", modele.depenseApiDuMois, plafond)
-                .replacingOccurrences(of: ".", with: ","))
-        }
-        if let fin = f.secretFin { morceaux.append("…\(fin)") } else if f.type == "api" { morceaux.append("clé du serveur") }
-        return morceaux.joined(separator: " · ")
     }
 
     private func brancher(_ type: String, _ secret: String, _ plafond: Double?) async {
@@ -338,6 +458,7 @@ struct EcranIntelligence: View {
                 corps: ClientAPI.corps(Branchement(secret: propre.isEmpty ? nil : propre, plafond: plafond)))
             jeton = ""; cleAPI = ""; identifiantsGemini = ""; self.plafond = ""
             erreur = nil
+            withAnimation(.smooth) { ouvert = nil }
             annoncer(type == "api" ? "API branchée en secours"
                      : type == "gemini_cli" ? "Gemini branché" : "Abonnement branché")
         } catch {
@@ -373,7 +494,9 @@ struct EcranIntelligence: View {
             Pastille(icone: "key", couleur: Categorie.ia.couleur)
             VStack(alignment: .leading, spacing: 1) {
                 Text(cle.nom).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                Text(cle.dernierUsage.map { "Utilisée \(quand($0))" } ?? "Jamais utilisée")
+                Label(cle.dernierUsage.map { "Active · utilisée \(quand($0))" } ?? "Active · jamais utilisée",
+                      systemImage: "circle.fill")
+                    .labelStyle(PuceEtat(couleur: Categorie.sport.couleur))
                     .texte(.legende).foregroundStyle(Palette.texteSecondaire)
             }
             Spacer()
@@ -449,14 +572,21 @@ struct EcranIntelligence: View {
         annoncer(annonce)
     }
 
+    /// Chaque partie se lit seule : un serveur qui ne sait pas encore répondre à
+    /// l'une n'empêche pas les autres de s'afficher.
     private func charger() async {
         guard foyer.connecte else { return }
         do {
             modele = try await foyer.demander("GET", "moi/fournisseurs")
+            erreurModele = nil
+        } catch {
+            erreurModele = motifDe(error)
+        }
+        do {
             cles = try await foyer.demander("GET", "moi/cles-mcp")
             sessions = try await foyer.demander("GET", "moi/sessions-mcp")
-            erreur = nil
         } catch {
+            cles = cles ?? []
             erreur = motifDe(error)
         }
     }
@@ -484,6 +614,18 @@ struct EcranIntelligence: View {
             await charger()
         } catch {
             erreur = motifDe(error)
+        }
+    }
+}
+
+/// Une pastille de couleur devant l'état d'une option : verte en marche, grise sinon.
+private struct PuceEtat: LabelStyle {
+    let couleur: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            configuration.icon.font(.system(size: 7)).foregroundStyle(couleur)
+            configuration.title
         }
     }
 }
