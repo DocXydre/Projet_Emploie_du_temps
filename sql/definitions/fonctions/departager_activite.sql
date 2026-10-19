@@ -13,7 +13,6 @@ RETURNS BIGINT LANGUAGE plpgsql AS $$
 DECLARE
     a            RECORD;
     r            RECORD;
-    v_occurrence INTEGER;
 BEGIN
     SELECT ac.*, activite_de_la_montre(ac.details) AS montre INTO a
       FROM activite_sante ac WHERE ac.id_activite = p_activite;
@@ -44,19 +43,11 @@ BEGIN
 
     IF a.montre AND NOT r.montre THEN
         -- La nouvelle vient de la montre : elle prend la place, et la séance prévue.
-        v_occurrence := r.id_occurrence;
-        UPDATE activite_sante SET doublon_de = p_activite, id_occurrence = NULL
-         WHERE id_activite = r.id_activite;
-        UPDATE activite_sante SET doublon_de = p_activite
-         WHERE doublon_de = r.id_activite;
-        UPDATE activite_sante
-           SET doublon_de = NULL, id_occurrence = COALESCE(id_occurrence, v_occurrence)
-         WHERE id_activite = p_activite;
+        PERFORM transmettre_activite(r.id_activite, p_activite);
         RETURN p_activite;
     END IF;
 
-    UPDATE activite_sante SET doublon_de = r.id_activite, id_occurrence = NULL
-     WHERE id_activite = p_activite;
+    PERFORM transmettre_activite(p_activite, r.id_activite);
     RETURN r.id_activite;
 END $$;
 
