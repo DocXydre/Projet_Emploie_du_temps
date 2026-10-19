@@ -209,12 +209,8 @@ class Configuration(BaseSettings):
     # FOU-7 : le plafond mensuel de l'API d'un compte qui n'en a pas réglé, en dollars.
     plafond_api_defaut: float = 10.0
 
-    # FOU-17 : Gemini CLI n'est proposé dans Réglages qu'une fois les scénarios
-    # du coach rejoués avec lui. Tant que c'est faux, personne ne le branche.
-    gemini_cli_valide: bool = False
-
-    # La commande de Gemini CLI dans le conteneur (image construite avec
-    # GEMINI_CLI=1), et le modèle qu'il fait travailler : un nom de modèle
+    # FOU-17 : la commande de Gemini CLI dans le conteneur (l'image l'a sauf
+    # avec GEMINI_CLI=0), et le modèle qu'il fait travailler : un nom de modèle
     # Gemini, ou un alias de Gemini CLI (pro, flash).
     gemini_cli_commande: str = "gemini"
     gemini_cli_modele: str = "pro"

@@ -12,9 +12,9 @@ RUN apt-get update \
  && useradd --system --uid 10001 --create-home planif
 
 # FOU-17 : Gemini CLI, pour qui branche son compte Google. Il lui faut Node.js,
-# soit environ 150 Mo de plus : l'image ne l'a qu'avec GEMINI_CLI=1 dans .env.
+# soit environ 150 Mo de plus : GEMINI_CLI=0 dans .env s'en passe.
 # Claude Code, lui, vient avec le SDK Python et n'a besoin de rien.
-ARG GEMINI_CLI=0
+ARG GEMINI_CLI=1
 ARG NODE_VERSION=22.12.0
 ARG GEMINI_CLI_VERSION=0.64.0
 RUN if [ "$GEMINI_CLI" = "1" ]; then \
