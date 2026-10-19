@@ -28,6 +28,7 @@ from api.coach import (
     aiguillage,
     contexte,
     course,
+    course_gemini,
     dossier,
     fournisseurs,
     modele,
@@ -337,12 +338,14 @@ def _clore_appel(id_appel: int, statut: str, compte: dict, motif: str | None = N
               SET statut = %(s)s, fin = now(), tours = %(t)s, tokens_entree = %(e)s,
                   tokens_cache = %(c)s, tokens_cache_ecrit = %(ce)s,
                   tokens_sortie = %(so)s, motif_echec = %(m)s,
-                  moment = %(mo)s, deroule = %(d)s, fournisseur = %(f)s
+                  moment = %(mo)s, deroule = %(d)s, fournisseur = %(f)s,
+                  modele = COALESCE(%(md)s, modele)
             WHERE id_appel = %(a)s""",
         {"s": statut, "a": id_appel, "t": compte["tours"], "e": compte["entree"],
          "c": compte["cache"], "ce": compte.get("cache_ecrit", 0), "so": compte["sortie"],
          "m": motif, "mo": compte["moment"],
-         "d": Jsonb(compte["deroule"]), "f": compte.get("fournisseur")})
+         "d": Jsonb(compte["deroule"]), "f": compte.get("fournisseur"),
+         "md": compte.get("modele")})
 
 
 def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
@@ -520,10 +523,11 @@ def _par_les_fournisseurs(demande: Demande, compte: dict, echanges: str,
         raise modele.ModeleInjoignable("Aucun fournisseur disponible : tous sont de côté")
     for rang, fournisseur in enumerate(chaine):
         suivi["fournisseur"] = fournisseur.colonne
+        suivi.pop("modele", None)          # celui du fournisseur précédent
         try:
-            if fournisseur.type == "claude_code":
-                texte = _par_claude_code(demande, compte, echanges, id_texte, suivi, limite,
-                                         fournisseur.secret)
+            if fournisseur.type in ("claude_code", "gemini_cli"):
+                texte = _par_un_agent(demande, compte, echanges, id_texte, suivi, limite,
+                                      fournisseur)
             else:
                 try:
                     texte = _boucler(demande, compte, echanges, id_texte, suivi, limite,
@@ -621,11 +625,14 @@ def _requalifier(suivi: dict, id_texte: int | None) -> None:
                  "WHERE id_echange = %(e)s", {"e": id_texte})
 
 
-def _par_claude_code(demande: Demande, compte: dict, echanges: str, id_texte: int | None,
-                     suivi: dict, limite: float, jeton_abonnement: str) -> str:
+def _par_un_agent(demande: Demande, compte: dict, echanges: str, id_texte: int | None,
+                  suivi: dict, limite: float, fournisseur: fournisseurs.Fournisseur) -> str:
     """FOU-10 : la même consigne et le même premier message que l'API, mais c'est
-    Claude Code qui fait la boucle, sur l'abonnement du compte."""
+    Claude Code (ou Gemini CLI, FOU-17) qui fait la boucle, sur l'abonnement du
+    compte."""
     id_utilisateur = demande.id_utilisateur
+    gemini = fournisseur.type == "gemini_cli"
+    moteur = course_gemini if gemini else course
     prep = _preparer(demande, compte, echanges, suivi)
     systeme = "\n\n".join(bloc["text"] for bloc in prep.systeme)
     suivi["systeme"] = prep.systeme
@@ -662,14 +669,19 @@ def _par_claude_code(demande: Demande, compte: dict, echanges: str, id_texte: in
             suivi["deroule"].append({"controle": releve[:400]})
             return _consigne_de_relecture(releve)
 
-        passage = course.courir(etat, systeme, premier, prep.modele_nom, jeton_abonnement,
+        modele_nom = configuration().gemini_cli_modele if gemini else prep.modele_nom
+        if gemini:
+            suivi["modele"] = modele_nom
+        passage = moteur.courir(etat, systeme, premier, modele_nom, fournisseur.secret,
                                 limite, relecture)
+        if passage.secret_neuf:
+            fournisseurs.renouveler(fournisseur, passage.secret_neuf)
         suivi["tours"] = etat.tours
         suivi["entree"] += passage.entree
         suivi["cache"] += passage.cache
         suivi["cache_ecrit"] += passage.cache_ecrit
         suivi["sortie"] += passage.sortie
-        suivi["deroule"].append({"claude_code": True, "tours_modele": passage.tours_modele,
+        suivi["deroule"].append({fournisseur.type: True, "tours_modele": passage.tours_modele,
                                  "entree": passage.entree, "cache_lu": passage.cache,
                                  "cache_ecrit": passage.cache_ecrit,
                                  "sortie": passage.sortie})

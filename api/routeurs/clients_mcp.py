@@ -5,8 +5,6 @@ branche, la révoquer. Lire les dernières sessions des clients : lequel, quand,
 combien d'outils.
 """
 
-import json
-
 import psycopg
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -39,13 +37,13 @@ def commandes(adresse: str | None, cle: str) -> dict:
     """F.8.3 : de quoi brancher le client, à copier tel quel."""
     if adresse is None:
         return {}
-    # Gemini CLI lit ses serveurs dans ~/.gemini/settings.json : le bloc à y coller,
-    # en texte, pour que l'appli n'ait qu'à le copier.
-    gemini = {"mcpServers": {"hal": {"httpUrl": adresse, "headers": {"X-Cle-Mcp": cle}}}}
+    # Gemini CLI écrit lui-même le serveur dans ~/.gemini/settings.json ; sans
+    # « --scope user », il ne vaudrait que dans le dossier courant.
     return {
         "claude_code": f'claude mcp add --transport http hal {adresse} '
                        f'--header "X-Cle-Mcp: {cle}"',
-        "gemini_cli": json.dumps(gemini, indent=2),
+        "gemini_cli": f'gemini mcp add --scope user --transport http hal {adresse} '
+                      f'--header "X-Cle-Mcp: {cle}"',
     }
 
 

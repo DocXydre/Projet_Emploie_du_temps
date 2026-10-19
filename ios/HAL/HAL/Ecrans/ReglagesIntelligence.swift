@@ -64,6 +64,8 @@ struct EtatDesFournisseurs: Codable, Sendable {
     let depenseApiDuMois: Double
     let cleDuServeur: Bool
     let chiffrementRegle: Bool
+    /// FOU-17 : Gemini CLI n'est proposé qu'une fois validé sur le serveur.
+    let geminiPropose: Bool?
 }
 
 /// Intelligence : qui fait réfléchir HAL, et les clients MCP qui le lisent.
@@ -80,6 +82,7 @@ struct EcranIntelligence: View {
     @State private var modele: EtatDesFournisseurs?
     @State private var jeton = ""
     @State private var cleAPI = ""
+    @State private var identifiantsGemini = ""
     @State private var plafond = ""
     @State private var aRetirer: FournisseurModele?
 
@@ -238,13 +241,32 @@ struct EcranIntelligence: View {
                 .padding(Espace.interne)
                 .carte(rayon: Rayon.controle)
             }
+            if modele.geminiPropose == true,
+               !modele.fournisseurs.contains(where: { $0.type == "gemini_cli" }) || aRecoller("gemini_cli") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Gemini, avec ton compte Google").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    Text("Sur ton ordinateur, lance `gemini` et connecte-toi avec Google, puis colle ici le contenu du fichier ~/.gemini/oauth_creds.json. Une clé de l'API Gemini (AIza…) marche aussi.")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        .fixedSize(horizontal: false, vertical: true)
+                    champSecret("Identifiants Gemini", $identifiantsGemini)
+                    Button("Brancher Gemini") {
+                        Task { await brancher("gemini_cli", identifiantsGemini, nil) }
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                    .disabled(identifiantsGemini.trimmingCharacters(in: .whitespaces).count < 20 || envoi)
+                }
+                .padding(Espace.interne)
+                .carte(rayon: Rayon.controle)
+            }
         } else if foyer.connecte {
             ProgressView().frame(maxWidth: .infinity, minHeight: 60)
         }
     }
 
-    private var jetonARecoller: Bool {
-        modele?.fournisseurs.contains { $0.type == "claude_code" && $0.etat == "a_reconnecter" } ?? false
+    private var jetonARecoller: Bool { aRecoller("claude_code") }
+
+    private func aRecoller(_ type: String) -> Bool {
+        modele?.fournisseurs.contains { $0.type == type && $0.etat == "a_reconnecter" } ?? false
     }
 
     private func champSecret(_ titre: String, _ valeur: Binding<String>) -> some View {
@@ -258,7 +280,7 @@ struct EcranIntelligence: View {
 
     private func ligne(fournisseur f: FournisseurModele, total: Int) -> some View {
         HStack(spacing: 12) {
-            Pastille(icone: f.type == "api" ? "creditcard" : "person.badge.key",
+            Pastille(icone: f.type == "api" ? "creditcard" : f.type == "gemini_cli" ? "sparkles" : "person.badge.key",
                      couleur: f.etat == "actif" ? Categorie.ia.couleur : Palette.texteSecondaire)
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(f.rang). \(f.libelle)").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
@@ -323,9 +345,10 @@ struct EcranIntelligence: View {
             modele = try await foyer.demander(
                 "PUT", "moi/fournisseurs/\(type)",
                 corps: ClientAPI.corps(Branchement(secret: propre.isEmpty ? nil : propre, plafond: plafond)))
-            jeton = ""; cleAPI = ""; self.plafond = ""
+            jeton = ""; cleAPI = ""; identifiantsGemini = ""; self.plafond = ""
             erreur = nil
-            annoncer(type == "api" ? "API branchée en secours" : "Abonnement branché")
+            annoncer(type == "api" ? "API branchée en secours"
+                     : type == "gemini_cli" ? "Gemini branché" : "Abonnement branché")
         } catch {
             erreur = motifDe(error)
         }
@@ -409,7 +432,7 @@ struct EcranIntelligence: View {
                     .buttonStyle(.hal(.verre, pleineLargeur: true))
             }
             if let gemini = creee.commandes?.geminiCli {
-                Button("Copier la configuration Gemini CLI") { copier(gemini, "Configuration copiée") }
+                Button("Copier la commande Gemini CLI") { copier(gemini, "Commande copiée") }
                     .buttonStyle(.hal(.verre, pleineLargeur: true))
             }
             Button("Copier la clé seule") { copier(creee.cle, "Clé copiée") }

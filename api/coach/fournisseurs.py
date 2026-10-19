@@ -176,7 +176,7 @@ def chaine(id_utilisateur: int) -> list[Fournisseur]:
 
 def gemini_propose() -> bool:
     """FOU-17 : Gemini CLI n'entre dans une chaîne qu'une fois validé par les scénarios."""
-    return bool(getattr(configuration(), "gemini_cli_valide", False))
+    return configuration().gemini_cli_valide
 
 
 def ceder(fournisseur: Fournisseur, erreur: Indisponible) -> None:
@@ -232,7 +232,16 @@ def lister_pour(id_utilisateur: int) -> dict:
     return {"fournisseurs": lignes,
             "depense_api_du_mois": depense_du_mois(id_utilisateur),
             "cle_du_serveur": not lignes,
+            "gemini_propose": gemini_propose(),
             "chiffrement_regle": bool(configuration().hal_cle_chiffrement.strip())}
+
+
+def fin_du_secret(secret: str) -> str:
+    """Ce que Réglages montre d'un secret : ses quatre derniers caractères. Pour les
+    identifiants Google de Gemini CLI, ceux du jeton qui dure (refresh_token)."""
+    from api.coach.course_gemini import compte_google
+    google = compte_google(secret)
+    return str((google or {}).get("refresh_token") or secret)[-4:]
 
 
 def brancher(id_utilisateur: int, type_: str, secret: str | None,
@@ -240,7 +249,7 @@ def brancher(id_utilisateur: int, type_: str, secret: str | None,
     """Garde un secret déjà essayé. Le fournisseur prend le dernier rang s'il est neuf,
     garde le sien sinon, et repart actif."""
     chiffre = chiffrer(secret) if secret else None
-    fin = secret[-4:] if secret else None
+    fin = fin_du_secret(secret) if secret else None
     executer(
         """INSERT INTO fournisseur_modele (id_utilisateur, type, rang, secret, secret_fin,
                                            plafond_mensuel)
@@ -255,6 +264,18 @@ def brancher(id_utilisateur: int, type_: str, secret: str | None,
                   etat = 'actif', de_cote_jusqu_a = NULL, motif = NULL""",
         {"u": id_utilisateur, "t": type_, "s": chiffre, "f": fin,
          "p": plafond if type_ == "api" else None})
+
+
+def renouveler(fournisseur: Fournisseur, secret: str) -> None:
+    """Gemini CLI a renouvelé les identifiants Google pendant la course : on garde
+    les nouveaux, pour ne pas les renouveler à chaque appel."""
+    if fournisseur.id_fournisseur is None:
+        return
+    try:
+        executer("UPDATE fournisseur_modele SET secret = %(s)s WHERE id_fournisseur = %(f)s",
+                 {"f": fournisseur.id_fournisseur, "s": chiffrer(secret)})
+    except ChiffrementAbsent:
+        LOG.warning("Identifiants renouvelés non gardés : HAL_CLE_CHIFFREMENT manque")
 
 
 def regler_plafond(id_utilisateur: int, plafond: float) -> bool:
