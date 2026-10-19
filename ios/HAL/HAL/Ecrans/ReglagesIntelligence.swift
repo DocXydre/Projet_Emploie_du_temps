@@ -64,8 +64,8 @@ struct EtatDesFournisseurs: Codable, Sendable {
     let depenseApiDuMois: Double
     let cleDuServeur: Bool
     let chiffrementRegle: Bool
-    /// FOU-17 : Gemini CLI n'est proposé qu'une fois validé sur le serveur.
-    let geminiPropose: Bool?
+    /// FOU-17 : Gemini CLI est dans l'image du serveur. Absent d'un serveur plus ancien.
+    let geminiInstalle: Bool?
 }
 
 /// Intelligence : qui fait réfléchir HAL, et les clients MCP qui le lisent.
@@ -241,22 +241,13 @@ struct EcranIntelligence: View {
                 .padding(Espace.interne)
                 .carte(rayon: Rayon.controle)
             }
-            if modele.geminiPropose == true,
-               !modele.fournisseurs.contains(where: { $0.type == "gemini_cli" }) || aRecoller("gemini_cli") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Gemini, avec ton compte Google").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                    Text("Sur ton ordinateur, lance `gemini` et connecte-toi avec Google, puis colle ici le contenu du fichier ~/.gemini/oauth_creds.json. Une clé de l'API Gemini (AIza…) marche aussi.")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                        .fixedSize(horizontal: false, vertical: true)
-                    champSecret("Identifiants Gemini", $identifiantsGemini)
-                    Button("Brancher Gemini") {
-                        Task { await brancher("gemini_cli", identifiantsGemini, nil) }
-                    }
-                    .buttonStyle(.hal(.verre, pleineLargeur: true))
-                    .disabled(identifiantsGemini.trimmingCharacters(in: .whitespaces).count < 20 || envoi)
-                }
-                .padding(Espace.interne)
-                .carte(rayon: Rayon.controle)
+            if !modele.fournisseurs.contains(where: { $0.type == "gemini_cli" }) || aRecoller("gemini_cli") {
+                CarteGemini(texte: $identifiantsGemini,
+                            installe: modele.geminiInstalle ?? false,
+                            aRecoller: aRecoller("gemini_cli"),
+                            envoi: envoi,
+                            brancher: { Task { await brancher("gemini_cli", identifiantsGemini, nil) } },
+                            copier: copier)
             }
         } else if foyer.connecte {
             ProgressView().frame(maxWidth: .infinity, minHeight: 60)

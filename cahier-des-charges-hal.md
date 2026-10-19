@@ -4029,7 +4029,7 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 12. Serveur MCP, en lecture | `/mcp` dans la FastAPI, clés MCP et sessions (migration 070), profil externe : lecture, mémoire, mesure dite, `noter_conversation`, consigne courte, dossier en ressources ; Réglages, clients MCP | Depuis Claude Code sur le Mac, « qu'est-ce que j'ai demain ? » répond d'après la base ; une clé révoquée est refusée ; aucun outil ne rend la mémoire, la santé ou les échanges de l'autre membre ; un résumé déposé se lit dans les échanges de l'appli |
 | 13. Fournisseurs | Table des fournisseurs et des tarifs, chiffrement, Claude Code dans l'image `api`, course avec jeton et outils du moment, chaîne et mise de côté, plafond de l'API ; Réglages, Intelligence | La synthèse du soir passe par l'abonnement ; avec un jeton faux, elle passe par l'API et le dit sous le message ; un plafond d'un centime coupe l'API et laisse le message de COA-12 ; les scénarios de sécurité passent avec Claude Code |
 | 14. Accords | Table des demandes, essai au dépôt, accord par la route du geste, expiration de 0h05 ; outils `demander_…` dans le profil externe et les moments chat, signalement et changement ; élément « demande », bandeau d'Aujourd'hui, notification à deux boutons | « Décale l'aspirateur à jeudi », dit à Claude Code sur le Mac, arrive en notification ; accepté, le planning change et l'autre membre est prévenu « proposé par Claude Code » ; une absence qui chevauche un départ déjà déclaré est refusée au dépôt, avec le motif de la base ; aucun outil ne peut accepter une demande |
-| 15. Gemini CLI | Le fournisseur `gemini_cli`, et la commande à copier pour le brancher comme client | Les scénarios du chapitre 10.5 passent avec lui avant qu'il soit proposé dans Réglages (FOU-17) |
+| 15. Gemini CLI | Le fournisseur `gemini_cli`, sa carte dans Réglages, Intelligence, avec les étapes pour le brancher, et la commande à copier pour le brancher comme client | Ses identifiants collés dans l'appli sont essayés puis gardés ; les scénarios du chapitre 10.5 passent avec lui (FOU-17) |
 
 Trois raisons fixent cet ordre :
 
@@ -4061,7 +4061,7 @@ Les **lots 13 à 15** sont faits le même jour (migrations 071 et 072, `api/coac
 - lot 14 : le dépôt essayé dans une transaction annulée, qui ne laisse rien ; la notification au nom du client ; le refus au dépôt, avec le motif de la base ; l'accord par la route du geste, au journal sous le nom de l'utilisateur, « demande de claude-code » en origine ; une demande déjà décidée, expirée, ou que le planning a rendue impossible ; tout accepter, dans l'ordre du dépôt ; une demande de HAL dans l'appli, avec ses deux boutons et sans notification de plus ;
 - lot 15 : le vrai Gemini CLI (0.64), contre un faux point d'accès de l'API Gemini : sa consigne remplacée par celle de HAL, ses seuls outils ceux du moment, un outil de HAL appelé par `/mcp` sous le jeton de la course, la relecture dans la même session, le quota épuisé qui passe la main à l'API, l'identification refusée qui le met à reconnecter.
 
-Restent à faire avant de s'y fier : les scénarios du chapitre 10.5 avec le vrai modèle, par Claude Code puis par Gemini CLI (FOU-17), puisque la consigne parle maintenant des demandes ; la compilation de l'appli, où l'écran Demandes, la carte du panneau et les actions de la notification n'ont pas tourné ; l'image construite avec `GEMINI_CLI=1` ; le démarrage de Claude Code mesuré sur le portable (F.11). `GEMINI_CLI_VALIDE` reste à faux d'ici là.
+Restent à faire avant de s'y fier : les scénarios du chapitre 10.5 avec le vrai modèle, par Claude Code puis par Gemini CLI (FOU-17), puisque la consigne parle maintenant des demandes ; la compilation de l'appli, où l'écran Demandes, la carte du panneau et les actions de la notification n'ont pas tourné ; l'image construite avec Gemini CLI ; le démarrage de Claude Code mesuré sur le portable (F.11). Gemini CLI se branche déjà dans Réglages (FOU-17).
 
 Ce qui a changé en route est reporté dans les règles : le jeton de course (FOU-12), les petits travaux (FOU-15), l'annulation d'un accord (ACC-7), la consigne des clients externes (FOU-10), la conduite de Gemini CLI (FOU-11, F.11).
 
@@ -4236,7 +4236,7 @@ Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est
 | FOU-14 | T | Les tokens rendus par Claude Code sont enregistrés comme ceux de l'API (COA-21), avec le fournisseur. Ils ne comptent pas dans le plafond |
 | FOU-15 | T | Les résumés de la mémoire d'un compte (MEM-7) suivent sa chaîne. Le choix des paquets (DOS-4) doit répondre en quelques secondes, plus vite que Claude Code ne démarre : il ne prend que l'API de la chaîne, et un délai dépassé ne la met pas de côté. Gemini CLI ne fait pas les petits travaux. Les noms de modèle (`COACH_MODELE` et les autres) valent pour tous les fournisseurs Claude ; Gemini CLI a le sien, `GEMINI_CLI_MODELE` |
 | FOU-16 | D | Le serveur fait tourner au plus deux courses à la fois, Claude Code et Gemini CLI ensemble (`CLAUDE_CODE_COURSES_MAX`). Une troisième attend, dans la limite de son délai |
-| FOU-17 | M | Avant de proposer un nouveau type de fournisseur, ou un nouveau modèle, les scénarios du chapitre 10.5 sont rejoués avec lui, ceux de sécurité en premier (COA-14) |
+| FOU-17 | M | Avant de changer de modèle, les scénarios du chapitre 10.5 sont rejoués avec lui, ceux de sécurité en premier (COA-14). Gemini CLI fait exception, au choix de l'administrateur le 19 octobre 2026 : il se branche dans Réglages dès qu'il est installé sur le serveur, et l'écran dit que ses réponses n'ont pas encore été comparées à celles de Claude. Ses scénarios restent à rejouer |
 | FOU-18 | M | Un fournisseur se branche, se range, se coupe et se retire dans Réglages, Intelligence. Un jeton ou une clé collés sont essayés par un appel minimal avant d'être gardés. Pour Gemini CLI, on colle le contenu de `~/.gemini/oauth_creds.json` (son compte Google), ou une clé de l'API Gemini ; des identifiants renouvelés pendant une course remplacent les anciens |
 
 ---
@@ -4397,7 +4397,7 @@ Remplie par une migration, revue quand le fournisseur change ses prix. Un modèl
 | Route | Ce qu'elle fait | Règles |
 |---|---|---|
 | `GET /moi/fournisseurs` | Les fournisseurs du compte, rangés : type, état, quatre derniers caractères, de côté jusqu'à quand, dépense API du mois et plafond | FOU-1, FOU-7 |
-| `PUT /moi/fournisseurs/{type}` | Brancher ou remplacer un jeton ou une clé, après un essai. Pour `gemini_cli`, 409 tant que `GEMINI_CLI_VALIDE` est faux | FOU-17, FOU-18 |
+| `PUT /moi/fournisseurs/{type}` | Brancher ou remplacer un jeton ou une clé, après un essai. Pour `gemini_cli`, 409 si Gemini CLI n'est pas dans l'image | FOU-17, FOU-18 |
 | `PUT /moi/fournisseurs/api/plafond` | Régler le plafond mensuel de l'API | FOU-7 |
 | `PUT /moi/fournisseurs/ordre` | Ranger les fournisseurs | FOU-1 |
 | `POST /moi/fournisseurs/{type}/couper`, `/reprendre` | Mettre un fournisseur hors de la chaîne sans le retirer | FOU-18 |
@@ -4501,8 +4501,8 @@ Le groupe « HAL et sport » de Réglages (section C.12) reçoit la ligne Intell
 | Outils du chat, du signalement et du changement | Lecture, mémoire, séances selon le moment | En plus, les demandes | COA-5 |
 | Plafond de dépense | Aucun | Un plafond mensuel sur l'API, par compte | FOU-7 |
 | Report de 0h05 | Reporte, expire, roule la mémoire | Expire aussi les demandes restées sans réponse | ACC-8 |
-| Image Docker `api` | Python seul | Python et Claude Code, par le SDK Agent. Node.js et Gemini CLI en plus, seulement si `GEMINI_CLI=1` | F.2.1, FOU-17 |
-| `.env` | `ANTHROPIC_API_KEY` | En plus, `HAL_CLE_CHIFFREMENT`, `PLAFOND_API_DEFAUT`, `CLAUDE_CODE_COURSES_MAX`, et pour Gemini CLI `GEMINI_CLI`, `GEMINI_CLI_VALIDE`, `GEMINI_CLI_MODELE`. La clé d'API du serveur reste le défaut d'un compte sans liste | FOU-1, FOU-3, FOU-7, FOU-16, FOU-17 |
+| Image Docker `api` | Python seul | Python et Claude Code, par le SDK Agent. Node.js et Gemini CLI en plus, sauf avec `GEMINI_CLI=0` | F.2.1, FOU-17 |
+| `.env` | `ANTHROPIC_API_KEY` | En plus, `HAL_CLE_CHIFFREMENT`, `PLAFOND_API_DEFAUT`, `CLAUDE_CODE_COURSES_MAX`, et pour Gemini CLI `GEMINI_CLI` (1 par défaut) et `GEMINI_CLI_MODELE`. La clé d'API du serveur reste le défaut d'un compte sans liste | FOU-1, FOU-3, FOU-7, FOU-16, FOU-17 |
 
 Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire, les échanges rendus, le verrou du compte, les nouveaux essais, la forme de la réponse, l'ordonnanceur. Un compte sans fournisseur branché fonctionne exactement comme aujourd'hui.
 
