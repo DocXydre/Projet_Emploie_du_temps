@@ -31,8 +31,8 @@ services:
     build:
       context: .
       args:
-        # FOU-17 : 1 pour avoir Gemini CLI dans l'image (Node.js compris).
-        GEMINI_CLI: ${GEMINI_CLI:-0}
+        # FOU-17 : Gemini CLI dans l'image (Node.js compris). 0 pour s'en passer.
+        GEMINI_CLI: ${GEMINI_CLI:-1}
     container_name: planif-api
     restart: unless-stopped
     depends_on:

@@ -94,10 +94,9 @@ def regler_plafond(plafond: Plafond, qui: Authentifie) -> dict:
 @routeur.put("/{type_}", summary="Brancher mon abonnement Claude, une clé d'API, ou Gemini CLI")
 def brancher(type_: TypeFournisseur, branchement: Branchement, qui: Authentifie) -> dict:
     secret = (branchement.secret or "").strip() or None
-    if type_ == "gemini_cli" and not fournisseurs.gemini_propose():
-        # FOU-17 : pas avant que les scénarios du coach soient passés avec lui.
-        raise _refus("gemini_pas_valide", "Gemini CLI n'est pas encore validé sur ce serveur",
-                     status.HTTP_409_CONFLICT)
+    if type_ == "gemini_cli" and not fournisseurs.gemini_installe():
+        raise _refus("gemini_absent", "Gemini CLI n'est pas installé sur le serveur : "
+                     "l'image a été construite avec GEMINI_CLI=0", status.HTTP_409_CONFLICT)
     if secret is None and type_ == "gemini_cli":
         raise _refus("jeton_absent", "Colle le contenu de ~/.gemini/oauth_creds.json")
     if secret is None and type_ == "claude_code":

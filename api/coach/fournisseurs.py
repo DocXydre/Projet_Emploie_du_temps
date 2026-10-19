@@ -152,8 +152,6 @@ def chaine(id_utilisateur: int) -> list[Fournisseur]:
                                motif = NULL
                          WHERE id_fournisseur = %(f)s AND etat = 'de_cote'""",
                      {"f": ligne["id_fournisseur"]})
-        if ligne["type"] == "gemini_cli" and not gemini_propose():
-            continue
         fournisseur = Fournisseur(id_utilisateur, ligne["type"], ligne["id_fournisseur"],
                                   rang=ligne["rang"])
         if ligne["type"] == "api":
@@ -174,9 +172,10 @@ def chaine(id_utilisateur: int) -> list[Fournisseur]:
     return rendus
 
 
-def gemini_propose() -> bool:
-    """FOU-17 : Gemini CLI n'entre dans une chaîne qu'une fois validé par les scénarios."""
-    return configuration().gemini_cli_valide
+def gemini_installe() -> bool:
+    """Gemini CLI est-il dans l'image ? Sans lui, on ne peut pas le brancher (FOU-17)."""
+    import shutil
+    return shutil.which(configuration().gemini_cli_commande) is not None
 
 
 def ceder(fournisseur: Fournisseur, erreur: Indisponible) -> None:
@@ -232,7 +231,7 @@ def lister_pour(id_utilisateur: int) -> dict:
     return {"fournisseurs": lignes,
             "depense_api_du_mois": depense_du_mois(id_utilisateur),
             "cle_du_serveur": not lignes,
-            "gemini_propose": gemini_propose(),
+            "gemini_installe": gemini_installe(),
             "chiffrement_regle": bool(configuration().hal_cle_chiffrement.strip())}
 
 
