@@ -238,6 +238,12 @@ def aujourdhui(qui: Authentifie) -> dict:
         "depart": depart,
         # TAC-25 : les types du foyer, gardés sur le téléphone comme le reste.
         "types": lire_types(),
+        # ACC-13 : ce qu'un modèle a demandé et qui attend l'accord.
+        "demandes": lister(
+            """SELECT id_demande, action, resume, motif, origine, client, expire_le
+                 FROM demande
+                WHERE id_utilisateur = %(moi)s AND etat = 'en_attente' AND expire_le > now()
+                ORDER BY deposee_le""", params),
     }
 
 

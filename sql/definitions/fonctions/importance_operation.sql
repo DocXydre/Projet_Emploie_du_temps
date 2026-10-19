@@ -4,7 +4,7 @@
 --   3  un objectif jugé, un plan construit, un ajustement déposé, ou ce que le
 --      coach a lui-même marqué important
 --   2  un signalement, une révision, des séances proposées ou retirées, une
---      fenêtre de mesure
+--      fenêtre de mesure, une demande (ACC)
 --   1  le reste : un bilan simple, une question sans suite
 --
 -- Un rapport de séance n'a pas le poids d'un changement d'objectif : c'est ce
@@ -19,7 +19,7 @@ RETURNS SMALLINT LANGUAGE sql STABLE AS $$
                       WHEN t.type IN ('important', 'plan', 'avis_objectif', 'ajustement')
                           THEN 3
                       WHEN t.type IN ('seance_proposee', 'seance_retiree', 'fenetre_mesure',
-                                      'avis_seance_libre')
+                                      'avis_seance_libre', 'demande')
                           THEN 2
                       ELSE 1 END)
                     FROM trace_coach t WHERE t.operation = p_operation), 1)

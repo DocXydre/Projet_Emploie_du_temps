@@ -13,18 +13,15 @@ du foyer, un client ne lit que ce que l'appli lui montre déjà, sans le lieu de
 ses absences (MCP-11).
 """
 
-from contextvars import ContextVar
 from datetime import timedelta
 from functools import lru_cache
 
+from api import demandes
 from api.base import executer, lister, un_seul
 from api.coach import contexte, dossier, memoire
 from api.coach.clair import aujourd_hui, sans_vides
 from api.coach.outils import PAR_NOM as OUTILS_DU_COACH
 from api.coach.outils import Outil, RefusOutil, _jour, _objet
-
-# Le nom du client de la session en cours, pour signer ce qu'il dépose (MCP-12).
-client_courant: ContextVar[str] = ContextVar("client_mcp", default="client MCP")
 
 # Longueur d'un résumé de conversation : la base refuse au-delà.
 RESUME_MAX = 2000
@@ -135,7 +132,7 @@ def lire_aujourdhui(u: int, a: dict) -> object:
 def lire_taches(u: int, a: dict) -> object:
     """Les tâches actives du foyer, leur rythme, pour qui, et leurs liens."""
     taches = lister(
-        """SELECT t.id_tache, t.libelle, y.libelle AS type, t.duree_minutes,
+        """SELECT t.id_tache, t.code, t.libelle, y.libelle AS type, t.duree_minutes,
                   CASE WHEN t.recurrente
                        THEN format('tous les %%s à %%s jours', t.periodicite_min_jours,
                                    t.periodicite_max_jours)
@@ -230,7 +227,7 @@ def noter_conversation(u: int, a: dict) -> object:
            VALUES (%(u)s, 'client', 'externe', %(t)s, %(o)s, %(c)s)
            RETURNING id_echange""",
         {"u": u, "t": texte, "o": en_cours.identifiant if en_cours else None,
-         "c": client_courant.get()[:60]})
+         "c": (demandes.client_courant.get() or "client MCP")[:60]})
     assert ligne is not None
     return {"fait": "résumé déposé : HAL le lira dans l'appli",
             "id_echange": ligne["id_echange"]}
@@ -292,17 +289,26 @@ AJOUTES: tuple[Outil, ...] = (
 )
 
 # Repris du coach tels quels. `lire_echanges` est remplacé par sa version client.
+# Les séances proposées et les ajustements attendent déjà la validation de
+# l'utilisateur (PLN, ACC-10) : un client les a comme HAL.
 REPRIS = ("lire_chapitre", "lire_planning", "lire_semaine", "lire_seance", "lire_sante",
           "lire_forme", "lire_mesures", "lire_progression", "lire_catalogue",
-          "ajouter_memoire", "ecrire_memoire", "noter_mesure")
+          "ajouter_memoire", "ecrire_memoire", "noter_mesure",
+          "proposer_seances", "modifier_seance_proposee", "retirer_seance_proposee",
+          "proposer_ajustement")
 
 EXTERNE: dict[str, Outil] = {
     **{nom: OUTILS_DU_COACH[nom] for nom in REPRIS},
     **{outil.nom: outil for outil in AJOUTES},
+    # ACC-1 : ce qui change le planning et la maison passe par une demande.
+    **demandes.PAR_NOM,
 }
 
-# MCP-8 : ce qui n'écrit rien, annoncé comme tel au client.
-ECRITURE = {"ajouter_memoire", "ecrire_memoire", "noter_mesure", "noter_conversation"}
+# MCP-8 : ce qui écrit, annoncé comme tel au client. Le reste ne fait que lire.
+ECRITURE = {"ajouter_memoire", "ecrire_memoire", "noter_mesure", "noter_conversation",
+            "proposer_seances", "modifier_seance_proposee", "retirer_seance_proposee",
+            "proposer_ajustement", *(nom for nom in demandes.PAR_NOM
+                                     if nom != "lister_demandes")}
 
 
 def chapitres_du_dossier() -> list[tuple[str, str]]:

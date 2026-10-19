@@ -31,6 +31,9 @@ struct ElementHAL: Codable, Hashable, Identifiable, Sendable {
     var idFenetre: Int?
     var idObjectif: Int?
     var idPlan: Int?
+    /// ACC-12 : une demande, et l'action qu'elle ferait.
+    var idDemande: Int?
+    var action: String?
     var jour: String?
     var debut: String?
     var du: String?
@@ -71,13 +74,14 @@ struct ElementHAL: Codable, Hashable, Identifiable, Sendable {
         case "supprimee": return "Supprimée"
         case "reportee": return "Repoussée"
         case "expiree": return "Expirée"
+        case "echouee": return "Pas faite : le planning a bougé"
         case "posee_a_la_main": return "Posée à la main"
         default: return "Plus d'actualité"
         }
     }
 
     var id: String {
-        "\(type)-\(idOccurrence ?? idAjustement ?? idFenetre ?? idObjectif ?? idPlan ?? 0)-\(lundi ?? "")"
+        "\(type)-\(idOccurrence ?? idAjustement ?? idFenetre ?? idObjectif ?? idPlan ?? idDemande ?? 0)-\(lundi ?? "")"
     }
 }
 
