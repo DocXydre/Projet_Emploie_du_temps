@@ -4,9 +4,9 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 19 octobre 2026 (migration 068)
+Version du 19 octobre 2026 (migration 069), avec la partie F en projet
 
-Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone et le foyer. Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont conservés pour l'historique.
+Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, et l'ouverture de HAL par MCP et par abonnement. Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont conservés pour l'historique.
 
 ## Comment lire ce document
 
@@ -26,6 +26,7 @@ Ce document sert de base à l'écriture du code. Une règle écrite ici est une 
 - Partie C. L'application HAL
 - Partie D. Foyer, comptes et administration
 - Partie E. Plan de réalisation
+- Partie F. HAL par MCP et par abonnement
 - Annexes
 
 ---
@@ -36,7 +37,9 @@ Ce document sert de base à l'écriture du code. Une règle écrite ici est une 
 
 HAL est un assistant pour un foyer. Il croise les emplois du temps de chacun (cours, calendriers personnels, saisies à la main), place tout seul les tâches de la maison en les répartissant entre les deux, organise les départs en train, et construit avec une IA, HAL, le contenu des séances de sport à partir des objectifs de chacun et des données de l'Apple Watch.
 
-Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. Le serveur est auto-hébergé, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
+Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui ne change rien sans accord ; le contenu du sport passe par HAL. Le serveur est auto-hébergé, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
+
+HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F, en projet).
 
 ### 0.2 Principaux choix
 
@@ -61,6 +64,9 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | Démarrage de HAL | Dans l'appli, écran par écran, un champ libre à chaque étape | DEM-1, DEM-6 |
 | Réglages | Profil, limitations, lieux, mémoire et pause y sont ; pas d'écran du coût de HAL | C.12 |
 | Compte Apple | Le compte développeur payant devient un prérequis | E.1 |
+| Clients de HAL | HAL est un serveur MCP : Claude Code, Gemini CLI ou Claude Desktop le lisent et lui demandent des changements, avec une clé par client | MCP |
+| Fournisseur du modèle | Chacun branche son abonnement Claude ; l'API prend le relais quand il est épuisé, dans un plafond mensuel | FOU |
+| Accords | Un modèle, quel que soit son client, dépose une demande ; rien ne change sans l'accord de l'utilisateur, donné dans l'appli | ACC |
 
 ### 0.3 Valeurs retenues
 
@@ -143,6 +149,7 @@ Voici les choix effectués pour compléter le sujet.
 | Docker Compose | Exécution | Deux conteneurs : `db` et `api` |
 | Tailscale | Accès distant et HTTPS | Aucun port ouvert sur la box. `tailscale serve` fournit le HTTPS sur le réseau privé, `tailscale funnel` publie les seuls chemins de l'application iPhone |
 | API d'Anthropic | HAL | Décrite en section B.2.1 |
+| MCP et Claude Code | HAL pour d'autres clients, et sur l'abonnement de chacun | Décrits en section F.2.1 |
 | systemd | Déploiement automatique | Un minuteur interroge GitHub et déploie ce qui a été poussé |
 | pytest | Tests | Surtout sur les fonctions SQL et le placement |
 
@@ -1835,7 +1842,7 @@ HAL sert chaque membre du foyer, chacun avec le sien. Il couvre la musculation, 
 - **Pas de questionnaire médical.** HAL ne demande ni dépistage ni avis médical avant de commencer, et ne parle de médecin que dans deux cas : une douleur dans la poitrine ou un malaise, et un complément ou une carence qui le justifient. Décision du 9 octobre 2026 (annexe 4).
 - **Ce que chaque moment lit à coup sûr lui est donné d'office.** La semaine, la santé, la forme, l'emploi du temps : les demander par un outil coûtait un passage entier au modèle (COA-28).
 - **Il n'y a pas de filtre de mots dans le code pour les signaux graves.** Le chapitre de sécurité part à chaque appel et le modèle l'applique seul. C'est un choix assumé, dont la section B.11 dit la contrepartie.
-- **Il n'y a pas de plafond de dépense dans le système.** Le suivi se fait sur la console du fournisseur.
+- **L'API a un plafond par compte depuis la partie F.** Elle y devient un secours de l'abonnement, et une dépense qui s'emballe doit s'arrêter seule (FOU-7). Avant, il n'y avait aucun plafond, et le suivi se faisait sur la console du fournisseur.
 - **L'utilisateur peut faire autre chose que le plan.** Une séance libre, avec un ami ou selon l'envie, n'est ni refusée ni comptée comme manquée. HAL l'analyse, donne son avis et refait la suite de la semaine autour.
 - **HAL s'active par compte**, et l'est pour chaque membre. Un compte sans HAL fait des séances libres (SPT-17).
 - **Le sport se change en parlant à HAL.** Changer le jour, la durée ou le contenu d'une séance, ou la supprimer, se demande à HAL, sur la séance ou la semaine (COA-32) : il propose, l'utilisateur valide. Le jour même, l'heure et le lieu se changent à la main (PLN-11, LIE-5).
@@ -1868,7 +1875,7 @@ Tout ce que le système utilise déjà est repris. S'y ajoutent :
 | HealthKit, par l'application iPhone | Données de l'Apple Watch | Seule voie d'accès aux données de santé d'un iPhone |
 | SwiftUI, XcodeGen | Application iPhone | Le projet Xcode se régénère depuis `project.yml` : rien de généré n'entre dans le dépôt |
 
-Sont volontairement écartés : les bases vectorielles et la recherche sémantique, les cadres d'agents, un deuxième fournisseur de secours. Le dossier a un sommaire de quarante-neuf chapitres : le modèle choisit le chapitre à lire, il n'y a rien à chercher par similarité.
+Sont volontairement écartés : les bases vectorielles et la recherche sémantique, les cadres d'agents. Claude Code, introduit par la partie F, n'en est pas un ici : il sert de fournisseur, sans outil propre, et la boucle reste bornée par les règles de HAL (FOU-10, FOU-11). La partie F lève l'exclusion d'un deuxième fournisseur : l'abonnement d'abord, l'API en secours. Le dossier a un sommaire de quarante-neuf chapitres : le modèle choisit le chapitre à lire, il n'y a rien à chercher par similarité.
 
 #### B.2.2 Schéma d'ensemble
 
@@ -2157,7 +2164,7 @@ Le carnet de notes a été remplacé par la mémoire en quatre étages (section 
 | COA-2 | T | Huit situations déclenchent un appel : un objectif créé ou modifié, un plan à construire, la révision du dimanche, la synthèse du soir, un bilan demandé, un signalement ou l'annonce d'une séance libre, une question dans le chat, une demande de changement sur une séance ou une semaine (COA-32) |
 | COA-3 | T | Chaque appel reçoit le socle du dossier (chapitres 1.1, 1.2, 2.4, 10.2 et 10.3), son sommaire, les paquets choisis pour lui (DOS), le contexte de l'utilisateur, sa mémoire et les dix derniers échanges |
 | COA-4 | T | HAL n'agit que par une liste fermée d'outils. Un outil d'écriture appelle une fonction SQL et rien d'autre |
-| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire et note une mesure : il ne propose aucune séance. S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement |
+| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire, note une mesure et dépose des demandes sur le planning et la maison (ACC-1) : il ne propose aucune séance. S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement, et les demandes. Le signalement a aussi les demandes, pour un contretemps qui touche le planning |
 | COA-6 | T | Un appel est une opération du journal, sous l'acteur « coach ». Tout ce qu'il change partage son numéro, et l'Historique le rend en phrases |
 | COA-7 | T | Un appel est borné à douze tours d'outils, trente pour la construction du plan et la révision du dimanche. Au-delà, il est arrêté, rien de plus n'est écrit, et l'échec est annoncé |
 | COA-8 | D | Le dossier vit dans le dépôt, un fichier par chapitre. Il ne nomme personne et ne décrit aucun cas personnel. Le nom du modèle est un réglage. Les deux sont notés dans chaque échange, pour savoir avec quoi une réponse a été produite |
@@ -3345,15 +3352,18 @@ Le message à l'utilisateur n'est pas un outil : c'est le texte que le modèle r
 
 Les outils permis selon le moment (COA-5) :
 
-| Moment | Lecture | Avis | Trame | Séances proposées et ajustements | Fenêtre de mesure | Mesure dite | Mémoire |
-|---|---|---|---|---|---|---|---|
-| faisabilite | oui | oui | | | | | oui |
-| plan | oui | | oui | oui | oui | | oui |
-| revision | oui | | oui | oui | oui | | oui |
-| synthese | oui | | | oui | oui | oui | oui |
-| bilan | oui | | | oui | | oui | oui |
-| signalement | oui | | | oui | | oui | oui |
-| chat | oui | | | | | oui | oui |
+| Moment | Lecture | Avis | Trame | Séances proposées et ajustements | Fenêtre de mesure | Mesure dite | Mémoire | Demandes (ACC) |
+|---|---|---|---|---|---|---|---|---|
+| faisabilite | oui | oui | | | | | oui | |
+| plan | oui | | oui | oui | oui | | oui | |
+| revision | oui | | oui | oui | oui | | oui | |
+| synthese | oui | | | oui | oui | oui | oui | |
+| bilan | oui | | | oui | | oui | oui | |
+| signalement | oui | | | oui | | oui | oui | oui |
+| changement | oui | | | oui | | | oui | oui |
+| chat | oui | | | | | oui | oui | oui |
+
+La colonne « Demandes » et la ligne « changement » viennent de la partie F (section F.8.2) : la lecture y comprend celle du planning et de la maison.
 
 La colonne « Trame » couvre aussi la feuille de route. Le moment chat a en plus l'outil de requalification, et lui seul (COA-25). La synthèse d'un jour sans séance n'a ni séances, ni fenêtre, ni avis, ni trame (COA-31). En pause, les colonnes « Trame » et « Séances proposées et ajustements » sont fermées pour tous les moments, sauf à la reprise (PAU-2, PAU-6).
 
@@ -3507,7 +3517,7 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 | Données de la montre à 23 h | iOS ne garantit pas l'heure d'une tâche de fond | La synthèse peut raisonner sur des données de la veille. Elle le dit (SAN-6) |
 | Appel à la demande | L'application attend jusqu'à 90 secondes (COA-16). À la salle, le réseau peut couper pendant l'attente | La réponse n'est pas perdue : elle est dans les échanges et arrive en notification |
 | Séries sans réseau | Réglé : l'application HAL garde les séries saisies sans réseau et les envoie au retour, sans doublon (SAI-9, SAI-10, APP-3) | Plus rien |
-| Coût | Aucun plafond (section B.1.2) | Rien n'arrête une dépense, mais elle se lit : chaque appel garde ses tours et ses tokens (COA-21). La borne de tours limite chaque appel |
+| Coût | Le plafond de l'API et le passage par l'abonnement sont écrits (FOU-7, partie F), pas construits | Rien n'arrête une dépense, mais elle se lit : chaque appel garde ses tours et ses tokens (COA-21). La borne de tours limite chaque appel |
 | Requalification | C'est le modèle qui décide qu'un texte du chat est un signalement (COA-25) | S'il se trompe, une douleur dite dans le chat attend la synthèse. À couvrir par des scénarios de sécurité |
 | Esquisses | Le ménage se place autour de séances qui bougeront encore à la révision | Un peu de replacement chaque dimanche. Le créneau reste pris, c'est le but |
 | Clôture de 23 h | Une séance faite sans montre et sans saisie est close comme pas faite | Elle se corrige par « faite, sans saisie » ou un bilan donné après coup (SAI-16, SAI-12), que HAL lit à la synthèse suivante |
@@ -3541,9 +3551,8 @@ Les scénarios du chapitre 10.5 du dossier deviennent des tests rejouables : une
 - HAL pour d'autres foyers que le foyer actuel : authentification, limites d'usage et cadre légal seraient à revoir.
 - Une application Apple Watch : la montre sert par l'app Exercice (MON-3).
 - Un écran du coût de HAL dans l'application : il se lit par le bot d'administration (ADM-3).
-- Un filtre de mots pour les signaux graves, et un plafond de dépense.
+- Un filtre de mots pour les signaux graves. Le plafond de dépense, d'abord exclu, est apporté par la partie F (FOU-7).
 - Le ressenti du matin. Le score de forme se calcule sans lui.
-- Un deuxième fournisseur de modèle en secours.
 - Tout diagnostic, tout questionnaire médical. HAL ne nomme pas une blessure et ne demande pas d'avis médical pour commencer.
 - Un type de séance à part pour une course objectif. C'est une séance du plan (OBJ-13).
 - L'export et la suppression en bloc des données d'un compte. À prévoir avant tout autre utilisateur.
@@ -3891,11 +3900,11 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 |---|---|
 | Apparence | Fond et couleurs [5.2] |
 | Planning | Calendriers à suivre [5.3, 5.4], calendriers abonnés [5.12], types de tâches [4.9], Historique [5.17] |
-| HAL et sport | Profil [5.5], limitations [5.6], lieux [5.7], mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5) |
+| HAL et sport | Profil [5.5], limitations [5.6], lieux [5.7], mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5), Intelligence : fournisseurs, clients MCP et leurs clés (FOU-19, partie F) |
 | Appareil | Santé et Apple Watch [5.10], notifications et heures [5.11] |
 | Foyer et compte | Le foyer, ses membres, l'invitation et les droits [5.15, 5.16], le serveur et la connexion [5.13], le mot de passe, se déconnecter |
 
-Il n'y a pas d'écran du coût de HAL : il se lit par le bot d'administration (ADM-3).
+Il n'y a pas d'écran du coût de HAL : il se lit par le bot d'administration (ADM-3). Seule la dépense API du mois, face au plafond, se lit dans Intelligence (FOU-19).
 
 ### C.13 Ce que l'API a ajouté pour l'appli
 
@@ -4002,7 +4011,7 @@ Appareil
 
 Chaque lot se termine par quelque chose qu'on peut vérifier. Rien ne part sur `main` sans avoir tourné en local d'abord : chaque push y est déployé (A.2.3).
 
-Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule.
+Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule, puis 12 à 15, ceux de la partie F.
 
 | Lot | Contenu | Ce qu'on peut vérifier à la fin |
 |---|---|---|
@@ -4017,12 +4026,18 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 2. Retraits | Les réservations « à déterminer », habitudes et alerte du lundi pour tous (annexe 2), fusion des fonctions de séance, passage de tout le sport à quatre semaines ; les commandes du bot réservées à l'administrateur (ADM) | Les tests du sport passent, moins ceux des règles retirées ; un message d'un autre compte au bot reçoit la phrase d'ADM-1 |
 | 10. Bascule | Tous les membres sur HAL, `ios/CoachSante/` rangée dans `anciennes_fonctionnalites/`, les comptes Telegram des membres déliés | Deux semaines d'usage réel à deux, sans le bot |
 | 11. Tâches datées, types et liens | Migration 067, `creer_tache`, `lier_taches`, types ; formulaire 4.3, détail 4.2, écrans 4.9 à 4.12 | Une tâche « aujourd'hui à 18h30, l'oublier » disparaît à minuit sans retard ; « Lancer le lave-vaisselle » relié à « Vider le lave-vaisselle » depuis l'appli refait le lien de la migration 049 ; un type « Sassy » recolore les lignes du chat |
+| 12. Serveur MCP, en lecture | `/mcp` dans la FastAPI, clés MCP et sessions (migration 070), profil externe : lecture, mémoire, mesure dite, `noter_conversation`, consigne courte, dossier en ressources ; Réglages, clients MCP | Depuis Claude Code sur le Mac, « qu'est-ce que j'ai demain ? » répond d'après la base ; une clé révoquée est refusée ; aucun outil ne rend la mémoire, la santé ou les échanges de l'autre membre ; un résumé déposé se lit dans les échanges de l'appli |
+| 13. Fournisseurs | Table des fournisseurs et des tarifs, chiffrement, Claude Code dans l'image `api`, course avec jeton et outils du moment, chaîne et mise de côté, plafond de l'API ; Réglages, Intelligence | La synthèse du soir passe par l'abonnement ; avec un jeton faux, elle passe par l'API et le dit sous le message ; un plafond d'un centime coupe l'API et laisse le message de COA-12 ; les scénarios de sécurité passent avec Claude Code |
+| 14. Accords | Table des demandes, essai au dépôt, accord par la route du geste, expiration de 0h05 ; outils `demander_…` dans le profil externe et les moments chat, signalement et changement ; élément « demande », bandeau d'Aujourd'hui, notification à deux boutons | « Décale l'aspirateur à jeudi », dit à Claude Code sur le Mac, arrive en notification ; accepté, le planning change et l'autre membre est prévenu « proposé par Claude Code » ; une absence qui chevauche un départ déjà déclaré est refusée au dépôt, avec le motif de la base ; aucun outil ne peut accepter une demande |
+| 15. Gemini CLI | Le fournisseur `gemini_cli`, et la commande à copier pour le brancher comme client | Les scénarios du chapitre 10.5 passent avec lui avant qu'il soit proposé dans Réglages (FOU-17) |
 
 Trois raisons fixent cet ordre :
 
 - **Le socle de l'appli ne dépend pas du serveur.** Il se construit sur des données fictives, et c'est lui qui précise ce que chaque écran demande à l'API.
 - **Les lots 1 et 3 ne font qu'ajouter.** Le foyer, les routes ouvertes à l'appli et les notifications d'Apple s'ajoutent à l'existant : le bot continue de servir pendant ce temps.
 - **Les retraits viennent en dernier.** Le lot 2 retire le bot des membres et l'ancien sport. Il ne se fait qu'une fois que l'appli remplace le bot pour tout l'usage quotidien, juste avant la bascule.
+
+Pour la partie F, la lecture vient avant l'écriture : le lot 12 n'écrit rien qui ne soit déjà permis à HAL, le lot 13 change le fournisseur sans changer les outils, et les demandes n'arrivent qu'au lot 14, avec leurs accords.
 
 ### E.3 Où en est-on
 
@@ -4037,6 +4052,468 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont dessinés, pas construits.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
+
+La partie F est écrite le 19 octobre 2026, et rien n'en est construit : les lots 12 à 15 sont à faire.
+
+---
+
+## Partie F. HAL par MCP et par abonnement
+
+Cette partie est nouvelle, et elle n'est pas encore construite. Elle ouvre HAL à d'autres clients que l'application, et le fait tourner sur l'abonnement de chacun plutôt que sur l'API payée au token. Les parties A à D ne changent que là où l'annexe 8 le dit.
+
+### F.1 Rappel du besoin et choix effectués
+
+#### F.1.1 Le besoin
+
+Aujourd'hui, chaque message à HAL est un appel à l'API d'Anthropic, payé au token, en plus de l'abonnement Claude que l'administrateur paie déjà pour Claude Code. Deux envies se rejoignent :
+
+- **Discuter avec HAL depuis Claude Code**, ou depuis tout client qui parle MCP (Gemini CLI, Claude Desktop), pour lire son planning et ses séances, les analyser, et demander des changements sans ouvrir l'appli.
+- **Que l'appli HAL passe par l'abonnement de chacun.** On écrit à HAL dans l'appli comme aujourd'hui, mais c'est Claude Code, branché sur l'abonnement de celui qui écrit, qui fait le travail. Quand l'abonnement est épuisé, l'API prend le relais, dans la limite d'un plafond.
+
+Une contrainte ne bouge pas : **rien ne change sans l'accord de l'utilisateur.** Les gardes-fous de la partie B restent, et s'étendent à tout ce qu'un modèle peut désormais demander.
+
+#### F.1.2 Choix effectués
+
+- **HAL devient un serveur MCP.** Ses outils (section B.9.2), et ceux du planning et de la maison (section F.8.2), forment un seul catalogue, servi par le protocole MCP. Le module HAL et les clients externes passent par ce même catalogue : un outil n'existe qu'une fois.
+- **Le modèle devient un fournisseur interchangeable.** Chaque compte range ses fournisseurs : son abonnement par Claude Code d'abord, l'API ensuite. Un appel essaie le premier, puis passe au suivant quand une limite d'usage est atteinte. Le reste de l'appel (consigne, outils, réponse, journal) ne dépend pas du fournisseur.
+- **Chacun branche son propre abonnement.** Un abonnement ne sert qu'aux appels de son titulaire, jamais à l'autre membre du foyer. Un compte sans abonnement passe par l'API, comme aujourd'hui.
+- **Un modèle propose, l'utilisateur accorde.** Ce qui touche au planning, aux tâches, aux absences ou à une séance validée devient une *demande*, que l'utilisateur accepte ou refuse dans l'appli. Aucun outil ne peut accepter quoi que ce soit : ni une demande, ni une semaine, ni un ajustement. L'accord se donne dans HAL, jamais dans le client, parce qu'un client peut tourner seul.
+- **La base reste juge.** Une demande est essayée dès son dépôt, dans une transaction annulée : le modèle apprend tout de suite qu'elle ne tiendrait pas, avec le motif. À l'accord, elle est exécutée par la même fonction que le geste fait à la main, avec les mêmes droits.
+- **La mémoire reste en base, une seule pour tous les clients.** Les sessions et les fichiers de mémoire de Claude Code ne sont pas utilisés : la section F.2.4 dit pourquoi.
+- **Claude Code ne fait rien d'autre sur le serveur.** Il tourne sans shell, sans fichiers, sans web : il n'a que les outils de HAL permis pour le moment.
+- **L'API a un plafond.** Puisqu'elle devient un secours, une dépense qui s'emballe doit s'arrêter seule : chaque compte règle un plafond mensuel.
+- **Le serveur ne change pas.** C'est le portable sous Debian 13 de la section A.2.3, avec ses deux conteneurs. Claude Code s'ajoute à l'image `api`. Le serveur MCP est une route de plus de la même API, publiée par `tailscale funnel` derrière une clé, comme les routes de l'appli (CNX-5).
+
+---
+
+### F.2 Outils et architecture
+
+#### F.2.1 Outils ajoutés
+
+| Outil | Rôle | Pourquoi celui-là |
+|---|---|---|
+| Protocole MCP, SDK Python `mcp` | Le serveur MCP de HAL, monté dans la FastAPI sur `/mcp`, transport HTTP en flux (Streamable HTTP) | Le protocole que parlent Claude Code, Claude Desktop, Gemini CLI. Le SDK officiel se monte dans une application ASGI existante |
+| Claude Code, par le SDK Agent Python `claude-agent-sdk` | Le fournisseur « abonnement » : lance Claude Code sans écran, lui passe la consigne et le branche sur `/mcp` | Seule voie officielle pour faire travailler un abonnement Claude depuis un programme. Le SDK embarque Claude Code |
+| `claude setup-token` | Le jeton d'abonnement de longue durée, créé par chacun sur sa machine | Prévu pour faire tourner Claude Code sans navigateur |
+| `cryptography` (Fernet) | Chiffre en base les jetons d'abonnement et les clés d'API | Chiffrement symétrique authentifié, la clé vit dans `.env`, hors de la base |
+| Gemini CLI | Un fournisseur de plus, prévu, pas construit (lot 15) | Il parle MCP et a un mode sans écran ; la consigne est à revalider pour lui (FOU-17) |
+
+Sont volontairement écartés : l'authentification OAuth du serveur MCP, et avec elle les connecteurs de claude.ai dans le navigateur (section F.11) ; un serveur MCP à part, dans un troisième conteneur ; le SQL libre donné au modèle.
+
+#### F.2.2 Schéma d'ensemble
+
+```
+   CLIENTS                              LE SERVEUR (portable, Docker)
+   ───────                              ─────────────────────────────
+
+                                 ┌─────────────────── conteneur api ───────────────────┐
+   Application HAL ── HTTP ─────►│  routes de l'appli ─► module HAL (appel.py)          │
+   (chat, boutons,               │                          │                           │
+    accords)                     │              chaîne des fournisseurs du compte (FOU) │
+                                 │               1. Claude Code ── abonnement ──────────┼──► Anthropic
+                                 │               2. API ── clé, plafond ────────────────┼──► Anthropic
+                                 │                          │ outils du moment          │
+                                 │                          ▼ (jeton de course)         │
+   Claude Code, Gemini CLI ─────►│  /mcp : catalogue d'outils (MCP)                     │
+   (machine de l'utilisateur,    │     lecture ─► vues                                  │
+    clé MCP)                     │     écriture de HAL ─► fonctions SQL                 │
+                                 │     demandes ─► essai, puis table demande (ACC)      │
+                                 └───────────────────────────┬─────────────────────────┘
+                                                             │ SQL
+                                                   ┌─────────▼─────────┐
+                                                   │    PostgreSQL     │
+                                                   └───────────────────┘
+```
+
+Il n'y a qu'un serveur MCP. Le module HAL s'y branche lui-même quand il passe par Claude Code : les outils sont exécutés par le même code, qu'ils soient demandés par Claude Code sur le serveur ou par le Claude Code d'un utilisateur sur son Mac. Seul le profil change, et avec lui la liste des outils permis (MCP-4).
+
+#### F.2.3 Un appel par l'abonnement, pas à pas
+
+Le déroulé de la section B.2.3 ne change qu'au milieu. Les étapes 1 à 3 et 7 à 9 sont les mêmes.
+
+1. Un déclencheur arrive.
+2. Le module vérifie le verrou du compte, enregistre l'appel, ouvre une opération (COA-21, COA-22).
+3. Il assemble la consigne, dans le même ordre, au caractère près.
+4. **Il prend le premier fournisseur disponible du compte (FOU-4).**
+5. **Avec Claude Code :** le module crée un jeton de course, valable pour ce compte, ce moment et cette opération (FOU-12). Il lance Claude Code par le SDK Agent : la consigne remplace celle de Claude Code, le message du moment est le premier message, le seul serveur MCP est `/mcp` avec ce jeton, et seuls les outils du moment sont permis. Claude Code fait lui-même la boucle. Chaque outil qu'il demande arrive au serveur MCP, qui l'exécute comme aujourd'hui, une transaction par outil (COA-23). **Avec l'API :** la boucle actuelle, inchangée.
+6. **Si le fournisseur cède en route** (limite d'usage, jeton refusé), le module passe au suivant **dans la même opération**. Le message du moment lui dit ce qui est déjà écrit, comme pour un nouvel essai (COA-24) : il termine, il ne recommence pas.
+7. Le module construit la réponse à partir de ce que l'opération a écrit en base (COA-18). Les demandes déposées y deviennent des éléments, avec leurs boutons.
+8. L'échange et la notification sont écrits, avec le fournisseur qui a répondu (FOU-9).
+9. L'appel est clos, avec ses tours, ses tokens, sa durée et son fournisseur.
+
+**Exemple.** Mercredi, 18 h, dans l'appli : « Je suis chez mes parents de vendredi à dimanche, et décale mon sport de jeudi à mardi prochain. » L'abonnement est disponible. Claude Code lit le planning et la semaine, appelle `demander_absence` (vendredi à dimanche). L'essai passe, la demande est déposée. Il requalifie la partie sport (COA-25) : le module relance la course avec le moment changement, et Claude Code retire la séance proposée de jeudi et en propose une mardi. La réponse arrive : le message, un élément « demande d'absence » avec Accepter et Refuser, et la séance de mardi à valider. Rien n'a changé au planning tant que les boutons n'ont pas été touchés.
+
+#### F.2.4 La mémoire : ce que Claude Code change, et ce qu'il ne change pas
+
+**Un modèle ne retient rien d'un passage à l'autre, par l'API comme par l'abonnement.** Chaque tour lui renvoie tout ce qu'il doit savoir. Claude Code a trois façons de « se souvenir » : reprendre une session, qui renvoie la conversation entière ; la compacter, qui la résume quand elle devient trop longue ; relire des fichiers `CLAUDE.md` au début de chaque session. Toutes trois renvoient du texte au modèle à chaque tour. Aucune ne permet de retenir sans envoyer.
+
+**Ce qui change, c'est qui paie ce texte.** Par l'abonnement, le contexte envoyé ne se paie plus au token : il compte dans les limites de l'abonnement. Le cache de la partie fixe marche de la même façon : la consigne reste identique d'un appel à l'autre, au caractère près (B.2.3).
+
+**La mémoire reste donc en base, en quatre étages (MEM).** C'est elle qui garde le contexte petit, et elle a sur la mémoire de Claude Code cinq avantages :
+
+| | Mémoire de HAL, en base | Mémoire de Claude Code |
+|---|---|---|
+| Où | Une seule pour tous les clients : l'appli, Claude Code sur le Mac, Gemini | Un dossier par machine et par client |
+| Taille | Bornée par étage, résumée chaque nuit (MEM-3, MEM-6) | Grossit jusqu'au compactage |
+| Contrôle | Visible et corrigeable dans Réglages, avec ses versions (MEM-5) | Invisible depuis l'appli |
+| Durée | Survit à la reconstruction du conteneur | Perdue avec le conteneur, sauf volume dédié |
+| Privé | Rangée par compte (CAR-8) | Sur le disque du serveur, à côté de l'autre compte |
+
+**Ce que MCP apporte quand même : charger à la demande.** Un client externe ne reçoit pas toute la consigne d'office. Il reçoit à la connexion une consigne courte (MCP-6), et va chercher le reste par outils et par ressources : un chapitre du dossier, la mémoire, les échanges, la semaine. C'est déjà le principe des paquets (DOS) et de `lire_chapitre`, étendu aux autres clients.
+
+**Ce qu'un client externe dit à HAL.** Le serveur MCP ne voit que les outils qu'on lui demande, jamais la conversation. Une conversation tenue dans Claude Code se termine donc par un résumé déposé avec `noter_conversation` (MCP-12). Il entre dans les échanges, et HAL dans l'appli le lit avec les dix derniers (CAR-7) : « ce matin, sur le Mac, tu as dit que ton genou tirait ».
+
+---
+
+### F.3 Règles de gestion
+
+Mêmes conventions que les parties A et B.
+
+#### F.3.1 Serveur MCP : `MCP`
+
+| Code | Type | Règle |
+|---|---|---|
+| MCP-1 | D | HAL expose un serveur MCP sur `/mcp`, en HTTP en flux (Streamable HTTP), dans le processus de l'API. Il n'y a pas de deuxième serveur |
+| MCP-2 | D | Un client externe s'authentifie par une clé MCP, propre à ce client, dans l'en-tête `X-Cle-Mcp` : elle se crée dans Réglages, porte un nom (« Claude Code du Mac »), n'ouvre que `/mcp`, et se révoque seule, sans toucher à la clé de l'appli ni aux autres clients. Seule son empreinte est gardée ; la clé n'est montrée qu'une fois, à sa création |
+| MCP-3 | D | Le compte de la clé est l'utilisateur de tous les outils. Aucun outil ne prend un identifiant d'utilisateur : le modèle ne choisit jamais de qui il parle (COA-4) |
+| MCP-4 | D | Deux profils. **Interne** : une course du module HAL, authentifiée par un jeton de course (FOU-12), qui n'a que les outils de son moment (COA-5). **Externe** : un client de l'utilisateur, authentifié par une clé MCP, qui a la lecture, la mémoire, les mesures dites, les propositions de séance, les ajustements et les demandes (section F.8.2) |
+| MCP-5 | D | Le catalogue est fermé. Un outil lit une vue ou appelle une fonction SQL, rien d'autre. Il n'y a ni SQL libre, ni outil d'administration, ni outil qui accepte, valide ou refuse au nom de l'utilisateur (ACC-5) |
+| MCP-6 | T | À la connexion, le serveur rend une consigne courte : qui est HAL, le chapitre 1.2 en résumé, la règle des demandes (rien ne change sans accord), la règle de mémoire (MEM-9) et celle de MCP-12. Le socle complet est disponible en invite MCP `hal`, qui devient une commande dans Claude Code |
+| MCP-7 | D | Le dossier est exposé en ressources MCP, un chapitre par ressource (`hal://dossier/4.2`), en lecture seule. Rien de personnel n'y est (COA-8) |
+| MCP-8 | D | Chaque outil porte ses annotations MCP : lecture seule, ou écriture non destructive. Les clients s'en servent pour demander confirmation avant une écriture ; le serveur ne s'y fie pas, puisque ce qui compte passe par une demande |
+| MCP-9 | T | Un refus de la base est un résultat d'outil marqué en erreur, avec le code stable et le motif (COA-20). Le modèle lit le motif et corrige |
+| MCP-10 | T | Une session externe est enregistrée : la clé, le nom et la version du client, le début, le dernier appel, le nombre d'outils appelés et leur déroulé. Elle a son numéro d'opération au journal, sous l'acteur « agent », et tout ce qu'elle dépose le porte (JRN-4) |
+| MCP-11 | D | Ce qu'un client externe lit sort du serveur vers son fournisseur à lui. Le périmètre est celui de COA-15 : de l'autre membre, seuls ses créneaux pris ; la mémoire, les échanges, le profil, la santé et les mesures ne sont jamais que ceux du titulaire de la clé (CAR-8, PRO-8) |
+| MCP-12 | T | HAL, par la consigne, demande au client de finir une conversation qui a appris quelque chose par `noter_conversation` : un résumé de quelques lignes, entré dans les échanges sous l'auteur « client » et le moment « externe », avec le nom du client. Un fait durable va aussi en mémoire (`ajouter_memoire`). Règle tenue par le modèle |
+| MCP-13 | D | Une clé MCP a une limite de débit : soixante appels d'outil par minute. Au-delà, l'outil est refusé avec le code `trop_d_appels`, sans rien exécuter |
+| MCP-14 | D | `/mcp` passe par `tailscale funnel`, derrière la clé, comme les routes de l'appli. Le jeton de course n'est accepté que depuis le conteneur lui-même : venu du funnel, il est refusé (CNX-5) |
+
+#### F.3.2 Accords : `ACC`
+
+Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est proposée puis validée, une séance validée ne change que par un ajustement accepté (PLN-18). Les accords étendent ce principe à tout ce qu'un modèle peut désormais toucher.
+
+| Code | Type | Règle |
+|---|---|---|
+| ACC-1 | D | Un modèle, quel que soit son client, ne change le planning, les tâches, les occurrences, les absences, les occupations, le mode allégé, le profil, les limitations ou les lieux qu'en déposant une demande. Rien ne change tant que l'utilisateur ne l'a pas acceptée |
+| ACC-2 | D | Une demande porte : le compte, l'action (liste fermée, section F.8.2), ses paramètres, le motif écrit par le modèle, son origine (HAL dans l'appli, ou un client externe et son nom), l'appel ou la session qui l'a déposée, son opération, son état (en attente, acceptée, refusée, expirée, échouée) et, si elle a échoué, le motif de la base |
+| ACC-3 | T | Une demande est essayée dès son dépôt : la fonction SQL de l'action est exécutée dans une transaction annulée. Si la base refuse, la demande n'est pas déposée, et le modèle reçoit le motif (MCP-9) |
+| ACC-4 | T | Accepter une demande exécute la même fonction que le geste fait à la main, au nom de l'utilisateur : mêmes droits (FOY-6), mêmes refus, même journal. La raison jointe à la notification de l'autre membre dit « proposé par HAL » ou le nom du client (NOT-17). Si la base refuse à ce moment-là, parce que le planning a bougé depuis, la demande passe à échouée, avec son motif |
+| ACC-5 | M | Une demande s'accepte ou se refuse d'un bouton : dans la réponse de HAL (élément « demande », COA-17), dans le bandeau des demandes d'Aujourd'hui, ou depuis la notification. Jamais par un outil, jamais depuis un client externe |
+| ACC-6 | T | Plusieurs demandes d'une même réponse s'acceptent une à une, ou toutes d'un bouton. « Tout accepter » les exécute une par une, dans l'ordre du dépôt : une demande refusée par la base n'empêche pas les suivantes |
+| ACC-7 | T | Une demande acceptée s'annule dans les cinq secondes, comme une action du panneau (ORB-6) |
+| ACC-8 | T | Une demande sans réponse expire au bout de 48 heures, ou dès que la date qu'elle vise est passée |
+| ACC-9 | T | Une demande déposée par un client externe part en notification, avec Accepter et Refuser, même pendant le silence de la nuit : c'est une conversation en cours (NOT-14). Une demande déposée dans l'appli n'en crée pas : elle est déjà sous les yeux |
+| ACC-10 | D | Restent sans demande, comme aujourd'hui, ce qui ne touche que HAL ou qui est déjà soumis à validation : la mémoire (MEM-4), une mesure dite (MES-7), un avis, une fenêtre de mesure, une séance ou une semaine proposée (validée ensuite par l'utilisateur), un ajustement (accepté ensuite par l'utilisateur) |
+| ACC-11 | T | Un client externe ne voit et ne retire que les demandes de son titulaire. Un modèle peut retirer une demande qu'il a déposée tant qu'elle est en attente |
+
+#### F.3.3 Fournisseurs du modèle : `FOU`
+
+| Code | Type | Règle |
+|---|---|---|
+| FOU-1 | D | Chaque compte a une liste rangée de fournisseurs, de types `claude_code` (son abonnement), `api` (une clé d'API Anthropic) et, plus tard, `gemini_cli`. Un compte sans liste utilise la clé d'API du serveur, comme aujourd'hui |
+| FOU-2 | D | Un abonnement est personnel. Un compte ne branche que le sien, par un jeton créé sur sa machine avec `claude setup-token` et collé dans Réglages. Il ne sert qu'aux appels de ce compte : ni à l'autre membre, ni à un travail du serveur pour quelqu'un d'autre |
+| FOU-3 | D | Les jetons et les clés sont chiffrés en base, avec une clé qui vit dans `.env`. Ils ne sont jamais rendus par l'API (seuls leurs quatre derniers caractères), jamais écrits dans un journal, une trace, un échange ou un appel (COA-15) |
+| FOU-4 | T | Un appel essaie les fournisseurs dans l'ordre, en sautant ceux qui sont de côté. Il passe au suivant sur une limite d'usage, un jeton refusé, un plafond atteint ou un client injoignable. Il n'y passe pas sur un refus de la base, qui est un résultat, ni sur un dépassement de tours (COA-7) |
+| FOU-5 | T | Une limite d'usage met le fournisseur de côté jusqu'à l'heure de reprise annoncée, à défaut pour une heure. Il reprend sa place tout seul |
+| FOU-6 | T | Un jeton refusé met le fournisseur « à reconnecter ». L'utilisateur est prévenu une fois, et Réglages le montre jusqu'à ce qu'un nouveau jeton soit collé |
+| FOU-7 | D | Le fournisseur `api` a un plafond mensuel, en dollars, réglé par le compte, de 10 $ par défaut. La dépense du mois se calcule sur ses appels (COA-21) et sur une table des tarifs. Plafond atteint, l'API est de côté jusqu'au premier du mois suivant |
+| FOU-8 | T | Quand tous les fournisseurs sont de côté, un appel à la demande reçoit le message fixe de COA-12, qui dit en plus jusqu'à quand. Un appel planifié suit COA-11 : ses nouveaux essais prendront le premier fournisseur revenu |
+| FOU-9 | D | Chaque appel et chaque échange gardent le fournisseur qui a répondu. La réponse le dit à l'appli, qui le montre discrètement sous le message quand ce n'est pas le premier de la liste : « par l'API, abonnement épuisé jusqu'à 18 h » |
+| FOU-10 | T | Avec Claude Code, la consigne est celle de l'API (B.2.3, rangs 1 à 5). Elle remplace la consigne de Claude Code, au lieu de s'y ajouter. Les bornes sont les mêmes : tours (COA-7), délai (COA-16), limite de sortie (COA-27) |
+| FOU-11 | D | Sur le serveur, Claude Code n'a aucun outil intégré : ni shell, ni lecture ou écriture de fichiers, ni web, ni sous-agents. Il tourne dans un dossier vide et jetable, sans `CLAUDE.md`, sans réglages de l'utilisateur, sans reprise de session. Ses seuls outils sont ceux de HAL permis pour le moment |
+| FOU-12 | D | Un jeton de course est signé par le serveur, pour un compte, un moment et une opération. Il vit le temps du délai de l'appel et n'est valable que depuis le conteneur (MCP-14). Il n'est pas gardé en base |
+| FOU-13 | T | La requalification (COA-25) termine la course. Le module en relance une avec le nouveau moment, dans la même opération : l'utilisateur ne reçoit qu'une réponse |
+| FOU-14 | T | Les tokens rendus par Claude Code sont enregistrés comme ceux de l'API (COA-21), avec le fournisseur. Ils ne comptent pas dans le plafond |
+| FOU-15 | T | Les petits travaux d'un compte suivent sa chaîne : le choix des paquets (DOS-4) et les résumés de sa mémoire (MEM-7). Les noms de modèle (`COACH_MODELE` et les autres) valent pour tous les fournisseurs Claude |
+| FOU-16 | D | Le serveur fait tourner au plus deux Claude Code à la fois. Un troisième attend, dans la limite de son délai |
+| FOU-17 | M | Avant de proposer un nouveau type de fournisseur, ou un nouveau modèle, les scénarios du chapitre 10.5 sont rejoués avec lui, ceux de sécurité en premier (COA-14) |
+| FOU-18 | M | Un fournisseur se branche, se range, se coupe et se retire dans Réglages, Intelligence. Un jeton ou une clé collés sont essayés par un appel minimal avant d'être gardés |
+
+---
+
+### F.4 Acteurs du système
+
+| Acteur | Type | Rôle |
+|---|---|---|
+| Client MCP externe | Programme de l'utilisateur | Claude Code, Gemini CLI, Claude Desktop, sur sa machine. Lit ce qui est à son titulaire, propose, dépose des demandes, tient la mémoire. N'accepte rien |
+| Claude Code du serveur | Programme du système | Lancé par le module HAL pour un appel, sur l'abonnement du compte. N'a que les outils du moment |
+| Utilisateur | Humain | Branche ses fournisseurs et ses clients, accepte ou refuse les demandes |
+
+### F.5 Dictionnaire de données
+
+Les migrations partent de 070.
+
+#### Table : FournisseurModele
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_fournisseur | INTEGER | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | avec `type` ; avec `rang` | | | Utilisateur |
+| type | VARCHAR(12) | non | 'claude_code', 'api', 'gemini_cli' | | | | |
+| rang | SMALLINT | non | > 0 | | | | |
+| secret | BYTEA | non | chiffré (FOU-3) | | | | |
+| secret_fin | CHAR(4) | non | les quatre derniers caractères | | | | |
+| etat | VARCHAR(14) | non | 'actif', 'de_cote', 'a_reconnecter', 'coupe' | | 'actif' | | |
+| de_cote_jusqu_a | TIMESTAMPTZ | oui | renseigné si etat = 'de_cote' | | | | |
+| plafond_mensuel | NUMERIC(7,2) | oui | > 0 ; renseigné pour le type 'api' seul | | 10 | | |
+| dernier_usage | TIMESTAMPTZ | oui | | | | | |
+| cree_le | TIMESTAMPTZ | non | | | now() | | |
+
+#### Table : TarifModele
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| modele | VARCHAR(60) | non | | oui | | oui | |
+| entree | NUMERIC(8,4) | non | ≥ 0, en dollars par million de tokens | | | | |
+| cache_lu | NUMERIC(8,4) | non | ≥ 0 | | | | |
+| cache_ecrit | NUMERIC(8,4) | non | ≥ 0 | | | | |
+| sortie | NUMERIC(8,4) | non | ≥ 0 | | | | |
+
+Remplie par une migration, revue quand le fournisseur change ses prix. Un modèle absent de la table compte au tarif le plus cher, pour que le plafond reste prudent.
+
+#### Table : CleMcp
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_cle | INTEGER | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | avec `nom` | | | Utilisateur |
+| nom | VARCHAR(40) | non | non vide | | | | |
+| empreinte | CHAR(64) | non | SHA-256 de la clé | oui | | | |
+| cree_le | TIMESTAMPTZ | non | | | now() | | |
+| dernier_usage | TIMESTAMPTZ | oui | | | | | |
+| revoquee_le | TIMESTAMPTZ | oui | | | | | |
+
+#### Table : SessionMcp
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_session | UUID | non | l'identifiant de session MCP | oui | | oui | |
+| id_cle | INTEGER | non | | | | | CleMcp |
+| client | VARCHAR(60) | non | nom et version annoncés par le client | | | | |
+| operation | TEXT | non | | | | | |
+| debut | TIMESTAMPTZ | non | | | now() | | |
+| dernier_appel | TIMESTAMPTZ | non | | | now() | | |
+| appels | INTEGER | non | ≥ 0 | | 0 | | |
+| deroule | JSONB | non | les outils appelés et le début de leur résultat | | '[]' | | |
+
+#### Table : Demande
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_demande | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| action | VARCHAR(30) | non | liste fermée, section F.8.2 | | | | |
+| parametres | JSONB | non | | | | | |
+| motif | VARCHAR(300) | non | non vide | | | | |
+| origine | VARCHAR(8) | non | 'HAL', 'client' | | | | |
+| client | VARCHAR(60) | oui | renseigné si origine = 'client' | | | | |
+| id_appel | BIGINT | oui | renseigné si origine = 'HAL' | | | | AppelCoach |
+| id_session | UUID | oui | renseigné si origine = 'client' | | | | SessionMcp |
+| operation | TEXT | non | | | | | |
+| etat | VARCHAR(10) | non | 'en_attente', 'acceptee', 'refusee', 'expiree', 'echouee' | | 'en_attente' | | |
+| deposee_le | TIMESTAMPTZ | non | | | now() | | |
+| expire_le | TIMESTAMPTZ | non | au plus 48 h après le dépôt (ACC-8) | | | | |
+| decidee_le | TIMESTAMPTZ | oui | obligatoire hors 'en_attente' | | | | |
+| motif_echec | TEXT | oui | renseigné si etat = 'echouee' | | | | |
+
+#### Tables existantes : ce qui change
+
+| Table | Changement | Règles |
+|---|---|---|
+| AppelCoach | Colonne `fournisseur` ('claude_code', 'api', 'gemini_cli', 'serveur'), et la liste des fournisseurs essayés dans `deroule` | FOU-9, FOU-14 |
+| Echange | Colonne `fournisseur`. `auteur` accepte 'client', `moment` accepte 'externe' et 'changement'. `client` : le nom du client pour un échange externe | FOU-9, MCP-12 |
+| Notification | `type` accepte 'demande'. Colonne `id_demande`, vers `Demande`, mise à nul | ACC-9 |
+| Evenement | L'acteur accepte 'agent' | MCP-10 |
+
+### F.6 Contraintes d'intégrité
+
+| Code | Contrainte | Où elle est tenue |
+|---|---|---|
+| FOU-1 | Un type par compte, un rang par compte | Unicités sur `fournisseur_modele` |
+| FOU-3 | Aucun secret en clair | Le module chiffre avant d'écrire ; la colonne est `BYTEA` ; aucune vue ne la rend |
+| FOU-7 | Plafond seulement pour l'API | `CHECK (type = 'api' OR plafond_mensuel IS NULL)` |
+| MCP-2 | Une clé révoquée n'ouvre plus rien | Lecture de la clé filtrée sur `revoquee_le IS NULL` |
+| ACC-1 | Une demande ne s'exécute qu'acceptée | `accepter_demande()` seule exécute l'action, et seulement depuis l'état en attente |
+| ACC-2 | Origine cohérente | `CHECK` : 'HAL' avec un appel, 'client' avec une session et un nom |
+| ACC-8 | Une demande expirée ne s'accepte plus | `accepter_demande()` refuse au-delà de `expire_le` ; le report de 0h05 passe les restantes à 'expiree' |
+
+### F.7 Description des opérations
+
+#### Opération F1 : Brancher un abonnement
+
+| | |
+|---|---|
+| Déclencheur | L'utilisateur colle son jeton dans Réglages, Intelligence |
+| Entrée | Le jeton de `claude setup-token`, le rang souhaité |
+| Traitement | Un appel minimal par Claude Code avec ce jeton (FOU-18). S'il répond, le jeton est chiffré et gardé, le fournisseur prend son rang |
+| Sortie | Le fournisseur, son état et ses quatre derniers caractères |
+| Règles | FOU-2, FOU-3, FOU-18 |
+
+#### Opération F2 : Appel par la chaîne des fournisseurs
+
+| | |
+|---|---|
+| Déclencheur | Un des huit déclencheurs de COA-2 |
+| Entrée | Celle de l'opération C1 |
+| Traitement | Celui de l'opération C1, sauf l'étape du modèle : premier fournisseur disponible, passage au suivant sur une limite, dans la même opération (section F.2.3) |
+| Sortie | La réponse de COA-17, avec le fournisseur qui a répondu, et les demandes déposées en éléments |
+| Règles | FOU-4 à FOU-16, COA-24 |
+
+#### Opération F3 : Session d'un client externe
+
+| | |
+|---|---|
+| Déclencheur | Un client MCP se connecte à `/mcp` avec une clé MCP |
+| Entrée | La clé, le nom et la version du client |
+| Traitement | Ouvre la session et son opération, rend la consigne courte et le catalogue du profil externe. Chaque outil est exécuté pour le titulaire de la clé et noté au déroulé |
+| Sortie | Les résultats d'outils ; les demandes déposées partent en notification |
+| Règles | MCP-2 à MCP-13, ACC-9 |
+
+#### Opération F4 : Dépôt et accord d'une demande
+
+| | |
+|---|---|
+| Déclencheur | Un outil `demander_…`, puis un bouton de l'utilisateur |
+| Entrée | L'action, ses paramètres, le motif ; puis l'accord ou le refus |
+| Traitement | Au dépôt, l'action est essayée dans une transaction annulée ; si la base l'accepte, la demande est enregistrée. À l'accord, l'action est exécutée au nom de l'utilisateur, par la fonction de la route correspondante, dans l'opération de la demande |
+| Sortie | Au dépôt, la demande ou le motif du refus ; à l'accord, ce que rend la route, ou l'échec et son motif |
+| Règles | ACC-1 à ACC-8 |
+
+### F.8 Interfaces exposées
+
+#### F.8.1 Routes
+
+| Route | Ce qu'elle fait | Règles |
+|---|---|---|
+| `GET /moi/fournisseurs` | Les fournisseurs du compte, rangés : type, état, quatre derniers caractères, de côté jusqu'à quand, dépense API du mois et plafond | FOU-1, FOU-7 |
+| `PUT /moi/fournisseurs/{type}` | Brancher ou remplacer un jeton ou une clé, après un essai ; régler le plafond | FOU-18 |
+| `PUT /moi/fournisseurs/ordre` | Ranger les fournisseurs | FOU-1 |
+| `POST /moi/fournisseurs/{type}/couper`, `/reprendre` | Mettre un fournisseur hors de la chaîne sans le retirer | FOU-18 |
+| `DELETE /moi/fournisseurs/{type}` | Retirer un fournisseur et effacer son secret | FOU-3 |
+| `GET /moi/cles-mcp`, `POST /moi/cles-mcp`, `DELETE /moi/cles-mcp/{id}` | Les clés des clients, en créer une (montrée une fois), en révoquer une | MCP-2 |
+| `GET /moi/sessions-mcp` | Les dernières sessions des clients : nom, dates, nombre d'outils | MCP-10 |
+| `GET /demandes` | Les demandes du compte, en attente d'abord | ACC-5 |
+| `POST /demandes/{id}/accepter`, `/refuser` | Accepter ou refuser une demande | ACC-4, ACC-5 |
+| `POST /demandes/accepter` | Accepter plusieurs demandes, dans l'ordre du dépôt | ACC-6 |
+| `POST /demandes/{id}/annuler` | Défaire une demande acceptée, dans les cinq secondes | ACC-7 |
+| `/mcp` | Le serveur MCP | MCP-1 |
+
+#### F.8.2 Le catalogue MCP
+
+Les outils de HAL (section B.9.2) restent, avec leurs noms. S'y ajoutent les outils du planning et de la maison, et ceux du client externe. Une action de demande correspond à une route de l'appli : l'accord passe par la même fonction.
+
+**Lecture**
+
+| Outil | Ce qu'il rend | Ce qu'il lit |
+|---|---|---|
+| `lire_aujourdhui` | Ce qu'Aujourd'hui affiche : tâches du jour, séances, conflits, absences en cours, mode allégé | La route de l'accueil (WID-8) |
+| `lire_taches` | Les tâches du foyer, leur type, leur fréquence, pour qui, leurs liens | `tache`, `v_lien_tache` |
+| `lire_occurrences` | Les occurrences d'une période, avec leur état et leur retard | `v_occurrence`, `v_taches_en_retard` |
+| `lire_absences` | Les absences et les voyages, passés et à venir | `absence`, `trajet` |
+| `lire_conflits` | Les conflits horaires ouverts | `v_conflit` |
+| `lire_memoire` | Les quatre étages de la mémoire | `v_memoire_coach` |
+| `lister_demandes` | Les demandes du titulaire, et leur état | `demande` |
+
+`lire_planning`, `lire_semaine`, `lire_seance`, `lire_sante`, `lire_forme`, `lire_mesures`, `lire_progression`, `lire_catalogue`, `lire_echanges` et `lire_chapitre` sont ceux de la section B.9.2.
+
+**Demandes** (ACC)
+
+| Outil | L'action à l'accord | La fonction |
+|---|---|---|
+| `demander_tache` | Créer une tâche, ponctuelle, datée ou régulière | `creer_tache()` |
+| `demander_modification_tache` | Changer le nom, la durée, la fréquence, pour qui, le type ou l'heure d'une tâche | La route `PATCH /taches/{id}`, `changer_type_tache()`, `regler_heure_tache()` |
+| `demander_arret_tache` | Arrêter une tâche | `arreter_tache()` |
+| `demander_lien` | Lier ou délier deux tâches | `lier_taches()`, `delier_taches()` |
+| `demander_report` | Reporter ou refuser une occurrence | Les routes `/occurrences/{id}/reporter` et `/refuser` |
+| `demander_faite` | Déclarer une tâche faite, prévue ou non | `declarer_faite()` |
+| `demander_absence` | Déclarer une absence, ou un départ et un retour | La route `/absences`, `terminer_absence()` |
+| `demander_occupation` | Ajouter ou retirer une occupation saisie à la main | `ajouter_occupation()` |
+| `demander_allegement` | Activer ou arrêter le mode allégé | `activer_allegement()`, `arreter_allegement()` |
+| `demander_conflit` | Trancher un conflit horaire | La route `/conflits/{id}/resoudre` |
+| `demander_seance` | Déplacer ou supprimer une séance validée, poser une séance libre | `deplacer_seance()`, `supprimer_seance_sport()`, `creer_seance_libre()` |
+| `retirer_demande` | Retire une demande encore en attente qu'on a déposée | ACC-11 |
+
+**Client externe**
+
+| Outil | Ce qu'il fait |
+|---|---|
+| `noter_conversation` | Dépose le résumé d'une conversation dans les échanges (MCP-12) |
+
+**Ce que chaque profil ouvre**
+
+| Famille | Interne : outils du moment (COA-5) | Externe |
+|---|---|---|
+| Lecture (HAL, planning, maison) | Oui | Oui |
+| Mémoire, mesure dite | Selon le moment | Oui |
+| Avis, trame, fenêtre de mesure | Selon le moment | Non : ils restent aux moments de HAL |
+| Séances proposées et ajustements | Selon le moment | Oui |
+| Demandes | Chat, signalement, changement | Oui |
+| Requalification | Chat | Non : un client externe a déjà ses outils |
+| `noter_conversation` | Non | Oui |
+
+#### F.8.3 Brancher son client
+
+Dans Réglages, Intelligence, « Ajouter un client » crée une clé MCP et affiche la commande à copier. Pour Claude Code :
+
+```
+claude mcp add --transport http hal https://<nom-du-serveur>.ts.net:8443/mcp \
+    --header "X-Cle-Mcp: <la clé>"
+```
+
+Pour Gemini CLI, le même serveur se déclare dans `~/.gemini/settings.json`, avec l'adresse et l'en-tête. L'appli affiche les deux.
+
+### F.9 Dans l'application
+
+| Code | Type | Règle |
+|---|---|---|
+| ACC-12 | D | Une demande s'affiche dans le panneau de HAL comme un élément de type « demande » : ce qui changerait, en une phrase tirée de la base, le motif du modèle, Accepter et Refuser. Plusieurs demandes ont en plus « Tout accepter » |
+| ACC-13 | D | Les demandes en attente ont leur bandeau en tête d'Aujourd'hui, avec les autres bandeaux d'état (WID-6). Le toucher ouvre la liste |
+| ACC-14 | D | La notification d'une demande porte Accepter et Refuser, qui agissent sans ouvrir l'appli |
+| FOU-19 | D | Réglages, Intelligence, a trois blocs : les fournisseurs, rangés par glissement, avec leur état et la dépense API du mois ; les clients MCP et leurs clés ; les dernières sessions des clients |
+
+Le groupe « HAL et sport » de Réglages (section C.12) reçoit la ligne Intelligence.
+
+---
+
+### F.10 Ce que la partie change dans le système existant
+
+| Élément | Avant | Après | Règles |
+|---|---|---|---|
+| Fournisseur du modèle | L'API d'Anthropic, une clé pour le serveur | Une chaîne par compte : abonnement, puis API | FOU |
+| `api/coach/modele.py` | Le seul fichier qui connaît le SDK | Un fournisseur par fichier, derrière la même interface : un tour, ou une course entière pour Claude Code | FOU-10 |
+| `api/coach/outils.py` | Déclare les outils au modèle et les exécute | Reste le catalogue ; le serveur MCP le sert, et la boucle de l'API continue de l'appeler en direct | MCP-5 |
+| Outils du chat, du signalement et du changement | Lecture, mémoire, séances selon le moment | En plus, les demandes | COA-5 |
+| Plafond de dépense | Aucun | Un plafond mensuel sur l'API, par compte | FOU-7 |
+| Report de 0h05 | Reporte, expire, roule la mémoire | Expire aussi les demandes restées sans réponse | ACC-8 |
+| Image Docker `api` | Python seul | Python et Claude Code, par le SDK Agent | F.2.1 |
+| `.env` | `ANTHROPIC_API_KEY` | En plus, `HAL_CLE_CHIFFREMENT` et `HAL_SECRET_COURSE`. La clé d'API du serveur reste le défaut d'un compte sans liste | FOU-1, FOU-3, FOU-12 |
+
+Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire, les échanges rendus, le verrou du compte, les nouveaux essais, la forme de la réponse, l'ordonnanceur. Un compte sans fournisseur branché fonctionne exactement comme aujourd'hui.
+
+### F.11 Risques et points ouverts
+
+| Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
+|---|---|---|
+| Conditions de l'abonnement | Faire travailler son abonnement Claude par un programme à soi, pour soi, est l'usage de `claude setup-token`. Les conditions d'Anthropic évoluent | À relire avant le lot 13, puis de temps en temps. Si elles l'interdisent, chaque compte repasse sur l'API en coupant un fournisseur : rien d'autre ne change. C'est pour cela que FOU-2 interdit de prêter son abonnement |
+| Limite d'usage | La forme du message de Claude Code quand l'abonnement est épuisé n'est pas une interface stable | Sa reconnaissance vit dans un seul fichier, couverte par un test. Un message non reconnu est traité comme une panne du fournisseur : on passe quand même au suivant |
+| Limites partagées | L'abonnement de l'administrateur sert aussi à son Claude Code de développement | Un soir de gros développement peut faire passer la synthèse sur l'API. Le plafond borne la dépense |
+| Délai | Claude Code met quelques secondes à démarrer | À mesurer au lot 13 sur le portable. Le délai de 90 secondes (COA-16) laisse de la marge |
+| Mémoire vive | Le portable est vieux, et chaque Claude Code est un processus | Deux au plus à la fois (FOU-16). À mesurer |
+| Boucle locale | Claude Code du serveur appelle `/mcp` dans le processus qui l'a lancé | L'appel du module ne doit pas tenir la boucle d'événements de l'API, sinon `/mcp` ne répond plus. À tester dès le lot 13 |
+| Cache de la consigne | Avec Claude Code, le cache est géré par Claude Code, pas par le module | Les tokens lus en cache se lisent quand même dans ce que rend le SDK (FOU-14). À comparer avec l'API sur une semaine |
+| Texte venu d'ailleurs | Un titre de calendrier, un lieu, un courriel entrent dans ce que lit le modèle, et pourraient contenir des instructions | Le modèle ne peut que demander, jamais exécuter (ACC-1) : une demande étrange se voit et se refuse |
+| Connecteurs de claude.ai | Le site et l'appli Claude demandent OAuth pour un connecteur distant | Pas de HAL dans claude.ai tant que le serveur MCP n'a pas OAuth. Claude Code, Claude Desktop et Gemini CLI acceptent une clé |
+| Accord dans le client | MCP permet à un serveur de demander une réponse à l'utilisateur, dans le client | Écarté : un client peut répondre seul. À revoir si l'accord dans l'appli se montre trop lourd à l'usage |
+
+### F.12 Ce qui est volontairement exclu
+
+- Prêter son abonnement à un autre compte, ou le faire servir au serveur pour quelqu'un d'autre (FOU-2).
+- Accepter une demande, valider une semaine ou accepter un ajustement par un outil (ACC-5).
+- Le SQL libre, et tout outil d'administration dans le catalogue.
+- Claude Code avec un shell, des fichiers ou le web sur le serveur (FOU-11).
+- La mémoire de Claude Code : sessions reprises, `CLAUDE.md`, mémoire automatique (section F.2.4).
+- OAuth sur le serveur MCP, et donc HAL dans claude.ai, pour cette version.
+- L'accord demandé dans le client MCP (F.11).
 
 ---
 
@@ -4257,3 +4734,25 @@ TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Un
 ADM-4 est réécrite : une source en panne ne se redit plus qu'une fois par jour. Elle disait : « Une alerte qui dure ne se répète pas plus d'une fois par heure. Quand le problème est réglé, un message le dit. » Un calendrier en panne pendant six jours avait envoyé plusieurs dizaines de messages.
 
 Le catalogue passe de 141 à 179 exercices (EXO-4, section A.10). Les lignes des sections A.6 et A.7 qui décrivaient l'ancien sport (la table `choix_sport`, la colonne `minimum_sport`, `organiser_sport()`, `propositions_sport()`, `regler_minimum_sport()`, `sportifs()`) sont retirées : la migration 065 les avait déjà supprimés de la base.
+
+### Annexe 8 : ce que change la partie F
+
+Version du 19 octobre 2026. La partie F est écrite, pas construite. Ses règles sont nouvelles : MCP-1 à MCP-14, ACC-1 à ACC-14, FOU-1 à FOU-19. Une règle est réécrite ; voici son texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| COA-5 | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire et note une mesure : il ne propose aucune séance. S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement |
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qu'il disait | Pourquoi il change |
+|---|---|---|
+| 0.1 | « Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. » | Le planning et la maison se demandent aussi à HAL, avec accord (ACC-1) |
+| B.1.2 | « Il n'y a pas de plafond de dépense dans le système. Le suivi se fait sur la console du fournisseur. » | L'API devient un secours, avec un plafond (FOU-7) |
+| B.2.1 | Écartait « un deuxième fournisseur de secours » | L'abonnement d'abord, l'API ensuite (FOU-4) |
+| B.9.2 | Le tableau des moments n'avait ni la colonne « Demandes » ni la ligne « changement » | La ligne « changement » manquait déjà depuis COA-32 ; la colonne vient de ACC-1 |
+| B.11.4 | Le coût : « Aucun plafond (section B.1.2) » | FOU-7 |
+| B.12 | Excluait « un plafond de dépense » et « un deuxième fournisseur de modèle en secours » | FOU-4, FOU-7 |
+| C.12 | Pas de ligne Intelligence ; aucun coût dans l'appli | FOU-19 : la dépense de l'API du mois, face au plafond, se lit dans Réglages |
+
+**Ce qui ne change pas.** La consigne et son ordre, les paquets du dossier, la mémoire en quatre étages, le verrou du compte, les nouveaux essais, la forme de la réponse et l'ordonnanceur. Un compte sans fournisseur branché et sans client MCP fonctionne exactement comme avant.
