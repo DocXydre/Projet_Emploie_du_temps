@@ -57,6 +57,24 @@ GROUPE = re.compile(r"\b(?:gpe|groupe|grp|gr)\s*([0-9])\b", re.IGNORECASE)
 SHIFT = re.compile(r"^\s*shift\s*:\s*(?P<enseigne>.+?)\s*$", re.IGNORECASE)
 
 
+# Les colonnes `libelle` et `lieu` d'une occupation et d'un conflit. Un
+# calendrier personnel y met ce qu'il veut, une adresse complète sur trois
+# lignes par exemple : sans borne, l'insertion échoue et la source entière
+# cesse de se collecter, à chaque passage (COL-24).
+LIBELLE_MAX = 150
+LIEU_MAX = 100
+
+
+def borner(texte: str | None, longueur: int) -> str | None:
+    """Sur une ligne, et coupé d'un « … » s'il dépasse la colonne."""
+    if not texte:
+        return texte
+    propre = re.sub(r"\s+", " ", texte.replace("\\n", " ")).strip()
+    if len(propre) <= longueur:
+        return propre or None
+    return propre[:longueur - 1].rstrip(" ,;-") + "…"
+
+
 @dataclass
 class Seance:
     """Une occupation normalisée, prête à être écrite en base."""
@@ -375,6 +393,8 @@ def analyser(texte_ics: str, profil: str = "ade",
                             _texte(occurrence, "LOCATION"),
                             _texte(occurrence, "DESCRIPTION"))
         seance.journee_entiere = entiere
+        seance.libelle = borner(seance.libelle, LIBELLE_MAX) or seance.libelle
+        seance.lieu = borner(seance.lieu, LIEU_MAX)
 
         # Toutes les occurrences d'une série portent le même UID. Sans la date
         # dans la clé externe, elles s'écraseraient les unes les autres en base

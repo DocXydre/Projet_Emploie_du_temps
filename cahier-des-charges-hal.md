@@ -254,6 +254,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | COL-21 | M | Un emploi du temps peut cesser d'être suivi : il n'est plus collecté, ses occupations à venir sont retirées du planning, et les passées restent. Une démission n'efface pas les mois travaillés, le calendrier doit toujours dire ce qu'on faisait tel jour |
 | COL-22 | T | Un cours annulé dans le flux, marqué « STATUS:CANCELLED », est écarté comme s'il en avait disparu : il quitte le planning et le calendrier. ADE et les applications de calendrier gardent souvent l'événement au lieu de le retirer, et le lire comme un cours ordinaire laissait au planning un cours qui n'a pas lieu |
 | COL-23 | T | « Voir plus tard » cache un conflit. S'il n'est pas réglé, il revient de lui-même sept jours avant sa date, et ne peut plus être caché ensuite |
+| COL-24 | T | Un titre ou un lieu trop long pour la base est mis sur une ligne et coupé d'un « … », jamais refusé : un seul événement mal saisi ne doit pas arrêter la collecte d'un calendrier entier |
 
 #### A.3.3 Tâches et occurrences : `TAC`
 
@@ -273,7 +274,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | TAC-12 | T | Une tâche peut être marquée « avant le départ » : quand l'appartement se vide, elle est posée avant que la dernière personne parte, en plus de sa récurrence. Les poubelles et la litière ne peuvent pas attendre le retour, et il n'y a plus personne pour s'en occuper. La liste est en TAC-18 |
 | TAC-13 | D | Les poubelles se sortent à partir de 17h et pas avant : le ramassage passe à l'aube, un sac sorti le matin attend dehors toute la journée. Un départ avant 17h fait donc tomber la corvée la veille au soir |
 | TAC-14 | T | Le lave-vaisselle lancé le soir se vide dans la journée qui suit. La tâche n'a pas de récurrence propre : elle naît de la validation du lancement, et revient à qui le roulement désigne, quel que soit celui qui a lancé |
-| TAC-15 | T | Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée |
+| TAC-15 | T | Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. Un aspirateur passé la veille ne l'empêche pas : un passage de trop vaut mieux qu'un de moins, et l'aspirateur se cale sur le jour du récurage |
 | TAC-16 | T | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) », « Nettoyage 2/3 : Passer l'aspirateur ». Les titres se refont à chaque placement |
 | TAC-17 | T | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
 | TAC-18 | T | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse du chat changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
@@ -1230,6 +1231,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | COL-21 | `arreter_source()` désactive la source et supprime ses occupations dont le début est à venir, jamais les autres | Dynamique forte |
 | COL-22 | Un événement portant `STATUS:CANCELLED` ne produit aucune séance, et la réconciliation retire l'occupation devenue orpheline | Dynamique forte |
 | COL-22 | Une collecte demandée à la main ignore la fréquence des sources | Dynamique faible |
+| COL-24 | `ics.borner()` ramène le titre à 150 caractères et le lieu à 100, la taille de leurs colonnes, avant toute écriture | Dynamique forte |
 
 #### A.7.3 Tâches et occurrences
 
@@ -1748,6 +1750,8 @@ Les points qui ont demandé le plus de réflexion, et ce qui en a été tiré. L
 **Une collecte perdait six cours en silence.** Les compteurs affichaient « 80 lues, 51 créées » sans que la différence soit expliquée. Un invariant a été ajouté : chaque séance lue doit être comptée quelque part, sinon l'écart est signalé. C'est ce contrôle qui a révélé que des chevauchements disparaissaient sans trace.
 
 **Une collecte muette effaçait deux semaines de planning.** La réconciliation supprime les occupations à venir qui ne sont plus dans le flux : c'est ce qu'il faut faire quand un cours ou un service est annulé. Mais un flux qui ne répond plus, ou qui renvoie une page de connexion, produit exactement le même signal : zéro événement. Le relevé des horaires de sport refuse désormais un résultat vide et conserve ce qu'il avait, plutôt que de vider le planning en silence.
+
+**Une adresse trop longue arrêtait un calendrier entier.** Un rendez-vous de garde d'enfants portait une adresse complète, sur deux lignes, plus longue que les 100 caractères de la colonne `lieu`. L'insertion échouait, la collecte s'arrêtait là, et la source ne se collectait plus du tout : le bot d'administration l'annonçait en panne toutes les heures, et changer son lien depuis l'appli renvoyait une erreur, alors que le lien était bon. La collecte coupe maintenant le titre et le lieu à la taille de leurs colonnes (COL-24), et une lecture qui échoue après un changement de lien est dite telle quelle, le lien gardé.
 
 #### A.11.2 Placement
 
@@ -4198,11 +4202,14 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 
 ### Annexe 7 : ce que change la version du 19 octobre 2026
 
-Migration 068. Deux règles sont nouvelles, aucune n'est réécrite.
+Migration 068. Trois règles sont nouvelles, une est précisée.
 
 | Code | Ce qu'elle ajoute |
 |---|---|
 | APP-10 | Une tâche cochée attend trente secondes avant de partir au serveur : un geste raté se défait sans que l'autre en soit prévenu |
 | SAI-20 | Pendant un exercice, le poids prévu par HAL, le plus lourd soulevé et le plus lourd tenu sur dix répétitions ; la charge se règle au demi-kilo |
+| COL-24 | Un titre ou un lieu trop long est coupé, jamais refusé |
+
+TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. » Elle dit maintenant qu'un aspirateur passé la veille n'empêche pas d'en poser un le jour du récurage.
 
 Le catalogue passe de 141 à 179 exercices (EXO-4, section A.10). Les lignes des sections A.6 et A.7 qui décrivaient l'ancien sport (la table `choix_sport`, la colonne `minimum_sport`, `organiser_sport()`, `propositions_sport()`, `regler_minimum_sport()`, `sportifs()`) sont retirées : la migration 065 les avait déjà supprimés de la base.
