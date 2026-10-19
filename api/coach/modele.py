@@ -14,7 +14,15 @@ from api.config import configuration
 
 
 class ModeleInjoignable(Exception):
-    """Le modèle n'a pas répondu : pas de clé, délai dépassé, erreur du fournisseur."""
+    """Le modèle n'a pas répondu : pas de clé, délai dépassé, erreur du fournisseur.
+
+    `nature` dit pourquoi, pour la chaîne des fournisseurs (FOU-4) : « limite »
+    (429), « jeton » (clé refusée), « injoignable » (tout le reste).
+    """
+
+    def __init__(self, motif: str, nature: str = "injoignable"):
+        super().__init__(motif)
+        self.nature = nature
 
 
 @dataclass
@@ -37,48 +45,56 @@ class Tour:
     tokens_sortie: int = 0
 
 
-_client = None
+# Un client par clé : celle du serveur, et celle de chaque compte qui a branché
+# la sienne (FOU-1).
+_clients: dict[str, object] = {}
 
 
-def _le_client():
-    global _client
-    conf = configuration()
-    if not conf.anthropic_api_key:
+def _le_client(cle: str | None = None):
+    cle = cle or configuration().anthropic_api_key
+    if not cle:
         raise ModeleInjoignable("Aucune clé d'API n'est configurée (ANTHROPIC_API_KEY)")
-    if _client is None:
+    if cle not in _clients:
         import anthropic
         # Les nouveaux essais sont ceux du coach (COA-11), pas ceux du SDK : un
         # appel à la demande n'a que 90 secondes devant lui.
-        _client = anthropic.Anthropic(api_key=conf.anthropic_api_key, max_retries=1)
-    return _client
+        _clients[cle] = anthropic.Anthropic(api_key=cle, max_retries=1)
+    return _clients[cle]
 
 
 def appeler(systeme: list[dict], messages: list[dict], outils: list[dict],
-            delai: float, modele_nom: str | None = None) -> Tour:
-    """Un tour : la consigne, la conversation, les outils permis, et la réponse."""
+            delai: float, modele_nom: str | None = None, cle: str | None = None) -> Tour:
+    """Un tour : la consigne, la conversation, les outils permis, et la réponse.
+
+    `cle` : la clé d'API du compte (FOU-1). Sans elle, celle du serveur.
+    """
     conf = configuration()
-    return _creer(model=modele_nom or conf.coach_modele, max_tokens=conf.coach_max_tokens,
-                  system=systeme, messages=messages, tools=outils,
-                  timeout=max(delai, 5.0))
+    return _creer(cle, model=modele_nom or conf.coach_modele,
+                  max_tokens=conf.coach_max_tokens, system=systeme, messages=messages,
+                  tools=outils, timeout=max(delai, 5.0))
 
 
 def ecrire(systeme: str, texte: str, modele_nom: str, max_tokens: int,
-           delai: float) -> Tour:
+           delai: float, cle: str | None = None) -> Tour:
     """Un appel sans outils : une consigne, un texte, une réponse.
 
     Sert au choix des paquets du dossier (DOS-4) et aux résumés de la mémoire
     (MEM-7). Les tests le remplacent comme `appeler`.
     """
-    return _creer(model=modele_nom, max_tokens=max_tokens, system=systeme,
+    return _creer(cle, model=modele_nom, max_tokens=max_tokens, system=systeme,
                   messages=[{"role": "user", "content": texte}],
                   timeout=max(delai, 5.0))
 
 
-def _creer(**parametres) -> Tour:
+def _creer(cle: str | None, **parametres) -> Tour:
     import anthropic
 
     try:
-        reponse = _le_client().messages.create(**parametres)
+        reponse = _le_client(cle).messages.create(**parametres)
+    except anthropic.RateLimitError as erreur:
+        raise ModeleInjoignable(f"RateLimitError : {erreur}", "limite") from erreur
+    except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as erreur:
+        raise ModeleInjoignable(f"{type(erreur).__name__} : {erreur}", "jeton") from erreur
     except anthropic.APIError as erreur:
         raise ModeleInjoignable(f"{type(erreur).__name__} : {erreur}") from erreur
 

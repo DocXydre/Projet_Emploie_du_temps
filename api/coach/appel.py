@@ -24,7 +24,19 @@ from psycopg.types.json import Jsonb
 
 from api import operation
 from api.base import connexion, executer, lister, un_seul
-from api.coach import aiguillage, contexte, dossier, modele, office, outils, reponse, trace
+from api.coach import (
+    aiguillage,
+    contexte,
+    course,
+    course_gemini,
+    dossier,
+    fournisseurs,
+    modele,
+    office,
+    outils,
+    reponse,
+    trace,
+)
 from api.coach.clair import clair, jour_en_clair, maintenant
 from api.config import configuration
 
@@ -73,7 +85,7 @@ class Demande:
     ecran: str | None = None
 
 
-def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
+def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -> str:
     """Le message du moment : ce qui déclenche l'appel, et ce qu'on attend."""
     m = demande.moment
     jour = maintenant()
@@ -171,7 +183,14 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict]) -> str:
                       "les yeux : tu n'agis qu'avec les outils de ce moment.")
     if demande.id_occurrence:
         lignes.append(f"La séance dont on parle : id_occurrence {demande.id_occurrence}.")
-    if deja_ecrit:
+    if deja_ecrit and relais and demande.essai == 1:
+        # FOU-4 : un fournisseur a cédé en route ; le suivant termine.
+        lignes.append(
+            "ATTENTION : cet appel a commencé avec un autre fournisseur, qui s'est "
+            "interrompu, mais ce qu'il a écrit est resté. Ne le refais pas : vérifie avec "
+            "tes outils de lecture, termine ce qui manque, puis rédige ton message. Déjà "
+            "écrit par cette opération : " + _resume(deja_ecrit))
+    elif deja_ecrit:
         # COA-24 : un nouvel essai termine, il ne recommence pas.
         lignes.append(
             f"ATTENTION : ceci est l'essai n° {demande.essai}. L'essai précédent s'est "
@@ -192,8 +211,8 @@ def _resume(elements: list[dict]) -> str:
 def derniers_echanges(id_utilisateur: int) -> str:
     """CAR-7 : les derniers échanges, du plus ancien au plus récent."""
     lignes = lister(
-        """SELECT quand, auteur, moment, contenu FROM (
-               SELECT e.id_echange, e.quand, e.auteur, e.moment, e.contenu
+        """SELECT quand, auteur, moment, contenu, client FROM (
+               SELECT e.id_echange, e.quand, e.auteur, e.moment, e.contenu, e.client
                  FROM echange e WHERE e.id_utilisateur = %(u)s
                 ORDER BY e.id_echange DESC LIMIT %(n)s) x
             ORDER BY id_echange""",
@@ -207,8 +226,10 @@ def derniers_echanges(id_utilisateur: int) -> str:
     dernier_du_coach = max((i for i, x in enumerate(lignes) if x["auteur"] == "coach"),
                            default=None)
     for rang, ligne in enumerate(lignes):
+        # MCP-12 : un résumé déposé par un client MCP dit de quel client il vient.
         qui = {"utilisateur": "Utilisateur", "coach": "Toi",
-               "systeme": "Message automatique"}[ligne["auteur"]]
+               "systeme": "Message automatique",
+               "client": f"Résumé d'une conversation dans {ligne['client']}"}[ligne["auteur"]]
         contenu = ligne["contenu"]
         if ligne["auteur"] != "utilisateur" and rang != dernier_du_coach \
                 and len(contenu) > LONGUEUR_ANCIEN_MESSAGE:
@@ -317,17 +338,19 @@ def _clore_appel(id_appel: int, statut: str, compte: dict, motif: str | None = N
               SET statut = %(s)s, fin = now(), tours = %(t)s, tokens_entree = %(e)s,
                   tokens_cache = %(c)s, tokens_cache_ecrit = %(ce)s,
                   tokens_sortie = %(so)s, motif_echec = %(m)s,
-                  moment = %(mo)s, deroule = %(d)s
+                  moment = %(mo)s, deroule = %(d)s, fournisseur = %(f)s,
+                  modele = COALESCE(%(md)s, modele)
             WHERE id_appel = %(a)s""",
         {"s": statut, "a": id_appel, "t": compte["tours"], "e": compte["entree"],
          "c": compte["cache"], "ce": compte.get("cache_ecrit", 0), "so": compte["sortie"],
          "m": motif, "mo": compte["moment"],
-         "d": Jsonb(compte["deroule"])})
+         "d": Jsonb(compte["deroule"]), "f": compte.get("fournisseur"),
+         "md": compte.get("modele")})
 
 
 def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
                  elements: list[dict], operation_id: str | None,
-                 id_appel: int | None) -> dict:
+                 id_appel: int | None, fournisseur: str | None = None) -> dict:
     """L'échange et sa notification, dans une même transaction (COA-16, NOT-2).
 
     Écrits avant que la réponse soit rendue : une réponse perdue en route se
@@ -336,14 +359,17 @@ def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
     with connexion() as conn, conn.cursor() as cur:
         cur.execute(
             """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, id_occurrence,
-                                    operation, modele, version_dossier, elements, id_appel)
-               VALUES (%(u)s, %(a)s, %(m)s, %(c)s, %(o)s, %(op)s, %(mo)s, %(v)s, %(e)s, %(ap)s)
+                                    operation, modele, version_dossier, elements, id_appel,
+                                    fournisseur)
+               VALUES (%(u)s, %(a)s, %(m)s, %(c)s, %(o)s, %(op)s, %(mo)s, %(v)s, %(e)s, %(ap)s,
+                       %(f)s)
                RETURNING id_echange, moment, auteur, contenu, elements, quand""",
             {"u": demande.id_utilisateur, "a": auteur, "m": moment, "c": message,
              "o": demande.id_occurrence, "op": operation_id,
              "mo": modele_de(demande) if auteur == "coach" else None,
              "v": dossier.version() if auteur == "coach" else None,
-             "e": Jsonb(elements), "ap": id_appel})
+             "e": Jsonb(elements), "ap": id_appel,
+             "f": fournisseur if auteur == "coach" else None})
         echange = cur.fetchone()
         cur.execute(
             """INSERT INTO notification (id_utilisateur, type, contenu, id_echange,
@@ -451,15 +477,17 @@ def appeler_coach(demande: Demande) -> dict:
              "choix": choix.choix}
     with operation.ouvrir_a_part(f"coach : {demande.moment}", "coach", operation_id):
         try:
-            texte = _boucler(demande, compte, echanges, id_texte, suivi,
-                             depart + delai)
+            texte = _par_les_fournisseurs(demande, compte, echanges, id_texte, suivi,
+                                          depart + delai)
             moment = suivi["moment"]
             elements = reponse.elements_de(operation_id)
             rendu = _enregistrer(demande, moment, "coach",
                                  texte.strip() or reponse.MESSAGE_SANS_TEXTE,
-                                 elements, operation_id, id_appel)
+                                 elements, operation_id, id_appel, suivi.get("fournisseur"))
             _clore_appel(id_appel, "termine", suivi)
             trace.ecrire(id_appel, moment, suivi, texte)
+            # FOU-9 : la réponse dit par qui elle est venue, quand ce n'est pas le premier.
+            rendu["fournisseur"] = _fournisseur_en_clair(suivi)
             return rendu
         except Exception as erreur:  # noqa: BLE001 - tout échec clôt l'appel
             motif = f"{type(erreur).__name__} : {erreur}"[:500]
@@ -472,39 +500,234 @@ def appeler_coach(demande: Demande) -> dict:
             if planifie:
                 raise EchecAppel(motif, operation_id, demande.essai) from erreur
             # COA-12 : le message fixe, tout de suite. Ce qui a été écrit reste.
+            # FOU-8 : quand tout est de côté, il dit jusqu'à quand.
             return _enregistrer(demande, suivi["moment"], "systeme",
-                                reponse.MESSAGE_INJOIGNABLE,
+                                reponse.MESSAGE_INJOIGNABLE
+                                + _retour_des_fournisseurs(demande.id_utilisateur),
                                 reponse.elements_de(operation_id), operation_id, id_appel)
 
 
-class _Arret(Exception):
-    """La boucle s'arrête d'elle-même : borne de tours ou délai dépassé (COA-7)."""
+_Arret = fournisseurs.Arret
 
 
-def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None,
-             suivi: dict, limite: float) -> str:
+# ---------------------------------------------------------------------------
+# La chaîne des fournisseurs (FOU-4)
+# ---------------------------------------------------------------------------
+
+def _par_les_fournisseurs(demande: Demande, compte: dict, echanges: str,
+                          id_texte: int | None, suivi: dict, limite: float) -> str:
+    """L'appel passe par le premier fournisseur disponible du compte. S'il cède,
+    le suivant termine dans la même opération, en sachant ce qui est déjà écrit."""
+    chaine = fournisseurs.chaine(demande.id_utilisateur)
+    if not chaine:
+        raise modele.ModeleInjoignable("Aucun fournisseur disponible : tous sont de côté")
+    for rang, fournisseur in enumerate(chaine):
+        suivi["fournisseur"] = fournisseur.colonne
+        suivi.pop("modele", None)          # celui du fournisseur précédent
+        try:
+            if fournisseur.type in ("claude_code", "gemini_cli"):
+                texte = _par_un_agent(demande, compte, echanges, id_texte, suivi, limite,
+                                      fournisseur)
+            else:
+                try:
+                    texte = _boucler(demande, compte, echanges, id_texte, suivi, limite,
+                                     fournisseur.secret)
+                except modele.ModeleInjoignable as erreur:
+                    # Le dernier de la chaîne échoue comme avant (COA-12).
+                    if rang == len(chaine) - 1:
+                        raise
+                    raise fournisseurs.Indisponible(erreur.nature, str(erreur)) from erreur
+            fournisseurs.a_servi(fournisseur)
+            return texte
+        except fournisseurs.Indisponible as erreur:
+            LOG.warning("%s cède (%s) : %s", fournisseur.libelle, erreur.nature, erreur.motif)
+            fournisseurs.ceder(fournisseur, erreur)
+            suivi["deroule"].append({"fournisseur": fournisseur.type, "cede": erreur.nature,
+                                     "motif": erreur.motif[:200],
+                                     "jusqu_a": clair(erreur.jusqu_a)})
+            suivi["relais"] = True
+            if time.monotonic() >= limite - 1:
+                raise _Arret("Délai dépassé") from erreur
+    raise modele.ModeleInjoignable("Tous les fournisseurs ont cédé")
+
+
+def _fournisseur_en_clair(suivi: dict) -> dict:
+    """FOU-9 : le fournisseur qui a répondu, et pourquoi pas le premier."""
+    type_ = suivi.get("fournisseur") or "serveur"
+    cedes = [x for x in suivi["deroule"] if "cede" in x]
+    rendu = {"type": type_, "libelle": fournisseurs.LIBELLES.get(type_, type_)}
+    if cedes:
+        dernier = cedes[-1]
+        raison = {"limite": "épuisé", "jeton": "à reconnecter", "plafond": "plafond atteint",
+                  "injoignable": "injoignable"}.get(dernier["cede"], dernier["cede"])
+        jusqu = f" jusqu'à {dernier['jusqu_a'][11:16]}" if dernier.get("jusqu_a") else ""
+        rendu["note"] = (f"Par {fournisseurs.COURTS.get(type_, type_)} : "
+                         f"{fournisseurs.COURTS.get(dernier['fournisseur'], '')} "
+                         f"{raison}{jusqu}")
+    return rendu
+
+
+def _retour_des_fournisseurs(id_utilisateur: int) -> str:
+    """FOU-8 : quand reviendra le premier fournisseur mis de côté, s'il y en a un."""
+    ligne = un_seul(
+        """SELECT min(de_cote_jusqu_a) AS retour FROM fournisseur_modele
+            WHERE id_utilisateur = %(u)s AND etat = 'de_cote'""", {"u": id_utilisateur})
+    retour = (ligne or {}).get("retour")
+    if not retour:
+        return ""
+    return f" Ton abonnement et l'API sont de côté jusqu'au {clair(retour)}."
+
+
+@dataclass
+class _Preparation:
+    permis: list
+    borne: int
+    modele_nom: str
+    systeme: list[dict]
+    premier: str
+    en_pause: bool
+
+
+def _preparer(demande: Demande, compte: dict, echanges: str, suivi: dict) -> _Preparation:
+    """Ce que le modèle reçoit, quel que soit le fournisseur : outils, consigne,
+    premier message (B.2.3)."""
     conf = configuration()
     id_utilisateur = demande.id_utilisateur
-    moment = demande.moment
+    moment = suivi["moment"]
     # PAU-6 : à la reprise, la pause vient d'être levée et la révision a tout.
     en_pause = bool(compte["en_pause"]) and not demande.extra.get("reprise")
     permis = outils.outils_du_moment(moment, en_pause)
     if demande.extra.get("simple"):
         permis = [o for o in permis if o.famille not in FERMEES_SI_SIMPLE]
-    modele_nom = modele_de(demande)
     borne = conf.coach_tours_plan if moment in MOMENTS_LONGS else conf.coach_tours
-
-    deja_ecrit = reponse.elements_de(suivi_operation()) if demande.essai > 1 else []
+    relais = bool(suivi.get("relais"))
+    deja_ecrit = reponse.elements_de(suivi_operation()) \
+        if demande.essai > 1 or relais else []
     systeme = consigne(id_utilisateur, suivi.get("choix"))
     # COA-28 : ce que le moment lit à coup sûr est joint d'office, pour épargner
     # un passage entier au modèle.
     lu = office.texte(id_utilisateur, moment, demande.id_occurrence)
+    premier = "\n\n".join(x for x in (echanges, lu, _moment_du(demande, deja_ecrit, relais))
+                           if x)
+    return _Preparation(permis, borne, modele_de(demande), systeme, premier, en_pause)
+
+
+def _requalifier(suivi: dict, id_texte: int | None) -> None:
+    """COA-25 : le texte du chat était un signalement. L'appel reprend avec ce
+    moment et ses outils, dans la même opération."""
+    suivi["moment"] = "signalement"
+    operation.preciser("coach : signalement")
+    executer("UPDATE appel_coach SET moment = 'signalement' "
+             "WHERE operation = %(o)s AND statut = 'en_cours'",
+             {"o": suivi_operation()})
+    if id_texte is not None:
+        executer("UPDATE echange SET moment = 'signalement' "
+                 "WHERE id_echange = %(e)s", {"e": id_texte})
+
+
+def _par_un_agent(demande: Demande, compte: dict, echanges: str, id_texte: int | None,
+                  suivi: dict, limite: float, fournisseur: fournisseurs.Fournisseur) -> str:
+    """FOU-10 : la même consigne et le même premier message que l'API, mais c'est
+    Claude Code (ou Gemini CLI, FOU-17) qui fait la boucle, sur l'abonnement du
+    compte."""
+    id_utilisateur = demande.id_utilisateur
+    gemini = fournisseur.type == "gemini_cli"
+    moteur = course_gemini if gemini else course
+    prep = _preparer(demande, compte, echanges, suivi)
+    systeme = "\n\n".join(bloc["text"] for bloc in prep.systeme)
+    suivi["systeme"] = prep.systeme
+    suivi["messages"] = [{"role": "user", "content": [{"type": "text", "text": prep.premier}]}]
+    premier = prep.premier
+    operation_id = suivi_operation()
+
+    for _ in range(2):
+        moment = suivi["moment"]
+        operation_courante = operation.courante()
+
+        def sur_requalification(op=operation_courante) -> None:
+            # Appelé depuis le serveur MCP, dans un autre fil : l'opération y est
+            # remise pour que le journal reste celui de l'appel.
+            with operation.ouvrir_a_part(op.origine, op.acteur or "coach", op.identifiant):
+                _requalifier(suivi, id_texte)
+
+        etat = course.EtatCourse(
+            id_utilisateur=id_utilisateur, moment=moment, operation=operation_id,
+            permis=prep.permis, borne=prep.borne, deroule=suivi["deroule"],
+            sur_requalification=sur_requalification
+            if "requalifier_en_signalement" in {o.nom for o in prep.permis} else None)
+        etat.tours = suivi["tours"]
+
+        def relecture(texte: str, moment=moment, etat=etat) -> str | None:
+            # COA-30 : un plan posé ou changé se relit une fois contre la base.
+            a_pose = any(e.get("outil") in OUTILS_DE_SEANCE and not e.get("refus")
+                         for e in suivi["deroule"])
+            if etat.requalifiee or moment not in MOMENTS_LONGS or not a_pose:
+                return None
+            releve = controle_du_plan(id_utilisateur)
+            if not releve:
+                return None
+            suivi["deroule"].append({"controle": releve[:400]})
+            return _consigne_de_relecture(releve)
+
+        modele_nom = configuration().gemini_cli_modele if gemini else prep.modele_nom
+        if gemini:
+            suivi["modele"] = modele_nom
+        passage = moteur.courir(etat, systeme, premier, modele_nom, fournisseur.secret,
+                                limite, relecture)
+        if passage.secret_neuf:
+            fournisseurs.renouveler(fournisseur, passage.secret_neuf)
+        suivi["tours"] = etat.tours
+        suivi["entree"] += passage.entree
+        suivi["cache"] += passage.cache
+        suivi["cache_ecrit"] += passage.cache_ecrit
+        suivi["sortie"] += passage.sortie
+        suivi["deroule"].append({fournisseur.type: True, "tours_modele": passage.tours_modele,
+                                 "entree": passage.entree, "cache_lu": passage.cache,
+                                 "cache_ecrit": passage.cache_ecrit,
+                                 "sortie": passage.sortie})
+        if not etat.requalifiee:
+            return passage.texte
+        # FOU-13 : la course s'est arrêtée sur la requalification ; la suivante a
+        # les outils du signalement, et le même texte à traiter.
+        prep = _preparer(demande, compte, echanges, suivi)
+        premier = prep.premier + "\n\n" + REQUALIFIE_POUR_LA_SUITE
+    return passage.texte
+
+
+REQUALIFIE_POUR_LA_SUITE = (
+    "Ce message a été requalifié en signalement. Tu disposes maintenant des outils du "
+    "signalement : applique d'abord le chapitre 1.2, puis le chapitre 8.4 ou 7.4 selon le "
+    "cas. Tu peux retirer ou modifier des séances proposées, et déposer un ajustement sur "
+    "une séance validée. Garde la trace de ce qui est signalé dans la mémoire de la "
+    "semaine.")
+
+
+def _consigne_de_relecture(releve: str) -> str:
+    return ("Relecture avant envoi. Voici ce qui est réellement posé en base :\n"
+            + releve + "\nCompare avec ton message : chaque séance qu'il annonce "
+            "(jour, type, distance ou durée) doit y être. Si tout correspond, réponds "
+            "seulement OK. Sinon, pose ou corrige avec tes outils, puis réécris ton "
+            "message final en entier.")
+
+
+# ---------------------------------------------------------------------------
+# La boucle de l'API
+# ---------------------------------------------------------------------------
+
+def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None,
+             suivi: dict, limite: float, cle: str | None = None) -> str:
+    id_utilisateur = demande.id_utilisateur
+    prep = _preparer(demande, compte, echanges, suivi)
+    moment = suivi["moment"]
+    permis, borne, modele_nom, systeme = prep.permis, prep.borne, prep.modele_nom, prep.systeme
+    en_pause = prep.en_pause
     messages: list[dict] = [{"role": "user", "content": [
-        {"type": "text", "text": "\n\n".join(
-            x for x in (echanges, lu, _moment_du(demande, deja_ecrit)) if x)}]}]
+        {"type": "text", "text": prep.premier}]}]
     # Pour la trace : ce que le modèle lit, tel qu'il le lit (COACH_TRACE_DOSSIER).
     suivi["systeme"], suivi["messages"] = systeme, messages
     requalifie = False
+    # FOU-1 : la clé du compte, si elle est donnée ; sinon celle du serveur.
+    avec_cle = {"cle": cle} if cle else {}
 
     while True:
         restant = limite - time.monotonic()
@@ -514,7 +737,7 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
         _marquer_le_cache(messages)
         tour = modele.appeler(systeme, messages,
                              [o.declaration() for o in permis if not o.cache], restant,
-                             modele_nom)
+                             modele_nom, **avec_cle)
         suivi["entree"] += tour.tokens_entree
         suivi["cache"] += tour.tokens_cache
         suivi["cache_ecrit"] += tour.tokens_cache_ecrit
@@ -544,12 +767,8 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
             suivi["controle"] = tour.texte
             suivi["deroule"].append({"controle": releve[:400]})
             messages.append({"role": "assistant", "content": tour.brut})
-            messages.append({"role": "user", "content": [{"type": "text", "text": (
-                "Relecture avant envoi. Voici ce qui est réellement posé en base :\n"
-                + releve + "\nCompare avec ton message : chaque séance qu'il annonce "
-                "(jour, type, distance ou durée) doit y être. Si tout correspond, réponds "
-                "seulement OK. Sinon, pose ou corrige avec tes outils, puis réécris ton "
-                "message final en entier.")}]})
+            messages.append({"role": "user", "content": [
+                {"type": "text", "text": _consigne_de_relecture(releve)}]})
             continue
 
         # COA-7 : au-delà de la borne, l'appel est arrêté et rien de plus n'est écrit.
@@ -571,17 +790,10 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
                 # COA-25 : le texte du chat était un signalement. L'appel reprend
                 # avec le moment signalement et ses outils, dans la même opération.
                 requalifie = True
-                moment = "signalement"
-                suivi["moment"] = moment
-                operation.preciser("coach : signalement")
+                _requalifier(suivi, id_texte)
+                moment = suivi["moment"]
                 permis = outils.outils_du_moment(moment, en_pause)
                 noms_permis = {o.nom for o in permis}
-                executer("UPDATE appel_coach SET moment = 'signalement' "
-                         "WHERE operation = %(o)s AND statut = 'en_cours'",
-                         {"o": suivi_operation()})
-                if id_texte is not None:
-                    executer("UPDATE echange SET moment = 'signalement' "
-                             "WHERE id_echange = %(e)s", {"e": id_texte})
                 contenu, erreur = (
                     "Requalifié en signalement. Tu disposes maintenant des outils du "
                     "signalement : applique d'abord le chapitre 1.2, puis le chapitre 8.4 "

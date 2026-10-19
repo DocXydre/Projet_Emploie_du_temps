@@ -46,6 +46,8 @@ final class Foyer {
     /// TAC-25 : les types de tâches du foyer, gardés avec le reste.
     private(set) var types: [TypeTache] = Foyer.typesDeDemonstration
     private(set) var orbeADire = false
+    /// ACC-13 : les demandes qui attendent l'accord.
+    private(set) var demandes: [DemandeAPI] = []
     private(set) var chat: EtatChat
     /// L'onglet Sport tel que le serveur l'a rendu (lot 6).
     private(set) var sportDuServeur: EtatSport?
@@ -271,6 +273,7 @@ final class Foyer {
                   type: lue.type)
         }
         if let lus = etat.types { types = lus }
+        demandes = etat.demandes ?? []
         conflitDuServeur = etat.conflit.map { lu in
             Conflit(id: lu.id, jour: Self.jour(lu.jour),
                     premier: Self.cours(lu.existante), second: Self.cours(lu.nouvelle))

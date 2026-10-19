@@ -110,6 +110,17 @@ RETURNS JSONB LANGUAGE sql STABLE AS $$
           JOIN plan p ON p.id_plan = d.id_objet
          WHERE d.type = 'plan'
         UNION ALL
+        -- ACC-12 : une demande déposée par l'opération, encore en attente.
+        SELECT d.id_trace, jsonb_build_object(
+                   'type', 'demande',
+                   'id_demande', dm.id_demande,
+                   'action', dm.action,
+                   'libelle', dm.resume,
+                   'motif', dm.motif)
+          FROM derniere d
+          JOIN demande dm ON dm.id_demande = d.id_objet
+         WHERE d.type = 'demande' AND dm.etat = 'en_attente'
+        UNION ALL
         -- Une semaine entièrement détaillée, avec des séances proposées par
         -- cette opération, attend d'être validée (PLN-6, PLN-24).
         SELECT w.id_trace + 0.5, jsonb_build_object(
@@ -141,4 +152,5 @@ $$;
 COMMENT ON FUNCTION elements_operation(TEXT) IS
     'COA-18, COA-24 : la liste de ce qu''une opération du coach a écrit et qui
      existe encore : séances, ajustements, fenêtres, avis, plan, semaine à
-     valider. Le module ne lit aucun élément dans la sortie du modèle.';
+     valider, demandes en attente. Le module ne lit aucun élément dans la sortie
+     du modèle.';

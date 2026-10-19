@@ -128,9 +128,22 @@ private struct Bandeaux: View {
     @Environment(Foyer.self) private var foyer
     @Environment(FileAttente.self) private var file
     @Environment(\.annoncer) private var annoncer
+    @State private var demandesOuvertes = false
 
     var body: some View {
         BandeauServeur()
+        if !foyer.demandes.isEmpty {
+            // ACC-13 : ce qu'un modèle a demandé attend, en tête de l'accueil.
+            let n = foyer.demandes.count
+            BandeauEtat(icone: "hand.raised",
+                        titre: n == 1 ? "Une demande à accepter" : "\(n) demandes à accepter",
+                        detail: n == 1 ? foyer.demandes[0].resume
+                            : "De \(Set(foyer.demandes.map(\.auteur)).sorted().joined(separator: " et "))",
+                        categorie: .ia, bouton: "Voir") { demandesOuvertes = true }
+                .sheet(isPresented: $demandesOuvertes) {
+                    NavigationStack { EcranDemandes() }.feuilleEnVerre()
+                }
+        }
         if let allegement = foyer.monAllegement {
             BandeauEtat(icone: "moon", titre: "Mode allégé · \(restant(allegement.fin))",
                         detail: "Tu fais 1/4 des tâches partagées jusqu'au \(Self.jour(allegement.fin.addingTimeInterval(-3600)))",

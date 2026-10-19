@@ -996,7 +996,7 @@ def relire_echanges(qui: Authentifie, limite: int = Query(default=20, ge=1, le=2
     """CAR-8 : seul leur propriétaire les lit."""
     lignes = lister(
         """SELECT id_echange, quand, auteur, moment, contenu, elements, id_occurrence,
-                  importance
+                  importance, client
              FROM echange
             WHERE id_utilisateur = %(u)s AND (%(m)s::TEXT IS NULL OR moment = %(m)s::TEXT)
             ORDER BY id_echange DESC LIMIT %(n)s""",

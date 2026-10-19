@@ -44,7 +44,11 @@ TITRES = {
     "changement": "Planning",
     "sport": "Sport",
     "alerte": "À regarder",
+    "demande": "À accepter",
 }
+
+# ACC-14 : la catégorie qui porte Accepter et Refuser, déclarée par l'appli.
+CATEGORIE_DEMANDE = "DEMANDE"
 
 # Apple refuse une charge de plus de 4 Ko. Le bilan du matin fait parfois une
 # page : l'écran verrouillé n'en montre que le début, l'appli montre le reste.
@@ -122,6 +126,8 @@ def oublier_le_jeton() -> None:
 
 def lien(notification: dict) -> dict:
     """NOT-19 : où l'appli s'ouvre quand on touche la notification."""
+    if notification.get("id_demande"):
+        return {"ecran": "demandes", "id": notification["id_demande"]}
     if notification["type"] == "coach" or notification.get("id_echange"):
         return {"ecran": "hal"}
     if notification.get("id_invitation"):
@@ -145,7 +151,7 @@ def _texte(contenu: str) -> str:
 
 
 def charge(notification: dict) -> dict:
-    return {
+    rendu = {
         "aps": {
             "alert": {"title": TITRES.get(notification["type"], "HAL"),
                       "body": _texte(notification["contenu"])},
@@ -159,6 +165,11 @@ def charge(notification: dict) -> dict:
             "lien": lien(notification),
         },
     }
+    if notification.get("id_demande"):
+        # ACC-14 : Accepter et Refuser, sans ouvrir l'appli.
+        rendu["aps"]["category"] = CATEGORIE_DEMANDE
+        rendu["hal"]["id_demande"] = notification["id_demande"]
+    return rendu
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +193,7 @@ def a_envoyer(limite: int = 50) -> list[dict]:
         """
         SELECT n.id_notification, n.id_utilisateur, n.type, n.contenu, n.id_occurrence,
                n.id_proposition, n.id_invitation, n.id_echange, n.operation, n.apple_essais,
+               n.id_demande,
                o.tache_code,
                (SELECT json_agg(json_build_object('id_appareil', a.id_appareil,
                                                   'jeton', a.jeton_notification,
@@ -193,6 +205,8 @@ def a_envoyer(limite: int = 50) -> list[dict]:
           LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence
          WHERE n.apple_statut = 'a_envoyer'
            AND (NOT en_silence(n.id_utilisateur)
+                -- ACC-9 : une demande d'un client est une conversation en cours.
+                OR n.type = 'demande'
                 OR (n.type = 'coach'
                     AND EXISTS (SELECT 1 FROM appel_coach c
                                  WHERE c.id_utilisateur = n.id_utilisateur
