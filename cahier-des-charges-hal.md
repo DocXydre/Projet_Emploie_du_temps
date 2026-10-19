@@ -2859,6 +2859,8 @@ Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `
 | `v_sante_fraicheur` | La date du dernier envoi de l'application, par utilisateur | SAN-6 |
 | `v_sante_reception` | Ce que le serveur a reçu de Santé, par utilisateur : séances, doublons, séances détaillées, découpées, avec tracé, mesures du quotidien et phases de sommeil, et les plus anciennes. Sert à suivre l'envoi de l'historique | SAN-11 à SAN-16 |
 | `v_echantillon_sante` | Les mesures du quotidien telles qu'on les lit : la montre d'abord | SAN-15 |
+
+Trois fonctions lisent le détail pour l'appli. `detail_course()` nomme les étapes d'une course : une étape plus rapide de 10 % que la moyenne de la séance est une fraction, avant la première l'échauffement, après la dernière le retour au calme, entre deux une récupération ; un nom reçu de la montre l'emporte. Ses zones cardiaques se rapportent à la FC maximale connue (`fc_max_connue()`, la plus haute vue par la montre, à défaut 220 moins l'âge) : moins de 60 %, 70, 80, 90 %, au-delà. `nuit_sante()` range une nuit au jour où elle finit, comme `sante_jour`. `forme_sante()` prend la pesée saisie dans l'appli avant celle de la balance le même jour.
 | `v_memoire_coach` | La version en vigueur de chaque étage de la mémoire | MEM-2 |
 | `v_cout_coach` | Par jour et par moment : nombre d'appels, d'échecs, de tours, et tokens | COA-21 |
 
@@ -3926,6 +3928,7 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Tout ce tablea
 | Séance | Arrêter ici, faite sans saisie, décaler l'heure le jour même, changer de lieu | SAI-15, SAI-16, PLN-11, LIE-5 |
 | HAL | Le moment « changement », l'écran affiché, l'annulation d'une action dans les cinq secondes | COA-32, COA-33, ORB-6 |
 | Santé | La lecture automatique ne change pas les routes : `/donnees-sante` reçoit plus souvent | SAN-10 |
+| Santé en détail | `/appli/seances/{id}/course` : les étapes nommées, les kilomètres, la courbe allure et FC, les zones, la dynamique, la FC de récupération et le tracé allégé d'une course [3.22, 3.23] ; `/appli/sante/nuit?jour=` : une nuit, ses phases, ses minutes face aux 30 nuits d'avant, la FC et ce que la montre mesure la nuit [3.24] ; `/appli/sante/forme?jours=` : VO2max, FC de récupération, poids, moyennes du quotidien [3.25]. Tout se calcule en base, dans les séries brutes (`detail_course`, `nuit_sante`, `forme_sante`) | SAN-11 à SAN-16 |
 | Accueil | Une route qui rend d'un coup ce qu'Aujourd'hui affiche, pour ne pas faire dix appels à l'ouverture | WID-8 |
 | Foyer | Les routes de la partie D | D.4 |
 | Records d'un exercice | `/exercices/{code}/records` : le plus lourd, et le plus lourd sur dix répétitions | SAI-20 |
@@ -4049,7 +4052,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
 - trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21).
-- la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont dessinés, pas construits.
+- la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont construits et vérifiés dans le simulateur sur la fausse base : la course avec ses étapes et sa carte, le parcours en grand, la nuit phase par phase, la forme sur la durée.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
