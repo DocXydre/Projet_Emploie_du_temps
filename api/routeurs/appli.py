@@ -491,6 +491,41 @@ def sante(qui: Authentifie, jours: int = 30) -> dict:
     }
 
 
+@routeur.get("/appli/seances/{id_occurrence}/course",
+             summary="Le détail d'une course faite : étapes, kilomètres, courbe, zones, tracé")
+def course_faite(qui: Authentifie, id_occurrence: int) -> dict:
+    """3.22, 3.23 : lu dans les séries brutes de la séance de la montre (SAN-11 à SAN-14)."""
+    ligne = un_seul("SELECT detail_course(%(moi)s, %(o)s) AS d",
+                    {"moi": qui.id_utilisateur, "o": id_occurrence})
+    if not ligne or ligne["d"] is None:
+        raise HTTPException(status_code=404, detail="Pas de séance de la montre pour cette séance")
+    return ligne["d"]
+
+
+@routeur.get("/appli/sante/nuit", summary="Une nuit en détail : phases, FC, respiration")
+def nuit(qui: Authentifie, jour: date | None = None) -> dict:
+    """3.24 : la nuit qui finit le jour donné, à défaut la dernière reçue (SAN-16)."""
+    if jour is None:
+        dernier = un_seul(
+            """SELECT max(jour_de(upper(periode) - INTERVAL '18 hours') + 1) AS jour
+                 FROM sommeil_phase WHERE id_utilisateur = %(moi)s AND phase <> 'au_lit'
+                  AND upper(periode) < now() - INTERVAL '1 hour'""",
+            {"moi": qui.id_utilisateur})
+        jour = dernier["jour"] if dernier else None
+    ligne = un_seul("SELECT nuit_sante(%(moi)s, %(j)s) AS n",
+                    {"moi": qui.id_utilisateur, "j": jour}) if jour else None
+    if not ligne or ligne["n"] is None:
+        raise HTTPException(status_code=404, detail="Pas de phases de sommeil pour cette nuit")
+    return ligne["n"]
+
+
+@routeur.get("/appli/sante/forme", summary="VO2max, récupération, poids, moyennes du quotidien")
+def forme(qui: Authentifie, jours: int = 90) -> dict:
+    """3.25 : sur 30, 90, 365 jours, ou tout l'historique avec jours=0 (SAN-15)."""
+    return un_seul("SELECT forme_sante(%(moi)s, %(j)s) AS f",
+                   {"moi": qui.id_utilisateur, "j": jours if jours > 0 else None})["f"]
+
+
 @routeur.get("/appli/mesures", summary="L'historique des mesures, poids, tours et tests")
 def historique_des_mesures(qui: Authentifie, type: str | None = None) -> list[dict]:
     """3.1 et 3.19 : les mesures, des plus récentes aux plus anciennes (MES-4)."""

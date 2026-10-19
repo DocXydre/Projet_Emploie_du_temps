@@ -101,6 +101,8 @@ struct EcranReglagesSante: View {
 
             Section("Voir les données") {
                 NavigationLink("Sommeil et récupération") { EcranSommeil() }
+                NavigationLink("La dernière nuit en détail") { EcranNuit(jour: nil) }
+                NavigationLink("Forme et corps") { EcranForme() }
                 NavigationLink("Séances de la montre") { EcranSeancesMontre() }
                 NavigationLink("Fréquence cardiaque du jour") { EcranFrequence() }
             }

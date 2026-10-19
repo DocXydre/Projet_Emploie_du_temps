@@ -29,7 +29,7 @@ struct EcranSeancePrevue: View {
             VStack(alignment: .leading, spacing: Espace.gouttiere) {
                 barre
                 carteTitre
-                if detail.prevu.isEmpty {
+                if detail.prevu.isEmpty && detail.montre?.first == nil {
                     Text("HAL n'a pas encore détaillé cette séance : tu choisis tes exercices.")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                         .padding(Espace.interne)
@@ -53,7 +53,9 @@ struct EcranSeancePrevue: View {
                 }
                 if let montre = detail.montre?.first {
                     // 3.14 : ce que la montre a enregistré, comme l'app Forme.
-                    CourseFaite(montre: montre, discipline: detail.seance.discipline)
+                    // 3.22 quand le serveur a le détail de la montre, sinon 3.14.
+                    CourseDeLaMontre(idOccurrence: detail.seance.idOccurrence, montre: montre,
+                                     discipline: detail.seance.discipline)
                     if let avis = detail.seance.avisLibre {
                         HStack(alignment: .top, spacing: 10) {
                             Orbe(etat: .repos, taille: 22)
@@ -441,7 +443,7 @@ private struct EtapesDeCourse: View {
 /// 3.14, MON-4 : une course faite, comme l'app Forme la montre. Les chiffres,
 /// puis, quand la montre les a donnés, les kilomètres, la fréquence cardiaque,
 /// les zones et l'allure.
-private struct CourseFaite: View {
+struct CourseFaite: View {
     let montre: DetailSeance.Montre
     let discipline: String?
 

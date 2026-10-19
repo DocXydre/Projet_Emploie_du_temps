@@ -382,6 +382,13 @@ struct EcranSommeil: View {
                         }
                     }
                 }
+                // 3.24 : la nuit en détail, phase par phase.
+                NavigationLink { EcranNuit(jour: nil) } label: {
+                    Label("Voir la dernière nuit en détail", systemImage: "chevron.right")
+                        .labelStyle(.titleOnly)
+                        .texte(.corpsFort)
+                }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
             }
         }
     }

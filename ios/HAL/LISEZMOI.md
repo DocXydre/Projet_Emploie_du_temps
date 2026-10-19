@@ -146,6 +146,14 @@ L'appli lit et envoie tout ce que Santé garde, sur tout l'historique (SAN-11 à
 - Réglages, Santé (5.10) : les cases, la note sur le tracé, l'avancée de l'historique et « Tout renvoyer depuis le début ».
 - Depuis iOS 27, la fenêtre de Santé demande jusqu'où remonter : il faut choisir « Toutes les données enregistrées », sinon HAL ne voit que les 30 derniers jours.
 
+Les écrans du détail (3.22 à 3.25) lisent ce que le serveur calcule dans les séries brutes :
+
+- **La course avec étapes** (3.22), dans la séance faite : le résumé, la carte du parcours colorée par étape, les étapes face au prévu avec les fractions côte à côte (une fraction lente en ambre), l'allure et la FC sur une même courbe, les zones, la dynamique de course. Une course sans détail garde l'écran 3.14. « Voir en grand » ouvre le parcours en plein écran (3.23) : le tracé coloré par étape, allure, FC ou dénivelé, et la feuille d'un kilomètre touché. `Sport/EcransCourse.swift`.
+- **La nuit en détail** (3.24), depuis Sommeil et récupération ou Réglages, Santé : les phases heure par heure, leurs minutes face à l'habitude, la FC de la nuit, la respiration, la SpO2, la température du poignet, la VFC. Les flèches passent d'une nuit à l'autre. `Sport/EcransNuitForme.swift`.
+- **Forme et corps** (3.25), depuis l'onglet Sport : VO2max, FC de récupération, poids, moyennes du quotidien, sur 30 jours, 90 jours, un an ou tout.
+
+Sur la fausse base, le fractionné d'hier soir a tout son détail : Sport, la course de la veille.
+
 **L'essayer dans le simulateur** : Réglages, Essais, États à forcer, « Remplir Santé et envoyer ». En Debug et dans le simulateur seulement, l'appli écrit dans Santé un fractionné inventé (mesures, étapes, tracé), trois jours de quotidien et deux nuits, puis les envoie. Sur un iPhone, ce bouton n'existe pas et l'appli n'écrit rien dans Santé.
 
 ## Ajouter une fonction

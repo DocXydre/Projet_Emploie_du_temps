@@ -35,12 +35,7 @@ BEGIN
     ELSIF v_fc IS NOT NULL THEN
         -- La fréquence maximale connue : la plus haute que la montre ait vue,
         -- à défaut l'estimation par l'âge.
-        SELECT GREATEST(
-                   (SELECT max(a.fc_max) FROM activite_sante a
-                     WHERE a.id_utilisateur = s.id_utilisateur),
-                   (SELECT 220 - EXTRACT(YEAR FROM age(p.date_naissance))::INTEGER
-                      FROM profil p WHERE p.id_utilisateur = s.id_utilisateur))
-          INTO v_fc_max;
+        v_fc_max := fc_max_connue(s.id_utilisateur);
         v_intensite := CASE WHEN v_fc_max IS NULL THEN 'dure'
                             WHEN v_fc >= 0.80 * v_fc_max THEN 'dure'
                             WHEN v_fc >= 0.65 * v_fc_max THEN 'moderee'

@@ -125,6 +125,9 @@ enum Dates {
         return format
     }()
 
+    /// « 2026-10-13 », le jour à Paris, pour une route qui attend un jour.
+    static func jourISO(_ date: Date) -> String { jour.string(from: date) }
+
     /// « 2026-10-13 18:30 » : l'heure de Paris, telle que les routes de HAL l'écrivent.
     private static let local: DateFormatter = {
         let format = DateFormatter()

@@ -217,6 +217,11 @@ private struct FormeDuJour: View {
                     }
                 }
             }
+            // 3.25 : VO2max, récupération, poids, sur la durée.
+            NavigationLink { EcranForme() } label: {
+                Text("VO2max, récupération et poids")
+            }
+            .buttonStyle(.hal(.verre, pleineLargeur: true))
         }
     }
 

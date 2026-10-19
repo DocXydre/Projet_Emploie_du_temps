@@ -637,10 +637,10 @@ def _point_du_tour(part: float) -> tuple[float, float]:
 
 
 def fractionne(t: int) -> None:
-    """Un 6 × 400 m, quatre jours avant aujourd'hui, avec tout son détail : les
+    """Un 6 × 400 m, hier soir, avec tout son détail : les
     mesures de la montre, les étapes prévues et faites, les kilomètres, le
     tracé. Puis la même course reçue de Strava, qui devient un doublon."""
-    debut = a(J - timedelta(days=4), 18, 32)
+    debut = a(J - timedelta(days=1), 18, 32)
     temps = [110, 109, 111, 110, 112, 118]
     # Les étapes : (libellé, durée en s, allure en s/km, FC visée, prévu).
     etapes = [("Échauffement", 900, 401, 136, {"duree_s": 900, "zone": 2})]
@@ -709,6 +709,12 @@ def fractionne(t: int) -> None:
     sql("SELECT recevoir_segments(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(segments))
     sql("SELECT recevoir_trace(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(trace))
 
+    # La FC de récupération, que la montre mesure une minute après l'arrêt.
+    fin = debut + timedelta(seconds=duree)
+    sql("SELECT recevoir_echantillons(%(u)s, %(l)s)", u=t, l=Jsonb([
+        {"cle": "maquette-recup-fractionne", "grandeur": "fc_recuperation",
+         "debut": (fin + timedelta(minutes=1)).isoformat(), "valeur": 31, **MONTRE}]))
+
     # La même course, reçue de Strava : elle reste, mais ne compte pas (SAN-15).
     sql("""SELECT recevoir_activite(%(u)s, 'maquette-fractionne-strava', 'running', 'course',
                                     %(a)s, %(b)s, %(j)s::JSONB)""",
@@ -735,6 +741,12 @@ def quotidien(t: int) -> None:
             quand = a(jour, 7) + timedelta(minutes=m)
             mesure(f"maquette-fc-{k}-{m}", "fc", quand,
                    round(66 + 12 * math.sin(m / 95) + 6 * vague + (m % 7)))
+        # La FC de la nuit qui finit ce jour-là, toutes les dix minutes : elle
+        # descend jusque vers 3 h, puis remonte au réveil.
+        for m in range(0, 7 * 60 + 30, 10):
+            quand = a(jour - timedelta(days=1), 23, 30) + timedelta(minutes=m)
+            creux = math.sin(math.pi * m / 450)
+            mesure(f"maquette-fcnuit-{k}-{m}", "fc", quand, round(58 - 10 * creux + (m % 3)))
         mesure(f"maquette-vfc-{k}", "vfc", a(jour, 3, 10), round(58 + 7 * vague, 1))
         mesure(f"maquette-spo2-{k}", "spo2", a(jour, 4), 96 - (k % 3))
         mesure(f"maquette-resp-{k}", "respiration", a(jour, 4), round(14 + 0.4 * vague, 1))
@@ -760,7 +772,9 @@ def quotidien(t: int) -> None:
     for k in range(14, 0, -1):
         t0 = a(J - timedelta(days=k), 23, 28) + timedelta(minutes=(k % 4) * 9)
         for rang, (phase, minutes) in enumerate(suite):
-            minutes = minutes - 6 if phase == "profond" and k == 4 else minutes
+            # Les deux dernières nuits ont moins de sommeil profond.
+            if phase == "profond":
+                minutes -= {1: 11, 2: 9, 4: 6}.get(k, 0)
             phases.append({"cle": f"maquette-nuit-{k}-{rang}", "phase": phase,
                            "debut": t0.isoformat(),
                            "fin": (t0 + timedelta(minutes=minutes)).isoformat(), **MONTRE})
