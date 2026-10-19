@@ -5,6 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>fr.docxydre.hal.sante</string>
+		<string>fr.docxydre.hal.sante.historique</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>fr</string>
@@ -40,7 +41,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ton sommeil et tes séances pour adapter ton plan.</string>
+	<string>HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ta VO2max, ton poids, ton sommeil, tes séances avec leur détail et leur tracé, pour adapter ton plan. Tout reste sur ton serveur.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>HAL n'écrit rien dans Santé.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -54,6 +55,7 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>processing</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict>

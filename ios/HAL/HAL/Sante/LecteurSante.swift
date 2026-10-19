@@ -69,8 +69,8 @@ final class LecteurSante {
 
     static var disponible: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    private var typesLus: Set<HKObjectType> {
-        [
+    var typesLus: Set<HKObjectType> {
+        Set<HKObjectType>([
             HKQuantityType(.stepCount),
             HKQuantityType(.restingHeartRate),
             HKQuantityType(.heartRateVariabilitySDNN),
@@ -81,7 +81,7 @@ final class LecteurSante {
             HKQuantityType(.distanceSwimming),
             HKCategoryType(.sleepAnalysis),
             HKObjectType.workoutType(),
-        ]
+        ]).union(Self.typesDuDetail)
     }
 
     /// Ouvre la fenêtre d'autorisation de Santé. iOS ne dit jamais si la lecture
@@ -239,7 +239,7 @@ final class LecteurSante {
         return entrainements.map { self.seance(de: $0) }
     }
 
-    private func seance(de w: HKWorkout) -> SeanceMontre {
+    func seance(de w: HKWorkout) -> SeanceMontre {
         let bpm = HKUnit.count().unitDivided(by: .minute())
         let interieur = (w.metadata?[HKMetadataKeyIndoorWorkout] as? Bool) ?? false
         let (type, libelle) = TypesSeance.nom(w.workoutActivityType, interieur: interieur)

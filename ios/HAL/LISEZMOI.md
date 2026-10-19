@@ -137,6 +137,17 @@ Chaque écran a été comparé à la maquette dans le simulateur, sur la fausse 
 
 Ce qui reste côté serveur est en fin de section C.13 du cahier.
 
+## Tout le détail de Santé
+
+L'appli lit et envoie tout ce que Santé garde, sur tout l'historique (SAN-11 à SAN-16) : pour chaque séance, ses mesures (FC, vitesse, cadence, puissance, foulée, contact au sol, oscillation, distance), ses étapes, ses tours, ses pauses, ses kilomètres et son tracé ; au quotidien, la FC de toute la journée, la VFC, la VO2max, la FC de récupération, le poids, la SpO2, la respiration, la température du poignet et l'énergie active ; le sommeil phase par phase. Toutes les sources : la montre, l'iPhone, une balance.
+
+- Chaque type a son ancre, gardée sur le téléphone (`Sante/CollecteSante.swift`). La première fois, Santé rend l'historique par morceaux ; ensuite, seulement le nouveau. L'ancre n'avance qu'une fois le morceau envoyé : coupé, l'envoi reprend où il s'était arrêté, et le serveur ignore ce qu'il a déjà.
+- L'historique avance à chaque ouverture (quarante secondes), au réveil d'iOS (quinze), et surtout iPhone branché, par une tâche de fond `fr.docxydre.hal.sante.historique` qui dure tant qu'iOS la laisse.
+- Réglages, Santé (5.10) : les cases, la note sur le tracé, l'avancée de l'historique et « Tout renvoyer depuis le début ».
+- Depuis iOS 27, la fenêtre de Santé demande jusqu'où remonter : il faut choisir « Toutes les données enregistrées », sinon HAL ne voit que les 30 derniers jours.
+
+**L'essayer dans le simulateur** : Réglages, Essais, États à forcer, « Remplir Santé et envoyer ». En Debug et dans le simulateur seulement, l'appli écrit dans Santé un fractionné inventé (mesures, étapes, tracé), trois jours de quotidien et deux nuits, puis les envoie. Sur un iPhone, ce bouton n'existe pas et l'appli n'écrit rien dans Santé.
+
 ## Ajouter une fonction
 
 Une fonction est un module (WID-1) :

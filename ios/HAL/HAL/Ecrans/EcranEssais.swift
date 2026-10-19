@@ -98,6 +98,8 @@ struct EcranEssais: View {
     @Environment(FileAttente.self) private var file
     @Environment(ConversationHAL.self) private var conversation
     @Environment(Session.self) private var session
+    @Environment(EnvoiSante.self) private var sante
+    @State private var remplissage: String?
 
     var body: some View {
         @Bindable var foyer = foyer
@@ -120,6 +122,26 @@ struct EcranEssais: View {
             EnTeteGroupe(texte: "HAL")
             Button("Le récap du soir est arrivé") { conversation.aQuelqueChoseADire = true }
                 .buttonStyle(.hal(.verre, pleineLargeur: true))
+            #if DEBUG && targetEnvironment(simulator)
+            // SAN-11 à SAN-16 : Santé remplie d'une course inventée, puis envoyée.
+            EnTeteGroupe(texte: "Santé (simulateur)")
+            Button("Remplir Santé et envoyer") {
+                Task {
+                    do {
+                        remplissage = try await RemplissageSante.remplir(sante.lecteur.store,
+                                                                         lus: sante.lecteur.typesLus)
+                        await sante.relireLAcces()
+                        remplissage = (remplissage ?? "") + " " + (await sante.envoyer(raison: "essai", budget: 120))
+                    } catch {
+                        remplissage = "Échec : \(error.localizedDescription)"
+                    }
+                }
+            }
+            .buttonStyle(.hal(.verre, pleineLargeur: true))
+            if let remplissage {
+                Text(remplissage).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            }
+            #endif
             EnTeteGroupe(texte: "Premier lancement")
             Button("Revoir le premier lancement") { session.revoirAccueil() }
                 .buttonStyle(.hal(.verre, pleineLargeur: true))
