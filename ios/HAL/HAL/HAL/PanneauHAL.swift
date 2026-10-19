@@ -324,8 +324,10 @@ private struct Bulle: View {
 
     private var legende: String? {
         if message.enAttente { return "En attente de HAL" }
-        if message.moment == "synthese" || message.moment == "revision" { return "Récap du soir" }
-        return nil
+        if message.moment == "synthese" || message.moment == "revision" {
+            return ["Récap du soir", message.noteFournisseur].compactMap { $0 }.joined(separator: " · ")
+        }
+        return message.noteFournisseur
     }
 }
 

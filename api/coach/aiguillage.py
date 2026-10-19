@@ -100,7 +100,8 @@ def lire_la_reponse(texte: str) -> dict[str, str]:
     return choix
 
 
-def par_haiku(texte: str, avant: str | None = None) -> tuple[dict[str, str], modele.Tour]:
+def par_haiku(texte: str, avant: str | None = None,
+              id_utilisateur: int | None = None) -> tuple[dict[str, str], modele.Tour]:
     """DOS-4 : le petit modèle lit le message (et la question du coach à laquelle il
     répond, s'il y en a une) et choisit. Lève ModeleInjoignable s'il ne répond pas."""
     conf = configuration()
@@ -110,8 +111,16 @@ def par_haiku(texte: str, avant: str | None = None) -> tuple[dict[str, str], mod
     if avant:
         message += f"Le dernier message du coach :\n{avant[:600]}\n\n"
     message += f"Le message de l'utilisateur :\n{texte[:2000]}"
-    tour = modele.ecrire(CONSIGNE_AIGUILLAGE.format(liste=_liste_des_paquets()), message,
-                         conf.coach_modele_aiguillage, 60, DELAI_AIGUILLAGE)
+    systeme = CONSIGNE_AIGUILLAGE.format(liste=_liste_des_paquets())
+    if id_utilisateur is None:
+        tour = modele.ecrire(systeme, message, conf.coach_modele_aiguillage, 60,
+                             DELAI_AIGUILLAGE)
+    else:
+        # FOU-15 : par l'API du compte ou du serveur ; Claude Code démarre trop lentement.
+        from api.coach import fournisseurs
+        tour = fournisseurs.ecrire(id_utilisateur, systeme, message,
+                                   conf.coach_modele_aiguillage, 60, DELAI_AIGUILLAGE,
+                                   abonnement=False)
     return lire_la_reponse(tour.texte), tour
 
 
@@ -175,7 +184,7 @@ def choisir(id_utilisateur: int, moment: str, texte: str | None = None,
 
     if texte and texte.strip():
         try:
-            choix, tour = par_haiku(texte, avant)
+            choix, tour = par_haiku(texte, avant, id_utilisateur)
             resultat.par = "haiku"
             resultat.tokens_entree = tour.tokens_entree
             resultat.tokens_sortie = tour.tokens_sortie
