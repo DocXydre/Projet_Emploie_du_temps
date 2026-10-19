@@ -20,6 +20,7 @@ BEGIN
           FROM activite_sante ac
          WHERE ac.id_utilisateur = p_utilisateur
            AND ac.id_occurrence IS NULL
+           AND ac.doublon_de IS NULL
            AND ac.discipline <> 'autre'
            AND jour_de(lower(ac.periode)) >= jour_de(now()) - 28
          ORDER BY lower(ac.periode)

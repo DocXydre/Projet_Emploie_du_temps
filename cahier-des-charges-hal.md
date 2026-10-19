@@ -57,7 +57,7 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | Séance de musculation | Arrêter en cours, faite sans saisie, série intermédiaire à −10 ou −20 %, repos en Live Activity. Pendant l'exercice, le poids prévu par HAL, le record et le record sur dix répétitions ; la charge au demi-kilo. Une bulle dit quand la gourde Yanga peut se recharger | SAI-15 à SAI-18, SAI-20, SAI-21 |
 | Note d'effort | Seulement pour la musculation : la montre donne celle de la course | SAI-4 |
 | Course | Envoyée à la montre, sans bouton « Commencer », validée par Santé. Pas d'app Apple Watch. Pas d'export PDF ni JSON | MON |
-| Santé | Envoi automatique, sans Raccourcis ni bouton | SAN-10 |
+| Santé | Envoi automatique, sans Raccourcis ni bouton. Tout le détail est gardé, brut : chaque mesure d'une séance, ses étapes, son tracé, le quotidien mesure par mesure, le sommeil par phases, sur tout l'historique | SAN-10 à SAN-16 |
 | Démarrage de HAL | Dans l'appli, écran par écran, un champ libre à chaque étape | DEM-1, DEM-6 |
 | Réglages | Profil, limitations, lieux, mémoire et pause y sont ; pas d'écran du coût de HAL | C.12 |
 | Compte Apple | Le compte développeur payant devient un prérequis | E.1 |
@@ -2119,6 +2119,12 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAN-8 | T | Une séance de la montre de plus de 28 jours est gardée telle quelle pour HAL, mais ne se rattache à rien et ne crée aucune séance libre. On peut ainsi envoyer tout l'historique de Santé sans remplir le planning passé |
 | SAN-9 | T | Chaque soir, avant la clôture, une séance de la montre restée seule rejoint la séance du même jour et de la même discipline. Elle couvre la séance posée à la main après l'envoi de la montre |
 | SAN-10 | T | L'envoi depuis Santé est automatique : l'appli s'abonne aux nouvelles données et les envoie en tâche de fond, sans bouton ni raccourci. Elle ne lit que ce qui est coché dans Réglages et n'écrit rien dans Santé |
+| SAN-11 | D | Chaque mesure prise pendant une séance de la montre est gardée brute, avec son heure : FC, vitesse, cadence, puissance, longueur de foulée, temps de contact au sol, oscillation verticale, distance. Elle arrive après sa séance, sous la même clé, et se renvoie sans doublon. C'est d'elles que se recalcule tout ce qu'on montre ou qu'on envoie à HAL |
+| SAN-12 | D | Chaque grandeur a son unité et ses bornes plausibles, écrites en données (`grandeur_sante`). Une mesure hors bornes, d'une grandeur inconnue, venue du futur, ou à plus de dix minutes de sa séance est écartée ; le reste de l'envoi entre. Un envoi porte au plus 5 000 lignes : l'historique part par paquets |
+| SAN-13 | D | Une séance garde son découpage : les kilomètres, les étapes (avec ce que HAL avait prévu pour chacune, MON-1), les tours, les pauses. Un découpage renvoyé remplace celui de la même sorte |
+| SAN-14 | D | Une séance garde son tracé GPS, point par point. Comme toute donnée de santé, il ne sort du serveur que vers le modèle (SAN-7) : l'autre personne du foyer ne le voit pas |
+| SAN-15 | T | Tout ce que Santé contient est lu, toutes sources, et gardé avec sa source et son appareil : la FC de la journée, la VFC, la VO2max, la FC de récupération, le poids, la SpO2, la respiration, la température du poignet, l'énergie active. Rien n'est jeté. À la lecture, la montre passe d'abord : une mesure d'une autre source qui recouvre une mesure de la montre de la même grandeur est laissée de côté. Une séance reçue de deux applications, même discipline et recouvrement de plus de la moitié de la plus courte, n'est comptée qu'une fois : celle de la montre, sinon la première reçue. L'autre garde son détail et pointe vers elle |
+| SAN-16 | D | Le sommeil est gardé phase par phase : au lit, endormi, éveillé, léger, profond, paradoxal, avec sa source. La montre donne les phases ; l'iPhone seul, la durée |
 
 #### B.3.8 Mesures et tests : `MES`
 
@@ -2339,6 +2345,14 @@ erDiagram
     UTILISATEUR      ||--o{  SANTE_JOUR : "mesure chaque jour"
     UTILISATEUR      ||--o{  ACTIVITE_SANTE : "enregistre"
     OCCURRENCE       |o--o{  ACTIVITE_SANTE : "est confirmée par"
+    ACTIVITE_SANTE   |o--o{  ACTIVITE_SANTE : "est le doublon de"
+    ACTIVITE_SANTE   ||--o{  ACTIVITE_SERIE : "mesure"
+    ACTIVITE_SANTE   ||--o{  ACTIVITE_SEGMENT : "se découpe en"
+    ACTIVITE_SANTE   ||--o{  ACTIVITE_TRACE : "passe par"
+    GRANDEUR_SANTE   ||--o{  ACTIVITE_SERIE : "borne"
+    GRANDEUR_SANTE   ||--o{  ECHANTILLON_SANTE : "borne"
+    UTILISATEUR      ||--o{  ECHANTILLON_SANTE : "mesure au quotidien"
+    UTILISATEUR      ||--o{  SOMMEIL_PHASE : "dort"
     UTILISATEUR      ||--o{  FENETRE_MESURE : "est invité à mesurer"
     UTILISATEUR      ||--o{  MESURE : "relève"
     FENETRE_MESURE   |o--o{  MESURE : "recueille"
@@ -2836,6 +2850,8 @@ Les tokens sont ceux que rend le fournisseur, additionnés sur tous les tours. `
 | `v_seance_coach` | Chaque séance de sport d'un compte qui a HAL : occurrence, contenu, état, lieu, discipline. C'est la base de la semaine et du détail d'une séance, assemblés en Python (`api/coach/contexte.py`, `api/coach/outils.py`) | PLN-4, PLN-6, SAI-3, EXO-7 |
 | `v_progression` | Par exercice et par semaine : meilleure charge, volume. Par objectif : la mesure suivie et sa cible | OBJ-1 |
 | `v_sante_fraicheur` | La date du dernier envoi de l'application, par utilisateur | SAN-6 |
+| `v_sante_reception` | Ce que le serveur a reçu de Santé, par utilisateur : séances, doublons, séances détaillées, découpées, avec tracé, mesures du quotidien et phases de sommeil, et les plus anciennes. Sert à suivre l'envoi de l'historique | SAN-11 à SAN-16 |
+| `v_echantillon_sante` | Les mesures du quotidien telles qu'on les lit : la montre d'abord | SAN-15 |
 | `v_memoire_coach` | La version en vigueur de chaque étage de la mémoire | MEM-2 |
 | `v_cout_coach` | Par jour et par moment : nombre d'appels, d'échecs, de tours, et tokens | COA-21 |
 
@@ -2937,6 +2953,11 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SAN-4 | `rattacher_activite()` : même utilisateur, même jour, même discipline, séance sans activité déjà rattachée. À défaut, crée une séance libre | Dynamique forte |
 | SAN-5 | Aucune colonne de mesure n'a de valeur par défaut | Statique forte |
 | SAN-7 | Les vues lues par le flux iCalendar ne joignent aucune table de santé | Statique forte |
+| SAN-11 | Clé primaire (`id_activite`, `grandeur`, `debut`) sur `activite_serie` ; `recevoir_series()` insère ou met à jour. Le détail part avec sa séance (`ON DELETE CASCADE`) | Statique forte |
+| SAN-12 | `grandeur_sante` porte les bornes ; les fonctions `recevoir_*` écartent ce qui en sort et rendent le nombre de lignes gardées et écartées. `verifier_lot_sante()` refuse un envoi de plus de 5 000 lignes | Dynamique forte |
+| SAN-13 | Clé primaire (`id_activite`, `sorte`, `rang`) sur `activite_segment` ; `recevoir_segments()` remplace les sortes reçues | Statique forte |
+| SAN-15 | (`id_utilisateur`, `cle_externe`) unique sur `echantillon_sante` ; `de_la_montre` calculée depuis l'appareil ; `v_echantillon_sante` laisse de côté ce qui recouvre la montre. `departager_activite()` pose `doublon_de` ; une contrainte interdit à un doublon d'avoir une séance | Statique forte |
+| SAN-16 | (`id_utilisateur`, `cle_externe`) unique sur `sommeil_phase` ; la phase est une valeur fermée | Statique forte |
 | MES-1 | `ouvrir_fenetre_mesure()` refuse une période de plus de sept jours | Dynamique forte |
 | MES-3 | Le report de 0h05 passe en expiree les fenêtres ouvertes dont la période est finie | Dynamique forte |
 | MES-5 | Index unique partiel sur (`id_utilisateur`, `type_mesure`) pour `statut` ouverte | Statique forte |
@@ -3232,6 +3253,12 @@ Données de santé
   PUT    /donnees-sante/activites/{cle_externe}           Séance de la montre, insérée ou mise à jour
   GET    /donnees-sante/fraicheur                         Date du dernier envoi
   GET    /donnees-sante/jours?depuis=                     Ce qui a été reçu, pour vérifier un envoi
+  PUT    /donnees-sante/activites/{cle_externe}/series    Mesures brutes d'une séance (SAN-11)
+  PUT    /donnees-sante/activites/{cle_externe}/segments  Kilomètres, étapes, tours, pauses (SAN-13)
+  PUT    /donnees-sante/activites/{cle_externe}/trace     Tracé GPS (SAN-14)
+  PUT    /donnees-sante/echantillons                      Mesures du quotidien, une par une (SAN-15)
+  PUT    /donnees-sante/sommeil                           Phases du sommeil (SAN-16)
+  GET    /donnees-sante/reception                         Ce que le serveur a reçu de Santé
 
 Mesures
   GET    /mesures?type=                                   Historique d'une mesure
@@ -3292,7 +3319,7 @@ C'est l'interface que voit le modèle. Chaque outil appelle une fonction SQL ou 
 | `lire_planning` | Emploi du temps, absences et charge de chaque journée sur une période | `v_planning`, `v_charge_journee` |
 | `lire_semaine` | Les séances d'une semaine, leur état, ce qui a été fait | `v_seance_coach` |
 | `lire_seance` | Une séance : prévu, saisi, bilan, séance de la montre rattachée | `v_seance_coach`, `serie_saisie`, `activite_sante` |
-| `lire_sante` | Moyennes de pas, sommeil, fréquence de repos et variabilité, jours sans données, une ligne par séance de la montre. Le jour par jour sur demande | `sante_jour`, `activite_sante`, `v_sante_fraicheur` |
+| `lire_sante` | Moyennes de pas, sommeil, fréquence de repos et variabilité, jours sans données, une ligne par séance de la montre, sans les doublons (SAN-15). Le jour par jour sur demande | `sante_jour`, `activite_sante`, `v_sante_fraicheur` |
 | `lire_forme` | Charge sur 7 et 28 jours, leur rapport, score de forme et composantes manquantes | `v_charge_entrainement`, `v_score_forme` |
 | `lire_mesures` | L'historique des mesures et les fenêtres en cours | `mesure`, `fenetre_mesure` |
 | `lire_progression` | La courbe d'un exercice ou d'un objectif | `v_progression` |
@@ -3719,7 +3746,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.11 Annoncer une séance libre | Discipline, jour, heure, contenu si on le sait | LIB-3, LIB-4, SPT-17 |
 | 3.12 Course prévue | Pas de « Commencer » : on l'envoie à la montre | MON-1, MON-2 |
 | 3.13 Envoyer à la montre | La séance pour l'app Exercice | MON-1 |
-| 3.14 Course faite | Le détail comme dans l'app Forme, puis l'avis de HAL | MON-4, SAN-2 |
+| 3.14 Course faite | Le détail comme dans l'app Forme, puis l'avis de HAL. Une course qui a des étapes s'ouvre en 3.22 | MON-4, SAN-2 |
 | 3.15 FC de la journée | La courbe sur 24 h, les séances et le planning en face | SAN |
 | 3.16 Sommeil et récupération | Courbe sur 7, 30 ou 90 jours | SAN-5 |
 | 3.17 Progression d'un exercice | Meilleure charge, historique, remplacements | EXO-2 |
@@ -3727,6 +3754,10 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.19 Saisir une mesure | Poids, tours, tests ; « Je ne peux pas » | MES |
 | 3.20 Séance à deux | « Je viens » ou « pas cette fois » | SPT-31, SPT-32 |
 | 3.21 Ajustement proposé | Alléger, modifier, déplacer, retirer, avec le motif | PLN-18, PLN-19 |
+| 3.22 Course fractionnée | La carte du parcours coloré par étape ; chaque étape, le prévu face au fait ; les fractions côte à côte ; l'allure et la FC sur une même courbe ; les zones ; la dynamique de course ; l'avis de HAL | SAN-11, SAN-13, SAN-14, MON-1 |
+| 3.23 Parcours en grand | La carte en plein écran, colorée par étape, allure, FC ou dénivelé ; toucher un kilomètre l'ouvre dans la feuille du bas, avec son profil de dénivelé | SAN-14 |
+| 3.24 Nuit en détail | Depuis une nuit de 3.16 : les phases heure par heure, leur durée face à l'habitude sur 30 nuits, la FC, la respiration, la SpO2, la température du poignet et la VFC de la nuit | SAN-15, SAN-16 |
+| 3.25 Forme et corps | VO2max, FC de récupération après chaque course, poids, moyennes du quotidien, sur 30 jours, 90 jours, un an ou tout | SAN-15 |
 
 **4 · Maison**
 
@@ -3758,7 +3789,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 5.7 Lieux de sport | Par discipline, rangés par préférence | LIE |
 | 5.8 Mémoire de HAL | Les quatre étages, corriger, revenir à une version | MEM-1, MEM-5 |
 | 5.9 Mettre HAL en pause | Motif, date de fin | PAU-1 |
-| 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu | SAN-10 |
+| 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu case par case, l'avancée du premier envoi de l'historique, « Tout renvoyer depuis le début » | SAN-10, SAN-14 |
 | 5.11 Notifications | Mes heures (bilan, relance, récap), ce qui prévient, et le silence | NOT-14, NOT-15 |
 | 5.12 Calendriers abonnés | Composer, copier le lien, renouveler le jeton | NOT-5 à NOT-9, UTI-3 |
 | 5.13 Serveur | Adresse, état de la connexion, mot de passe | CNX |
@@ -4003,6 +4034,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
 - trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21).
+- la santé en détail : la base et les routes sont prêtes (migration 069, SAN-11 à SAN-16). L'appli ne les remplit pas encore, et les écrans [3.22 à 3.25] sont dessinés, pas construits.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
@@ -4205,7 +4237,7 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 
 ### Annexe 7 : ce que change la version du 19 octobre 2026
 
-Migration 068. Quatre règles sont nouvelles, une est précisée, une est réécrite. SAI-21 ne touche que l'appli.
+Migrations 068 et 069. Dix règles sont nouvelles, une est précisée, une est réécrite. SAI-21 ne touche que l'appli.
 
 | Code | Ce qu'elle ajoute |
 |---|---|
@@ -4213,6 +4245,12 @@ Migration 068. Quatre règles sont nouvelles, une est précisée, une est rééc
 | SAI-20 | Pendant un exercice, le poids prévu par HAL, le plus lourd soulevé et le plus lourd tenu sur dix répétitions ; la charge se règle au demi-kilo |
 | SAI-21 | Une bulle dit quand la gourde Yanga peut se recharger, toutes les vingt minutes, pendant la séance et le repos. Sur le téléphone seulement |
 | COL-24 | Un titre ou un lieu trop long est coupé, jamais refusé |
+| SAN-11 | Chaque mesure prise pendant une séance de la montre est gardée brute, avec son heure |
+| SAN-12 | Les bornes de chaque grandeur sont des données ; ce qui en sort est écarté, le reste de l'envoi entre |
+| SAN-13 | Une séance garde ses kilomètres, ses étapes avec le prévu, ses tours et ses pauses |
+| SAN-14 | Une séance garde son tracé GPS, qui ne sort du serveur que vers HAL |
+| SAN-15 | Tout Santé, toutes sources, gardé avec sa source ; la montre passe d'abord, et une séance reçue deux fois ne compte qu'une fois |
+| SAN-16 | Le sommeil est gardé phase par phase |
 
 TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. » Elle dit maintenant qu'un aspirateur passé la veille n'empêche pas d'en poser un le jour du récurage.
 

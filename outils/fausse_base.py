@@ -608,6 +608,166 @@ def sante(t: int) -> None:
     dire("trente jours de santé, une marche de la montre, des mesures")
 
 
+
+# ---------------------------------------------------------------------------
+# Le détail de Santé (SAN-11 à SAN-16)
+# ---------------------------------------------------------------------------
+
+# Un tour inventé autour du parc de la Pépinière, en degrés : la boucle se fait
+# trois fois. Rien ne vient d'un vrai tracé.
+BOUCLE = [(48.69465, 6.18205), (48.69610, 6.18225), (48.69655, 6.18390),
+          (48.69640, 6.18600), (48.69540, 6.18690), (48.69420, 6.18610),
+          (48.69380, 6.18420), (48.69465, 6.18205)]
+MONTRE = {"source": "Apple Watch de Thomas", "appareil": "Watch"}
+
+
+def _paquets(lignes: list, taille: int = 4000):
+    for i in range(0, len(lignes), taille):
+        yield lignes[i:i + taille]
+
+
+def _point_du_tour(part: float) -> tuple[float, float]:
+    """Un point sur la boucle, part entre 0 et 1."""
+    morceaux = len(BOUCLE) - 1
+    x = (part % 1) * morceaux
+    i = int(x)
+    (a1, o1), (a2, o2) = BOUCLE[i], BOUCLE[i + 1]
+    f = x - i
+    return a1 + (a2 - a1) * f, o1 + (o2 - o1) * f
+
+
+def fractionne(t: int) -> None:
+    """Un 6 × 400 m, quatre jours avant aujourd'hui, avec tout son détail : les
+    mesures de la montre, les étapes prévues et faites, les kilomètres, le
+    tracé. Puis la même course reçue de Strava, qui devient un doublon."""
+    debut = a(J - timedelta(days=4), 18, 32)
+    temps = [110, 109, 111, 110, 112, 118]
+    # Les étapes : (libellé, durée en s, allure en s/km, FC visée, prévu).
+    etapes = [("Échauffement", 900, 401, 136, {"duree_s": 900, "zone": 2})]
+    for k, s in enumerate(temps, 1):
+        etapes.append((f"Fraction {k}", s, s * 2.5, 171, {"distance_m": 400, "objectif_s": 112}))
+        if k < 6:
+            etapes.append(("Récupération", 94, 470, 142, {"distance_m": 200, "allure": "trot"}))
+    etapes.append(("Retour au calme", 612, 425, 131, {"duree_s": 600}))
+    duree = sum(e[1] for e in etapes)
+    distance = sum(e[1] / e[2] * 1000 for e in etapes)
+    cle = "maquette-fractionne"
+    sql("""SELECT recevoir_activite(%(u)s, %(k)s, 'running', 'course', %(a)s, %(b)s,
+                                    %(j)s::JSONB)""",
+        u=t, k=cle, a=debut, b=debut + timedelta(seconds=duree),
+        j=json.dumps({"duree_secondes": duree, "distance_m": int(distance), "denivele_m": 38,
+                      "energie_kcal": 612, "fc_moyenne": 151, "fc_max": 178,
+                      "allure_s_km": int(duree / distance * 1000), "cadence": 172,
+                      "details": {**MONTRE, "interieur": False, "type_healthkit": 37}}))
+
+    series, segments, trace = [], [], []
+    t0, parcouru, fc = 0, 0.0, 118.0
+    for rang, (libelle, s, allure, cible, prevu) in enumerate(etapes, 1):
+        segments.append({"sorte": "etape", "rang": rang, "libelle": libelle, "prevu": prevu,
+                         "debut": (debut + timedelta(seconds=t0)).isoformat(),
+                         "fin": (debut + timedelta(seconds=t0 + s)).isoformat(),
+                         "distance_m": round(s / allure * 1000, 1)})
+        for x in range(0, s, 5):
+            instant = debut + timedelta(seconds=t0 + x)
+            fc += (cible - fc) * 0.12 + math.sin((t0 + x) / 7) * 0.8
+            vitesse = 1000 / allure
+            rapide = allure < 300
+            series += [
+                {"grandeur": "fc", "debut": instant.isoformat(), "valeur": round(fc)},
+                {"grandeur": "vitesse", "debut": instant.isoformat(),
+                 "fin": (instant + timedelta(seconds=5)).isoformat(), "valeur": round(vitesse, 2)},
+                {"grandeur": "cadence", "debut": instant.isoformat(),
+                 "valeur": 186 if rapide else 168},
+                {"grandeur": "puissance", "debut": instant.isoformat(),
+                 "valeur": 341 if rapide else 248},
+                {"grandeur": "foulee", "debut": instant.isoformat(),
+                 "valeur": 1.38 if rapide else 1.05},
+                {"grandeur": "contact_sol", "debut": instant.isoformat(),
+                 "valeur": 214 if rapide else 256},
+                {"grandeur": "oscillation", "debut": instant.isoformat(), "valeur": 8.9}]
+            parcouru += vitesse * 5
+            lat, lon = _point_du_tour(parcouru / 2600)
+            trace.append({"instant": instant.isoformat(), "latitude": round(lat, 6),
+                          "longitude": round(lon, 6),
+                          "altitude_m": 205 + 6 * math.sin(parcouru / 400),
+                          "precision_m": 4.0, "vitesse_ms": round(vitesse, 2)})
+        t0 += s
+    # Les kilomètres, déduits de la distance parcourue seconde par seconde.
+    km, debut_km, cumul, t0 = 1, 0, 0.0, 0
+    for _, s, allure, *_ in etapes:
+        for x in range(s):
+            cumul += 1000 / allure
+            if cumul >= km * 1000:
+                segments.append({"sorte": "kilometre", "rang": km, "distance_m": 1000,
+                                 "debut": (debut + timedelta(seconds=debut_km)).isoformat(),
+                                 "fin": (debut + timedelta(seconds=t0 + x)).isoformat()})
+                debut_km, km = t0 + x, km + 1
+        t0 += s
+
+    for paquet in _paquets(series):
+        sql("SELECT recevoir_series(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(paquet))
+    sql("SELECT recevoir_segments(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(segments))
+    sql("SELECT recevoir_trace(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(trace))
+
+    # La même course, reçue de Strava : elle reste, mais ne compte pas (SAN-15).
+    sql("""SELECT recevoir_activite(%(u)s, 'maquette-fractionne-strava', 'running', 'course',
+                                    %(a)s, %(b)s, %(j)s::JSONB)""",
+        u=t, a=debut + timedelta(seconds=20), b=debut + timedelta(seconds=duree - 15),
+        j=json.dumps({"distance_m": int(distance) - 40, "details": {"source": "Strava"}}))
+    dire(f"un fractionné avec {len(series)} mesures, {len(segments)} segments, "
+         f"{len(trace)} points GPS, et son doublon Strava")
+
+
+def quotidien(t: int) -> None:
+    """Trente jours de quotidien, mesure par mesure, et quatorze nuits en phases."""
+    lignes = []
+
+    def mesure(cle, grandeur, quand, valeur, fin=None, **source):
+        lignes.append({"cle": cle, "grandeur": grandeur, "debut": quand.isoformat(),
+                       "fin": fin.isoformat() if fin else None, "valeur": valeur,
+                       **(source or MONTRE)})
+
+    for k in range(30, 0, -1):
+        jour = J - timedelta(days=k)
+        vague = math.sin(k / 3.0)
+        # La FC de la journée, toutes les dix minutes de 7 h à 23 h.
+        for m in range(0, 16 * 60, 10):
+            quand = a(jour, 7) + timedelta(minutes=m)
+            mesure(f"maquette-fc-{k}-{m}", "fc", quand,
+                   round(66 + 12 * math.sin(m / 95) + 6 * vague + (m % 7)))
+        mesure(f"maquette-vfc-{k}", "vfc", a(jour, 3, 10), round(58 + 7 * vague, 1))
+        mesure(f"maquette-spo2-{k}", "spo2", a(jour, 4), 96 - (k % 3))
+        mesure(f"maquette-resp-{k}", "respiration", a(jour, 4), round(14 + 0.4 * vague, 1))
+        mesure(f"maquette-temp-{k}", "temperature_poignet", a(jour, 5),
+               round(35.6 + 0.2 * vague, 2))
+        mesure(f"maquette-energie-{k}", "energie", a(jour, 0),
+               round(560 + 90 * vague), fin=a(jour, 23, 59))
+        if k % 7 == 0:
+            mesure(f"maquette-vo2-{k}", "vo2max", a(jour, 19), round(47.3 - k * 0.04, 1))
+            mesure(f"maquette-poids-{k}", "poids", a(jour, 7, 5), round(72.4 + k * 0.03, 1),
+                   source="Withings", appareil="Body+")
+        if k % 4 == 0:
+            mesure(f"maquette-recup-{k}", "fc_recuperation", a(jour, 19, 10), 26 + (30 - k) // 6)
+    for paquet in _paquets(lignes):
+        sql("SELECT recevoir_echantillons(%(u)s, %(l)s)", u=t, l=Jsonb(paquet))
+
+    phases = []
+    suite = [("leger", 22), ("profond", 48), ("leger", 30), ("paradoxal", 14),
+             ("leger", 22), ("profond", 30), ("leger", 30), ("paradoxal", 16),
+             ("leger", 28), ("eveille", 4), ("leger", 40), ("profond", 20),
+             ("paradoxal", 18), ("leger", 26), ("paradoxal", 32), ("leger", 34),
+             ("eveille", 6), ("paradoxal", 20), ("leger", 30), ("eveille", 6)]
+    for k in range(14, 0, -1):
+        t0 = a(J - timedelta(days=k), 23, 28) + timedelta(minutes=(k % 4) * 9)
+        for rang, (phase, minutes) in enumerate(suite):
+            minutes = minutes - 6 if phase == "profond" and k == 4 else minutes
+            phases.append({"cle": f"maquette-nuit-{k}-{rang}", "phase": phase,
+                           "debut": t0.isoformat(),
+                           "fin": (t0 + timedelta(minutes=minutes)).isoformat(), **MONTRE})
+            t0 += timedelta(minutes=minutes)
+    sql("SELECT recevoir_phases_sommeil(%(u)s, %(l)s)", u=t, l=Jsonb(phases))
+    dire(f"{len(lignes)} mesures du quotidien et {len(phases)} phases de sommeil")
+
 def principal() -> None:
     base = configuration().postgres_db
     if base != "planif_maquette":
@@ -618,6 +778,8 @@ def principal() -> None:
         maison(t, lo)
     sport(t, lo)
     sante(t)
+    fractionne(t)
+    quotidien(t)
     print()
     for pseudo, mdp in MOTS_DE_PASSE.items():
         print(f"  {pseudo:8} {mdp}")

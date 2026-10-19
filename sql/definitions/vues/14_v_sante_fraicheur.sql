@@ -3,7 +3,11 @@ SELECT u.id_utilisateur,
        GREATEST((SELECT max(sj.recue_le) FROM sante_jour sj
                   WHERE sj.id_utilisateur = u.id_utilisateur),
                 (SELECT max(a.recue_le) FROM activite_sante a
-                  WHERE a.id_utilisateur = u.id_utilisateur)) AS dernier_envoi,
+                  WHERE a.id_utilisateur = u.id_utilisateur),
+                (SELECT max(e.recue_le) FROM echantillon_sante e
+                  WHERE e.id_utilisateur = u.id_utilisateur),
+                (SELECT max(s.recue_le) FROM sommeil_phase s
+                  WHERE s.id_utilisateur = u.id_utilisateur)) AS dernier_envoi,
        (SELECT max(sj.jour) FROM sante_jour sj
          WHERE sj.id_utilisateur = u.id_utilisateur)          AS dernier_jour
   FROM utilisateur u
