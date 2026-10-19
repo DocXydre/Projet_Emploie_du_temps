@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 19 octobre 2026 (migration 069), avec la partie F en projet
+Version du 19 octobre 2026 (migration 070), avec la partie F en cours
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, et l'ouverture de HAL par MCP et par abonnement. Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont conservés pour l'historique.
 
@@ -39,7 +39,7 @@ HAL est un assistant pour un foyer. Il croise les emplois du temps de chacun (co
 
 Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui ne change rien sans accord ; le contenu du sport passe par HAL. Le serveur est auto-hébergé, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
 
-HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F, en projet).
+HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F, en cours).
 
 ### 0.2 Principaux choix
 
@@ -4053,13 +4053,13 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
-La partie F est écrite le 19 octobre 2026, et rien n'en est construit : les lots 12 à 15 sont à faire.
+La partie F est écrite le 19 octobre 2026. Le **lot 12** est fait le même jour (migration 070, `api/serveur_mcp/`, `coach/consigne_mcp.md`, Réglages, Intelligence). Vérifié sur la fausse base, avec le client du SDK et à la main, dans les deux versions du protocole : les vingt et un outils du profil externe répondent pour le titulaire de la clé ; la clé de l'appli, une clé révoquée ou pas de clé reçoivent 401 ; Lorette ne lit ni la mémoire de Thomas ni le lieu de ses absences ; un outil hors du catalogue est refusé ; le résumé déposé par un client se relit dans les derniers échanges de HAL et dans l'appli ; la soixante et unième requête d'une minute est refusée. L'écran Intelligence est écrit mais n'a pas encore été compilé ni essayé dans le simulateur. Les lots 13 à 15 sont à faire.
 
 ---
 
 ## Partie F. HAL par MCP et par abonnement
 
-Cette partie est nouvelle, et elle n'est pas encore construite. Elle ouvre HAL à d'autres clients que l'application, et le fait tourner sur l'abonnement de chacun plutôt que sur l'API payée au token. Les parties A à D ne changent que là où l'annexe 8 le dit.
+Cette partie est nouvelle. Le lot 12, le serveur MCP en lecture, est construit ; les lots 13 à 15 ne le sont pas. Elle ouvre HAL à d'autres clients que l'application, et le fait tourner sur l'abonnement de chacun plutôt que sur l'API payée au token. Les parties A à D ne changent que là où l'annexe 8 le dit.
 
 ### F.1 Rappel du besoin et choix effectués
 
@@ -4092,7 +4092,7 @@ Une contrainte ne bouge pas : **rien ne change sans l'accord de l'utilisateur.**
 
 | Outil | Rôle | Pourquoi celui-là |
 |---|---|---|
-| Protocole MCP, SDK Python `mcp` | Le serveur MCP de HAL, monté dans la FastAPI sur `/mcp`, transport HTTP en flux (Streamable HTTP) | Le protocole que parlent Claude Code, Claude Desktop, Gemini CLI. Le SDK officiel se monte dans une application ASGI existante |
+| Protocole MCP, SDK Python `mcp` 2.3 | Le serveur MCP de HAL, monté dans la FastAPI sur `/mcp`, transport HTTP en flux (Streamable HTTP), sans état, réponses en JSON. Il sert les deux versions du protocole : celle de juin 2025, avec poignée de main, et celle de juillet 2026, sans | Le protocole que parlent Claude Code, Claude Desktop, Gemini CLI. Le SDK officiel se monte dans une application ASGI existante |
 | Claude Code, par le SDK Agent Python `claude-agent-sdk` | Le fournisseur « abonnement » : lance Claude Code sans écran, lui passe la consigne et le branche sur `/mcp` | Seule voie officielle pour faire travailler un abonnement Claude depuis un programme. Le SDK embarque Claude Code |
 | `claude setup-token` | Le jeton d'abonnement de longue durée, créé par chacun sur sa machine | Prévu pour faire tourner Claude Code sans navigateur |
 | `cryptography` (Fernet) | Chiffre en base les jetons d'abonnement et les clés d'API | Chiffrement symétrique authentifié, la clé vit dans `.env`, hors de la base |
@@ -4174,7 +4174,7 @@ Mêmes conventions que les parties A et B.
 | Code | Type | Règle |
 |---|---|---|
 | MCP-1 | D | HAL expose un serveur MCP sur `/mcp`, en HTTP en flux (Streamable HTTP), dans le processus de l'API. Il n'y a pas de deuxième serveur |
-| MCP-2 | D | Un client externe s'authentifie par une clé MCP, propre à ce client, dans l'en-tête `X-Cle-Mcp` : elle se crée dans Réglages, porte un nom (« Claude Code du Mac »), n'ouvre que `/mcp`, et se révoque seule, sans toucher à la clé de l'appli ni aux autres clients. Seule son empreinte est gardée ; la clé n'est montrée qu'une fois, à sa création |
+| MCP-2 | D | Un client externe s'authentifie par une clé MCP, propre à ce client, dans l'en-tête `X-Cle-Mcp`, ou en jeton porteur pour un client qui ne sait envoyer que celui-là : elle se crée dans Réglages, porte un nom (« Claude Code du Mac »), n'ouvre que `/mcp`, et se révoque seule, sans toucher à la clé de l'appli ni aux autres clients. Seule son empreinte est gardée ; la clé n'est montrée qu'une fois, à sa création |
 | MCP-3 | D | Le compte de la clé est l'utilisateur de tous les outils. Aucun outil ne prend un identifiant d'utilisateur : le modèle ne choisit jamais de qui il parle (COA-4) |
 | MCP-4 | D | Deux profils. **Interne** : une course du module HAL, authentifiée par un jeton de course (FOU-12), qui n'a que les outils de son moment (COA-5). **Externe** : un client de l'utilisateur, authentifié par une clé MCP, qui a la lecture, la mémoire, les mesures dites, les propositions de séance, les ajustements et les demandes (section F.8.2) |
 | MCP-5 | D | Le catalogue est fermé. Un outil lit une vue ou appelle une fonction SQL, rien d'autre. Il n'y a ni SQL libre, ni outil d'administration, ni outil qui accepte, valide ou refuse au nom de l'utilisateur (ACC-5) |
@@ -4287,7 +4287,7 @@ Remplie par une migration, revue quand le fournisseur change ses prix. Un modèl
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
-| id_session | UUID | non | l'identifiant de session MCP | oui | | oui | |
+| id_session | UUID | non | créé par le serveur : le transport est sans état, une session regroupe les appels d'une clé jusqu'à trente minutes de silence | oui | gen_random_uuid() | oui | |
 | id_cle | INTEGER | non | | | | | CleMcp |
 | client | VARCHAR(60) | non | nom et version annoncés par le client | | | | |
 | operation | TEXT | non | | | | | |
@@ -4406,7 +4406,8 @@ Les outils de HAL (section B.9.2) restent, avec leurs noms. S'y ajoutent les out
 
 | Outil | Ce qu'il rend | Ce qu'il lit |
 |---|---|---|
-| `lire_aujourdhui` | Ce qu'Aujourd'hui affiche : tâches du jour, séances, conflits, absences en cours, mode allégé | La route de l'accueil (WID-8) |
+| `lire_contexte` | Ce que HAL sait de la personne : profil, limitations, lieux, objectifs, feuille de route, plan, pause | `api/coach/contexte.py` |
+| `lire_aujourdhui` | Ce qu'Aujourd'hui affiche : mon planning du jour, les tâches de la maison du jour et en retard, s'il y a un conflit, absences, modes allégés, équilibre, week-ends proposés | La route de l'accueil (WID-8) |
 | `lire_taches` | Les tâches du foyer, leur type, leur fréquence, pour qui, leurs liens | `tache`, `v_lien_tache` |
 | `lire_occurrences` | Les occurrences d'une période, avec leur état et leur retard | `v_occurrence`, `v_taches_en_retard` |
 | `lire_absences` | Les absences et les voyages, passés et à venir | `absence`, `trajet` |
@@ -4414,7 +4415,7 @@ Les outils de HAL (section B.9.2) restent, avec leurs noms. S'y ajoutent les out
 | `lire_memoire` | Les quatre étages de la mémoire | `v_memoire_coach` |
 | `lister_demandes` | Les demandes du titulaire, et leur état | `demande` |
 
-`lire_planning`, `lire_semaine`, `lire_seance`, `lire_sante`, `lire_forme`, `lire_mesures`, `lire_progression`, `lire_catalogue`, `lire_echanges` et `lire_chapitre` sont ceux de la section B.9.2.
+`lire_planning`, `lire_semaine`, `lire_seance`, `lire_sante`, `lire_forme`, `lire_mesures`, `lire_progression`, `lire_catalogue` et `lire_chapitre` sont ceux de la section B.9.2. `lire_echanges` y a sa version client : elle rend aussi les derniers échanges, qu'un client n'a pas sous les yeux. `marquer_important` reste à HAL : il marque l'échange en cours, et un client n'en a pas ; `noter_conversation` tient ce rôle.
 
 **Demandes** (ACC)
 

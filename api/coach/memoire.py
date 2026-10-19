@@ -227,7 +227,7 @@ def echanges_de(id_utilisateur: int, du: date, au: date) -> str:
     changement d'objectif.
     """
     lignes = lister(
-        """SELECT quand, auteur, moment, importance, contenu FROM echange
+        """SELECT quand, auteur, moment, importance, contenu, client FROM echange
             WHERE id_utilisateur = %(u)s AND jour_de(quand) BETWEEN %(du)s AND %(au)s
             ORDER BY id_echange""", {"u": id_utilisateur, "du": du, "au": au})
     if not lignes:
@@ -240,7 +240,8 @@ def echanges_de(id_utilisateur: int, du: date, au: date) -> str:
             continue
         coupe = 2500 if ligne["importance"] >= 3 else 900
         qui = {"utilisateur": "Utilisateur", "coach": "Coach",
-               "systeme": "Message automatique"}[ligne["auteur"]]
+               "systeme": "Message automatique",
+               "client": f"Conversation dans {ligne['client']}"}[ligne["auteur"]]
         contenu = ligne["contenu"]
         if len(contenu) > coupe:
             contenu = contenu[:coupe] + " […]"

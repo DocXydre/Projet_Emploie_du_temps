@@ -878,13 +878,17 @@ def outils_du_moment(moment: str, en_pause: bool = False) -> list[Outil]:
 
 
 def executer_outil(nom: str, id_utilisateur: int, arguments: dict,
-                   permis: set[str]) -> tuple[str, bool]:
+                   permis: set[str], catalogue: dict[str, Outil] | None = None
+                   ) -> tuple[str, bool]:
     """Exécute un outil et rend son résultat en texte, et s'il s'agit d'un refus.
 
     Un outil inconnu, un outil qui n'est pas permis pour ce moment, un refus de
     la base : dans tous les cas le modèle reçoit un motif qu'il peut lire.
+
+    `catalogue` est celui du serveur MCP (MCP-5) : mêmes outils pour la plupart,
+    et ceux du planning et de la maison en plus. Sans lui, celui du coach.
     """
-    outil = PAR_NOM.get(nom)
+    outil = (catalogue or PAR_NOM).get(nom)
     if outil is None:
         return _refus("outil_inconnu", f"L'outil « {nom} » n'existe pas"), True
     if nom not in permis:

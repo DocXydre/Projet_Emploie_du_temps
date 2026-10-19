@@ -192,8 +192,8 @@ def _resume(elements: list[dict]) -> str:
 def derniers_echanges(id_utilisateur: int) -> str:
     """CAR-7 : les derniers échanges, du plus ancien au plus récent."""
     lignes = lister(
-        """SELECT quand, auteur, moment, contenu FROM (
-               SELECT e.id_echange, e.quand, e.auteur, e.moment, e.contenu
+        """SELECT quand, auteur, moment, contenu, client FROM (
+               SELECT e.id_echange, e.quand, e.auteur, e.moment, e.contenu, e.client
                  FROM echange e WHERE e.id_utilisateur = %(u)s
                 ORDER BY e.id_echange DESC LIMIT %(n)s) x
             ORDER BY id_echange""",
@@ -207,8 +207,10 @@ def derniers_echanges(id_utilisateur: int) -> str:
     dernier_du_coach = max((i for i, x in enumerate(lignes) if x["auteur"] == "coach"),
                            default=None)
     for rang, ligne in enumerate(lignes):
+        # MCP-12 : un résumé déposé par un client MCP dit de quel client il vient.
         qui = {"utilisateur": "Utilisateur", "coach": "Toi",
-               "systeme": "Message automatique"}[ligne["auteur"]]
+               "systeme": "Message automatique",
+               "client": f"Résumé d'une conversation dans {ligne['client']}"}[ligne["auteur"]]
         contenu = ligne["contenu"]
         if ligne["auteur"] != "utilisateur" and rang != dernier_du_coach \
                 and len(contenu) > LONGUEUR_ANCIEN_MESSAGE:

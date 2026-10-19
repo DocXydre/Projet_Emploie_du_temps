@@ -30,6 +30,7 @@ from api.routeurs import (
 )
 from api.routeurs.appli import routeur as routeur_de_l_appli
 from api.routeurs.calendriers import routeur as routeur_des_calendriers
+from api.routeurs.clients_mcp import routeur as routeur_des_clients_mcp
 from api.routeurs.coach import routeur as routeur_du_coach
 from api.routeurs.connexion import routeur as routeur_de_connexion
 from api.routeurs.foyer import routeur as routeur_du_foyer
@@ -37,6 +38,7 @@ from api.routeurs.journal import routeur as routeur_du_journal
 from api.routeurs.moi import routeur as routeur_de_moi
 from api.routeurs.types_taches import routeur as routeur_des_types_de_taches
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
+from api.serveur_mcp import serveur as serveur_mcp
 
 conf = configuration()
 
@@ -56,7 +58,9 @@ async def cycle_de_vie(app: FastAPI):
     if conf.ordonnanceur_actif:
         ordonnanceur.demarrer()
         await bot.demarrer_bot()
-    yield
+    # MCP-1 : le serveur MCP vit le temps de l'API.
+    async with serveur_mcp.en_service():
+        yield
     await bot.arreter_bot()
     ordonnanceur.arreter()
     arreter_pool()
@@ -118,6 +122,10 @@ app.include_router(routeur_du_foyer)
 app.include_router(routeur_de_moi)
 app.include_router(routeur_de_l_appli)
 app.include_router(routeur_des_calendriers)
+app.include_router(routeur_des_clients_mcp)
+
+# MCP-1 : /mcp est servi par le SDK, derrière la porte qui vérifie la clé.
+app.router.add_route("/mcp", serveur_mcp.Porte(), include_in_schema=False)
 
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")

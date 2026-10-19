@@ -38,6 +38,7 @@ Les tâches et le planning se règlent à la main ; seul le sport passe par HAL.
 | **Foyer** | Un administrateur invite par un lien, règle qui peut ajouter et modifier les tâches, passe son rôle. Connexion par pseudo et mot de passe |
 | **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
 | **Journal** | Ce qui change, qui l'a déclenché et dans quelle action. Chaque notification porte sa raison, en une phrase, et l'écran Historique remonte le fil |
+| **Clients MCP** | HAL est aussi un serveur MCP : Claude Code, Gemini CLI ou Claude Desktop lisent le planning, la maison, les séances, la santé et la mémoire de HAL, avec une clé par client créée dans Réglages. Ils tiennent la mémoire et déposent le résumé de la conversation, que HAL relit dans l'appli. Ils ne changent rien d'autre : les demandes avec accord, et l'abonnement Claude à la place de l'API, sont écrits en partie F du cahier des charges |
 | **Sorties** | Notifications par Apple, aux heures que chacun règle, silencieuses la nuit ; flux iCalendar en lecture seule ; bot Telegram pour l'administrateur du serveur |
 
 Ce qui a été retiré est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
@@ -184,6 +185,14 @@ git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
                       migrations ─── définitions ─┴─ compose up --build ─── /sante
 ```
 
+**Brancher Claude Code.** Dans l'appli, Réglages, Intelligence, « Créer sa clé » donne une clé MCP, montrée une seule fois, et la commande à coller dans le terminal :
+
+```
+claude mcp add --transport http hal https://<serveur>.ts.net:8443/mcp --header "X-Cle-Mcp: hal_…"
+```
+
+`/mcp` passe par le funnel comme les routes de l'appli, derrière sa propre clé : elle n'ouvre que le serveur MCP, se révoque seule, et ne donne jamais la clé de l'appli. L'adresse affichée vient de `HOTE_PUBLIC`.
+
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
 Tout se fait sur `main`, et chaque push part en production. On vérifie donc en local avant :
@@ -205,6 +214,7 @@ sql/apres/                  rattrapages de données qui appellent une fonction �
 sql/scenario_test.sql       une semaine type jouée à la main, pour voir les règles à l'œuvre
 api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion
 api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle
+api/serveur_mcp/            HAL en serveur MCP : clés des clients, outils, ressources du dossier
 coach/                      le dossier de HAL (un fichier par chapitre), ses paquets, le
                             catalogue d'exercices, sa consigne, ses scénarios
 ios/HAL/                    l'application iPhone HAL : planning, maison, sport, santé, HAL,
@@ -237,4 +247,5 @@ Les onze lots du plan de réalisation sont faits, et l'application a été repri
 
 - côté API, trois manques de l'appli : « Voir plus tard » sur un conflit de cours, qui doit revenir une semaine avant (COL-23) ; une tâche faite en plus qui n'existe pas encore (EXE-17) ; « Je m'en charge » sur une tâche en retard ;
 - vérifier sur un vrai iPhone ce que le simulateur ne montre pas : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre ;
-- deux semaines d'usage réel à deux, sans le bot (lot 10).
+- deux semaines d'usage réel à deux, sans le bot (lot 10) ;
+- la partie F du cahier des charges : le serveur MCP en lecture est fait (lot 12). Restent les fournisseurs, pour que HAL passe par l'abonnement Claude de chacun et ne prenne l'API qu'en secours (lot 13), les demandes que l'utilisateur accepte dans l'appli (lot 14), et Gemini CLI (lot 15).

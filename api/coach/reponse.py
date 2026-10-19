@@ -103,9 +103,13 @@ def etat_des_elements(id_utilisateur: int, elements: list[dict]) -> list[dict]:
 
 def depuis_echange(echange: dict) -> dict:
     """Un échange enregistré, dans la forme rendue à l'application et au bot."""
+    message = echange["contenu"]
+    if echange["auteur"] == "client":
+        # MCP-12 : le résumé d'une conversation tenue ailleurs dit où.
+        message = f"Conversation dans {echange.get('client')} : {message}"
     return {"id_echange": echange["id_echange"],
             "moment": echange["moment"],
             "auteur": echange["auteur"],
-            "message": echange["contenu"],
+            "message": message,
             "elements": echange.get("elements") or [],
             "quand": clair(echange.get("quand"))}

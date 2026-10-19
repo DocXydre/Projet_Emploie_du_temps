@@ -20,6 +20,8 @@ dependencies = [
     "python-telegram-bot[job-queue]>=21.0",
     # Le coach : appels au modèle, avec outils (COA-4).
     "anthropic>=0.40",
+    # HAL en serveur MCP (partie F). La version 2 a renommé et changé l'API de la 1.
+    "mcp>=2.3,<3",
 ]
 
 [project.optional-dependencies]
