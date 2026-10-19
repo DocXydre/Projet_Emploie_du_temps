@@ -90,18 +90,21 @@ def _lectures(id_utilisateur: int, moment: str, id_occurrence: int | None) -> li
 
     catalogue = ("Catalogue des exercices permis (lire_catalogue)",
                  lambda: outils.lire_catalogue(u, {}))
+    # SAN-17 : les dernières courses, résumées, pour régler les suivantes.
+    courses = ("Les dernières courses, étape par étape (lire_courses)",
+               lambda: outils.lire_courses(u, {"nombre": 6}))
 
     if moment == "faisabilite":
-        return [sante(28), mesures, forme, planning(28)]
+        return [sante(28), courses, mesures, forme, planning(28)]
     if moment == "plan":
-        return [semaine, sante(28), forme, mesures, planning(28), catalogue]
+        return [semaine, sante(28), courses, forme, mesures, planning(28), catalogue]
     if moment == "revision":
         suivante = lundi_de(today) + timedelta(days=7)
         return [semaine,
                 ("Séances du jour en détail (lire_seance)", lambda: _seances_du_jour(u)),
                 ("La semaine suivante (lire_semaine)",
                  lambda: outils.lire_semaine(u, {"lundi": suivante.isoformat()})),
-                sante(14), forme, mesures, planning(21, today + timedelta(days=1)),
+                sante(14), courses, forme, mesures, planning(21, today + timedelta(days=1)),
                 catalogue]
     if moment == "synthese":
         return [semaine,

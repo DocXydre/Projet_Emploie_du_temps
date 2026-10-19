@@ -19,7 +19,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from api.base import executer, lister, un_seul
-from api.coach import dossier
+from api.coach import dossier, lecture_courses
 from api.coach.clair import aujourd_hui, clair, lundi_de, sans_vides
 from api.config import configuration
 from api.erreurs import message_lisible, refus_coach
@@ -263,11 +263,39 @@ def detail_seance(u: int, id_occurrence: int) -> dict | None:
 
 
 def lire_seance(u: int, a: dict) -> object:
-    detail = detail_seance(u, int(a.get("id_occurrence", 0)))
+    id_occurrence = int(a.get("id_occurrence", 0))
+    detail = detail_seance(u, id_occurrence)
     if detail is None:
         raise RefusOutil("introuvable", "Séance introuvable")
     detail["montre"] = [_allure_en_clair(dict(m)) for m in detail["montre"]]
+    # SAN-17 : une course de la montre se lit étape par étape. Ses mesures brutes
+    # ne partent pas : la lecture en clair les remplace.
+    course = lecture_courses.course_de_la_seance(u, id_occurrence)
+    if course:
+        detail["course_en_detail"] = course
+        for montre in detail["montre"]:
+            details = montre.get("details") or {}
+            for lourd in ("frequence", "kilometres", "zones"):
+                details.pop(lourd, None)
     return detail
+
+
+def lire_courses(u: int, a: dict) -> object:
+    """SAN-17 : les dernières courses, chacune lue étape par étape."""
+    try:
+        du, au = lecture_courses.periode(a)
+    except ValueError:
+        raise RefusOutil("requete_invalide", "« du » et « au » au format AAAA-MM-JJ") from None
+    if au < du or (au - du).days > 89:
+        raise RefusOutil("requete_invalide", "La période va de 1 à 90 jours")
+    nombre = max(1, min(int(a.get("nombre") or 6), 12))
+    trouvees = lecture_courses.courses(u, du, au, nombre, bool(a.get("detail")))
+    return {"periode": f"{du.isoformat()} au {au.isoformat()}",
+            "courses": trouvees or "Aucune course avec les mesures de la montre sur la période.",
+            "note": "Lu dans les mesures brutes de la montre. Une étape plus rapide de 10 % "
+                    "que la moyenne de la course est une fraction ; un nom donné par la montre "
+                    "l'emporte. Les courses sans mesures fines n'y sont pas : lire_sante les "
+                    "donne en une ligne."}
 
 
 def _plages(jours: list[date]) -> list[str]:
@@ -700,8 +728,18 @@ OUTILS: tuple[Outil, ...] = (
           _objet({"lundi": {"type": "string", "description": "AAAA-MM-JJ"}}), lire_semaine),
     Outil("lire_seance", "lecture",
           "Une séance en détail : exercices prévus, séries saisies, bilan, séance de la "
-          "montre rattachée.",
+          "montre rattachée. Une course y est lue étape par étape, face au prévu.",
           _objet({"id_occurrence": {"type": "integer"}}, ["id_occurrence"]), lire_seance),
+    Outil("lire_courses", "lecture",
+          "Les dernières courses de la montre, chacune lue étape par étape : fractions "
+          "et leurs temps face à l'objectif, FC en fin de fraction et en récupération, "
+          "dérive cardiaque d'une sortie continue, zones. Sans dates, les 42 derniers "
+          "jours ; 6 courses par défaut, 12 au plus. detail à vrai : aussi chaque "
+          "étape, chaque kilomètre et la dynamique de course.",
+          _objet({"du": {"type": "string", "description": "AAAA-MM-JJ"},
+                  "au": {"type": "string", "description": "AAAA-MM-JJ"},
+                  "nombre": {"type": "integer", "minimum": 1, "maximum": 12},
+                  "detail": {"type": "boolean"}}), lire_courses),
     Outil("lire_sante", "lecture",
           "Moyennes de pas, sommeil, FC de repos et variabilité (7 jours et période), "
           "jours sans données, séances de la montre une par ligne, dernier envoi. Sans "

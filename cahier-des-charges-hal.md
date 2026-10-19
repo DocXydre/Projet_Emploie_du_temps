@@ -2132,6 +2132,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAN-14 | D | Une séance garde son tracé GPS, point par point. Comme toute donnée de santé, il ne sort du serveur que vers le modèle (SAN-7) : l'autre personne du foyer ne le voit pas |
 | SAN-15 | T | Tout ce que Santé contient est lu, toutes sources, et gardé avec sa source et son appareil : la FC de la journée, la VFC, la VO2max, la FC de récupération, le poids, la SpO2, la respiration, la température du poignet, l'énergie active. Rien n'est jeté. À la lecture, la montre passe d'abord : une mesure d'une autre source qui recouvre une mesure de la montre de la même grandeur est laissée de côté. Une séance reçue de deux applications, même discipline et recouvrement de plus de la moitié de la plus courte, n'est comptée qu'une fois : celle de la montre, sinon la première reçue. L'autre garde son détail et pointe vers elle ; sa séance passe à celle qui compte si elle n'en a pas, et une séance libre née du doublon, où rien n'a été saisi, se retire. Les séances reçues avant la migration 069 se départagent une fois, après elle |
 | SAN-16 | D | Le sommeil est gardé phase par phase : au lit, endormi, éveillé, léger, profond, paradoxal, avec sa source. La montre donne les phases ; l'iPhone seul, la durée |
+| SAN-17 | T | HAL lit une course étape par étape, jamais ses mesures brutes ni son tracé : chaque étape avec son temps, son allure, sa FC moyenne et finale, et l'écart à ce qui était prévu ; les fractions en une ligne (leurs temps, combien tiennent l'objectif, ce que perd la dernière, la FC en fin de fraction et ce qu'elle redescend pendant les récupérations) ; pour une sortie continue, la dérive cardiaque, la FC à allure égale entre la seconde moitié et la première, échauffement mis à part ; les kilomètres, les zones, la dynamique de course, la FC de récupération. La séance close l'a dans `lire_seance` ; les dernières courses, résumées, sont lues d'office pour un plan, une faisabilité et la révision du dimanche (COA-28) |
 
 #### B.3.8 Mesures et tests : `MES`
 
@@ -2187,7 +2188,7 @@ Le carnet de notes a été remplacé par la mémoire en quatre étages (section 
 | COA-25 | T | Dans le chat, HAL dispose d'un outil pour requalifier un texte en signalement : une douleur, une fatigue, un contretemps, ou la réponse à une question qu'il a lui-même posée dans une synthèse. Le module relance alors l'appel avec le moment signalement et ses outils, ou avec le moment changement pour une demande de changer le plan (COA-32), dans la même opération. L'utilisateur ne reçoit qu'une réponse |
 | COA-26 | D | La clé de l'appareil d'une demande est gardée avec l'appel. La même clé renvoyée rend l'échange déjà produit, ou fait attendre l'appel encore en cours, sans rappeler le modèle |
 | COA-27 | T | Une réponse coupée par la limite de sortie a son dernier appel d'outil tronqué. Il n'est pas exécuté : le modèle est prévenu et le renvoie en entier. La limite de sortie est de 16 000 tokens |
-| COA-28 | T | Ce que chaque moment lit à coup sûr est joint d'office à son premier message, lu avec les mêmes outils : la semaine, la santé, la forme, les mesures, l'emploi du temps, le catalogue pour un plan. Une lecture qui échoue est sautée, le modèle peut la refaire. Ses outils de lecture restent pour une autre période |
+| COA-28 | T | Ce que chaque moment lit à coup sûr est joint d'office à son premier message, lu avec les mêmes outils : la semaine, la santé, les dernières courses étape par étape (SAN-17), la forme, les mesures, l'emploi du temps, le catalogue pour un plan. Une lecture qui échoue est sautée, le modèle peut la refaire. Ses outils de lecture restent pour une autre période |
 | COA-29 | T | Plusieurs séances se proposent en un seul appel d'outil. Chacune est vérifiée seule et garde son résultat ou son refus : une séance refusée n'empêche pas les autres |
 | COA-30 | T | Quand un appel a posé ou changé des séances d'un plan, son message est relu une fois contre ce qui est vraiment en base : les séances non validées, semaine par semaine, et les semaines sans séance clé. Le modèle corrige son message, ou répond « OK » pour le garder |
 | COA-31 | T | Un jour sans séance prévue ni faite, et sans rien à décider de la clôture, la synthèse est courte : le socle seul, sans outils de séance. Un réglage peut lui donner un modèle moins cher, comme au chat. Vide par défaut |
@@ -3327,7 +3328,8 @@ C'est l'interface que voit le modèle. Chaque outil appelle une fonction SQL ou 
 | `lire_echanges` | Cherche dans tout l'historique des échanges, par mot ou par période, sans les derniers déjà joints (MEM-8) | `echange` |
 | `lire_planning` | Emploi du temps, absences et charge de chaque journée sur une période | `v_planning`, `v_charge_journee` |
 | `lire_semaine` | Les séances d'une semaine, leur état, ce qui a été fait | `v_seance_coach` |
-| `lire_seance` | Une séance : prévu, saisi, bilan, séance de la montre rattachée | `v_seance_coach`, `serie_saisie`, `activite_sante` |
+| `lire_seance` | Une séance : prévu, saisi, bilan, séance de la montre rattachée ; une course y est lue étape par étape (SAN-17) | `v_seance_coach`, `serie_saisie`, `activite_sante`, `detail_course()` |
+| `lire_courses` | Les dernières courses, 6 par défaut, 12 au plus, sur 90 jours au plus : chacune résumée (fractions face à l'objectif, FC en fin de fraction et en récupération, dérive cardiaque), avec chaque étape, chaque kilomètre et la dynamique sur demande (SAN-17) | `activite_sante`, `activite_serie`, `detail_activite()` |
 | `lire_sante` | Moyennes de pas, sommeil, fréquence de repos et variabilité, jours sans données, une ligne par séance de la montre, sans les doublons (SAN-15). Le jour par jour sur demande | `sante_jour`, `activite_sante`, `v_sante_fraicheur` |
 | `lire_forme` | Charge sur 7 et 28 jours, leur rapport, score de forme et composantes manquantes | `v_charge_entrainement`, `v_score_forme` |
 | `lire_mesures` | L'historique des mesures et les fenêtres en cours | `mesure`, `fenetre_mesure` |
@@ -4052,7 +4054,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
 - trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21).
-- la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont construits et vérifiés dans le simulateur sur la fausse base : la course avec ses étapes et sa carte, le parcours en grand, la nuit phase par phase, la forme sur la durée.
+- la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont construits et vérifiés dans le simulateur sur la fausse base : la course avec ses étapes et sa carte, le parcours en grand, la nuit phase par phase, la forme sur la durée. HAL lit chaque course étape par étape (SAN-17), dans la séance close et dans les dernières courses lues d'office.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
@@ -4429,7 +4431,7 @@ Les outils de HAL (section B.9.2) restent, avec leurs noms. S'y ajoutent les out
 | `lire_memoire` | Les quatre étages de la mémoire | `v_memoire_coach` |
 | `lister_demandes` | Les demandes du titulaire, et leur état | `demande` |
 
-`lire_planning`, `lire_semaine`, `lire_seance`, `lire_sante`, `lire_forme`, `lire_mesures`, `lire_progression`, `lire_catalogue` et `lire_chapitre` sont ceux de la section B.9.2. `lire_echanges` y a sa version client : elle rend aussi les derniers échanges, qu'un client n'a pas sous les yeux. `marquer_important` reste à HAL : il marque l'échange en cours, et un client n'en a pas ; `noter_conversation` tient ce rôle.
+`lire_planning`, `lire_semaine`, `lire_seance`, `lire_courses`, `lire_sante`, `lire_forme`, `lire_mesures`, `lire_progression`, `lire_catalogue` et `lire_chapitre` sont ceux de la section B.9.2. `lire_echanges` y a sa version client : elle rend aussi les derniers échanges, qu'un client n'a pas sous les yeux. `marquer_important` reste à HAL : il marque l'échange en cours, et un client n'en a pas ; `noter_conversation` tient ce rôle.
 
 **Demandes** (ACC)
 
@@ -4734,7 +4736,7 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 
 ### Annexe 7 : ce que change la version du 19 octobre 2026
 
-Migrations 068 et 069. Dix règles sont nouvelles, une est précisée, une est réécrite. SAI-21 ne touche que l'appli.
+Migrations 068 et 069. Onze règles sont nouvelles, une est précisée, une est réécrite. SAI-21 ne touche que l'appli.
 
 | Code | Ce qu'elle ajoute |
 |---|---|
@@ -4748,6 +4750,7 @@ Migrations 068 et 069. Dix règles sont nouvelles, une est précisée, une est r
 | SAN-14 | Une séance garde son tracé GPS, qui ne sort du serveur que vers HAL |
 | SAN-15 | Tout Santé, toutes sources, gardé avec sa source ; la montre passe d'abord, et une séance reçue deux fois ne compte qu'une fois. Les doublons déjà en base se départagent une fois après la migration, et la séance libre née d'un doublon, vide, se retire |
 | SAN-16 | Le sommeil est gardé phase par phase |
+| SAN-17 | HAL lit une course étape par étape, face au prévu, sans ses mesures brutes ni son tracé |
 
 TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. » Elle dit maintenant qu'un aspirateur passé la veille n'empêche pas d'en poser un le jour du récurage.
 
