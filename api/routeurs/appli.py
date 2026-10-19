@@ -479,7 +479,7 @@ def sante(qui: Authentifie, jours: int = 30) -> dict:
             """SELECT a.type, a.discipline, lower(a.periode) AS debut, a.duree_secondes,
                       a.distance_m, a.fc_moyenne, a.fc_max, a.allure_s_km, a.energie_kcal
                  FROM activite_sante a
-                WHERE a.id_utilisateur = %(moi)s
+                WHERE a.id_utilisateur = %(moi)s AND a.doublon_de IS NULL
                   AND lower(a.periode) > now() - make_interval(days => %(jours)s)
                 ORDER BY lower(a.periode) DESC""", params),
     }

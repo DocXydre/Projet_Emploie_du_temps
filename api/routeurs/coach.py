@@ -743,6 +743,126 @@ def recevoir_activite(qui: Authentifie, cle_externe: str, activite: Activite) ->
     return {**ligne["rendu"], "discipline": discipline}
 
 
+# SAN-11 à SAN-16 : tout le détail de Santé, par paquets d'au plus 5 000 lignes.
+# Chaque route est rejouable : un paquet renvoyé après une coupure ne crée rien
+# de plus. Ce qui sort des bornes est écarté par la base, le reste entre.
+
+class PointSerie(BaseModel):
+    grandeur: str = Field(max_length=24, description="fc, vitesse, cadence, puissance…")
+    debut: datetime
+    fin: datetime | None = None
+    valeur: float
+
+
+class Series(BaseModel):
+    series: list[PointSerie] = Field(max_length=5000)
+
+
+class Segment(BaseModel):
+    sorte: Literal["kilometre", "etape", "tour", "pause"]
+    rang: int = Field(ge=1)
+    debut: datetime
+    fin: datetime
+    distance_m: float | None = Field(default=None, ge=0)
+    libelle: str | None = Field(default=None, max_length=60)
+    prevu: dict | None = Field(default=None, description="Ce que l'étape prévoyait (MON-1)")
+    details: dict = Field(default_factory=dict)
+
+
+class Segments(BaseModel):
+    segments: list[Segment] = Field(max_length=5000)
+
+
+class PointTrace(BaseModel):
+    instant: datetime
+    latitude: float
+    longitude: float
+    altitude_m: float | None = None
+    precision_m: float | None = None
+    vitesse_ms: float | None = None
+
+
+class Trace(BaseModel):
+    points: list[PointTrace] = Field(max_length=5000)
+
+
+class Echantillon(BaseModel):
+    cle: str = Field(max_length=64, description="La clé que lui donne Santé")
+    grandeur: str = Field(max_length=24)
+    debut: datetime
+    fin: datetime | None = None
+    valeur: float
+    source: str | None = Field(default=None, max_length=80)
+    appareil: str | None = Field(default=None, max_length=40)
+
+
+class Echantillons(BaseModel):
+    echantillons: list[Echantillon] = Field(max_length=5000)
+
+
+class PhaseSommeil(BaseModel):
+    cle: str = Field(max_length=64)
+    phase: Literal["au_lit", "endormi", "eveille", "leger", "profond", "paradoxal"]
+    debut: datetime
+    fin: datetime
+    source: str | None = Field(default=None, max_length=80)
+    appareil: str | None = Field(default=None, max_length=40)
+
+
+class PhasesSommeil(BaseModel):
+    phases: list[PhaseSommeil] = Field(max_length=5000)
+
+
+def _lot(lignes: list[BaseModel]) -> Jsonb:
+    return Jsonb([ligne.model_dump(mode="json") for ligne in lignes])
+
+
+@routeur.put("/donnees-sante/activites/{cle_externe}/series", tags=["Coach : santé"],
+             summary="Mesures brutes d'une séance de la montre")
+def recevoir_series(qui: Authentifie, cle_externe: str, lot: Series) -> dict:
+    return executer("SELECT recevoir_series(%(u)s, %(c)s, %(l)s) AS r",
+                    {"u": qui.id_utilisateur, "c": cle_externe[:64],
+                     "l": _lot(lot.series)})["r"]
+
+
+@routeur.put("/donnees-sante/activites/{cle_externe}/segments", tags=["Coach : santé"],
+             summary="Kilomètres, étapes, tours et pauses d'une séance")
+def recevoir_segments(qui: Authentifie, cle_externe: str, lot: Segments) -> dict:
+    return executer("SELECT recevoir_segments(%(u)s, %(c)s, %(l)s) AS r",
+                    {"u": qui.id_utilisateur, "c": cle_externe[:64],
+                     "l": _lot(lot.segments)})["r"]
+
+
+@routeur.put("/donnees-sante/activites/{cle_externe}/trace", tags=["Coach : santé"],
+             summary="Tracé GPS d'une séance")
+def recevoir_trace(qui: Authentifie, cle_externe: str, lot: Trace) -> dict:
+    return executer("SELECT recevoir_trace(%(u)s, %(c)s, %(l)s) AS r",
+                    {"u": qui.id_utilisateur, "c": cle_externe[:64],
+                     "l": _lot(lot.points)})["r"]
+
+
+@routeur.put("/donnees-sante/echantillons", tags=["Coach : santé"],
+             summary="Mesures du quotidien, une par une")
+def recevoir_echantillons(qui: Authentifie, lot: Echantillons) -> dict:
+    return executer("SELECT recevoir_echantillons(%(u)s, %(l)s) AS r",
+                    {"u": qui.id_utilisateur, "l": _lot(lot.echantillons)})["r"]
+
+
+@routeur.put("/donnees-sante/sommeil", tags=["Coach : santé"],
+             summary="Phases du sommeil")
+def recevoir_sommeil(qui: Authentifie, lot: PhasesSommeil) -> dict:
+    return executer("SELECT recevoir_phases_sommeil(%(u)s, %(l)s) AS r",
+                    {"u": qui.id_utilisateur, "l": _lot(lot.phases)})["r"]
+
+
+@routeur.get("/donnees-sante/reception", tags=["Coach : santé"],
+             summary="Ce que le serveur a reçu de Santé")
+def reception(qui: Authentifie) -> dict:
+    """SAN-7 : rendu à son seul propriétaire. Sert à suivre l'envoi de l'historique."""
+    return un_seul("SELECT * FROM v_sante_reception WHERE id_utilisateur = %(u)s",
+                   {"u": qui.id_utilisateur}) or {}
+
+
 @routeur.get("/donnees-sante/fraicheur", tags=["Coach : santé"],
              summary="Date du dernier envoi")
 def fraicheur(qui: Authentifie) -> dict:

@@ -326,7 +326,7 @@ def lire_sante(u: int, a: dict) -> object:
                   a.distance_m, a.denivele_m, a.fc_moyenne, a.fc_max, a.allure_s_km,
                   a.id_occurrence
              FROM activite_sante a
-            WHERE a.id_utilisateur = %(u)s
+            WHERE a.id_utilisateur = %(u)s AND a.doublon_de IS NULL
               AND jour_de(lower(a.periode)) BETWEEN %(du)s AND %(au)s
             ORDER BY lower(a.periode)""", {"u": u, "du": du, "au": au})
     fraicheur = un_seul("SELECT dernier_envoi, dernier_jour FROM v_sante_fraicheur "

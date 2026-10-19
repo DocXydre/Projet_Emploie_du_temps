@@ -17,6 +17,10 @@ BEGIN
     IF NOT FOUND THEN
         RETURN NULL;
     END IF;
+    -- SAN-15 : un doublon ne se rattache à rien, la séance qui compte le fait.
+    IF a.doublon_de IS NOT NULL THEN
+        RETURN NULL;
+    END IF;
     IF a.id_occurrence IS NOT NULL OR a.discipline = 'autre' THEN
         RETURN a.id_occurrence;
     END IF;

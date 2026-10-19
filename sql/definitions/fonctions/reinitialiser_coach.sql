@@ -36,6 +36,8 @@ BEGIN
         DELETE FROM activite_sante WHERE id_utilisateur = p_utilisateur;
         GET DIAGNOSTICS v_sante = ROW_COUNT;
         DELETE FROM sante_jour WHERE id_utilisateur = p_utilisateur;
+        DELETE FROM echantillon_sante WHERE id_utilisateur = p_utilisateur;
+        DELETE FROM sommeil_phase WHERE id_utilisateur = p_utilisateur;
     END IF;
     DELETE FROM mesure WHERE id_utilisateur = p_utilisateur;
     DELETE FROM fenetre_mesure WHERE id_utilisateur = p_utilisateur;
