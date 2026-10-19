@@ -192,6 +192,23 @@ class Configuration(BaseSettings):
     # Vide : rien n'est écrit (le serveur). En local : /app/local/appels.
     coach_trace_dossier: str = ""
 
+    # --- Fournisseurs du modèle (partie F) -----------------------------------
+    # FOU-3 : la clé qui chiffre en base les jetons d'abonnement et les clés
+    # d'API des comptes. Une clé Fernet : 44 caractères, à tirer une fois avec
+    # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+    # Vide : aucun fournisseur ne peut être branché, la clé du serveur sert à tous.
+    hal_cle_chiffrement: str = ""
+
+    # FOU-10 : où Claude Code, lancé par l'API, joint le serveur MCP de HAL.
+    # C'est l'API elle-même, vue de l'intérieur du conteneur.
+    mcp_adresse_interne: str = "http://127.0.0.1:8000/mcp"
+
+    # FOU-16 : Claude Code tournant en même temps sur le serveur, au plus.
+    claude_code_courses_max: int = 2
+
+    # FOU-7 : le plafond mensuel de l'API d'un compte qui n'en a pas réglé, en dollars.
+    plafond_api_defaut: float = 10.0
+
     # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
     # à la main pour ne pas dépendre de l'heure qu'il est.
     ordonnanceur_actif: bool = True

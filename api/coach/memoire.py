@@ -199,18 +199,30 @@ def _modele_de_resume() -> str:
     return conf.coach_modele_memoire or conf.coach_modele
 
 
-def resumer(etape: str, materiau: str, limite: int) -> tuple[str, modele.Tour]:
-    """MEM-7 : un résumé, sous la limite. Un seul nouvel essai s'il déborde."""
+def resumer(etape: str, materiau: str, limite: int,
+            id_utilisateur: int | None = None) -> tuple[str, modele.Tour]:
+    """MEM-7 : un résumé, sous la limite. Un seul nouvel essai s'il déborde.
+
+    FOU-15 : par la chaîne des fournisseurs du compte, abonnement d'abord.
+    """
     systeme = consigne_de_resume() + "\n\n# Ce que tu fais maintenant\n\n" + etape + \
         f"\n\nLimite : {limite} caractères, espaces compris. Rends le texte seul."
     nom = _modele_de_resume()
-    tour = modele.ecrire(systeme, materiau, nom, TOKENS_RESUME, DELAI_RESUME)
+
+    def rediger(texte: str) -> modele.Tour:
+        if id_utilisateur is None:
+            return modele.ecrire(systeme, texte, nom, TOKENS_RESUME, DELAI_RESUME)
+        from api.coach import fournisseurs
+        return fournisseurs.ecrire(id_utilisateur, systeme, texte, nom, TOKENS_RESUME,
+                                   DELAI_RESUME)
+
+    tour = rediger(materiau)
     texte_rendu = tour.texte.strip()
     if len(texte_rendu) > limite:
         relance = (materiau + "\n\n# Ta première version, trop longue\n\n" + texte_rendu
                    + f"\n\nElle fait {len(texte_rendu)} caractères pour {limite} permis. "
                    "Raccourcis-la sans perdre ce qui est important.")
-        second = modele.ecrire(systeme, relance, nom, TOKENS_RESUME, DELAI_RESUME)
+        second = rediger(relance)
         second.tokens_entree += tour.tokens_entree
         second.tokens_sortie += tour.tokens_sortie
         tour, texte_rendu = second, second.texte.strip()
@@ -332,7 +344,7 @@ def _verser_les_semaines(id_utilisateur: int, jour: date, fait: list[str]) -> No
         if rien:
             ecrire(id_utilisateur, "mois", avant, "resume", mois_cible, debut)
             continue
-        nouveau, tour = resumer(ETAPE_SEMAINE, materiau, 3000)
+        nouveau, tour = resumer(ETAPE_SEMAINE, materiau, 3000, id_utilisateur)
         ecrire(id_utilisateur, "mois", nouveau, "resume", mois_cible, debut, tour,
                _modele_de_resume())
         fait.append(f"semaine du {debut} versée dans {mois_en_clair(mois_cible)}")
@@ -355,7 +367,7 @@ def _archiver_les_mois(id_utilisateur: int, jour: date, fait: list[str]) -> None
         else:
             court, tour = resumer(
                 ETAPE_MOIS, f"# La mémoire de {mois_en_clair(mois['periode'])}\n\n"
-                            f"{texte_mois}", 1500)
+                            f"{texte_mois}", 1500, id_utilisateur)
             ecrire(id_utilisateur, "archive_mois", court, "resume", mois["periode"], None,
                    tour, _modele_de_resume())
         fait.append(f"{mois_en_clair(mois['periode'])} archivé")
@@ -383,7 +395,7 @@ def _verser_dans_la_globale(id_utilisateur: int, jour: date, fait: list[str]) ->
             ETAPE_GLOBALE,
             f"# La mémoire globale jusqu'ici\n\n{avant or '(vide)'}\n\n"
             f"# Le mois qui sort : {mois_en_clair(archive['periode'])}\n\n{archive['texte']}",
-            4000)
+            4000, id_utilisateur)
         ecrire(id_utilisateur, "globale", nouveau, "resume", None, archive["periode"], tour,
                _modele_de_resume())
         globale = en_vigueur(id_utilisateur, "globale")

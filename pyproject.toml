@@ -22,6 +22,9 @@ dependencies = [
     "anthropic>=0.40",
     # HAL en serveur MCP (partie F). La version 2 a renommé et changé l'API de la 1.
     "mcp>=2.3,<3",
+    # FOU-10 : Claude Code sur l'abonnement de chacun. Le paquet embarque Claude
+    # Code lui-même : l'image n'a besoin ni de Node ni d'une installation à part.
+    "claude-agent-sdk>=0.2.168,<0.3",
 ]
 
 [project.optional-dependencies]

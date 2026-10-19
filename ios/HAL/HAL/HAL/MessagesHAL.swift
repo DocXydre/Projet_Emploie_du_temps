@@ -90,14 +90,19 @@ struct MessageHAL: Identifiable, Hashable, Sendable {
     var elements: [ElementHAL] = []
     var quand: Date? = nil
     var moment: String? = nil
+    /// FOU-9 : quand ce n'est pas le premier fournisseur qui a répondu, pourquoi
+    /// (« Par l'API : abonnement épuisé jusqu'à 18:00 »).
+    var noteFournisseur: String? = nil
     /// Un message parti de l'appli qui attend encore sa réponse (ORB-8).
     var enAttente = false
 }
 
 extension MessageHAL: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case idEchange, auteur, message, elements, quand, moment
+        case idEchange, auteur, message, elements, quand, moment, fournisseur
     }
+
+    private struct Fournisseur: Decodable { let note: String? }
 
     /// Un élément qu'on ne sait pas lire est sauté, pas le message entier.
     private struct Peut: Decodable {
@@ -118,6 +123,7 @@ extension MessageHAL: Decodable {
         elements = (try? c.decodeIfPresent([Peut].self, forKey: .elements))?.compactMap(\.element) ?? []
         quand = try? c.decodeIfPresent(Date.self, forKey: .quand)
         moment = try c.decodeIfPresent(String.self, forKey: .moment)
+        noteFournisseur = (try? c.decodeIfPresent(Fournisseur.self, forKey: .fournisseur))?.note
     }
 }
 

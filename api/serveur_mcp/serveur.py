@@ -32,9 +32,10 @@ from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 
 from api import operation
-from api.coach import dossier
+from api.coach import course, dossier
 from api.coach.outils import executer_outil
 from api.config import configuration
+from api.securite import par_le_funnel
 from api.serveur_mcp import catalogue, cles
 from api.serveur_mcp.cles import Porteur
 
@@ -60,14 +61,29 @@ def debit_permis(id_cle: int, maintenant: float | None = None) -> bool:
     return True
 
 
+def _etat(ctx) -> dict:
+    requete = getattr(ctx, "request", None)
+    return (getattr(requete, "scope", None) or {}).get("state", {})
+
+
+def _course(ctx) -> course.EtatCourse | None:
+    """MCP-4 : une course du module HAL, posée par la porte (profil interne)."""
+    return _etat(ctx).get("hal_course")
+
+
 def _porteur(ctx) -> Porteur:
     """Le titulaire de la clé, posé par la porte dans la requête HTTP."""
-    requete = getattr(ctx, "request", None)
-    qui = (getattr(requete, "scope", None) or {}).get("state", {}).get("hal")
+    qui = _etat(ctx).get("hal")
     if qui is None:
         # La porte refuse avant : n'arrive que si le serveur est servi autrement.
         raise MCPError(INVALID_PARAMS, "Clé MCP absente")
     return qui
+
+
+def _admis(ctx) -> None:
+    """Une clé MCP ou une course : les ressources du dossier sont aux deux."""
+    if _course(ctx) is None:
+        _porteur(ctx)
 
 
 def _client(ctx) -> str:
@@ -96,9 +112,32 @@ def _declaration(outil) -> types.Tool:
 
 
 async def lister_outils(ctx, params) -> types.ListToolsResult:
+    etat = _course(ctx)
+    if etat is not None:
+        # MCP-4, COA-5 : une course n'a que les outils de son moment.
+        return types.ListToolsResult(tools=[
+            types.Tool(name=o.nom, description=o.description, input_schema=o.schema,
+                       annotations=types.ToolAnnotations(
+                           read_only_hint=o.famille == "lecture", destructive_hint=False,
+                           open_world_hint=False))
+            for o in etat.permis if not o.cache])
     _porteur(ctx)
     return types.ListToolsResult(
         tools=[_declaration(o) for o in catalogue.EXTERNE.values()])
+
+
+def executer_pour_la_course(etat: course.EtatCourse, nom: str,
+                            arguments: dict) -> tuple[str, bool]:
+    """FOU-10 : un outil de Claude Code, dans l'opération de l'appel, sous l'acteur
+    du coach, comme dans la boucle de l'API (COA-6)."""
+    with operation.ouvrir_a_part(f"coach : {etat.moment}", "coach", etat.operation):
+        try:
+            return course.executer_outil(etat, nom, arguments)
+        except Exception:
+            LOG.exception("Outil %s de la course en échec", nom)
+            return json.dumps({"refus": "erreur_interne",
+                               "motif": "L'outil a échoué côté serveur."},
+                              ensure_ascii=False), True
 
 
 def executer(qui: Porteur, client: str, nom: str, arguments: dict) -> tuple[str, bool]:
@@ -124,6 +163,11 @@ def executer(qui: Porteur, client: str, nom: str, arguments: dict) -> tuple[str,
 
 
 async def appeler_outil(ctx, params: types.CallToolRequestParams) -> types.CallToolResult:
+    etat = _course(ctx)
+    if etat is not None:
+        texte, refus = await anyio.to_thread.run_sync(
+            partial(executer_pour_la_course, etat, params.name, params.arguments or {}))
+        return types.CallToolResult(content=_texte(texte), is_error=refus)
     qui = _porteur(ctx)
     if not debit_permis(qui.id_cle):
         return types.CallToolResult(content=_texte(json.dumps(
@@ -148,7 +192,7 @@ def _uri(numero: str) -> str:
 
 
 async def lister_ressources(ctx, params) -> types.ListResourcesResult:
-    _porteur(ctx)
+    _admis(ctx)
     ressources = [types.Resource(uri=SOMMAIRE, name="Sommaire du dossier de HAL",
                                  mime_type="text/markdown")]
     ressources += [types.Resource(uri=_uri(numero), name=titre, mime_type="text/markdown")
@@ -158,7 +202,7 @@ async def lister_ressources(ctx, params) -> types.ListResourcesResult:
 
 async def lire_ressource(ctx, params: types.ReadResourceRequestParams
                          ) -> types.ReadResourceResult:
-    _porteur(ctx)
+    _admis(ctx)
     uri = str(params.uri)
     if uri == SOMMAIRE:
         texte = dossier.sommaire()
@@ -178,7 +222,7 @@ INVITE = "hal"
 
 
 async def lister_invites(ctx, params) -> types.ListPromptsResult:
-    _porteur(ctx)
+    _admis(ctx)
     return types.ListPromptsResult(prompts=[types.Prompt(
         name=INVITE, title="Parler à HAL",
         description="Charge HAL : son cadre, le socle de son dossier, ce qu'il sait de toi "
@@ -209,7 +253,7 @@ class PresentationDuClient:
     """
 
     async def __call__(self, ctx, call_next):
-        if ctx.method == "initialize":
+        if ctx.method == "initialize" and _course(ctx) is None:
             info = (ctx.params or {}).get("clientInfo") or {}
             nom = " ".join(str(x) for x in (info.get("name"), info.get("version")) if x)
             try:
@@ -275,8 +319,26 @@ class Porte:
             await _passer(scope, receive, send)
 
 
+LOCAL = {"127.0.0.1", "::1", "localhost"}
+
+
 async def _passer(scope, receive, send) -> None:
-    qui = await anyio.to_thread.run_sync(cles.porteur, _cle(Headers(scope=scope)))
+    from starlette.requests import Request
+
+    entetes = Headers(scope=scope)
+    jeton = entetes.get(course.EN_TETE_JETON.lower())
+    if jeton:
+        # MCP-14 : un jeton de course ne vaut que depuis le conteneur lui-même.
+        hote = (scope.get("client") or ("",))[0]
+        etat = course.etat_de(jeton)
+        if etat is None or hote not in LOCAL or par_le_funnel(Request(scope)):
+            await JSONResponse({"code": "jeton_course_invalide",
+                                "message": "Jeton de course inconnu, fini, ou venu d'ailleurs"},
+                               status_code=401)(scope, receive, send)
+            return
+        await _servir(scope, receive, send, {"hal_course": etat})
+        return
+    qui = await anyio.to_thread.run_sync(cles.porteur, _cle(entetes))
     if qui is None:
         reponse = JSONResponse(
             {"code": "cle_mcp_invalide",
@@ -285,9 +347,13 @@ async def _passer(scope, receive, send) -> None:
             status_code=401)
         await reponse(scope, receive, send)
         return
+    await _servir(scope, receive, send, {"hal": qui})
+
+
+async def _servir(scope, receive, send, qui: dict) -> None:
     if _gestionnaire is None:
         await JSONResponse({"code": "indisponible", "message": "Le serveur MCP démarre"},
                            status_code=503)(scope, receive, send)
         return
-    scope.setdefault("state", {})["hal"] = qui
+    scope.setdefault("state", {}).update(qui)
     await _gestionnaire.handle_request(scope, receive, send)
