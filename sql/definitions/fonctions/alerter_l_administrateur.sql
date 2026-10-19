@@ -2,19 +2,22 @@
 -- Prévenir l'administrateur du serveur                          (ADM-2, ADM-4)
 --
 -- Un problème, désigné par sa clé. La première fois, le bot le dit. Tant qu'il
--- dure, il ne le redit qu'une fois par heure au plus. Rend vrai quand un
--- message part.
+-- dure, il ne le redit qu'une fois par heure au plus, et une fois par jour pour
+-- une source en panne : elle n'empêche rien de tourner, et la redire toutes les
+-- heures noyait le reste. Rend vrai quand un message part.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION alerter_l_administrateur(p_cle TEXT, p_texte TEXT)
 RETURNS BOOLEAN LANGUAGE plpgsql AS $$
 DECLARE
     v_admin   INTEGER;
     v_annonce TIMESTAMPTZ;
+    v_rappel  INTERVAL := CASE WHEN p_cle LIKE 'source:%' THEN INTERVAL '1 day'
+                               ELSE INTERVAL '1 hour' END;
 BEGIN
     SELECT annoncee_le INTO v_annonce
       FROM alerte_admin WHERE cle = p_cle AND reglee_le IS NULL;
 
-    IF FOUND AND v_annonce > now() - INTERVAL '1 hour' THEN
+    IF FOUND AND v_annonce > now() - v_rappel THEN
         UPDATE alerte_admin SET texte = p_texte WHERE cle = p_cle;
         RETURN FALSE;
     END IF;
@@ -43,4 +46,4 @@ END $$;
 
 COMMENT ON FUNCTION alerter_l_administrateur(TEXT, TEXT) IS
     'ADM-2, ADM-4 : signale un problème à l''administrateur par le bot, au plus
-     une fois par heure tant qu''il dure.';
+     une fois par heure tant qu''il dure, une fois par jour pour une source.';
