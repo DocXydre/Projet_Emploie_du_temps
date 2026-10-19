@@ -2118,7 +2118,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAN-7 | D | Les données de santé ne sortent du serveur que dans le contenu d'un appel au modèle, et seulement ce que rend l'outil demandé ou la lecture faite d'office (COA-28). Elles ne figurent ni dans le flux iCalendar, ni dans ce que l'autre personne peut lire |
 | SAN-8 | T | Une séance de la montre de plus de 28 jours est gardée telle quelle pour HAL, mais ne se rattache à rien et ne crée aucune séance libre. On peut ainsi envoyer tout l'historique de Santé sans remplir le planning passé |
 | SAN-9 | T | Chaque soir, avant la clôture, une séance de la montre restée seule rejoint la séance du même jour et de la même discipline. Elle couvre la séance posée à la main après l'envoi de la montre |
-| SAN-10 | T | L'envoi depuis Santé est automatique : l'appli s'abonne aux nouvelles données et les envoie en tâche de fond, sans bouton ni raccourci. Elle ne lit que ce qui est coché dans Réglages et n'écrit rien dans Santé |
+| SAN-10 | T | L'envoi depuis Santé est automatique : l'appli s'abonne aux nouvelles données et les envoie en tâche de fond, sans bouton ni raccourci. Elle ne lit que ce qui est coché dans Réglages et n'écrit rien dans Santé. Le premier envoi remonte tout l'historique, par morceaux : chaque type garde sur le téléphone l'endroit où il en est, l'envoi reprend là après une coupure, et avance surtout iPhone branché. Ensuite, seul le nouveau part |
 | SAN-11 | D | Chaque mesure prise pendant une séance de la montre est gardée brute, avec son heure : FC, vitesse, cadence, puissance, longueur de foulée, temps de contact au sol, oscillation verticale, distance. Elle arrive après sa séance, sous la même clé, et se renvoie sans doublon. C'est d'elles que se recalcule tout ce qu'on montre ou qu'on envoie à HAL |
 | SAN-12 | D | Chaque grandeur a son unité et ses bornes plausibles, écrites en données (`grandeur_sante`). Une mesure hors bornes, d'une grandeur inconnue, venue du futur, ou à plus de dix minutes de sa séance est écartée ; le reste de l'envoi entre. Un envoi porte au plus 5 000 lignes : l'historique part par paquets |
 | SAN-13 | D | Une séance garde son découpage : les kilomètres, les étapes (avec ce que HAL avait prévu pour chacune, MON-1), les tours, les pauses. Un découpage renvoyé remplace celui de la même sorte |
@@ -4034,7 +4034,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
 - trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21).
-- la santé en détail : la base et les routes sont prêtes (migration 069, SAN-11 à SAN-16). L'appli ne les remplit pas encore, et les écrans [3.22 à 3.25] sont dessinés, pas construits.
+- la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont dessinés, pas construits.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 

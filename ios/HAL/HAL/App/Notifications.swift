@@ -1,3 +1,4 @@
+import BackgroundTasks
 import Observation
 import SwiftUI
 import UIKit
@@ -119,6 +120,14 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // SAN-11 à SAN-16 : l'historique de Santé avance iPhone branché.
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: EnvoiSante.idHistorique, using: nil) { tache in
+            let travail = Task { @MainActor in
+                let fini = await EnvoiSante.actuel?.avancerLHistorique() ?? false
+                tache.setTaskCompleted(success: fini)
+            }
+            tache.expirationHandler = { travail.cancel() }
+        }
         return true
     }
 

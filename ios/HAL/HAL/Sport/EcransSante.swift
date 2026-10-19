@@ -21,6 +21,7 @@ struct EcranReglagesSante: View {
     @Environment(EnvoiSante.self) private var sante
     @Environment(Foyer.self) private var foyer
     @Environment(\.openURL) private var ouvrir
+    @State private var renvoyer = false
 
     var body: some View {
         FormulaireVerre {
@@ -73,8 +74,21 @@ struct EcranReglagesSante: View {
             } header: {
                 Text("Ce qui est lu")
             } footer: {
-                Text("Une case décochée n'est plus envoyée ; ce qui est déjà sur le serveur y reste. La fréquence du jour ne quitte pas le téléphone : elle sert au widget et à son écran.")
+                Text("Toutes les sources de Santé : la montre, l'iPhone, une balance. Une case décochée n'est plus envoyée ; ce qui est déjà sur le serveur y reste.")
             }
+
+            if sante.lues.contains(.trace) {
+                Section {
+                    Label {
+                        Text("Le tracé montre où tu cours : il reste sur ton serveur, n'est lu que par HAL, et \(foyer.autre?.nom ?? "l'autre membre du foyer") ne le voit pas.")
+                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    } icon: {
+                        Image(systemName: "lock").foregroundStyle(Categorie.sport.couleur)
+                    }
+                }
+            }
+
+            historique
 
             Section {
                 Button("Autoriser l'accès à Santé") { Task { await sante.demanderAcces() } }
@@ -82,7 +96,7 @@ struct EcranReglagesSante: View {
                     if let lien = URL(string: "x-apple-health://") { ouvrir(lien) }
                 }
             } footer: {
-                Text("iOS ne dit jamais qu'une donnée est refusée : elle ressemble à une donnée absente. Les autorisations se changent dans Réglages d'iOS, Confidentialité et sécurité, Santé, HAL.")
+                Text("Dans la fenêtre d'iOS, choisis « Toutes les données enregistrées » : sinon HAL ne voit que les 30 derniers jours. iOS ne dit jamais qu'une donnée est refusée : elle ressemble à une donnée absente. Les autorisations se changent dans Réglages d'iOS, Confidentialité et sécurité, Santé, HAL.")
             }
 
             Section("Voir les données") {
@@ -103,9 +117,55 @@ struct EcranReglagesSante: View {
 
     private func couleur(_ donnee: EnvoiSante.Donnee) -> Color {
         switch donnee {
-        case .sommeil: Categorie.ia.couleur
-        case .seances, .pas: Categorie.sport.couleur
-        default: Categorie.alerte.couleur
+        case .sommeil, .nuit: Categorie.ia.couleur
+        case .seances, .pas, .detailSeances, .trace, .vfc: Categorie.sport.couleur
+        case .poids: Categorie.linge.couleur
+        case .frequence: Categorie.alerte.couleur
+        }
+    }
+
+    /// 5.10 : le premier envoi remonte tout l'historique, par morceaux. On voit
+    /// où il en est ; « Tout renvoyer » repart du début sans rien doubler (SAN-3).
+    private var historique: some View {
+        let collecte = sante.collecte
+        let fini = collecte.historiqueFini(sante.lues)
+        let avancee = collecte.avancee(sante.lues)
+        return Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(fini ? "Historique à jour" : "Premier envoi en cours")
+                        .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                    Spacer()
+                    if collecte.enCours { ProgressView().controlSize(.small) }
+                    Text(avancee.formatted(.percent.precision(.fractionLength(0)).locale(enFrancais)))
+                        .texte(.titreWidget).foregroundStyle(Categorie.sport.couleur)
+                }
+                ProgressView(value: avancee).tint(Categorie.sport.couleur)
+                let resume = collecte.resume(sante.lues)
+                if !resume.isEmpty {
+                    Text(resume).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                }
+                if let bilan = collecte.dernierBilan {
+                    Text(bilan).texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                }
+            }
+            .padding(.vertical, 4)
+            Button("Tout renvoyer depuis le début") { renvoyer = true }
+                .disabled(collecte.enCours)
+                .confirmationDialog("Tout renvoyer depuis le début ?", isPresented: $renvoyer,
+                                    titleVisibility: .visible) {
+                    Button("Tout renvoyer") {
+                        collecte.toutRenvoyer()
+                        Task { await sante.envoyer(raison: "tout renvoyer", budget: 60) }
+                    }
+                    Button("Annuler", role: .cancel) {}
+                } message: {
+                    Text("L'historique repart de zéro. Le serveur ne garde rien en double.")
+                }
+        } header: {
+            Text("Historique")
+        } footer: {
+            Text("Il avance à chaque ouverture, et surtout quand l'iPhone est branché. Il reprend tout seul là où il s'est arrêté. Ensuite, seul le nouveau part.")
         }
     }
 

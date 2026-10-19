@@ -57,8 +57,9 @@ targets:
           HAL utilise la photo que tu choisis comme fond de l'appli.
         # SAN-10 : Santé est lue toute seule, rien n'y est écrit.
         NSHealthShareUsageDescription: >-
-          HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ton
-          sommeil et tes séances pour adapter ton plan.
+          HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ta
+          VO2max, ton poids, ton sommeil, tes séances avec leur détail et leur
+          tracé, pour adapter ton plan. Tout reste sur ton serveur.
         NSHealthUpdateUsageDescription: HAL n'écrit rien dans Santé.
         # ORB-5 : la dictée, dans le panneau de HAL.
         NSMicrophoneUsageDescription: >-
@@ -67,8 +68,8 @@ targets:
           Ta voix est transcrite en texte pour écrire ton message à HAL.
         # IOS-3 : la séance en cours sur l'écran verrouillé et dans la Dynamic Island.
         NSSupportsLiveActivities: true
-        UIBackgroundModes: [fetch]
-        BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante]
+        UIBackgroundModes: [fetch, processing]
+        BGTaskSchedulerPermittedIdentifiers: [fr.docxydre.hal.sante, fr.docxydre.hal.sante.historique]
         # 5.18 : la page d'un lien d'invitation ouvre l'appli par hal://rejoindre.
         CFBundleURLTypes:
           - CFBundleURLName: fr.docxydre.hal

@@ -12,33 +12,47 @@ import Observation
 final class EnvoiSante {
     nonisolated static let idTache = "fr.docxydre.hal.sante"
 
-    /// SAN-10 : ce que l'appli lit, coché dans Réglages. Tout l'est au départ.
+    nonisolated static let idHistorique = CollecteSante.idTache
+    /// Pour la tâche de fond de l'historique, enregistrée hors de SwiftUI.
+    static weak var actuel: EnvoiSante?
+
+    /// SAN-10 : ce que l'appli lit, coché dans Réglages (5.10). Tout l'est au départ.
     enum Donnee: String, CaseIterable, Identifiable {
-        case pas, fcRepos, vfc, sommeil, seances, frequence
+        case pas, frequence, vfc, sommeil, seances, detailSeances, trace, poids, nuit
 
         var id: String { rawValue }
 
         var libelle: String {
             switch self {
-            case .pas: "Pas"
-            case .fcRepos: "Fréquence cardiaque au repos"
-            case .vfc: "Variabilité cardiaque"
-            case .sommeil: "Sommeil"
+            case .pas: "Pas et activité"
+            case .frequence: "FC de toute la journée"
+            case .vfc: "VFC, VO2max, récupération"
+            case .sommeil: "Sommeil par phases"
             case .seances: "Séances de la montre"
-            case .frequence: "Fréquence cardiaque du jour"
+            case .detailSeances: "Détail des séances"
+            case .trace: "Tracé GPS des séances"
+            case .poids: "Poids"
+            case .nuit: "SpO2, respiration, température"
             }
         }
 
         var icone: String {
             switch self {
             case .pas: "figure.walk"
-            case .fcRepos: "heart"
-            case .vfc: "waveform.path.ecg"
+            case .frequence: "heart"
+            case .vfc: "flame"
             case .sommeil: "bed.double"
             case .seances: "applewatch"
-            case .frequence: "heart.text.square"
+            case .detailSeances: "chart.xyaxis.line"
+            case .trace: "map"
+            case .poids: "scalemass"
+            case .nuit: "moon"
             }
         }
+
+        /// Les cases de la version d'avant (lot 6c) : celles qui manquent
+        /// arrivent cochées, comme tout au départ.
+        static let ajouteesAuDetail: Set<Donnee> = [.frequence, .detailSeances, .trace, .poids, .nuit]
     }
 
     /// Ce qui est coché. Une case décochée n'est plus envoyée ; ce qui est déjà
@@ -57,22 +71,33 @@ final class EnvoiSante {
     private(set) var frequenceDuJour: [PointSerie] = []
 
     let lecteur = LecteurSante()
+    /// SAN-11 à SAN-16 : tout le détail, sur tout l'historique.
+    let collecte: CollecteSante
     private let reglages = UserDefaults.standard
     private var dernierEssai: Date?
     var client: ClientAPI?
 
     init() {
+        collecte = CollecteSante(lecteur: lecteur)
         dernierEnvoi = reglages.object(forKey: "sante.dernier_envoi") as? Date
         if let codes = reglages.stringArray(forKey: "sante.lues") {
-            lues = Set(codes.compactMap(Donnee.init(rawValue:)))
+            var cochees = Set(codes.compactMap(Donnee.init(rawValue:)))
+            // « fcRepos » est devenue « frequence » ; les cases du détail arrivent cochées.
+            if !reglages.bool(forKey: "sante.lues.detail") {
+                if codes.contains("fcRepos") { cochees.insert(.frequence) }
+                cochees.formUnion(Donnee.ajouteesAuDetail)
+                reglages.set(true, forKey: "sante.lues.detail")
+            }
+            lues = cochees
         }
+        Self.actuel = self
     }
 
     /// Une journée réduite à ce qui est coché.
     private func filtree(_ jour: JourSante) -> JourSante {
         var j = jour
         if !lues.contains(.pas) { j.pas = nil }
-        if !lues.contains(.fcRepos) { j.fcRepos = nil }
+        if !lues.contains(.frequence) { j.fcRepos = nil }
         if !lues.contains(.vfc) { j.vfcMs = nil }
         if !lues.contains(.sommeil) { j.sommeilMinutes = nil }
         return j
@@ -149,7 +174,7 @@ final class EnvoiSante {
     }
 
     @discardableResult
-    func envoyer(raison: String) async -> String {
+    func envoyer(raison: String, budget: TimeInterval = 40) async -> String {
         guard !enCours else { return "Un envoi est déjà en cours." }
         guard disponible else { return "Santé n'est pas disponible sur cet appareil." }
         guard let client else { return "Pas de serveur." }
@@ -194,6 +219,11 @@ final class EnvoiSante {
             echecs += 1
         }
 
+        // SAN-11 à SAN-16 : puis le détail, l'historique avançant dans le temps donné.
+        if !injoignable {
+            await collecte.avancer(lues: lues, client: client, jusqua: Date.now.addingTimeInterval(budget))
+        }
+
         let bilan = "\(jours) jour(s) et \(seances) séance(s) envoyés (\(raison))"
         if !injoignable && echecs == 0 {
             dernierEnvoi = .now
@@ -217,6 +247,13 @@ final class EnvoiSante {
     func envoyerEnFond() async {
         Self.planifier()
         await relireLAcces()
-        await envoyer(raison: "arrière-plan")
+        await envoyer(raison: "arrière-plan", budget: 15)
+    }
+
+    /// iPhone branché : l'historique avance tant qu'iOS le laisse faire.
+    func avancerLHistorique() async -> Bool {
+        await relireLAcces()
+        guard disponible, accesDemande, let client else { return false }
+        return await collecte.avancer(lues: lues, client: client, jusqua: .distantFuture)
     }
 }
