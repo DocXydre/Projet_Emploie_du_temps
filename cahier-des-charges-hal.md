@@ -54,7 +54,7 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 | Notifications | Par Apple, avec la raison de chaque changement ; le « ! » de l'orbe pour le récap et les ajustements ; heures réglables par chacun | NOT-15 à NOT-19 |
 | « Pourquoi ? » | Remplacé par la raison jointe aux notifications et l'écran Historique | NOT-17, JRN-9 |
 | Accès | Toutes les routes de l'appli par le funnel, derrière la clé ; l'administration reste privée | CNX-5 |
-| Séance de musculation | Arrêter en cours, faite sans saisie, série intermédiaire à −10 ou −20 %, repos en Live Activity. Pendant l'exercice, le poids prévu par HAL, le record et le record sur dix répétitions ; la charge au demi-kilo | SAI-15 à SAI-18, SAI-20 |
+| Séance de musculation | Arrêter en cours, faite sans saisie, série intermédiaire à −10 ou −20 %, repos en Live Activity. Pendant l'exercice, le poids prévu par HAL, le record et le record sur dix répétitions ; la charge au demi-kilo. Une bulle dit quand la gourde Yanga peut se recharger | SAI-15 à SAI-18, SAI-20, SAI-21 |
 | Note d'effort | Seulement pour la musculation : la montre donne celle de la course | SAI-4 |
 | Course | Envoyée à la montre, sans bouton « Commencer », validée par Santé. Pas d'app Apple Watch. Pas d'export PDF ni JSON | MON |
 | Santé | Envoi automatique, sans Raccourcis ni bouton | SAN-10 |
@@ -70,6 +70,7 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 |---|---|---|
 | Série intermédiaire | −10 % s'il manque une ou deux répétitions, −20 % au-delà, arrondi à 2,5 kg | SAI-17 |
 | Charge saisie | Au demi-kilo, au clavier ou en restant appuyé sur + et − | SAI-20 |
+| Gourde Yanga | Vingt minutes entre deux recharges, le délai de la machine Yanga Sports Water des clubs Basic-Fit | SAI-21 |
 | Décocher une tâche | Trente secondes avant l'envoi | APP-10 |
 | Heure du récap | Quand elle change, la clôture des séances du jour suit la même heure | NOT-15, PLN-9 |
 | Silence de la nuit | Réglable comme les autres heures | NOT-15 |
@@ -2102,6 +2103,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAI-18 | T | Valider une série lance le repos prévu. Il reste visible sur l'écran verrouillé et dans la Dynamic Island, avec un retour haptique à la fin (IOS-3) |
 | SAI-19 | M | Une séance lancée par erreur s'annule entière, depuis la séance en cours. Une séance libre ouverte ainsi disparaît avec ses séries ; une séance prévue reste à faire, sans les séries saisies pendant ce lancement. Une séance close, avec un bilan ou des séries figées, ne s'annule plus |
 | SAI-20 | M | Pendant un exercice, l'appli montre trois poids : celui que HAL a prévu, le plus lourd jamais soulevé sur cet exercice, et le plus lourd tenu sur au moins dix répétitions. Les deux records se lisent dans les séries saisies, rien n'est stocké en plus. La charge se règle au demi-kilo |
+| SAI-21 | T | Pendant la séance et le repos, une bulle dit quand la gourde Yanga peut se recharger : la machine du club n'en sert qu'une toutes les vingt minutes. On la touche au retour de la machine, elle compte les minutes, puis repasse à « recharge possible » ; une notification le dit si le téléphone est rangé, et se retire quand la séance se ferme. L'heure de la recharge reste sur le téléphone, le serveur n'en sait rien. La bulle se masque dans Réglages, HAL et sport |
 
 #### B.3.7 Données de santé : `SAN`
 
@@ -3533,7 +3535,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 - **Le bot Telegram ne sert plus qu'à l'administration** (partie D, `ADM`). Tout ce qu'un membre du foyer faisait par le bot se fait dans l'appli. L'annexe 5 donne, commande par commande, l'écran qui la remplace.
 - **iOS 26 au minimum, SwiftUI, et le vrai Liquid Glass** d'Apple (`glassEffect`). Pas d'imitation pour les versions plus anciennes.
 - **Le compte développeur Apple payant est un prérequis.** Il permet les notifications envoyées par le serveur, les widgets iOS qui partagent les données de l'appli, et met fin à la réinstallation tous les sept jours.
-- **L'appli ne porte aucune règle métier.** Elle affiche ce que l'API rend et envoie ce que l'utilisateur fait. Quatre exceptions assumées, parce qu'elles doivent marcher sans réseau ou ne regardent que l'appareil : la série intermédiaire (SAI-17), la file d'attente hors réseau (APP-3), la disposition de l'accueil (WID-4) et le thème (THM).
+- **L'appli ne porte aucune règle métier.** Elle affiche ce que l'API rend et envoie ce que l'utilisateur fait. Cinq exceptions assumées, parce qu'elles doivent marcher sans réseau ou ne regardent que l'appareil : la série intermédiaire (SAI-17), la file d'attente hors réseau (APP-3), la disposition de l'accueil (WID-4), le thème (THM) et la gourde Yanga (SAI-21).
 - **Seul le sport passe par HAL.** Les tâches, l'emploi du temps, les absences et le mode allégé se modifient à la main, sans IA (APP-7).
 - **Un seul rendu, sur photo.** Pas de mode clair ni de mode sombre : une photo de fond, assombrie et floutée pour rester lisible, et quatre combinaisons de couleurs.
 - **Tout est fait de composants réutilisables.** Un écran assemble des composants ; une fonction est un module qui déclare son widget et ses écrans. Ajouter une fonction, c'est ajouter un module (C.5).
@@ -3708,9 +3710,9 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.2 Semaine à valider | Une validation pour toute la semaine ; « Demander un changement » | PLN-6, PLN-24, COA-32 |
 | 3.3 Séance prévue | Les exercices, changer ou réordonner, « Lancer », « Déjà faite, sans saisie » | SAI-3, SAI-16 |
 | 3.4 Changer un exercice | Les alternatives du catalogue, ou une recherche, sans HAL | EXO-2, EXO-7, SAI-3 |
-| 3.5 Séance en cours | Gros boutons, saisie hors réseau, « J'ai bloqué avant » | SAI-1, SAI-10, SAI-17 |
+| 3.5 Séance en cours | Gros boutons, saisie hors réseau, « J'ai bloqué avant », la bulle Yanga | SAI-1, SAI-10, SAI-17, SAI-21 |
 | 3.6 Série bloquée | La série intermédiaire | SAI-17 |
-| 3.7 Repos entre séries | Le minuteur, sur l'écran verrouillé et la Dynamic Island | SAI-18, IOS-3 |
+| 3.7 Repos entre séries | Le minuteur, sur l'écran verrouillé et la Dynamic Island, la bulle Yanga | SAI-18, IOS-3, SAI-21 |
 | 3.8 Terminer ou arrêter | Tout saisi, arrêter ici, faite sans saisie, pas faite | SAI-15 |
 | 3.9 Bilan de séance | Note d'effort, durée, commentaire ; HAL répond tout de suite | SAI-4, SAI-7 |
 | 3.10 Séance libre | Chercher un exercice, l'ajouter, réordonner ; les exercices interdits sont grisés | LIB-1, LIB-2, SEC-1 |
@@ -3816,6 +3818,7 @@ Les écrans 4.9 à 4.12, et les nouvelles versions de 4.2 et 4.3, viennent des t
 2. La séance prévue montre ses exercices [3.3]. On en change un d'un geste, sans HAL (SAI-3) [3.4], ou on les réordonne. Pour changer la séance elle-même, son jour, sa durée, son contenu, on demande à HAL (COA-32). Si elle est déjà faite sans l'appli : « Déjà faite, sans saisie » (SAI-16).
 3. « Lancer » ouvre le mode séance [3.5] : la séance du jour, ses exercices et leurs alternatives permises sont déjà sur le téléphone, tout marche sans réseau (SAI-10, APP-3).
 4. Au-dessus de la série, trois poids : celui que HAL a prévu, le plus lourd jamais soulevé sur l'exercice, et le plus lourd tenu sur dix répétitions ; en toucher un le met dans le compteur (SAI-20). Chaque série se valide d'un bouton, la charge et les répétitions préremplies. La charge se règle au demi-kilo, en restant appuyé sur + ou −, ou en touchant le nombre pour le taper. Valider lance le repos [3.7] (SAI-18).
+   En haut de la séance et du repos, la bulle Yanga : « recharge possible », on la touche en revenant de la machine, puis « Yanga dans 12 min » jusqu'à la suivante (SAI-21).
 5. Une série ratée : « J'ai bloqué avant », on dit où on s'est arrêté, la série intermédiaire s'ajoute [3.6] (SAI-17).
 6. « Bilan » ou la croix ouvre la fin de séance [3.8] : tout saisi, arrêter ici, faite sans rien saisir, pas faite (SAI-15).
 7. Le bilan [3.9] : note d'effort, durée réelle, commentaire (SAI-4). L'enregistrer valide la séance et appelle HAL tout de suite (SAI-7). Sa réponse s'affiche dessous et dans le panneau.
@@ -3999,7 +4002,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - la Maison : déclarer une tâche faite [4.4], ce qui traîne [4.5], le mode allégé [4.6], les absences et voyages [4.7], « Je pars » [4.8] ;
 - les Réglages [5.1 à 5.17], le démarrage de HAL [7.1 à 7.13] et les états de l'appli [8.9 à 8.17] ;
 - trente secondes pour décocher une tâche avant qu'elle parte (APP-10) ;
-- le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20).
+- le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21).
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
@@ -4202,12 +4205,13 @@ Version du 15 octobre 2026 (migration 067). Les règles TAC-22 à TAC-28 sont no
 
 ### Annexe 7 : ce que change la version du 19 octobre 2026
 
-Migration 068. Trois règles sont nouvelles, une est précisée, une est réécrite.
+Migration 068. Quatre règles sont nouvelles, une est précisée, une est réécrite. SAI-21 ne touche que l'appli.
 
 | Code | Ce qu'elle ajoute |
 |---|---|
 | APP-10 | Une tâche cochée attend trente secondes avant de partir au serveur : un geste raté se défait sans que l'autre en soit prévenu |
 | SAI-20 | Pendant un exercice, le poids prévu par HAL, le plus lourd soulevé et le plus lourd tenu sur dix répétitions ; la charge se règle au demi-kilo |
+| SAI-21 | Une bulle dit quand la gourde Yanga peut se recharger, toutes les vingt minutes, pendant la séance et le repos. Sur le téléphone seulement |
 | COL-24 | Un titre ou un lieu trop long est coupé, jamais refusé |
 
 TAC-15 est précisée sans changer ce que fait le placement. Elle disait : « Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. » Elle dit maintenant qu'un aspirateur passé la veille n'empêche pas d'en poser un le jour du récurage.
