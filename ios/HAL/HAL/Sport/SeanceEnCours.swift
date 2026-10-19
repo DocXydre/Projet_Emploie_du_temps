@@ -472,6 +472,7 @@ final class SeanceEnCours {
     /// Oublie la séance sur le téléphone. Ce qui est parti reste sur le serveur.
     func oublier() {
         passerLeRepos()
+        Yanga.oublierLaNotification()
         seance = nil
         affichee = false
         enregistrer()

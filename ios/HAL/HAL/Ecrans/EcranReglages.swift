@@ -11,6 +11,7 @@ struct EcranReglages: View {
     @Environment(Session.self) private var session
     @Environment(EnvoiSante.self) private var sante
     @Environment(Notifications.self) private var notifications
+    @AppStorage(Yanga.cleActive) private var yanga = true
 
     var body: some View {
         PageDefilante {
@@ -51,6 +52,9 @@ struct EcranReglages: View {
                 lien("Profil sportif", "person", Categorie.sport.couleur) { EcranProfilSportif() }
                 lien("Limitations", "exclamationmark.circle", Categorie.alerte.couleur) { EcranLimitations() }
                 lien("Lieux de sport", "mappin", Categorie.sport.couleur) { EcranLieux() }
+                LigneReglage(icone: "drop", couleur: Categorie.sport.couleur, libelle: "Gourde Yanga",
+                             accessoire: .interrupteur($yanga),
+                             sousTitre: "Une recharge toutes les 20 min")
                 lien("Mémoire de HAL", "sparkle", Categorie.ia.couleur) { EcranMemoire() }
                 lien("Mettre HAL en pause", "pause", Categorie.ia.couleur,
                      valeur: foyer.sportDuServeur?.pause != nil ? "En pause" : nil) { EcranPause() }

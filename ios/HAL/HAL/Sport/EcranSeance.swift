@@ -609,6 +609,7 @@ struct EcranSeanceEnCours: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Espace.gouttiere) {
                     entete
+                    BulleYanga()
                     if !file.reseauDisponible && !file.enAttente.isEmpty {
                         Label("Hors réseau · \(file.enAttente.count) envoi\(file.enAttente.count > 1 ? "s" : "") gardé\(file.enAttente.count > 1 ? "s" : "") sur le téléphone",
                               systemImage: "wifi.slash")
@@ -1002,6 +1003,8 @@ private struct Repos: View {
             let reste = max(0, fin.timeIntervalSince(contexte.date))
             VStack(spacing: 24) {
                 Spacer()
+                // SAI-21 : le repos est le bon moment pour aller à la machine.
+                BulleYanga()
                 Text("REPOS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
                 ZStack {
                     Anneau(valeur: duree > 0 ? reste / duree : 0, couleur: Categorie.sport.couleur, epaisseur: 12)
