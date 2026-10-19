@@ -6,6 +6,7 @@ la base. L'API se contente de lire des vues et d'appeler des fonctions.
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any
 
 from psycopg import Connection
@@ -16,6 +17,9 @@ from api import operation
 from api.config import configuration
 
 _pool: ConnectionPool | None = None
+
+# ACC-3 : la transaction d'un essai, que tout ce qui s'exécute dedans partage.
+_essai: ContextVar[Connection | None] = ContextVar("essai", default=None)
 
 
 def demarrer_pool() -> None:
@@ -39,12 +43,37 @@ def arreter_pool() -> None:
 
 @contextmanager
 def connexion() -> Iterator[Connection]:
+    essai = _essai.get()
+    if essai is not None:
+        # Dans un essai, tout passe par la même transaction, qui sera annulée.
+        _dire_l_operation(essai)
+        yield essai
+        return
     if _pool is None:
         demarrer_pool()
     assert _pool is not None
     with _pool.connection() as conn:
         _dire_l_operation(conn)
         yield conn
+
+
+@contextmanager
+def transaction_annulee() -> Iterator[None]:
+    """ACC-3 : jouer une action pour voir si la base l'accepte, sans rien garder.
+
+    Tout ce qui s'exécute dans le bloc, routes et fonctions comprises, partage
+    une seule transaction, annulée à la sortie, que l'action ait réussi ou non.
+    """
+    if _pool is None:
+        demarrer_pool()
+    assert _pool is not None
+    with _pool.connection() as conn:
+        jeton = _essai.set(conn)
+        try:
+            yield
+        finally:
+            _essai.reset(jeton)
+            conn.rollback()
 
 
 def _dire_l_operation(conn: Connection) -> None:

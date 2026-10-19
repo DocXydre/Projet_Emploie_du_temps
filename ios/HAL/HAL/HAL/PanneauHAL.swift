@@ -324,8 +324,10 @@ private struct Bulle: View {
 
     private var legende: String? {
         if message.enAttente { return "En attente de HAL" }
-        if message.moment == "synthese" || message.moment == "revision" { return "Récap du soir" }
-        return nil
+        if message.moment == "synthese" || message.moment == "revision" {
+            return ["Récap du soir", message.noteFournisseur].compactMap { $0 }.joined(separator: " · ")
+        }
+        return message.noteFournisseur
     }
 }
 
@@ -398,6 +400,7 @@ private struct CarteElement: View {
         case "avis_objectif": return element.libelle ?? "Ton objectif"
         case "avis_seance_libre": return "Ta séance libre"
         case "plan": return "Ton plan sur quatre semaines"
+        case "demande": return element.libelle ?? "Une demande"
         default: return element.type
         }
     }
@@ -411,6 +414,7 @@ private struct CarteElement: View {
         case "fenetre_mesure": "scalemass"
         case "avis_objectif": "target"
         case "plan": "calendar"
+        case "demande": "hand.raised"
         default: "sparkle"
         }
     }
@@ -436,6 +440,8 @@ private struct CarteElement: View {
                         .joined(separator: " "), element.consigne].compactMap { $0 }
         case "avis_objectif", "avis_seance_libre":
             return [TexteHAL.avis(element.avis), element.detail].compactMap { $0 }
+        case "demande":
+            return [element.motif, "Rien ne change sans ton accord"].compactMap { $0 }
         case "plan":
             return (element.semaines ?? []).map { semaine in
                 "Semaine du \(TexteHAL.jour(semaine.lundi) ?? "") : \(TexteHAL.role(semaine.role))"
@@ -487,6 +493,10 @@ private struct CarteElement: View {
             return [Bouton(libelle: "Voir les objectifs") { ouvrir(.objectifs) }]
         case "plan":
             return [Bouton(libelle: "Voir la semaine") { ouvrir(.semaine(nil)) }]
+        case "demande":
+            // ACC-5, ACC-7 : l'accord part au bout de cinq secondes, « Annuler » le retient.
+            return [differe("Accepter", "Demande acceptée"),
+                    differe("Refuser", "Demande refusée")].compactMap { $0 }
         default:
             return []
         }

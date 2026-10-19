@@ -262,6 +262,10 @@ def report_de_minuit() -> dict:
         LOG.info("Journal : %s événement(s) purgé(s)", purges)
     bilan["journal_purge"] = purges
 
+    # ACC-8 : les demandes restées sans réponse expirent.
+    bilan["demandes_expirees"] = (executer("SELECT expirer_demandes() AS nombre")
+                                  or {}).get("nombre", 0)
+
     # MES-3, PAU-6 : les fenêtres de mesure expirées, les pauses arrivées à
     # leur terme.
     try:

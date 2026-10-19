@@ -60,6 +60,7 @@ struct EcranReglages: View {
                      valeur: foyer.sportDuServeur?.pause != nil ? "En pause" : nil) { EcranPause() }
                 lien("Démarrage de HAL", "arrow.counterclockwise", Categorie.ia.couleur,
                      valeur: foyer.demarrageDeHAL.map { $0 == "profil" ? "À faire" : "À finir" }) { EcranDemarrageReglages() }
+                lien("Intelligence", "terminal", Categorie.ia.couleur) { EcranIntelligence() }
             }
 
             EnTeteGroupe(texte: "Appareil")

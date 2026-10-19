@@ -38,6 +38,8 @@ Les tâches et le planning se règlent à la main ; seul le sport passe par HAL.
 | **Foyer** | Un administrateur invite par un lien, règle qui peut ajouter et modifier les tâches, passe son rôle. Connexion par pseudo et mot de passe |
 | **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
 | **Journal** | Ce qui change, qui l'a déclenché et dans quelle action. Chaque notification porte sa raison, en une phrase, et l'écran Historique remonte le fil |
+| **Clients MCP** | HAL est aussi un serveur MCP : Claude Code, Gemini CLI ou Claude Desktop lisent le planning, la maison, les séances, la santé et la mémoire de HAL, avec une clé par client créée dans Réglages. Ils tiennent la mémoire et déposent le résumé de la conversation, que HAL relit dans l'appli. Pour changer le planning, les tâches ou les absences, ils déposent une demande : elle est essayée tout de suite, puis attend l'accord, donné dans l'appli ou depuis la notification |
+| **Abonnement plutôt qu'API** | Chacun branche son abonnement Claude dans Réglages : HAL y fait tourner Claude Code sur le serveur, avec la même consigne et ses seuls outils, servis par son propre serveur MCP. Abonnement épuisé, l'API prend le relais avec la clé du compte, jusqu'au plafond du mois, et l'appli dit sous la réponse qui a répondu. Gemini CLI, avec un compte Google, peut entrer dans la même chaîne |
 | **Sorties** | Notifications par Apple, aux heures que chacun règle, silencieuses la nuit ; flux iCalendar en lecture seule ; bot Telegram pour l'administrateur du serveur |
 
 Ce qui a été retiré est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
@@ -184,6 +186,20 @@ git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
                       migrations ─── définitions ─┴─ compose up --build ─── /sante
 ```
 
+**Brancher Claude Code.** Dans l'appli, Réglages, Intelligence, « Créer sa clé » donne une clé MCP, montrée une seule fois, et la commande à coller dans le terminal :
+
+```
+claude mcp add --transport http hal https://<serveur>.ts.net:8443/mcp --header "X-Cle-Mcp: hal_…"
+```
+
+Pour Gemini CLI, la même clé avec `gemini mcp add --scope user --transport http hal <adresse> --header "X-Cle-Mcp: hal_…"`.
+
+`/mcp` passe par le funnel comme les routes de l'appli, derrière sa propre clé : elle n'ouvre que le serveur MCP, se révoque seule, et ne donne jamais la clé de l'appli. L'adresse affichée vient de `HOTE_PUBLIC`.
+
+**Brancher son abonnement.** Toujours dans Réglages, Intelligence : `claude setup-token` sur son ordinateur, puis le jeton collé dans l'appli. Il est essayé une fois, puis gardé chiffré avec `HAL_CLE_CHIFFREMENT` (à tirer une fois, voir `.env.example`). Une clé d'API ajoutée en secours prend le relais quand l'abonnement est épuisé, jusqu'au plafond du mois. Claude Code vient avec le SDK Python : l'image n'a besoin de rien de plus.
+
+**Gemini CLI**, lui, demande Node.js dans l'image : `GEMINI_CLI=1` dans `.env`, puis `docker compose up -d --build`. Il n'apparaît dans Réglages qu'avec `GEMINI_CLI_VALIDE=true`, une fois les scénarios du coach rejoués avec lui. On y colle le contenu de `~/.gemini/oauth_creds.json`, après s'être connecté avec Google sur son ordinateur, ou une clé de l'API Gemini.
+
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
 Tout se fait sur `main`, et chaque push part en production. On vérifie donc en local avant :
@@ -204,7 +220,9 @@ sql/definitions/            fonctions, vues et déclencheurs, un fichier par fon
 sql/apres/                  rattrapages de données qui appellent une fonction à jour
 sql/scenario_test.sql       une semaine type jouée à la main, pour voir les règles à l'œuvre
 api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion
-api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle
+api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle,
+                            fournisseurs (Claude Code, API, Gemini CLI)
+api/serveur_mcp/            HAL en serveur MCP : clés des clients, outils, ressources du dossier
 coach/                      le dossier de HAL (un fichier par chapitre), ses paquets, le
                             catalogue d'exercices, sa consigne, ses scénarios
 ios/HAL/                    l'application iPhone HAL : planning, maison, sport, santé, HAL,
@@ -237,4 +255,5 @@ Les onze lots du plan de réalisation sont faits, et l'application a été repri
 
 - côté API, trois manques de l'appli : « Voir plus tard » sur un conflit de cours, qui doit revenir une semaine avant (COL-23) ; une tâche faite en plus qui n'existe pas encore (EXE-17) ; « Je m'en charge » sur une tâche en retard ;
 - vérifier sur un vrai iPhone ce que le simulateur ne montre pas : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre ;
-- deux semaines d'usage réel à deux, sans le bot (lot 10).
+- deux semaines d'usage réel à deux, sans le bot (lot 10) ;
+- la partie F du cahier des charges est écrite (lots 12 à 15). Avant de s'y fier : rejouer les scénarios du coach avec le vrai modèle, par Claude Code et par Gemini CLI, puisque la consigne parle maintenant des demandes ; compiler l'appli, où l'écran Demandes et les actions de la notification n'ont pas encore tourné ; construire l'image avec `GEMINI_CLI=1`.
