@@ -198,7 +198,7 @@ Pour Gemini CLI, la même clé avec `gemini mcp add --scope user --transport htt
 
 **Brancher son abonnement.** Toujours dans Réglages, Intelligence : `claude setup-token` sur son ordinateur, puis le jeton collé dans l'appli. Il est essayé une fois, puis gardé chiffré avec `HAL_CLE_CHIFFREMENT` (à tirer une fois, voir `.env.example`). Une clé d'API ajoutée en secours prend le relais quand l'abonnement est épuisé, jusqu'au plafond du mois. Claude Code vient avec le SDK Python : l'image n'a besoin de rien de plus.
 
-**Gemini CLI**, lui, demande Node.js dans l'image : `GEMINI_CLI=1` dans `.env`, puis `docker compose up -d --build`. Il n'apparaît dans Réglages qu'avec `GEMINI_CLI_VALIDE=true`, une fois les scénarios du coach rejoués avec lui. On y colle le contenu de `~/.gemini/oauth_creds.json`, après s'être connecté avec Google sur son ordinateur, ou une clé de l'API Gemini.
+**Gemini CLI** se branche de la même façon, dans Réglages, Intelligence : on s'y connecte avec Google une fois sur son ordinateur, puis on colle dans l'appli le contenu de `~/.gemini/oauth_creds.json`, ou une clé de l'API Gemini. L'écran explique chaque étape. Il demande Node.js dans l'image, qui l'a par défaut ; `GEMINI_CLI=0` dans `.env` s'en passe. Ses réponses n'ont pas encore été comparées à celles de Claude sur les scénarios du coach.
 
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
