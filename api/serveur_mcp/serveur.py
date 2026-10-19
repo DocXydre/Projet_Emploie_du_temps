@@ -31,7 +31,7 @@ from mcp_types.jsonrpc import INVALID_PARAMS
 from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 
-from api import operation
+from api import demandes, operation
 from api.coach import course, dossier
 from api.coach.outils import executer_outil
 from api.config import configuration
@@ -143,7 +143,8 @@ def executer_pour_la_course(etat: course.EtatCourse, nom: str,
 def executer(qui: Porteur, client: str, nom: str, arguments: dict) -> tuple[str, bool]:
     """Un outil, pour le titulaire de la clé, dans l'opération de sa session."""
     session = cles.session_de(qui.id_cle, client)
-    jeton = catalogue.client_courant.set(session["client"])
+    jeton = demandes.client_courant.set(session["client"])
+    jeton_session = demandes.session_courante.set(str(session["id_session"]))
     try:
         with operation.ouvrir_a_part(f"mcp : {session['client']}", "agent",
                                      session["operation"]):
@@ -158,7 +159,8 @@ def executer(qui: Porteur, client: str, nom: str, arguments: dict) -> tuple[str,
                     ensure_ascii=False), True
             cles.noter_appel(session["id_session"], nom, texte, refus)
     finally:
-        catalogue.client_courant.reset(jeton)
+        demandes.client_courant.reset(jeton)
+        demandes.session_courante.reset(jeton_session)
     return texte, refus
 
 

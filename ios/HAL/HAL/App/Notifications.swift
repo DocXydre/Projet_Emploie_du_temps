@@ -120,6 +120,14 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        // ACC-14 : une demande s'accepte ou se refuse depuis sa notification.
+        let accepter = UNNotificationAction(identifier: Self.accepter, title: "Accepter",
+                                            options: [.authenticationRequired])
+        let refuser = UNNotificationAction(identifier: Self.refuser, title: "Refuser",
+                                           options: [.destructive])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: "DEMANDE", actions: [accepter, refuser],
+                                   intentIdentifiers: [])])
         // SAN-11 à SAN-16 : l'historique de Santé avance iPhone branché.
         BGTaskScheduler.shared.register(forTaskWithIdentifier: EnvoiSante.idHistorique, using: nil) { tache in
             let travail = Task { @MainActor in
@@ -148,5 +156,24 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
                                             willPresent notification: UNNotification)
         async -> UNNotificationPresentationOptions {
         notification.request.trigger is UNPushNotificationTrigger ? [.banner, .list, .sound] : []
+    }
+
+    nonisolated private static let accepter = "ACCEPTER"
+    nonisolated private static let refuser = "REFUSER"
+
+    /// ACC-14 : Accepter ou Refuser, touché sur la notification d'une demande,
+    /// part au serveur sans ouvrir l'appli.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive reponse: UNNotificationResponse) async {
+        let geste: String
+        switch reponse.actionIdentifier {
+        case Self.accepter: geste = "accepter"
+        case Self.refuser: geste = "refuser"
+        default: return
+        }
+        let hal = reponse.notification.request.content.userInfo["hal"] as? [String: Any]
+        guard let id = (hal?["id_demande"] as? NSNumber)?.intValue else { return }
+        guard let client = await MainActor.run(body: { notifications.client }) else { return }
+        try? await client.envoyer("POST", "demandes/\(id)/\(geste)")
     }
 }

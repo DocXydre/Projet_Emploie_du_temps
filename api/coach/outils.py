@@ -37,13 +37,14 @@ FAMILLES_DU_MOMENT = {
     "revision":    {"lecture", "trame", "seances", "fenetre", "memoire", "avis_libre"},
     "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre", "mesure"},
     "bilan":       {"lecture", "seances", "memoire", "avis_libre", "mesure"},
-    "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure"},
+    "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure", "demandes"},
     # COA-32 : une demande de changement. HAL propose ou dépose un ajustement ;
     # rien ne s'applique sans le bouton de l'utilisateur.
-    "changement":  {"lecture", "seances", "memoire"},
+    "changement":  {"lecture", "seances", "memoire", "demandes"},
     # Dans le chat, le coach lit et tient sa mémoire : il ne propose aucune séance.
-    # S'il lit un signalement dans le texte, il le requalifie (COA-25).
-    "chat":        {"lecture", "memoire", "requalification", "mesure"},
+    # S'il lit un signalement dans le texte, il le requalifie (COA-25). Pour le
+    # planning et la maison, il dépose des demandes, que l'utilisateur accepte (ACC-1).
+    "chat":        {"lecture", "memoire", "requalification", "mesure", "demandes"},
 }
 
 # PAU-2 : en pause, ces familles sont fermées pour tous les moments.
@@ -869,12 +870,19 @@ OUTILS: tuple[Outil, ...] = (
 PAR_NOM = {outil.nom: outil for outil in OUTILS}
 
 
+def tous_les_outils() -> tuple[Outil, ...]:
+    """Ceux du coach, et les demandes (ACC). Importées ici : `api.demandes` appelle
+    les routes, qui importent ce module."""
+    from api import demandes
+    return (*OUTILS, *demandes.OUTILS)
+
+
 def outils_du_moment(moment: str, en_pause: bool = False) -> list[Outil]:
     """COA-5, PAU-2 : les outils permis pour ce moment."""
     familles = set(FAMILLES_DU_MOMENT[moment])
     if en_pause:
         familles -= FERMEES_EN_PAUSE
-    return [outil for outil in OUTILS if outil.famille in familles]
+    return [outil for outil in tous_les_outils() if outil.famille in familles]
 
 
 def executer_outil(nom: str, id_utilisateur: int, arguments: dict,
@@ -888,7 +896,7 @@ def executer_outil(nom: str, id_utilisateur: int, arguments: dict,
     `catalogue` est celui du serveur MCP (MCP-5) : mêmes outils pour la plupart,
     et ceux du planning et de la maison en plus. Sans lui, celui du coach.
     """
-    outil = (catalogue or PAR_NOM).get(nom)
+    outil = (catalogue or {o.nom: o for o in tous_les_outils()}).get(nom)
     if outil is None:
         return _refus("outil_inconnu", f"L'outil « {nom} » n'existe pas"), True
     if nom not in permis:

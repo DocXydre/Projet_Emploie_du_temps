@@ -119,6 +119,24 @@ struct EtatDuJour: Codable {
     let depart: DepartAPI?
     /// TAC-25 : les types du foyer, pour le formulaire hors réseau.
     let types: [TypeTache]?
+    /// ACC-13 : ce qu'un modèle a demandé et qui attend l'accord. Absent d'une
+    /// réponse gardée avant la partie F.
+    let demandes: [DemandeAPI]?
+}
+
+/// Une demande en attente (ACC-2) : ce qui changerait, et pourquoi.
+struct DemandeAPI: Codable, Identifiable, Hashable, Sendable {
+    let idDemande: Int
+    let action: String
+    let resume: String
+    let motif: String
+    let origine: String
+    let client: String?
+    let expireLe: Date?
+    var id: Int { idDemande }
+
+    /// Qui la propose : HAL dans l'appli, ou le client MCP.
+    var auteur: String { client.map { $0.components(separatedBy: "/").first ?? $0 } ?? "HAL" }
 }
 
 /// Une tâche du foyer, telle que `GET /taches` la rend : régulière, ponctuelle

@@ -20,7 +20,7 @@ MESSAGE_INJOIGNABLE = (
 MESSAGE_SANS_TEXTE = "C'est noté."
 
 TYPES = ("seance_proposee", "seance_retiree", "semaine_a_valider", "ajustement",
-         "fenetre_mesure", "avis_objectif", "avis_seance_libre", "plan")
+         "fenetre_mesure", "avis_objectif", "avis_seance_libre", "plan", "demande")
 
 
 def _action(libelle: str, methode: str, route: str) -> dict:
@@ -52,6 +52,11 @@ def actions(element: dict) -> list[dict]:
                         f"/objectifs/{element['id_objectif']}")]
     if genre == "plan":
         return [_action("Voir le plan", "GET", "/plan")]
+    if genre == "demande":
+        # ACC-5, ACC-12 : l'accord se donne d'un bouton, jamais par un outil.
+        d = element["id_demande"]
+        return [_action("Accepter", "POST", f"/demandes/{d}/accepter"),
+                _action("Refuser", "POST", f"/demandes/{d}/refuser")]
     return []
 
 
@@ -91,6 +96,12 @@ def etat_des_elements(id_utilisateur: int, elements: list[dict]) -> list[dict]:
                                 WHERE id_utilisateur = %(u)s AND lundi = %(l)s::DATE""",
                             {"u": id_utilisateur, "l": element["lundi"]})
             etat = "en_attente" if (ligne or {}).get("n") else "validee"
+        elif genre == "demande" and element.get("id_demande"):
+            ligne = un_seul("""SELECT etat FROM demande
+                                WHERE id_demande = %(d)s AND id_utilisateur = %(u)s""",
+                            {"d": element["id_demande"], "u": id_utilisateur})
+            statut = (ligne or {}).get("etat") or "disparu"
+            etat = {"acceptee": "accepte", "refusee": "refuse"}.get(statut, statut)
         elif genre == "fenetre_mesure" and element.get("id_fenetre"):
             ligne = un_seul("""SELECT statut FROM fenetre_mesure
                                 WHERE id_fenetre = %(f)s AND id_utilisateur = %(u)s""",
