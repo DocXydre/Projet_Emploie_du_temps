@@ -715,6 +715,8 @@ def fractionne(t: int) -> None:
         {"cle": "maquette-recup-fractionne", "grandeur": "fc_recuperation",
          "debut": (fin + timedelta(minutes=1)).isoformat(), "valeur": 31, **MONTRE}]))
 
+    footing(t)
+
     # La même course, reçue de Strava : elle reste, mais ne compte pas (SAN-15).
     sql("""SELECT recevoir_activite(%(u)s, 'maquette-fractionne-strava', 'running', 'course',
                                     %(a)s, %(b)s, %(j)s::JSONB)""",
@@ -722,6 +724,27 @@ def fractionne(t: int) -> None:
         j=json.dumps({"distance_m": int(distance) - 40, "details": {"source": "Strava"}}))
     dire(f"un fractionné avec {len(series)} mesures, {len(segments)} segments, "
          f"{len(trace)} points GPS, et son doublon Strava")
+
+
+def footing(t: int) -> None:
+    """Un footing de 50 minutes, cinq jours avant, avec ses mesures : la FC monte
+    doucement à allure égale (une dérive cardiaque de 5 % environ)."""
+    debut = a(J - timedelta(days=5), 12, 30)
+    duree = 50 * 60
+    cle = "maquette-footing"
+    sql("""SELECT recevoir_activite(%(u)s, %(k)s, 'running', 'course', %(a)s, %(b)s,
+                                    %(j)s::JSONB)""",
+        u=t, k=cle, a=debut, b=debut + timedelta(seconds=duree),
+        j=json.dumps({"duree_secondes": duree, "distance_m": 8000, "fc_moyenne": 142,
+                      "fc_max": 151, "allure_s_km": 375, "details": MONTRE}))
+    series = []
+    for x in range(0, duree, 5):
+        instant = (debut + timedelta(seconds=x)).isoformat()
+        fc = 120 + 18 * min(1, x / 300) + 7 * x / duree + math.sin(x / 40)
+        series += [{"grandeur": "fc", "debut": instant, "valeur": round(fc)},
+                   {"grandeur": "vitesse", "debut": instant, "valeur": 1000 / 375}]
+    for paquet in _paquets(series):
+        sql("SELECT recevoir_series(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(paquet))
 
 
 def quotidien(t: int) -> None:

@@ -291,7 +291,8 @@ AJOUTES: tuple[Outil, ...] = (
 # Repris du coach tels quels. `lire_echanges` est remplacé par sa version client.
 # Les séances proposées et les ajustements attendent déjà la validation de
 # l'utilisateur (PLN, ACC-10) : un client les a comme HAL.
-REPRIS = ("lire_chapitre", "lire_planning", "lire_semaine", "lire_seance", "lire_sante",
+REPRIS = ("lire_chapitre", "lire_planning", "lire_semaine", "lire_seance", "lire_courses",
+          "lire_sante",
           "lire_forme", "lire_mesures", "lire_progression", "lire_catalogue",
           "ajouter_memoire", "ecrire_memoire", "noter_mesure",
           "proposer_seances", "modifier_seance_proposee", "retirer_seance_proposee",
