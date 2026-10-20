@@ -19,7 +19,8 @@ __pycache__/
 # Tests : conservés en local, hors du dépôt public.
 tests/
 
-# Spécification de la version Java, abandonnée après le changement de pile.
+# Spécification de la version Java, abandonnée après le changement de pile :
+# gardée en local dans archive/, hors du dépôt public.
 cahier-des-charges-planification.md
 
 # Mémo d'installation du serveur : conservé en local, hors du dépôt public.
@@ -28,10 +29,13 @@ docs/
 # Copie de la base de production et fichiers de travail locaux : jamais dans le dépôt.
 local/
 
-# L'appli iOS : le projet Xcode se régénère avec xcodegen.
-ios/**/*.xcodeproj/
-ios/**/xcuserdata/
-ios/**/DerivedData/
+# Les applis iOS : le projet Xcode se régénère avec xcodegen.
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+
+# Copies laissées par une fusion (git mergetool).
+*.orig
 
 # Fichiers déposés par l'assistant pendant le travail : jamais dans le dépôt.
 Claude outputs/

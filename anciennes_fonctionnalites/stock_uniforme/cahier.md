@@ -1,6 +1,6 @@
 # Stock d'uniforme : ce que disait le cahier des charges
 
-Textes retirés de `cahier-des-charges.md` en septembre 2026, reproduits tels quels.
+Textes retirés de `cahier-des-charges.md` (aujourd'hui dans `archive/`) en septembre 2026, reproduits tels quels.
 
 ### Principe de conception (section 1)
 
