@@ -4,7 +4,7 @@ Un serveur et une application iPhone, HAL, pour un foyer de deux personnes. Le s
 
 Projet personnel, M1 MIAGE (Université de Lorraine).
 
-La spécification complète est dans [`cahier-des-charges-hal.md`](cahier-des-charges-hal.md) : le planning du foyer (partie A), HAL (partie B), l'application (partie C), le foyer et l'administration (partie D), le plan de réalisation (partie E). Il remplace [`cahier-des-charges.md`](cahier-des-charges.md) et [`cahier-des-charges-coach.md`](cahier-des-charges-coach.md), gardés pour l'historique.
+La spécification complète est dans [`cahier-des-charges-hal.md`](cahier-des-charges-hal.md) : le planning du foyer (partie A), HAL (partie B), l'application (partie C), le foyer et l'administration (partie D), le plan de réalisation (partie E), HAL par MCP et par abonnement (partie F). Il remplace les deux anciens cahiers, rangés dans [`archive/`](archive/).
 
 ---
 
@@ -14,7 +14,7 @@ Nous sommes deux dans l'appartement. Mes cours changent chaque semaine, j'ai lon
 
 Le système fait ce croisement à notre place. Tout passe par **l'application HAL**, dans le style Liquid Glass d'iOS 26 : quatre onglets, Aujourd'hui, Sport, Maison et Réglages, et l'orbe de HAL au milieu. On y voit sa journée, on coche ce qui est fait, on déclare une absence ou un départ en train. Pour le sport, **HAL** propose les séances, et l'appli lui envoie les données de l'Apple Watch et les séries de musculation. Le planning s'affiche aussi dans **un calendrier** que n'importe quelle application de calendrier peut lire.
 
-Les tâches et le planning se règlent à la main ; seul le sport passe par HAL. Le bot Telegram du début ne sert plus qu'à l'administrateur du serveur.
+Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui ne change rien sans accord. Le bot Telegram du début ne sert plus qu'à l'administrateur du serveur.
 
 ---
 
@@ -34,7 +34,7 @@ Les tâches et le planning se règlent à la main ; seul le sport passe par HAL.
 | **Sport** | Les séances se posent dans les heures d'ouverture du lieu, salle, course ou piscine, trajet et battement compris, et une séance peut se proposer à l'autre. HAL en décide le nombre et le contenu, sur quatre semaines |
 | **HAL** | Personnel : chaque membre a le sien. Un modèle de langage construit un plan de quatre semaines à partir d'objectifs, propose chaque séance avec ses exercices, suit ce qui est fait et ajuste : un récap chaque soir, une révision le dimanche, une réponse immédiate à un bilan ou à une douleur signalée. Il n'écrit jamais dans une table : il dispose d'une liste fermée d'outils, chacun une fonction SQL, et la base refuse ce qui ne tient pas. Une semaine se valide d'un bouton ; ensuite, il ne la change plus sans accord. Il se met en pause pour des examens ou des vacances |
 | **Mémoire de HAL** | Quatre étages, de la semaine en cours à tout ce qui précède les trois derniers mois, résumés seuls chaque nuit. Visible et corrigeable dans Réglages, avec ses anciennes versions |
-| **Application HAL** | L'interface de tout le système : planning, maison, sport, santé et HAL. Un accueil fait de widgets qu'on choisit et range. Santé est lue et envoyée toute seule. Une séance de musculation se saisit série par série, sans réseau s'il le faut, avec le poids conseillé par HAL, le record et le record sur dix répétitions sous les yeux, la charge au demi-kilo. Une course part sur l'Apple Watch. Widgets iOS et Live Activity du repos |
+| **Application HAL** | L'interface de tout le système : planning, maison, sport, santé et HAL. Un accueil fait de widgets qu'on choisit et range. Santé est lue et envoyée toute seule. Une séance de musculation se saisit série par série, sans réseau s'il le faut, avec le poids conseillé par HAL, le record et le record sur dix répétitions sous les yeux, la charge au demi-kilo. Un exercice se change en gardant ses séries, et un exercice absent du catalogue s'ajoute par son nom : HAL le reconnaît. Une course part sur l'Apple Watch, et revient étape par étape, avec sa carte. Widgets iOS et Live Activity du repos |
 | **Foyer** | Un administrateur invite par un lien, règle qui peut ajouter et modifier les tâches, passe son rôle. Connexion par pseudo et mot de passe |
 | **Calendriers** | Autant d'adresses d'abonnement qu'on veut, chacune montrant certaines personnes et certains contenus |
 | **Journal** | Ce qui change, qui l'a déclenché et dans quelle action. Chaque notification porte sa raison, en une phrase, et l'écran Historique remonte le fil |
@@ -105,7 +105,7 @@ Calendriers perso ─┼──▶ Collecteurs ──▶ ┌───────
                                        (lecture seule)   (administration)
 ```
 
-**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`. Docker Compose pour l'ensemble. L'application est en SwiftUI pour iOS 26, avec HealthKit, WidgetKit, ActivityKit et WorkoutKit, et son projet Xcode se génère par XcodeGen.
+**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`, SDK `mcp` pour le serveur MCP, `claude-agent-sdk` pour passer par l'abonnement. Docker Compose pour l'ensemble. L'application est en SwiftUI pour iOS 26, avec HealthKit, WidgetKit, ActivityKit et WorkoutKit, et son projet Xcode se génère par XcodeGen.
 
 **HAL** est du Python dans le processus de l'API (`api/coach/` : les noms techniques ont gardé « coach »). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
 
@@ -230,6 +230,7 @@ ios/HAL/                    l'application iPhone HAL : planning, maison, sport, 
 outils/                     déploiement, tests, fausse base, pile locale, démarrage d'un
                             compte de HAL, scénarios, diagnostics d'un flux et de la boîte mail
 anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre
+archive/                    les anciens cahiers des charges
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent et si aucune migration plus récente n'a repris ce qu'il définit ; sinon le script le signale et demande une migration nouvelle. `./sql/appliquer.sh --adopter FICHIER` prend acte d'une retouche sans SQL, un commentaire corrigé par exemple, sans rien rejouer.
@@ -245,15 +246,15 @@ Les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations 
 - **Il est prévu pour un foyer de deux personnes.** Le modèle accueille d'autres foyers, mais les règles du ménage sont écrites pour deux. L'authentification par clé d'API en en-tête, obtenue une fois par mot de passe, suffit à cette échelle.
 - **L'administration n'est pas publique.** Les routes de l'application passent par `tailscale funnel`, derrière la clé ; celles de l'administrateur du serveur ne répondent que sur le réseau privé. C'est voulu pour des données personnelles.
 - **HAL ne fait pas de médecine.** Ni questionnaire de santé, ni diagnostic. Il ne parle de médecin que pour une douleur dans la poitrine ou un malaise, et en une phrase pour un complément qui le demande.
-- **HAL n'a pas de plafond de dépense.** Chaque appel au modèle garde ses tokens, et `/hal`, dans le bot d'administration, dit ce qu'a coûté la semaine.
+- **HAL ne dépense pas sans limite.** L'API n'est qu'un secours de l'abonnement, plafonnée par mois et par compte (10 $ par défaut). Chaque appel garde ses tokens, et `/hal`, dans le bot d'administration, dit ce qu'a coûté la semaine.
 
 ---
 
 ## Suite
 
-Les onze lots du plan de réalisation sont faits, et l'application a été reprise écran par écran sur la maquette. Restent :
+Les quinze lots du plan de réalisation sont faits, et l'application a été reprise écran par écran sur la maquette. Restent :
 
 - côté API, trois manques de l'appli : « Voir plus tard » sur un conflit de cours, qui doit revenir une semaine avant (COL-23) ; une tâche faite en plus qui n'existe pas encore (EXE-17) ; « Je m'en charge » sur une tâche en retard ;
 - vérifier sur un vrai iPhone ce que le simulateur ne montre pas : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre ;
 - deux semaines d'usage réel à deux, sans le bot (lot 10) ;
-- la partie F du cahier des charges est écrite (lots 12 à 15). Avant de s'y fier : rejouer les scénarios du coach avec le vrai modèle, par Claude Code et par Gemini CLI, puisque la consigne parle maintenant des demandes ; compiler l'appli, où l'écran Demandes et les actions de la notification n'ont pas encore tourné ; construire l'image avec `GEMINI_CLI=1`.
+- la partie F du cahier des charges est construite (lots 12 à 15). Avant de s'y fier : rejouer les scénarios du coach avec le vrai modèle, par Claude Code et par Gemini CLI, puisque la consigne parle maintenant des demandes ; compiler l'appli, où l'écran Demandes et les actions de la notification n'ont pas encore tourné ; construire l'image avec `GEMINI_CLI=1`.
