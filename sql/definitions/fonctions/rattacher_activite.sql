@@ -37,10 +37,13 @@ BEGIN
 
     v_occurrence := seance_pour_activite(a.id_utilisateur, a.discipline, lower(a.periode));
 
+    -- La séance libre porte le nom français de l'activité (« Course sur
+    -- tapis »), pas le type brut de la montre (« running »).
     IF v_occurrence IS NULL THEN
         v_occurrence := creer_seance_libre(
             a.id_utilisateur, a.discipline, lower(a.periode),
-            CEIL(a.duree_secondes / 60.0)::INTEGER, NULL, FALSE, NULL, left(a.type, 40));
+            CEIL(a.duree_secondes / 60.0)::INTEGER, NULL, FALSE, NULL,
+            nom_seance_montre(a.type, a.details -> 'interieur' = 'true'));
     END IF;
 
     UPDATE activite_sante ac SET id_occurrence = v_occurrence
@@ -51,5 +54,6 @@ END $$;
 
 COMMENT ON FUNCTION rattacher_activite(BIGINT) IS
     'SAN-4, LIB-5 : rattache une séance de la montre à la séance prévue du même
-     jour et de la même discipline. À défaut, crée une séance libre. Rien
-     pour une séance de plus de 28 jours (SAN-8).';
+     jour et de la même discipline. À défaut, crée une séance libre, nommée
+     en français d''après le type de la montre. Rien pour une séance de plus
+     de 28 jours (SAN-8).';

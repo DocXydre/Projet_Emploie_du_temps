@@ -1,7 +1,9 @@
 -- -----------------------------------------------------------------------------
--- Les exercices d'une séance du coach sont-ils permis ?  (EXO-5, PLN-20, PLN-21)
+-- Les exercices d'une séance du coach sont-ils permis ?
+--                                                 (EXO-5, EXO-11, PLN-20, PLN-21)
 --
 -- Rend leurs identifiants, dans l'ordre. Refuse un code inconnu ou désactivé,
+-- celui d'un exercice que l'autre compte a ajouté pour lui,
 -- un exercice d'une autre discipline, et une charge fixée là où le coach n'a
 -- pas le droit d'en fixer : pendant la semaine de calibrage, ou sur un
 -- exercice que l'utilisateur n'a jamais saisi.
@@ -29,12 +31,12 @@ BEGIN
     FOR x IN
         SELECT l.rang, l.ligne ->> 'code' AS code,
                (l.ligne ->> 'charge_kg')::NUMERIC AS charge,
-               e.id_exercice, e.libelle, e.discipline, e.actif
+               e.id_exercice, e.libelle, e.discipline
           FROM jsonb_array_elements(p_exercices) WITH ORDINALITY AS l(ligne, rang)
           LEFT JOIN exercice e ON e.code = l.ligne ->> 'code'
          ORDER BY l.rang
     LOOP
-        IF x.id_exercice IS NULL OR NOT x.actif THEN
+        IF x.id_exercice IS NULL OR NOT exercice_permis(x.id_exercice, p_utilisateur) THEN
             PERFORM refus_coach('exercice_inconnu',
                 format('Exercice inconnu ou désactivé au catalogue : %s', COALESCE(x.code, '?')));
         END IF;

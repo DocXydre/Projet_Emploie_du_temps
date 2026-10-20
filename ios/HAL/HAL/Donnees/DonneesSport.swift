@@ -355,6 +355,8 @@ struct ExerciceCatalogue: Codable, Hashable, Identifiable, Sendable {
     /// SEC-1 : une limitation l'interdit. Il est montré grisé, jamais proposé.
     let interdit: Bool?
     let derniereSaisie: Date?
+    /// EXO-11 : ajouté par ce compte, hors du catalogue commun.
+    let personnel: Bool?
 
     var id: Int { idExercice }
 }

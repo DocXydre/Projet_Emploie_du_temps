@@ -14,6 +14,10 @@
 -- l'a activé fait un quart des tâches partagées, l'autre trois quarts. Ni tour
 -- ni tolérance ces jours-là : on compte les minutes de chacun sur la période, et
 -- la tâche va à l'allégé seulement quand il est sous son quart.
+--
+-- Seul compte un mode allégé qui court encore sur le reste de ce jour-là : un
+-- mode arrêté à 11 h touche encore la journée par sa matinée, mais ce qui se
+-- répartit ensuite revient à la règle de tous les jours.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION choisir_assigne(p_tache INTEGER, p_fenetre TSTZRANGE)
 RETURNS INTEGER LANGUAGE plpgsql STABLE AS $$
@@ -32,6 +36,7 @@ DECLARE
     v_allege       INTEGER := NULL;
     v_relais       INTEGER := NULL;
     v_periode      TSTZRANGE;
+    v_reste        TSTZRANGE;
 BEGIN
     SELECT * INTO t FROM tache WHERE id_tache = p_tache;
 
@@ -44,11 +49,11 @@ BEGIN
 
     -- ---- PLA-16 : un seul des présents est en mode allégé ce jour-là --------
     v_jour := GREATEST(jour_de(lower(p_fenetre)), jour_de(now()));
+    v_reste := tstzrange(GREATEST(debut_jour(v_jour), now()), debut_jour(v_jour + 1), '[)');
 
     -- Le cas ordinaire, où personne n'est allégé ce jour-là, ne paie qu'une
     -- lecture de la table.
-    IF EXISTS (SELECT 1 FROM allegement g
-                WHERE g.periode && tstzrange(debut_jour(v_jour), debut_jour(v_jour + 1), '[)'))
+    IF EXISTS (SELECT 1 FROM allegement g WHERE g.periode && v_reste)
     THEN
         FOR u IN SELECT id_utilisateur FROM utilisateur WHERE actif ORDER BY id_utilisateur LOOP
             CONTINUE WHEN NOT present_dans(u.id_utilisateur, p_fenetre);
@@ -64,14 +69,16 @@ BEGIN
         SELECT a.periode INTO v_periode
           FROM allegement a
          WHERE a.id_utilisateur = v_allege
-           AND a.periode && tstzrange(debut_jour(v_jour), debut_jour(v_jour + 1), '[)')
+           AND a.periode && v_reste
          ORDER BY lower(a.periode)
          LIMIT 1;
 
         -- Un quart pour lui : trois fois ses minutes ne doivent pas dépasser
         -- celles de l'autre.
-        RETURN CASE WHEN 3 * charge_sur(v_allege, v_periode) < charge_sur(v_relais, v_periode)
-                    THEN v_allege ELSE v_relais END;
+        IF FOUND THEN
+            RETURN CASE WHEN 3 * charge_sur(v_allege, v_periode) < charge_sur(v_relais, v_periode)
+                        THEN v_allege ELSE v_relais END;
+        END IF;
     END IF;
 
     v_dernier := dernier_a_faire(p_tache);

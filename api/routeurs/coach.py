@@ -22,7 +22,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
 from api.base import connexion, executer, lister, un_seul
-from api.coach import appel, contexte, memoire, outils, planifie, reponse, sante
+from api.coach import appel, contexte, exercices, memoire, outils, planifie, reponse, sante
 from api.coach.clair import aujourd_hui, clair, fuseau, lundi_de
 from api.erreurs import refus_coach
 from api.securite import Administrateur, Authentifie
@@ -213,8 +213,9 @@ def lister_objectifs(qui: Authentifie, statut: str | None = None) -> list[dict]:
 def creer_objectif(qui: Authentifie, objectif: NouvelObjectif) -> dict:
     id_exercice = None
     if objectif.exercice:
-        ligne = un_seul("SELECT id_exercice FROM exercice WHERE code = %(c)s AND actif",
-                        {"c": objectif.exercice})
+        ligne = un_seul("SELECT id_exercice FROM exercice WHERE code = %(c)s AND actif "
+                        "AND (id_utilisateur IS NULL OR id_utilisateur = %(u)s)",
+                        {"c": objectif.exercice, "u": qui.id_utilisateur})
         if ligne is None:
             raise _refuser("introuvable", "Exercice inconnu au catalogue", 404)
         id_exercice = ligne["id_exercice"]
@@ -903,8 +904,9 @@ def lire_mesures(qui: Authentifie, type: str | None = None) -> dict:
 def saisir_mesure(qui: Authentifie, mesure: Mesure) -> dict:
     exercice = None
     if mesure.exercice:
-        ligne = un_seul("SELECT id_exercice FROM exercice WHERE code = %(c)s",
-                        {"c": mesure.exercice})
+        ligne = un_seul("SELECT id_exercice FROM exercice WHERE code = %(c)s "
+                        "AND (id_utilisateur IS NULL OR id_utilisateur = %(u)s)",
+                        {"c": mesure.exercice, "u": qui.id_utilisateur})
         exercice = ligne["id_exercice"] if ligne else None
     ligne = executer(
         "SELECT saisir_mesure(%(u)s, %(t)s, %(v)s::NUMERIC, %(un)s, %(c)s, %(d)s, %(e)s) AS id",
@@ -1206,12 +1208,13 @@ def progression(qui: Authentifie, objectif: int | None = None,
     return rendu
 
 
-@routeur.get("/exercices", tags=["Coach : suivi"], summary="Le catalogue")
-def catalogue(qui: Authentifie, discipline: str | None = None,
-              groupe: str | None = None) -> list[dict]:
+def _catalogue(id_utilisateur: int, discipline: str | None = None,
+               groupe: str | None = None, id_exercice: int | None = None) -> list[dict]:
+    """Le catalogue commun et ce que ce compte y a ajouté (EXO-11)."""
     return lister(
         """SELECT e.id_exercice, e.code, e.libelle, e.discipline, e.groupe_principal,
                   e.groupes_secondaires, e.materiel, e.unilateral, e.mesure,
+                  e.id_utilisateur IS NOT NULL AS personnel,
                   EXISTS (SELECT 1 FROM exercice_interdit ei
                             JOIN limitation l ON l.id_limitation = ei.id_limitation
                            WHERE l.id_utilisateur = %(u)s AND l.active
@@ -1223,10 +1226,38 @@ def catalogue(qui: Authentifie, discipline: str | None = None,
                       AND ss.id_exercice = e.id_exercice) AS derniere_saisie
              FROM exercice e
             WHERE e.actif
+              AND (e.id_utilisateur IS NULL OR e.id_utilisateur = %(u)s)
               AND (%(d)s::TEXT IS NULL OR e.discipline = %(d)s::TEXT)
               AND (%(g)s::TEXT IS NULL OR e.groupe_principal = %(g)s::TEXT)
+              AND (%(e)s::INTEGER IS NULL OR e.id_exercice = %(e)s::INTEGER)
             ORDER BY e.discipline, e.groupe_principal, e.libelle""",
-        {"u": qui.id_utilisateur, "d": discipline, "g": groupe})
+        {"u": id_utilisateur, "d": discipline, "g": groupe, "e": id_exercice})
+
+
+@routeur.get("/exercices", tags=["Coach : suivi"], summary="Le catalogue")
+def catalogue(qui: Authentifie, discipline: str | None = None,
+              groupe: str | None = None) -> list[dict]:
+    return _catalogue(qui.id_utilisateur, discipline, groupe)
+
+
+class NouvelExercice(BaseModel):
+    libelle: str = Field(min_length=1, max_length=100)
+    # La séance d'où on l'ajoute : il en prend la discipline.
+    discipline: Discipline | None = None
+
+
+@routeur.post("/exercices", tags=["Coach : suivi"], status_code=201,
+              summary="Ajouter un exercice absent du catalogue, reconnu par HAL")
+def ajouter_exercice(qui: Authentifie, nouvel: NouvelExercice) -> dict:
+    """EXO-11 : HAL lit le nom. Si c'est un exercice du catalogue sous un autre
+    nom, c'est lui qui revient ; sinon HAL le décrit, et il rejoint le catalogue
+    de ce compte seul. Rend la ligne du catalogue, comme `GET /exercices`."""
+    try:
+        id_exercice = exercices.reconnaitre(qui.id_utilisateur, nouvel.libelle,
+                                            nouvel.discipline)
+    except exercices.ExerciceNonReconnu as erreur:
+        raise _refuser("exercice_non_reconnu", str(erreur), 422) from None
+    return _catalogue(qui.id_utilisateur, id_exercice=id_exercice)[0]
 
 
 @routeur.get("/exercices/{code}/derniere-fois", tags=["Coach : suivi"],
@@ -1320,8 +1351,9 @@ def remplacer_interdits(qui: Authentifie, id_limitation: int,
     _limitation_de(qui, id_limitation)
     codes = [i.code for i in interdits]
     connus = {ligne["code"]: ligne["id_exercice"] for ligne in lister(
-        "SELECT code, id_exercice FROM exercice WHERE code = ANY (%(c)s::TEXT[])",
-        {"c": codes})}
+        "SELECT code, id_exercice FROM exercice WHERE code = ANY (%(c)s::TEXT[]) "
+        "AND (id_utilisateur IS NULL OR id_utilisateur = %(u)s)",
+        {"c": codes, "u": qui.id_utilisateur})}
     inconnus = sorted(set(codes) - set(connus))
     if inconnus:
         raise _refuser("introuvable",
