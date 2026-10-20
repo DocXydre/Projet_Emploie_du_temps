@@ -262,7 +262,7 @@ struct EcranSeancePrevue: View {
     private func lancer(remplacant: LignePrevue.Alternative, rang: Int) {
         seance.lancer(detail)
         seance.aller(a: rang)
-        seance.remplacer(par: remplacant)
+        seance.remplacer(par: remplacant, file: file)
         seance.aller(a: 0)
         annoncer("\(remplacant.libelle) à la place")
         fermer()
@@ -600,6 +600,10 @@ struct EcranSeanceEnCours: View {
     @State private var duree: Double = 30
     @State private var distance: Double = 500
     @State private var bloque = false
+    /// SAI-22 : changer pour un exercice du catalogue, retirer celui-ci.
+    @State private var changerPour = false
+    @State private var retirer = false
+    @State private var refusChangement: String?
     @State private var terminer = false
     @State private var choisir = false
     @State private var bilan = false
@@ -655,6 +659,27 @@ struct EcranSeanceEnCours: View {
             .sheet(isPresented: $choisir) {
                 ChoixExercice { exercice in seance.ajouter(exercice); preRemplir() }
                     .feuilleEnVerre()
+            }
+            .sheet(isPresented: $changerPour) {
+                ChoixExercice { exercice in
+                    refusChangement = seance.changer(pour: exercice, file: file)
+                    preRemplir()
+                }
+                .feuilleEnVerre()
+            }
+            .alert("Changement impossible", isPresented: Binding { refusChangement != nil } set: { if !$0 { refusChangement = nil } }) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(refusChangement ?? "")
+            }
+            .confirmationDialog("Retirer cet exercice ?", isPresented: $retirer, titleVisibility: .visible) {
+                Button("Retirer l'exercice et ses séries", role: .destructive) {
+                    seance.retirerExercice(file: file)
+                    preRemplir()
+                }
+                Button("Garder", role: .cancel) {}
+            } message: {
+                Text("Ses séries déjà notées sont effacées. Pour changer de machine en les gardant, utilise plutôt « Changer ».")
             }
             .sheet(isPresented: $terminer) {
                 FeuilleTerminer(prevue: seance.seance?.idOccurrence != nil) { choix in
@@ -792,18 +817,47 @@ struct EcranSeanceEnCours: View {
                 Text(exercice.libelle).texte(.titre).foregroundStyle(Palette.textePrincipal)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                if !exercice.alternatives.isEmpty {
-                    Menu {
-                        ForEach(exercice.alternatives, id: \.code) { alternative in
-                            Button(alternative.libelle) { seance.remplacer(par: alternative); preRemplir() }
+                // SAI-3, SAI-22 : changer d'exercice, les séries déjà faites suivent.
+                Menu {
+                    if !exercice.alternatives.isEmpty {
+                        Section(faites.isEmpty ? "Changer pour" : "Changer, tes séries suivent") {
+                            ForEach(exercice.alternatives, id: \.code) { alternative in
+                                Button(alternative.libelle) {
+                                    seance.remplacer(par: alternative, file: file)
+                                    preRemplir()
+                                }
+                            }
                         }
-                    } label: {
-                        Label("Changer", systemImage: "arrow.left.arrow.right")
-                            .texte(.legende).foregroundStyle(Palette.textePrincipal)
-                            .padding(.horizontal, 12).frame(height: 30)
-                            .verreControle(Capsule())
                     }
+                    Button("Un autre exercice…", systemImage: "magnifyingglass") { changerPour = true }
+                } label: {
+                    Label("Changer", systemImage: "arrow.left.arrow.right")
+                        .texte(.legende).foregroundStyle(Palette.textePrincipal)
+                        .padding(.horizontal, 12).frame(height: 30)
+                        .verreControle(Capsule())
                 }
+                // SAI-22 : passer, annuler la dernière série, retirer l'exercice.
+                Menu {
+                    if seance.aUnSuivant {
+                        Button("Passer à l'exercice suivant", systemImage: "forward") { seance.passerExercice() }
+                    }
+                    if !faites.isEmpty {
+                        Button("Annuler la dernière série", systemImage: "arrow.uturn.backward") {
+                            seance.annulerDerniereSerie(file: file)
+                            preRemplir()
+                        }
+                    }
+                    Button("Retirer cet exercice", systemImage: "trash", role: .destructive) {
+                        if faites.isEmpty { seance.retirerExercice(file: file); preRemplir() } else { retirer = true }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Palette.textePrincipal)
+                        .frame(width: 30, height: 30)
+                        .verreControle(Circle())
+                }
+                .accessibilityLabel("Plus d'actions sur l'exercice")
             }
             if let prevu = prevuEnClair(exercice, avecRepos: true) {
                 Text(prevu).texte(.legende).foregroundStyle(Palette.texteSecondaire)
@@ -884,7 +938,7 @@ struct EcranSeanceEnCours: View {
     }
 
     private func ligneFaite(_ serie: SerieLocale) -> some View {
-        HStack(spacing: 8) {
+        let rangee = HStack(spacing: 8) {
             Text(serie.intermediaire ? "Intermédiaire" : "Série \(serie.numero)").texte(.corpsFort)
                 .foregroundStyle(Palette.textePrincipal)
             Spacer()
@@ -898,6 +952,15 @@ struct EcranSeanceEnCours: View {
         .padding(.horizontal, 14).frame(height: 44)
         .background(serie.bloquee ? Categorie.menage.voile : Palette.verreTeinte,
                     in: RoundedRectangle(cornerRadius: Rayon.ligne, style: .continuous))
+        // SAI-22 : une série notée par erreur se supprime d'un appui long.
+        return rangee
+            .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: Rayon.ligne, style: .continuous))
+            .contextMenu {
+                Button("Supprimer cette série", systemImage: "trash", role: .destructive) {
+                    seance.supprimer(serie, file: file)
+                    preRemplir()
+                }
+            }
     }
 
     /// La série à faire : ses compteurs, « Valider », « J'ai bloqué avant ».

@@ -73,10 +73,11 @@ struct ExerciceDeSeance: Codable, Hashable, Identifiable {
 /// serveur : la renvoyer après une coupure ne crée rien de plus (SAI-9).
 struct SerieLocale: Codable, Hashable, Identifiable {
     let cle: UUID
-    let code: String
-    let libelle: String
+    /// SAI-22 : une série suit l'exercice qu'on change en cours de séance.
+    var code: String
+    var libelle: String
     let idSeanceExercice: Int?
-    let numero: Int
+    var numero: Int
     let chargeKg: Double?
     let repetitions: Int?
     let dureeSecondes: Int?
@@ -252,13 +253,112 @@ final class SeanceEnCours {
     }
 
     /// SAI-3 : une alternative du catalogue prend la place de l'exercice prévu.
-    /// La ligne prévue garde ses séries et ses répétitions.
-    func remplacer(par alternative: LignePrevue.Alternative) {
-        guard var seance, let actuel = exerciceCourant else { return }
-        let remplacant = ExerciceDeSeance(remplacant: alternative, de: actuel)
+    /// La ligne prévue garde ses séries et ses répétitions. SAI-22 : les séries
+    /// déjà faites suivent.
+    func remplacer(par alternative: LignePrevue.Alternative, file: FileAttente) {
+        guard let actuel = exerciceCourant else { return }
+        changer(actuel, pour: ExerciceDeSeance(remplacant: alternative, de: actuel), file: file)
+    }
+
+    /// SAI-22 : un exercice du catalogue à la place de celui-ci, qu'on s'est trompé
+    /// ou qu'on change de machine. Rend le motif d'un refus : un exercice qui ne se
+    /// note pas pareil ne peut pas reprendre des séries déjà faites.
+    @discardableResult
+    func changer(pour exercice: ExerciceCatalogue, file: FileAttente) -> String? {
+        guard let actuel = exerciceCourant else { return nil }
+        let mesure = exercice.mesure ?? "charge_reps"
+        if mesure != actuel.mesure, !series(de: actuel).isEmpty {
+            return "\(exercice.libelle) ne se note pas comme \(actuel.libelle) : tes séries ne peuvent pas le suivre. Retire cet exercice, puis ajoute l'autre."
+        }
+        changer(actuel, pour: ExerciceDeSeance(remplacant: exercice, de: actuel), file: file)
+        return nil
+    }
+
+    private struct Deplacement: Encodable {
+        let cles: [UUID]
+        let code: String
+    }
+
+    /// Le nouvel exercice prend la place ; ses séries déjà faites sont celles de
+    /// l'ancien, renumérotées à la suite, ici et sur le serveur.
+    private func changer(_ actuel: ExerciceDeSeance, pour remplacant: ExerciceDeSeance, file: FileAttente) {
+        guard var seance else { return }
+        let deplacees = series(de: actuel).map(\.cle)
+        var numero = seance.series.filter { $0.code == remplacant.code && !deplacees.contains($0.cle) }.count
+        for rang in seance.series.indices where deplacees.contains(seance.series[rang].cle) {
+            numero += 1
+            seance.series[rang].code = remplacant.code
+            seance.series[rang].libelle = remplacant.libelle
+            seance.series[rang].numero = numero
+        }
         seance.exercices[seance.courant] = remplacant
         self.seance = seance
+        if !deplacees.isEmpty {
+            file.ajouter(methode: "POST", chemin: "\(racine)/series/changer-exercice",
+                         corps: ClientAPI.corps(Deplacement(cles: deplacees, code: remplacant.code)))
+        }
         enregistrer()
+    }
+
+    // MARK: Corriger                                                    (SAI-22)
+
+    private struct Annulees: Encodable { let cles: [UUID] }
+
+    /// Retire des séries, ici et sur le serveur. Celles déjà là au lancement
+    /// sortent aussi du compte de ce qui préexistait (SAI-19).
+    private func retirer(_ cles: [UUID], file: FileAttente) {
+        guard var seance, !cles.isEmpty else { return }
+        let avant = seance.series.prefix(seance.dejaSaisies ?? 0).filter { cles.contains($0.cle) }.count
+        seance.series.removeAll { cles.contains($0.cle) }
+        if let deja = seance.dejaSaisies { seance.dejaSaisies = deja - avant }
+        self.seance = seance
+        file.ajouter(methode: "POST", chemin: "\(racine)/annuler-saisie",
+                     corps: ClientAPI.corps(Annulees(cles: cles)))
+    }
+
+    /// « Annuler la dernière série » : notée par erreur, elle s'en va, et le
+    /// repos qu'elle avait lancé aussi. Après une série bloquée, la série
+    /// intermédiaire proposée part avec elle.
+    func annulerDerniereSerie(file: FileAttente) {
+        guard let exercice = exerciceCourant, let derniere = series(de: exercice).last else { return }
+        supprimer(derniere, file: file)
+    }
+
+    /// Une série de la liste, touchée longuement : « Supprimer cette série ».
+    func supprimer(_ serie: SerieLocale, file: FileAttente) {
+        let derniere = seance?.series.last?.cle == serie.cle
+        retirer([serie.cle], file: file)
+        if derniere {
+            passerLeRepos()
+            if serie.bloquee, seance?.proposition?.intermediaire == true { seance?.proposition = nil }
+        }
+        enregistrer()
+    }
+
+    /// « Retirer cet exercice » : lancé par erreur, il quitte la séance avec ses
+    /// séries. Prévu par HAL, sa ligne reste sur le serveur, sans série : HAL
+    /// le lira comme pas fait.
+    func retirerExercice(file: FileAttente) {
+        guard let exercice = exerciceCourant else { return }
+        retirer(series(de: exercice).map(\.cle), file: file)
+        guard var seance else { return }
+        seance.exercices.remove(at: seance.courant)
+        seance.courant = min(seance.courant, max(0, seance.exercices.count - 1))
+        seance.proposition = nil
+        self.seance = seance
+        passerLeRepos()
+        enregistrer()
+    }
+
+    /// « Passer à l'exercice suivant », sans finir celui-ci : ses séries restent.
+    var aUnSuivant: Bool {
+        guard let seance else { return false }
+        return seance.courant + 1 < seance.exercices.count
+    }
+
+    func passerExercice() {
+        guard let seance, aUnSuivant else { return }
+        aller(a: seance.courant + 1)
     }
 
     func aller(a rang: Int) {
@@ -445,8 +545,6 @@ final class SeanceEnCours {
         oublier()
     }
 
-    private struct Annulees: Encodable { let cles: [UUID] }
-
     /// SAI-19 : une séance lancée par erreur. Libre, elle disparaît avec ses
     /// séries ; prévue, elle reste à faire, sans les séries de ce lancement.
     /// Tout passe par la file : sans réseau, l'annulation part au retour.
@@ -508,6 +606,23 @@ final class SeanceEnCours {
 }
 
 extension ExerciceDeSeance {
+    /// SAI-22 : un exercice du catalogue à la place, avec la ligne prévue de
+    /// l'ancien. La charge prévue ne vaut plus : un autre exercice, un autre poids.
+    init(remplacant exercice: ExerciceCatalogue, de ligne: ExerciceDeSeance) {
+        code = exercice.code
+        libelle = exercice.libelle
+        mesure = exercice.mesure ?? ligne.mesure
+        idSeanceExercice = ligne.idSeanceExercice
+        series = ligne.series
+        repetitionsMin = ligne.repetitionsMin
+        repetitionsMax = ligne.repetitionsMax
+        chargeKg = nil
+        dureeSecondes = ligne.dureeSecondes
+        reposSecondes = ligne.reposSecondes
+        consigne = ligne.consigne
+        alternatives = ligne.alternatives.filter { $0.code != exercice.code }
+    }
+
     /// L'alternative garde la ligne prévue : ses séries, ses répétitions, son repos.
     init(remplacant alternative: LignePrevue.Alternative, de ligne: ExerciceDeSeance) {
         code = alternative.code

@@ -627,6 +627,44 @@ def annuler_la_saisie(id_occurrence: int, annulees: SeriesAnnulees, qui: Authent
     return {"retirees": ligne["n"]}
 
 
+@routeur.post("/seances/par-cle/{cle}/annuler-saisie", tags=["Coach : séances"],
+              summary="Retirer des séries d'une séance désignée par la clé de l'appareil")
+def annuler_la_saisie_par_cle(cle: UUID, annulees: SeriesAnnulees, qui: Authentifie) -> dict:
+    """SAI-22 : une série annulée, ou un exercice retiré, dans une séance libre."""
+    return annuler_la_saisie(_par_cle(qui.id_utilisateur, cle), annulees, qui)
+
+
+# -----------------------------------------------------------------------------
+# Changer d'exercice sans perdre ses séries                             (SAI-22)
+# -----------------------------------------------------------------------------
+class SeriesDeplacees(BaseModel):
+    cles: list[UUID] = Field(max_length=200)
+    code: str = Field(max_length=60, description="L'exercice choisi, par son code")
+
+
+@routeur.post("/seances/{id_occurrence}/series/changer-exercice", tags=["Coach : séances"],
+              summary="Passer des séries déjà faites à un autre exercice")
+def changer_exercice_series(id_occurrence: int, deplacees: SeriesDeplacees,
+                            qui: Authentifie) -> dict:
+    exercice = un_seul("SELECT id_exercice FROM exercice WHERE code = %(c)s",
+                       {"c": deplacees.code})
+    if exercice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail={"code": "introuvable", "message": "Exercice inconnu"})
+    ligne = executer(
+        "SELECT changer_exercice_series(%(u)s, %(o)s, %(c)s::UUID[], %(e)s) AS n",
+        {"u": qui.id_utilisateur, "o": id_occurrence, "c": deplacees.cles,
+         "e": exercice["id_exercice"]})
+    return {"deplacees": ligne["n"]}
+
+
+@routeur.post("/seances/par-cle/{cle}/series/changer-exercice", tags=["Coach : séances"],
+              summary="Passer des séries à un autre exercice, séance désignée par sa clé")
+def changer_exercice_series_par_cle(cle: UUID, deplacees: SeriesDeplacees,
+                                    qui: Authentifie) -> dict:
+    return changer_exercice_series(_par_cle(qui.id_utilisateur, cle), deplacees, qui)
+
+
 # -----------------------------------------------------------------------------
 # Le démarrage de HAL dans l'appli                               (DEM-1 à DEM-6)
 #
