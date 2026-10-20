@@ -1,7 +1,8 @@
 -- -----------------------------------------------------------------------------
--- Les exercices prévus d'une séance                              (EXO-5, SEC-3)
+-- Les exercices prévus d'une séance                      (EXO-5, EXO-11, SEC-3)
 --
--- Avant : un exercice désactivé ne s'ajoute pas à une séance. Après : les
+-- Avant : un exercice désactivé, ou que l'autre compte a ajouté pour lui
+-- (EXO-11), ne s'ajoute pas à une séance. Après : les
 -- groupes de la séance de musculation sont recopiés des groupes principaux de
 -- ses exercices. C'est ce que la règle des séances dures compare.
 -- -----------------------------------------------------------------------------
@@ -15,6 +16,12 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM exercice e
                         WHERE e.id_exercice = NEW.id_exercice AND e.actif) THEN
             RAISE EXCEPTION 'Cet exercice est désactivé au catalogue'
+                  USING ERRCODE = 'check_violation';
+        END IF;
+        IF NOT exercice_permis(NEW.id_exercice,
+                               (SELECT o.id_utilisateur FROM occurrence o
+                                 WHERE o.id_occurrence = NEW.id_occurrence)) THEN
+            RAISE EXCEPTION 'Cet exercice n''est pas au catalogue de ce compte'
                   USING ERRCODE = 'check_violation';
         END IF;
         RETURN NEW;

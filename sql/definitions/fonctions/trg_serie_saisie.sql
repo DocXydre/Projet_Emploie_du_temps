@@ -1,9 +1,10 @@
 -- -----------------------------------------------------------------------------
--- Ce que la base contrôle à la saisie d'une série   (SEC-1, SAI-1, SAI-8, SAI-11)
+-- Ce que la base contrôle à la saisie d'une série
+--                                           (SEC-1, SAI-1, SAI-8, SAI-11, EXO-11)
 --
 -- Un exercice interdit par une limitation active est refusé, quelle que soit
 -- la séance, séance libre comprise : c'est la seule règle de sécurité sans
--- mode souple. Une série renseigne ce que son exercice mesure, et pas le
+-- mode souple. Celui que l'autre compte a ajouté pour lui aussi. Une série renseigne ce que son exercice mesure, et pas le
 -- reste. Une série figée ne se corrige ni ne se supprime.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_serie_saisie() RETURNS TRIGGER
@@ -30,6 +31,16 @@ BEGIN
 
     SELECT e.mesure, e.libelle INTO v_mesure, v_libelle
       FROM exercice e WHERE e.id_exercice = NEW.id_exercice;
+
+    -- EXO-11 : l'exercice ajouté par l'autre compte n'est pas au catalogue de
+    -- celui-ci. Un exercice désactivé depuis reste en revanche saisissable.
+    IF EXISTS (SELECT 1 FROM exercice e JOIN occurrence o
+                   ON o.id_occurrence = NEW.id_occurrence
+                WHERE e.id_exercice = NEW.id_exercice
+                  AND e.id_utilisateur <> o.id_utilisateur) THEN
+        RAISE EXCEPTION '% n''est pas au catalogue de ce compte', v_libelle
+              USING ERRCODE = 'check_violation';
+    END IF;
 
     -- SEC-1.
     SELECT ei.motif INTO v_motif

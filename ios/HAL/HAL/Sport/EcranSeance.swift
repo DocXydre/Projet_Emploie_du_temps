@@ -1321,12 +1321,17 @@ struct EcranBilan: View {
 /// LIB-2 : chercher un exercice. Ceux faits récemment d'abord ; ceux qu'une
 /// limitation interdit sont grisés (SEC-1). Le catalogue est gardé sur le
 /// téléphone pour la salle sans réseau.
+///
+/// EXO-11 : un nom absent du catalogue s'ajoute. HAL le reconnaît, et il
+/// rejoint le catalogue de ce compte.
 struct ChoixExercice: View {
     var choisir: (ExerciceCatalogue) -> Void
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @State private var catalogue: [ExerciceCatalogue] = ChoixExercice.garde()
     @State private var recherche = ""
+    @State private var ajout = false
+    @State private var refus: String?
 
     /// 3.10 : un champ de recherche, puis les exercices sur le verre. Le
     /// groupe, le matériel et la dernière fois ; un exercice qu'une limitation
@@ -1355,18 +1360,21 @@ struct ChoixExercice: View {
             .frame(height: 46)
             .verreControle(Capsule(), interactif: false)
             ScrollView {
-                if catalogue.isEmpty {
-                    Text("Catalogue indisponible sans réseau. Reconnecte-toi une fois pour le garder.")
-                        .texte(.corps).foregroundStyle(Palette.texteSecondaire)
-                        .padding(.top, 20)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(filtres.prefix(60).enumerated()), id: \.element.id) { rang, exercice in
-                            ligne(exercice)
-                            if rang < min(filtres.count, 60) - 1 { Divider().overlay(Palette.verreBord) }
+                VStack(spacing: Espace.gouttiere) {
+                    if catalogue.isEmpty {
+                        Text("Catalogue indisponible sans réseau. Reconnecte-toi une fois pour le garder.")
+                            .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                            .padding(.top, 20)
+                    } else if !filtres.isEmpty {
+                        VStack(spacing: 0) {
+                            ForEach(Array(filtres.prefix(60).enumerated()), id: \.element.id) { rang, exercice in
+                                ligne(exercice)
+                                if rang < min(filtres.count, 60) - 1 { Divider().overlay(Palette.verreBord) }
+                            }
                         }
+                        .carte(rayon: Rayon.controle)
                     }
-                    .carte(rayon: Rayon.controle)
+                    if let nom = nouveauNom { ligneAjout(nom) }
                 }
             }
             .scrollIndicators(.hidden)
@@ -1374,6 +1382,78 @@ struct ChoixExercice: View {
         }
         .padding(Espace.marge)
         .task { await charger() }
+        .onChange(of: recherche) { refus = nil }
+    }
+
+    /// Le nom tapé, s'il n'est pas déjà celui d'un exercice de la liste.
+    private var nouveauNom: String? {
+        let nom = recherche.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !nom.isEmpty else { return nil }
+        let cle = nom.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        let connu = catalogue.contains {
+            $0.libelle.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current) == cle
+        }
+        return connu ? nil : nom
+    }
+
+    /// EXO-11 : « Ajouter « hip thrust » ». HAL dit ce que c'est, ou pourquoi non.
+    private func ligneAjout(_ nom: String) -> some View {
+        Button {
+            Task { await ajouter(nom) }
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Ajouter « \(nom) »").texte(.corpsFort)
+                        .foregroundStyle(Palette.textePrincipal)
+                        .lineLimit(1)
+                    Text(ajout ? "HAL reconnaît l'exercice…"
+                         : refus ?? "Absent du catalogue : HAL le reconnaît et le garde pour toi")
+                        .texte(.legende)
+                        .foregroundStyle(refus == nil ? Palette.texteSecondaire : Categorie.alerte.couleur)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                if ajout {
+                    ProgressView().frame(width: 32, height: 32)
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Palette.textePrincipal)
+                        .frame(width: 32, height: 32)
+                        .verreControle(Circle(), interactif: false)
+                }
+            }
+            .padding(.horizontal, Espace.interne)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(ajout)
+        .carte(rayon: Rayon.controle)
+    }
+
+    private struct NouvelExercice: Encodable {
+        let libelle: String
+        let discipline: String
+    }
+
+    private func ajouter(_ nom: String) async {
+        ajout = true
+        refus = nil
+        defer { ajout = false }
+        do {
+            let exercice: ExerciceCatalogue = try await foyer.demander(
+                "POST", "exercices",
+                corps: ClientAPI.corps(NouvelExercice(libelle: nom, discipline: "musculation")))
+            if !catalogue.contains(where: { $0.id == exercice.id }) {
+                catalogue.append(exercice)
+                Self.garder(catalogue)
+            }
+            choisir(exercice)
+            fermer()
+        } catch {
+            refus = (error as? ErreurAPI)?.message ?? error.localizedDescription
+        }
     }
 
     private func ligne(_ exercice: ExerciceCatalogue) -> some View {
@@ -1412,6 +1492,7 @@ struct ChoixExercice: View {
     private func sousTitre(_ exercice: ExerciceCatalogue) -> String {
         var morceaux: [String] = []
         if let groupe = exercice.groupePrincipal { morceaux.append(EnFrancais.groupe(groupe)) }
+        if exercice.personnel == true { morceaux.append("ajouté par toi") }
         if exercice.interdit == true {
             morceaux.append("interdit par une limitation")
         } else {
@@ -1443,7 +1524,11 @@ struct ChoixExercice: View {
         guard let lus: [ExerciceCatalogue] = try? await foyer.demander("GET", "exercices?discipline=musculation")
         else { return }
         catalogue = lus
-        if let donnees = try? ClientAPI.encodeur.encode(lus) {
+        Self.garder(lus)
+    }
+
+    private static func garder(_ catalogue: [ExerciceCatalogue]) {
+        if let donnees = try? ClientAPI.encodeur.encode(catalogue) {
             try? donnees.write(to: Foyer.fichier("catalogue.json"), options: .atomic)
         }
     }

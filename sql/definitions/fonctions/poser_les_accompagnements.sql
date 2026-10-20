@@ -129,23 +129,31 @@ BEGIN
 
     -- ---- TAC-16 : les titres -----------------------------------------------
     --
-    -- À deux : celle qui accompagne dit ce qu'elle accompagne.
+    -- À deux : celle qui accompagne dit ce qu'elle accompagne. Poussière et
+    -- récurage le même jour partagent un aspirateur, qui dit les deux, dans
+    -- l'ordre de la journée : « (après la poussière, avant de récurer) ».
     UPDATE occurrence j
-       SET titre = tj.libelle || ' (' || ac.mention || ')'
-      FROM accompagnement ac
-      JOIN tache tj ON tj.id_tache = ac.id_tache_jointe,
-           occurrence m
-     WHERE NOT ac.journee_libre
-       AND ac.mention IS NOT NULL
-       AND m.id_tache = ac.id_tache
-       AND j.id_tache = ac.id_tache_jointe
-       AND m.statut IN ('planifiee', 'notifiee')
-       AND j.statut IN ('planifiee', 'notifiee')
-       AND m.creneau IS NOT NULL
-       AND j.creneau IS NOT NULL
-       AND m.id_utilisateur = j.id_utilisateur
-       AND jour_de(lower(m.creneau)) = jour_de(lower(j.creneau))
-       AND jour_de(lower(m.creneau)) >= jour_de(now());
+       SET titre = x.libelle || ' (' || x.mentions || ')'
+      FROM (SELECT d.id_occurrence, d.libelle,
+                   string_agg(d.mention, ', ' ORDER BY d.place = 'avant',
+                              d.id_accompagnement) AS mentions
+              FROM (SELECT DISTINCT j.id_occurrence, tj.libelle, ac.id_accompagnement,
+                                    ac.place, ac.mention
+                      FROM accompagnement ac
+                      JOIN tache tj ON tj.id_tache = ac.id_tache_jointe
+                      JOIN occurrence j ON j.id_tache = ac.id_tache_jointe
+                      JOIN occurrence m ON m.id_tache = ac.id_tache
+                     WHERE NOT ac.journee_libre
+                       AND ac.mention IS NOT NULL
+                       AND m.statut IN ('planifiee', 'notifiee')
+                       AND j.statut IN ('planifiee', 'notifiee')
+                       AND m.creneau IS NOT NULL
+                       AND j.creneau IS NOT NULL
+                       AND m.id_utilisateur = j.id_utilisateur
+                       AND jour_de(lower(m.creneau)) = jour_de(lower(j.creneau))
+                       AND jour_de(lower(m.creneau)) >= jour_de(now())) d
+             GROUP BY d.id_occurrence, d.libelle) x
+     WHERE j.id_occurrence = x.id_occurrence;
 
     -- En bloc : « Nettoyage 1/3 : Faire la poussière ». Le rang d'une tâche est
     -- le nombre de celles qui doivent passer avant elle.

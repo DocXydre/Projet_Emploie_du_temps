@@ -448,12 +448,15 @@ def lire_catalogue(u: int, a: dict) -> object:
     lignes = lister(
         """SELECT e.code, e.libelle, e.discipline, e.groupe_principal, e.groupes_secondaires,
                   e.materiel, e.unilateral, e.mesure,
+                  e.id_utilisateur IS NOT NULL AS personnel,
                   EXISTS (SELECT 1 FROM serie_saisie ss JOIN occurrence o
                               ON o.id_occurrence = ss.id_occurrence
                            WHERE o.id_utilisateur = %(u)s
                              AND ss.id_exercice = e.id_exercice) AS deja_saisi
              FROM exercice e
             WHERE e.actif
+              -- EXO-11 : le catalogue commun, et ce que ce compte y a ajouté.
+              AND (e.id_utilisateur IS NULL OR e.id_utilisateur = %(u)s)
               AND (%(d)s::TEXT IS NULL OR e.discipline = %(d)s::TEXT)
               AND (%(g)s::TEXT IS NULL OR e.groupe_principal = %(g)s::TEXT
                    OR %(g)s::TEXT = ANY (e.groupes_secondaires))
@@ -471,14 +474,15 @@ def texte_catalogue(lignes: list[dict]) -> str:
     """Le catalogue en lignes courtes : le JSON répétait les mêmes clés 98 fois."""
     morceaux = ["Catalogue, une ligne par exercice : code | libellé | groupe principal | "
                 "secondaires | matériel | repères. « uni » : un côté à la fois. « saisi » : "
-                "déjà fait par l'utilisateur, une charge peut être fixée."]
+                "déjà fait par l'utilisateur, une charge peut être fixée. « perso » : "
+                "ajouté par l'utilisateur, hors du catalogue commun."]
     discipline = None
     for x in lignes:
         if x["discipline"] != discipline:
             discipline = x["discipline"]
             morceaux.append(f"## {discipline}")
-        reperes = [m for m, oui in (("uni", x["unilateral"]), ("saisi", x["deja_saisi"]))
-                   if oui]
+        reperes = [m for m, oui in (("uni", x["unilateral"]), ("saisi", x["deja_saisi"]),
+                                    ("perso", x.get("personnel"))) if oui]
         if x.get("mesure") and x["mesure"] != "charge_reps":
             reperes.append(f"mesure {x['mesure']}")
         morceaux.append(" | ".join([
