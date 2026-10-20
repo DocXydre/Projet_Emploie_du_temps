@@ -2111,6 +2111,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAI-19 | M | Une séance lancée par erreur s'annule entière, depuis la séance en cours. Une séance libre ouverte ainsi disparaît avec ses séries ; une séance prévue reste à faire, sans les séries saisies pendant ce lancement. Une séance close, avec un bilan ou des séries figées, ne s'annule plus |
 | SAI-20 | M | Pendant un exercice, l'appli montre trois poids : celui que HAL a prévu, le plus lourd jamais soulevé sur cet exercice, et le plus lourd tenu sur au moins dix répétitions. Les deux records se lisent dans les séries saisies, rien n'est stocké en plus. La charge se règle au demi-kilo |
 | SAI-21 | T | Pendant la séance et le repos, une bulle dit quand la gourde Yanga peut se recharger : la machine du club n'en sert qu'une toutes les vingt minutes. On la touche au retour de la machine, elle compte les minutes, puis repasse à « recharge possible » ; une notification le dit si le téléphone est rangé, et se retire quand la séance se ferme. L'heure de la recharge reste sur le téléphone, le serveur n'en sait rien. La bulle se masque dans Réglages, HAL et sport |
+| SAI-22 | M | Pendant une séance de musculation, un exercice se corrige sans perdre ce qui est fait. « Changer » met une alternative ou un autre exercice du catalogue à sa place : les séries déjà faites le suivent, numérotées à la suite, ici et sur le serveur, tant qu'il se note de la même façon. « Annuler la dernière série » retire une série notée par erreur, et le repos qu'elle avait lancé ; un appui long supprime n'importe quelle série. « Retirer cet exercice » le sort de la séance avec ses séries, après confirmation s'il en a ; prévu par HAL, il reste sur le serveur sans série, et HAL le lit comme pas fait. « Passer à l'exercice suivant » garde ce qui est fait. Tout passe par la file d'attente et marche sans réseau ; une série figée ne bouge pas (SAI-8) |
 
 #### B.3.7 Données de santé : `SAN`
 
@@ -3252,6 +3253,9 @@ Séances et ajustements
   PATCH  /seances/{id_occurrence}/series/{id_serie}       Corriger une série
   DELETE /seances/{id_occurrence}/series/{id_serie}       Supprimer une série
   POST   /seances/{id_occurrence}/remplacer               Remplacer un exercice par une alternative
+  POST   /seances/{id_occurrence}/series/changer-exercice  Passer des séries faites à un autre exercice (SAI-22)
+  POST   /seances/par-cle/{cle}/series/changer-exercice   La même chose, séance libre désignée par sa clé
+  POST   /seances/par-cle/{cle}/annuler-saisie        Retirer des séries d'une séance libre (SAI-22)
   POST   /seances/{id_occurrence}/bilan?appeler_coach=    Clore la séance : effort, durée, commentaire
   POST   /seances/{id_occurrence}/pas-faite               Déclarer la séance pas faite
   GET    /ajustements                                     Les ajustements en attente de réponse
@@ -3751,6 +3755,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.3 Séance prévue | Les exercices, changer ou réordonner, « Lancer », « Déjà faite, sans saisie » | SAI-3, SAI-16 |
 | 3.4 Changer un exercice | Les alternatives du catalogue, ou une recherche, sans HAL | EXO-2, EXO-7, SAI-3 |
 | 3.5 Séance en cours | Gros boutons, saisie hors réseau, « J'ai bloqué avant », la bulle Yanga | SAI-1, SAI-10, SAI-17, SAI-21 |
+| 3.5b Corriger un exercice | « … » sur l'exercice : passer, annuler la dernière série, retirer ; « Changer » garde les séries ; appui long sur une série pour la supprimer | SAI-22 |
 | 3.6 Série bloquée | La série intermédiaire | SAI-17 |
 | 3.7 Repos entre séries | Le minuteur, sur l'écran verrouillé et la Dynamic Island, la bulle Yanga | SAI-18, IOS-3, SAI-21 |
 | 3.8 Terminer ou arrêter | Tout saisi, arrêter ici, faite sans saisie, pas faite | SAI-15 |
@@ -4743,6 +4748,7 @@ Migrations 068 et 069. Onze règles sont nouvelles, une est précisée, une est 
 | APP-10 | Une tâche cochée attend trente secondes avant de partir au serveur : un geste raté se défait sans que l'autre en soit prévenu |
 | SAI-20 | Pendant un exercice, le poids prévu par HAL, le plus lourd soulevé et le plus lourd tenu sur dix répétitions ; la charge se règle au demi-kilo |
 | SAI-21 | Une bulle dit quand la gourde Yanga peut se recharger, toutes les vingt minutes, pendant la séance et le repos. Sur le téléphone seulement |
+| SAI-22 | Pendant la séance, changer d'exercice garde les séries déjà faites ; une série ou un exercice notés par erreur se retirent ; un exercice se passe |
 | COL-24 | Un titre ou un lieu trop long est coupé, jamais refusé |
 | SAN-11 | Chaque mesure prise pendant une séance de la montre est gardée brute, avec son heure |
 | SAN-12 | Les bornes de chaque grandeur sont des données ; ce qui en sort est écarté, le reste de l'envoi entre |
