@@ -742,7 +742,6 @@ struct EcranCalendriersAbonnes: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Calendriers")
         .navigationBarTitleDisplayMode(.inline)

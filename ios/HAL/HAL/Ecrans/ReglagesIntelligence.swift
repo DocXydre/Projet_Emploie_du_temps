@@ -150,7 +150,6 @@ struct EcranIntelligence: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Intelligence")
         .navigationBarTitleDisplayMode(.inline)

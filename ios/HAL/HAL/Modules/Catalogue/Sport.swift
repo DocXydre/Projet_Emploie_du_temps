@@ -161,7 +161,7 @@ struct WidgetFrequence: View {
                         Task { await sante.demanderAcces() }
                     }
                 } else {
-                    VideWidget(texte: "Pas encore de fréquence cardiaque aujourd'hui. La montre la remplit au fil de la journée.")
+                    VideWidget(texte: "Pas encore de fréquence cardiaque aujourd'hui.")
                 }
             } else {
             VStack(alignment: .leading, spacing: 4) {

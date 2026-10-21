@@ -22,6 +22,8 @@ final class ConversationHAL {
 
     private(set) var messages: [MessageHAL] = [ConversationHAL.messageDeDemonstration]
     var ouvert = false
+    /// ORB-12 : le panneau monte jusqu'en haut de l'écran.
+    var etendu = false
     var dictee = false
     private(set) var reflechit = false
     private(set) var echec = false
@@ -96,8 +98,14 @@ final class ConversationHAL {
     func fermer() {
         withAnimation(.smooth(duration: 0.3)) {
             ouvert = false
+            etendu = false
             dictee = false
         }
+    }
+
+    /// ORB-12 : de la moitié de l'écran jusqu'en haut, et retour.
+    func etendre(_ voulu: Bool) {
+        withAnimation(.smooth(duration: 0.3)) { etendu = voulu }
     }
 
     /// « Demander un changement », sur une séance, une course ou la semaine (ORB-10).

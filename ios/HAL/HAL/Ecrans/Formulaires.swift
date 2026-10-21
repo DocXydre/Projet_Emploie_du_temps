@@ -21,15 +21,12 @@ struct LigneErreur: View {
 /// voile clair posés sur le verre de la feuille ou sur la photo de fond.
 struct FormulaireVerre<Contenu: View>: View {
     @ViewBuilder var contenu: Contenu
-    /// La barre d'onglets flotte au-dessus : le bas du formulaire doit pouvoir passer au-dessus d'elle.
-    @Environment(\.margeBasse) private var margeBasse
 
     var body: some View {
         Form {
             Group { contenu }
                 .listRowBackground(FondDeLigne())
         }
-        .contentMargins(.bottom, margeBasse, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .containerBackground(.clear, for: .navigation)
     }
@@ -205,7 +202,6 @@ struct FormulaireFaite: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .scrollDismissesKeyboard(.interactively)
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("C'est fait")
@@ -642,7 +638,6 @@ struct FormulaireAllege: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .scrollBounceBehavior(.basedOnSize)
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Mode allégé")
