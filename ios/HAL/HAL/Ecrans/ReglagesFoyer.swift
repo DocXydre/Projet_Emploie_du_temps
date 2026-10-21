@@ -51,7 +51,7 @@ struct EcranFoyer: View {
                 }
             } else if sansFoyer {
                 Section {
-                    Text("Tu ne fais partie d'aucun foyer. Ton planning et HAL restent à toi ; les tâches partagées, elles, vivent dans un foyer (FOY-1).")
+                    Text("Tu ne fais partie d'aucun foyer.")
                         .foregroundStyle(Palette.texteSecondaire)
                 }
             } else if let lu {
@@ -77,22 +77,16 @@ struct EcranFoyer: View {
             Button("Retirer", role: .destructive) {
                 Task { await agir("DELETE", "foyer/membres/\(membre.id)", "\(membre.nom) ne fait plus partie du foyer") }
             }
-        } message: { _ in
-            Text("Ses tâches à venir passent à ceux qui restent ; ce qu'il a fait reste au journal. Son compte est mis en pause : il garde son planning et son HAL (FOY-5).")
         }
         .confirmationDialog("Passer l'administration à \(aPromouvoir?.nom ?? "") ?", isPresented: Binding {
             aPromouvoir != nil
         } set: { if !$0 { aPromouvoir = nil } }, titleVisibility: .visible, presenting: aPromouvoir) { membre in
             Button("Passer l'administration") { Task { await passer(membre) } }
-        } message: { _ in
-            Text("Il pourra inviter, retirer et régler les droits sur les tâches. Toi, tu restes membre (FOY-7).")
         }
         .confirmationDialog("Quitter le foyer ?", isPresented: $quitter, titleVisibility: .visible) {
             Button("Quitter", role: .destructive) { Task { await partir() } }
         } message: {
-            Text(lu?.membres.count == 1
-                 ? "Tu es seul : le foyer se ferme, ses tâches s'arrêtent, son historique reste (FOY-7)."
-                 : "Tes tâches à venir passent aux autres. Tu gardes ton planning et ton HAL.")
+            if lu?.membres.count == 1 { Text("Tu es seul : le foyer se ferme.") }
         }
     }
 
@@ -157,9 +151,7 @@ struct EcranFoyer: View {
             } header: {
                 Text("Inviter")
             } footer: {
-                Text(lu.placesLibres > 0
-                     ? "Un code et un lien, valables 48 heures et une seule fois (FOY-3)."
-                     : "Le foyer est complet : deux personnes au plus dans cette version (FOY-4).")
+                if lu.placesLibres == 0 { Text("Le foyer est complet.") }
             }
 
             Section {
@@ -184,19 +176,11 @@ struct EcranFoyer: View {
             }
         } header: {
             Text("Droits sur les tâches")
-        } footer: {
-            Text(lu.jeSuisAdmin
-                 ? "Cocher une tâche, la déclarer faite et la reporter restent ouverts à tous (FOY-6)."
-                 : "C'est l'administrateur du foyer qui les règle. Cocher, déclarer faite et reporter restent ouverts à tous.")
         }
         .disabled(!lu.jeSuisAdmin)
 
         Section {
             Button("Quitter le foyer", role: .destructive) { quitter = true }
-        } footer: {
-            if lu.jeSuisAdmin && lu.membres.count > 1 {
-                Text("L'administrateur ne part qu'après avoir passé son rôle à un autre membre (FOY-7).")
-            }
         }
     }
 
@@ -317,7 +301,7 @@ struct EcranInvitation: View {
                 } header: {
                     Text("Le code")
                 } footer: {
-                    Text("Valable jusqu'au \(creee.expireLe.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(enFrancais))), une seule fois. Il ne sera plus montré : partage-le maintenant.")
+                    Text("Valable jusqu'au \(creee.expireLe.formatted(.dateTime.weekday(.wide).day().month(.wide).hour().minute().locale(enFrancais))), une seule fois.")
                 }
                 Section {
                     if let lien = creee.lien.flatMap(URL.init(string:)) {
@@ -333,18 +317,12 @@ struct EcranInvitation: View {
                         UIPasteboard.general.string = creee.code
                         annoncer("Code copié")
                     }
-                } footer: {
-                    Text("Le lien ouvre une page qui ouvre HAL, avec le code et l'adresse du serveur déjà remplis. Sans le lien : « J'ai une invitation », le code, et l'adresse \(creee.serveur.flatMap { URL(string: $0)?.host() } ?? "du serveur").")
                 }
                 Section {
                     Button("Annuler l'invitation", role: .destructive) { Task { await annuler(creee) } }
                         .disabled(envoi)
                 }
             } else {
-                Section {
-                    Text("La personne choisit son pseudo et son mot de passe, puis arrive dans le foyer. Elle partage les tâches, la maison et le planning ; son HAL reste à elle (FOY-8).")
-                        .foregroundStyle(Palette.texteSecondaire)
-                }
                 LigneRefus(texte: erreur)
                 Section {
                     Button {
@@ -423,9 +401,9 @@ struct EcranNotifications: View {
                     }
                 }
             } footer: {
-                Text(notifications.etat == .refusees
-                     ? "iOS seul peut les rallumer : Réglages, Notifications, HAL."
-                     : "Elles arrivent sur chaque iPhone où ton compte est connecté (NOT-16).")
+                if notifications.etat == .refusees {
+                    Text("iOS seul peut les rallumer : Réglages, Notifications, HAL.")
+                }
             }
 
             if !foyer.connecte {
@@ -440,8 +418,6 @@ struct EcranNotifications: View {
                     selecteur("Récap de HAL", \.recap, heures, icone: "sparkle", couleur: Categorie.ia.couleur)
                 } header: {
                     Text("Mes heures")
-                } footer: {
-                    Text("Elles valent dès le lendemain. Les séances du jour se closent à l'heure du récap (PLN-9) ; le placement du matin et le report de minuit restent communs.")
                 }
                 Section {
                     HStack(spacing: 10) {
@@ -451,8 +427,6 @@ struct EcranNotifications: View {
                     .padding(.vertical, 4)
                 } header: {
                     Text("Silence de nuit")
-                } footer: {
-                    Text("Rien ne part pendant le silence : tout attend sa fin. Une seule exception, la réponse de HAL quand tu viens de lui écrire (NOT-14).")
                 }
                 LigneRefus(texte: erreur)
                 if heures != lues {
@@ -474,7 +448,7 @@ struct EcranNotifications: View {
                 ligne("sun.max", "Le bilan du matin", "Ta journée, et ce qui est en retard")
                 ligne("moon", "La relance du soir", "« C'est fait ? » pour ce qui reste")
                 ligne("sparkle", "HAL", "Le récap du soir, ses ajustements, ses réponses panneau fermé")
-                ligne("arrow.triangle.2.circlepath", "Les changements", "Chaque changement qui te touche, avec sa raison (NOT-17)")
+                ligne("arrow.triangle.2.circlepath", "Les changements", "Chaque changement qui te touche")
                 ligne("checkmark.circle", "Le foyer", "Une de tes tâches faite par un autre")
             }
         }
@@ -595,8 +569,6 @@ struct EcranServeur: View {
                     .disabled(essai)
                 } header: {
                     Text("Connexion")
-                } footer: {
-                    Text("Sans réseau, l'appli montre les dernières données reçues, et garde ce que tu fais pour l'envoyer au retour (APP-2, APP-3).")
                 }
                 Section {
                     SecureField("Nouveau mot de passe", text: $nouveau)
@@ -608,7 +580,7 @@ struct EcranServeur: View {
                 } header: {
                     Text("Mot de passe")
                 } footer: {
-                    Text("Au moins dix caractères. La clé de l'appli ne change pas : tes autres appareils restent connectés.")
+                    Text("Au moins dix caractères.")
                 }
                 if let erreur {
                     Section { Label(erreur, systemImage: "exclamationmark.circle").foregroundStyle(Categorie.alerte.couleur) }
@@ -617,9 +589,9 @@ struct EcranServeur: View {
                     Button("Se déconnecter", role: .destructive) { confirmer = true }
                         .frame(maxWidth: .infinity)
                 } footer: {
-                    Text(file.enAttente.isEmpty
-                         ? "La clé est effacée de cet iPhone, qui ne reçoit plus les notifications du compte (CNX-6)."
-                         : "\(file.enAttente.count) envoi(s) en attente seront perdus.")
+                    if !file.enAttente.isEmpty {
+                        Text("\(file.enAttente.count) envoi(s) en attente seront perdus.")
+                    }
                 }
             } else {
                 Section {

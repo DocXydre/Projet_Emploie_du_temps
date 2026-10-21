@@ -337,8 +337,6 @@ struct EcranSommeil: View {
                 }
                 Courbe(points: jours.map { PointSerie(date: $0.jour, valeur: $0.vfcMs) },
                        couleur: Categorie.ia.couleur, hauteur: 80)
-                Text("Les trous sont des nuits sans données de la montre, pas des zéros.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
             }
         }
     }
@@ -395,10 +393,6 @@ struct EcranSommeil: View {
                             .texte(.corpsFort)
                     }
                     .buttonStyle(.hal(.verre, pleineLargeur: true))
-                } else {
-                    Text("Sans montre, l'iPhone estime la durée d'après ton heure de coucher et ton usage du téléphone : une approximation, sans phases. HAL la lit en tendance.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
@@ -459,7 +453,7 @@ struct EcranFrequence: View {
                         }
                     }
                     if valeurs.isEmpty {
-                        Text("Pas encore de fréquence cardiaque aujourd'hui. Elle vient de Santé, lue sur cet iPhone : la montre la remplit au fil de la journée.")
+                        Text("Pas encore de fréquence cardiaque aujourd'hui.")
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, minHeight: 120, alignment: .leading)
@@ -494,8 +488,6 @@ struct EcranFrequence: View {
                         }
                     }
                 }
-                Text("Le planning est posé sur la courbe. Lue dans Santé, sur ce téléphone : rien n'en part vers le serveur.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
             }
             .padding(.horizontal, Espace.marge)
             .padding(.bottom, 40)
@@ -593,7 +585,7 @@ struct EcranObjectifs: View {
                 if let objectifs {
                     let actifs = objectifs.filter { $0.statut == "actif" }
                     if actifs.isEmpty {
-                        Text("Pas encore d'objectif. HAL t'en propose un au démarrage.")
+                        Text("Pas encore d'objectif.")
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     }
                     if let principal = actifs.first(where: \.principal) {
@@ -787,7 +779,7 @@ struct EcranProgression: View {
                 if let semaines {
                     let codes = Self.exercices(semaines)
                     if codes.isEmpty {
-                        Text("Rien encore : les séries saisies en séance apparaîtront ici, semaine par semaine.")
+                        Text("Pas encore de séries saisies.")
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     }
                     VStack(spacing: 0) {
@@ -1201,9 +1193,6 @@ struct BandeauInvitation: View {
                 Button("Pas cette fois") { repondre(false) }.buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
             }
             .disabled(envoi)
-            Text("Accepter crée ta propre séance, avec tes règles. Refuser ne défait rien chez \(invitation.qui).")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Espace.interne)
         .frame(maxWidth: .infinity, alignment: .leading)

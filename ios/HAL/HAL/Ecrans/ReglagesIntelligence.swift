@@ -98,20 +98,6 @@ struct EcranIntelligence: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                HStack(spacing: 12) {
-                    Pastille(icone: "terminal", couleur: Categorie.ia.couleur)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("HAL depuis ton ordinateur").texte(.titreWidget)
-                            .foregroundStyle(Palette.textePrincipal)
-                        Text("Claude Code, Gemini CLI ou Claude Desktop lisent ton planning, la maison, tes séances et la mémoire de HAL. Ils ne changent rien sans toi.")
-                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(Espace.interne)
-                .carte()
-
                 if !foyer.connecte {
                     Text("Connecte-toi à ton serveur pour brancher un client.")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
@@ -120,7 +106,7 @@ struct EcranIntelligence: View {
 
                     if let creee { carteCreee(creee) }
 
-                    EnTeteGroupe(texte: "Clients")
+                    EnTeteGroupe(texte: "Clients sur ton ordinateur")
                     if let cles {
                         let vivantes = cles.filter { $0.revoqueeLe == nil }
                         if vivantes.isEmpty {
@@ -159,8 +145,6 @@ struct EcranIntelligence: View {
                     }
 
                     LigneErreur(texte: erreur)
-                    Text("Une clé n'ouvre que la lecture de HAL, sa mémoire et tes mesures. Elle se révoque seule, sans déconnecter ce téléphone (MCP-2).")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 }
             }
             .padding(Espace.marge)
@@ -179,8 +163,6 @@ struct EcranIntelligence: View {
             Button("Révoquer", role: .destructive) {
                 if let cle = aRevoquer { Task { await revoquer(cle) } }
             }
-        } message: {
-            Text("Ce client ne pourra plus lire HAL. Les autres clients et ce téléphone ne changent pas.")
         }
         .confirmationDialog("Retirer « \(aRetirer?.libelle ?? "") » ?",
                             isPresented: Binding { aRetirer != nil } set: { if !$0 { aRetirer = nil } },
@@ -188,8 +170,6 @@ struct EcranIntelligence: View {
             Button("Retirer", role: .destructive) {
                 if let f = aRetirer { Task { await modifier("DELETE", "moi/fournisseurs/\(f.type)", nil, "Retiré") } }
             }
-        } message: {
-            Text("Son jeton ou sa clé est effacé du serveur (FOU-3).")
         }
     }
 
@@ -211,9 +191,10 @@ struct EcranIntelligence: View {
     @ViewBuilder private var sectionModele: some View {
         EnTeteGroupe(texte: "Qui fait réfléchir HAL")
         if let modele {
-            Text(resume(modele))
-                .texte(.corps).foregroundStyle(Palette.textePrincipal)
-                .fixedSize(horizontal: false, vertical: true)
+            if toutEstCoupe(modele) {
+                Text("Tout est coupé : HAL ne peut pas répondre.")
+                    .texte(.legende).foregroundStyle(Categorie.alerte.couleur)
+            }
             if !modele.chiffrementRegle {
                 Text("Le serveur ne peut pas garder de jeton : HAL_CLE_CHIFFREMENT manque dans son .env.")
                     .texte(.legende).foregroundStyle(Categorie.alerte.couleur)
@@ -236,20 +217,10 @@ struct EcranIntelligence: View {
         }
     }
 
-    /// FOU-4 : ce par quoi HAL passe en ce moment, en une phrase.
-    private func resume(_ modele: EtatDesFournisseurs) -> String {
-        if modele.cleDuServeur {
-            return "En ce moment, HAL passe par l'API d'Anthropic, avec la clé du serveur."
-        }
-        let actifs = modele.fournisseurs.filter { $0.etat == "actif" || $0.etat == "de_cote" }
-        if actifs.isEmpty {
-            return "Tout est coupé : HAL répond un message fixe tant qu'aucune option n'est activée."
-        }
-        let noms = actifs.map { f in
-            ["claude_code": "ton abonnement Claude", "api": "l'API d'Anthropic",
-             "gemini_cli": "Gemini"][f.type] ?? f.libelle
-        }
-        return "HAL passe par \(noms.joined(separator: ", puis par ")), dans cet ordre."
+    /// FOU-8 : plus rien dans la chaîne. L'ordre se lit aux numéros des lignes.
+    private func toutEstCoupe(_ modele: EtatDesFournisseurs) -> Bool {
+        !modele.cleDuServeur
+            && !modele.fournisseurs.contains { $0.etat == "actif" || $0.etat == "de_cote" }
     }
 
     private func fournisseur(_ type: String, _ modele: EtatDesFournisseurs) -> FournisseurModele? {
@@ -396,7 +367,7 @@ struct EcranIntelligence: View {
         switch type {
         case "claude_code":
             VStack(alignment: .leading, spacing: 10) {
-                Text("Sur ton ordinateur, lance `claude setup-token`, connecte-toi à ton compte Claude, puis colle ici le jeton qu'il affiche (sk-ant-oat01-…). Il est essayé une fois, puis gardé chiffré.")
+                Text("Sur ton ordinateur : `claude setup-token`, puis colle le jeton (sk-ant-oat01-…).")
                     .texte(.legende).foregroundStyle(Palette.texteSecondaire)
                     .fixedSize(horizontal: false, vertical: true)
                 champSecret("Jeton d'abonnement", $jeton)
@@ -412,9 +383,6 @@ struct EcranIntelligence: View {
             .carte(rayon: Rayon.controle)
         case "api":
             VStack(alignment: .leading, spacing: 10) {
-                Text("HAL passe par l'API avec ta clé (console.anthropic.com), jusqu'au plafond du mois. Rangée après l'abonnement, elle ne sert que quand il est épuisé.")
-                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                    .fixedSize(horizontal: false, vertical: true)
                 champSecret(foyer.moi.estAdministrateur ? "Clé d'API (vide : celle du serveur)" : "Clé d'API", $cleAPI)
                 TextField("Plafond du mois, en $ (10 par défaut)", text: $plafond)
                     .keyboardType(.decimalPad)

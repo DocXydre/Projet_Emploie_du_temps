@@ -1,8 +1,8 @@
 import Foundation
 import Observation
 
-/// Les états qu'on peut forcer pour essayer l'appli sans serveur
-/// (Réglages, Essais). Ils ne valent qu'en démonstration.
+/// Les états des données fictives, quand l'appli tourne sans serveur. L'écran
+/// qui les forçait est retiré : ils gardent leurs valeurs par défaut.
 struct Essais: Hashable {
     var horsReseau = false
     var modeAllege = false

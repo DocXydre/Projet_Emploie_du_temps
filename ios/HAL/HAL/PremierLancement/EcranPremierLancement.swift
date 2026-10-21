@@ -83,7 +83,7 @@ struct EcranPremierLancement: View {
             InterrupteurMontre()
                 .padding(Espace.interne)
                 .carte(rayon: Rayon.controle)
-            Text("iOS ouvre ensuite sa fenêtre : touche « Tout activer », puis « Autoriser ». Rien n'est écrit dans Santé.")
+            Text("Dans la fenêtre d'iOS, touche « Tout activer », puis « Autoriser ».")
                 .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 .multilineTextAlignment(.center)
         }

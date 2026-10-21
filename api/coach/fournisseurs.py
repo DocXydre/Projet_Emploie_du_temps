@@ -246,9 +246,17 @@ def fin_du_secret(secret: str) -> str:
 def brancher(id_utilisateur: int, type_: str, secret: str | None,
              plafond: float | None) -> None:
     """Garde un secret déjà essayé. Le fournisseur prend le dernier rang s'il est neuf,
-    garde le sien sinon, et repart actif."""
+    garde le sien sinon, et repart actif.
+
+    FOU-1 : le premier fournisseur branché par un compte qui passait par la clé du
+    serveur ne la lui retire pas. Elle reste derrière lui, comme fournisseur `api`
+    sans secret, avec son plafond : le secours quand l'abonnement est épuisé."""
     chiffre = chiffrer(secret) if secret else None
     fin = fin_du_secret(secret) if secret else None
+    garder_la_cle_du_serveur = (
+        type_ != "api" and bool(configuration().anthropic_api_key)
+        and un_seul("SELECT 1 AS oui FROM fournisseur_modele WHERE id_utilisateur = %(u)s",
+                    {"u": id_utilisateur}) is None)
     executer(
         """INSERT INTO fournisseur_modele (id_utilisateur, type, rang, secret, secret_fin,
                                            plafond_mensuel)
@@ -263,6 +271,13 @@ def brancher(id_utilisateur: int, type_: str, secret: str | None,
                   etat = 'actif', de_cote_jusqu_a = NULL, motif = NULL""",
         {"u": id_utilisateur, "t": type_, "s": chiffre, "f": fin,
          "p": plafond if type_ == "api" else None})
+    if garder_la_cle_du_serveur:
+        executer(
+            """INSERT INTO fournisseur_modele (id_utilisateur, type, rang)
+               VALUES (%(u)s, 'api', (SELECT max(rang) FROM fournisseur_modele
+                                       WHERE id_utilisateur = %(u)s) + 1)
+               ON CONFLICT (id_utilisateur, type) DO NOTHING""",
+            {"u": id_utilisateur})
 
 
 def renouveler(fournisseur: Fournisseur, secret: str) -> None:

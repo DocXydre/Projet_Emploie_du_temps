@@ -81,13 +81,6 @@ struct EcranReglages: View {
                      valeur: session.pseudo ?? "Démonstration") { EcranServeur() }
             }
 
-            EnTeteGroupe(texte: "Essais")
-            GroupeReglages {
-                lien("Composants", "square.grid.2x2", Categorie.linge.couleur) { EcranComposants() }
-                lien("États à forcer", "slider.horizontal.3", Categorie.linge.couleur) { EcranEssais() }
-            }
-            Text("Les états à forcer ne valent qu'en démonstration. Connecté, tout vient du serveur.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
         }
     }
 
@@ -142,12 +135,6 @@ struct EcranFondCouleurs: View {
             VStack(spacing: 14) {
                 curseur("Flou", valeur: $apparence.flou)
                 curseur("Assombrissement", valeur: $apparence.assombrissement, bornes: 0...0.7)
-                if apparence.plancherAssombrissement > apparence.assombrissement {
-                    Text("Photo claire : elle reste assombrie d'au moins \(Int((apparence.plancherAssombrissement * 100).rounded())) %, pour que le texte se lise.")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 curseur("Saturation", valeur: $apparence.saturation, bornes: 0...1.2)
                 Toggle(isOn: $apparence.couleursDeLaPhoto.animation(.smooth)) {
                     Text("Couleurs tirées de la photo").texte(.corps).foregroundStyle(Palette.textePrincipal)
@@ -261,7 +248,7 @@ struct EcranDisposition: View {
 
     var body: some View {
         PagePoussee(titre: "Disposition de l'accueil") {
-            Text("La disposition se change directement sur Aujourd'hui : touche le crayon, puis déplace, retire ou agrandis les widgets. Elle reste sur ce téléphone.")
+            Text("Sur Aujourd'hui, touche le crayon pour déplacer, retirer ou agrandir les widgets.")
                 .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             Button("Revenir à la disposition d'origine") {
                 let avant = disposition.places

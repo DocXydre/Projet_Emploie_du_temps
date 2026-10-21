@@ -169,8 +169,6 @@ struct FormulaireFaite: View {
                     }
                     .carte(rayon: Rayon.controle)
                 }
-                Text("La suite repart de la date que tu donnes, le planning se refait tout de suite.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
                 NavigationLink { FaiteEnPlus(quand: quand) } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
@@ -338,7 +336,7 @@ private struct FaiteEnPlus: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Espace.gouttiere) {
-                Text("Toutes les tâches du foyer. Celle que tu touches compte faite \(EnFrancais.jour(quand)), et la suivante repart de là.")
+                Text("Celle que tu touches compte faite \(EnFrancais.jour(quand)).")
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     .fixedSize(horizontal: false, vertical: true)
                 if let erreur {
@@ -431,8 +429,6 @@ struct FormulaireCreneau: View {
                 DatePicker("Jour", selection: $debut, displayedComponents: .date)
                 DatePicker("De", selection: $debut, displayedComponents: .hourAndMinute)
                 DatePicker("À", selection: $fin, in: debut..., displayedComponents: .hourAndMinute)
-            } footer: {
-                Text("Le moteur ne place rien sur ce créneau, et déplace ce qui y était.")
             }
             .environment(\.locale, Locale(identifier: "fr_FR"))
             if foyer.membres.count > 1 {
@@ -533,8 +529,6 @@ struct FormulaireAbsence: View {
                 DatePicker("Retour", selection: $fin, in: debut...)
             } header: {
                 Text("Nouvelle absence")
-            } footer: {
-                Text("Tes tâches de ces jours-là passent aux autres, et reviennent à ton retour.")
             }
             LigneErreur(texte: erreur)
             BoutonEnvoi(titre: "Déclarer l'absence", actif: fin > debut, enCours: enCours) {
@@ -692,8 +686,6 @@ struct FormulaireAllege: View {
                 Text("\(nomAutre) · 75 %").texte(.corpsFort)
             }
             .foregroundStyle(Palette.textePrincipal)
-            Text("Ce qui t'est réservé (ta séance, tes tâches perso) reste à toi. Si vous l'activez le même jour, il s'annule ce jour-là. \(nomAutre) \(autres.count == 1 ? "le saura" : "le sauront").")
-                .texte(.legende).foregroundStyle(Palette.texteSecondaire)
         }
         .padding(Espace.interne)
         .carte()

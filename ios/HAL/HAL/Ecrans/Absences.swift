@@ -124,11 +124,7 @@ struct EcranAbsences: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "envelope").foregroundStyle(Palette.texteSecondaire)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Billets SNCF par courriel").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                    Text("Une confirmation d'achat crée le voyage et l'absence toute seule.")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                }
+                Text("Billets SNCF par courriel").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
             }
             HStack(spacing: 10) {
                 Button(releve ? "Relève…" : "Relever la boîte") { Task { await relever() } }
@@ -140,8 +136,6 @@ struct EcranAbsences: View {
             .confirmationDialog("Relire tous les billets des 120 derniers jours ?",
                                 isPresented: $confirmerRelecture, titleVisibility: .visible) {
                 Button("Tout relire") { Task { await relever(toutRelire: true) } }
-            } message: {
-                Text("Les voyages à venir nés d'un billet sont recréés à partir des courriels.")
             }
         }
         .padding(Espace.interne)
@@ -252,10 +246,6 @@ struct FeuilleJePars: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .carte(rayon: Rayon.controle)
                 }
-                Text(personneNeReste
-                     ? "Personne ne reste à la maison : ces tâches t'arrivent en plus du roulement (TAC-18)."
-                     : "Pendant ton absence, tes tâches passent aux autres ; elles reviennent à ton retour.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 if let erreur {
                     Label(erreur, systemImage: "exclamationmark.circle")
                         .texte(.corps).foregroundStyle(Categorie.alerte.couleur)
@@ -283,14 +273,6 @@ struct FeuilleJePars: View {
             DatePicker(titre, selection: date, in: depuis...).labelsHidden()
         }
         .padding(.vertical, 8)
-    }
-
-    /// TAC-18 : tous les autres sont déjà partis, je suis la dernière personne à la maison.
-    private var personneNeReste: Bool {
-        let autres = foyer.membres.filter { $0.id != foyer.moi.id }
-        return !autres.isEmpty && autres.allSatisfy { membre in
-            foyer.absences.contains { $0.pour.id == membre.id && $0.enCours }
-        }
     }
 
     /// TAC-18 : ce que le planning a posé avant un départ, sinon mes tâches du jour.

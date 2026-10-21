@@ -163,8 +163,6 @@ struct FormulaireTache: View {
                 ChoixDuType(choisi: $idType) { duree = $0.dureeMinutes ?? duree }
             } header: {
                 Text("Type")
-            } footer: {
-                Text("Le type donne sa couleur et son icône, et préremplit la durée.")
             }
             Section {
                 Picker("Quand", selection: $maniere) {
@@ -180,8 +178,6 @@ struct FormulaireTache: View {
                 }
             } header: {
                 Text("Quand")
-            } footer: {
-                Text(piedQuand)
             }
             if maniere == .uneFois {
                 Section {
@@ -192,10 +188,6 @@ struct FormulaireTache: View {
                     .pickerStyle(.segmented)
                 } header: {
                     Text("Si elle n'est pas faite")
-                } footer: {
-                    Text(oublier
-                         ? "Oubliée au report de minuit qui suit sa dernière date, sans retard : celui qui l'avait est prévenu."
-                         : "Elle revient chaque jour, en retard, jusqu'à être faite ou refusée.")
                 }
             }
             SectionHeure(heure: $heure, duree: duree)
@@ -249,19 +241,6 @@ struct FormulaireTache: View {
         if delai == .heures {
             Stepper("Au plus tôt \(delaiMin) h après", value: $delaiMin, in: 0...(delaiMax - 1))
             Stepper("Au plus tard \(delaiMax) h après", value: $delaiMax, in: (delaiMin + 1)...336)
-        }
-    }
-
-    private var piedQuand: String {
-        switch maniere {
-        case .uneFois:
-            moment == .aujourdhui
-                ? "À faire dans la journée."
-                : "Le moteur prend le jour le plus léger entre les deux dates. Deux dates égales disent un jour précis."
-        case .reguliere:
-            "Le moteur la place dans un creux, à un jour près, et la répartit selon le temps passé par chacun."
-        case .apres:
-            "Elle n'a pas de rythme à elle : elle naît quand l'autre est faite, comme vider le lave-vaisselle."
         }
     }
 
@@ -384,12 +363,6 @@ private struct SectionHeure: View {
             }
         } header: {
             Text("Heure")
-        } footer: {
-            switch heure.mode {
-            case .sans: Text("Un rappel dans la journée, sans heure.")
-            case .a: Text("Elle commence à cette heure-là et dure \(duree) min. Un cours à cette heure la laisse à placer, avec son motif.")
-            case .entre: Text("Le moteur choisit dans la plage. Elle ne passe pas minuit et contient au moins \(duree) min.")
-            }
         }
     }
 
@@ -527,7 +500,7 @@ struct EcranDetailTache: View {
                 } header: {
                     Text(modifiable ? "La tâche (modifiable)" : "La tâche")
                 } footer: {
-                    if !modifiable { Text("L'administrateur du foyer garde la modification des tâches pour lui.") }
+                    if !modifiable { Text("Seul l'administrateur du foyer modifie les tâches.") }
                 }
                 Section("Type") {
                     ChoixDuType(choisi: $idType).disabled(!modifiable)
@@ -557,8 +530,6 @@ struct EcranDetailTache: View {
                     }
                 } header: {
                     Text("Liens")
-                } footer: {
-                    Text("Ensuite : faire celle-ci fait naître l'autre. Le même jour : l'autre vient ce jour-là. Vaut aussi : la faire solde l'autre.")
                 }
                 LigneErreur(texte: erreur)
                 if modifiable {
@@ -566,8 +537,6 @@ struct EcranDetailTache: View {
                                 enCours: enCours) { Task { await enregistrer() } }
                     Section {
                         Button("Arrêter la tâche", role: .destructive) { confirmerArret = true }
-                    } footer: {
-                        Text("Arrêtée, elle quitte le planning et garde son historique.")
                     }
                 }
             } else if let erreur {
@@ -875,8 +844,6 @@ struct EcranTypesTaches: View {
                     }
                     .disabled(!foyer.droits.modifier || !foyer.connecte)
                 }
-            } footer: {
-                Text("Leur couleur et leur icône suivent leurs tâches dans l'appli. Le sport n'est pas un type : il a son onglet.")
             }
             if foyer.droits.modifier && foyer.connecte {
                 Section {
@@ -961,7 +928,7 @@ struct FormulaireType: View {
             } header: {
                 Text("Pour ses nouvelles tâches")
             } footer: {
-                Text("Priorité 1 : n'attend pas ; 5 : peut attendre. Préremplit le formulaire d'une tâche, sans rien imposer.")
+                Text("Priorité 1 : n'attend pas ; 5 : peut attendre.")
             }
             Section("Aperçu") {
                 HStack(spacing: 12) {

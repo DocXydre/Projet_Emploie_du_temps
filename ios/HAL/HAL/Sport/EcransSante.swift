@@ -57,8 +57,6 @@ struct EcranReglagesSante: View {
                     }
                 }
                 .disabled(sante.enCours || !sante.disponible || !foyer.connecte)
-            } footer: {
-                Text("L'appli lit Santé à chaque ouverture, puis quand iOS la réveille, à peu près toutes les trois heures. Téléphone verrouillé, Santé ne se lit pas : l'envoi attend la prochaine ouverture. Rien à lancer à la main.")
             }
 
             Section {
@@ -73,19 +71,6 @@ struct EcranReglagesSante: View {
                 }
             } header: {
                 Text("Ce qui est lu")
-            } footer: {
-                Text("Toutes les sources de Santé : la montre, l'iPhone, une balance. Une case décochée n'est plus envoyée ; ce qui est déjà sur le serveur y reste.")
-            }
-
-            if sante.lues.contains(.trace) {
-                Section {
-                    Label {
-                        Text("Le tracé montre où tu cours : il reste sur ton serveur, n'est lu que par HAL, et \(foyer.autre?.nom ?? "l'autre membre du foyer") ne le voit pas.")
-                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                    } icon: {
-                        Image(systemName: "lock").foregroundStyle(Categorie.sport.couleur)
-                    }
-                }
             }
 
             historique
@@ -96,7 +81,7 @@ struct EcranReglagesSante: View {
                     if let lien = URL(string: "x-apple-health://") { ouvrir(lien) }
                 }
             } footer: {
-                Text("Dans la fenêtre d'iOS, choisis « Toutes les données enregistrées » : sinon HAL ne voit que les 30 derniers jours. iOS ne dit jamais qu'une donnée est refusée : elle ressemble à une donnée absente. Les autorisations se changent dans Réglages d'iOS, Confidentialité et sécurité, Santé, HAL.")
+                Text("Dans la fenêtre d'iOS, choisis « Toutes les données enregistrées ».")
             }
 
             Section("Voir les données") {
@@ -114,10 +99,6 @@ struct EcranReglagesSante: View {
 
             Section {
                 NavigationLink("Apple Watch et Strava") { EcranMontre() }
-            } footer: {
-                Text(foyer.aUneMontre
-                     ? "Les séances faites avec la montre arrivent par Santé. Une course prévue part sur la montre depuis sa séance."
-                     : "Sans montre : les courses arrivent de Strava ou d'une autre appli, par Santé, et le sommeil est celui que l'iPhone estime.")
             }
         }
         .navigationTitle("Santé")
@@ -168,13 +149,9 @@ struct EcranReglagesSante: View {
                         Task { await sante.envoyer(raison: "tout renvoyer", budget: 60) }
                     }
                     Button("Annuler", role: .cancel) {}
-                } message: {
-                    Text("L'historique repart de zéro. Le serveur ne garde rien en double.")
                 }
         } header: {
             Text("Historique")
-        } footer: {
-            Text("Il avance à chaque ouverture, et surtout quand l'iPhone est branché. Il reprend tout seul là où il s'est arrêté. Ensuite, seul le nouveau part.")
         }
     }
 
@@ -221,7 +198,7 @@ struct EcranMesures: View {
                 if let mesures {
                     let types = TypeMesure.tous.filter { type in mesures.contains { $0.typeMesure == type } }
                     if types.isEmpty {
-                        Text("Aucune mesure encore. HAL en demande une de temps en temps, et tu peux en noter une quand tu veux.")
+                        Text("Aucune mesure encore.")
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -334,11 +311,6 @@ struct EcranSeancesMontre: View {
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
-                Text(foyer.aUneMontre
-                     ? "Elles arrivent par Santé. Une séance de la montre compte la séance prévue du même jour comme faite."
-                     : "Elles arrivent par Santé, de Strava ou d'une autre appli, ou sont déclarées à la main. Chacune compte la séance prévue du même jour comme faite.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(Espace.marge)
         }

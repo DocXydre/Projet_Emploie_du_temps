@@ -58,7 +58,7 @@ struct CarteEffort: View {
                 Spacer()
                 Text(EnFrancais.jour(course.debut)).texte(.legende).foregroundStyle(Palette.texteTertiaire)
             }
-            Text("\(course.enClair). Sans la montre, HAL n'a que ta note pour savoir ce qu'elle t'a coûté.")
+            Text(course.enClair)
                 .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                 .fixedSize(horizontal: false, vertical: true)
             ChoixEffort(effort: $note)
@@ -228,9 +228,6 @@ struct FormulaireCourseALaMain: View {
                 Button("Enregistrer la \(discipline == "course" ? "course" : "séance")") { enregistrer() }
                     .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
                     .disabled(!finie)
-                Text("Elle compte comme faite. Si la même arrive ensuite de Strava ou de la montre, c'est celle-là qui compte, avec ta note.")
-                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(Espace.marge)
         }

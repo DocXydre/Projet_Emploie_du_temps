@@ -79,8 +79,6 @@ struct EcranConnexion: View {
                                 .font(.system(.body, design: .monospaced))
                         } header: {
                             Text("Code d'invitation")
-                        } footer: {
-                            Text("L'administrateur du foyer te l'a donné. Il vaut 48 heures, une seule fois.")
                         }
                     }
                 }
@@ -130,7 +128,7 @@ struct EcranConnexion: View {
                     .disabled(enCours || !complet)
                 } footer: {
                     if mode == .connexion {
-                        Text("Ton mot de passe se choisit en rejoignant le foyer, puis se change dans Réglages. Oublié : demande à l'administrateur du serveur.")
+                        Text("Oublié : demande à l'administrateur du serveur.")
                     } else if !motDePasse.isEmpty && !confirmation.isEmpty && motDePasse != confirmation {
                         Text("Les deux mots de passe ne sont pas les mêmes.")
                     }
@@ -148,8 +146,6 @@ struct EcranConnexion: View {
                     Section {
                         Button("Essayer sans serveur") { session.demonstration() }
                             .frame(maxWidth: .infinity)
-                    } footer: {
-                        Text("Des données fictives, pour voir l'appli. Tu pourras te connecter ensuite depuis les Réglages.")
                     }
                 }
             }

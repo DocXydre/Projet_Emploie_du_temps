@@ -113,8 +113,6 @@ struct EcranProfilSportif: View {
                     }
                 } header: {
                     Text("Réglages du plan")
-                } footer: {
-                    Text("Le maximum borne ce que HAL propose (PLN-14). HAL propose de revoir ton profil toutes les huit semaines (PRO-9).")
                 }
                 Refus(texte: erreur)
                 Section {
@@ -122,8 +120,6 @@ struct EcranProfilSportif: View {
                         HStack { Spacer(); if envoi { ProgressView() } else { Text("Enregistrer").bold() }; Spacer() }
                     }
                     .disabled(envoi)
-                } footer: {
-                    Text("Le poids n'est pas dans le profil : c'est une mesure, dans Sport.")
                 }
             }
         }
@@ -267,8 +263,6 @@ struct EcranLimitations: View {
                 Refus(texte: erreur)
                 Section {
                     Button("Ajouter une limitation") { nouvelle = true }
-                } footer: {
-                    Text("Une limitation désactivée reste notée, mais ses exercices redeviennent possibles.")
                 }
             } else if let erreur {
                 Section { Text(erreur).foregroundStyle(Palette.texteSecondaire) }
@@ -500,10 +494,6 @@ struct EcranLieux: View {
                 }
             }
             Refus(texte: erreur)
-            Section {
-            } footer: {
-                Text("Le premier est celui que HAL prend quand il n'a pas de raison d'en choisir un autre (LIE-2).")
-            }
         }
         .navigationTitle("Lieux de sport")
         .navigationBarTitleDisplayMode(.inline)
@@ -733,8 +723,6 @@ struct EcranMemoire: View {
                     Text(archive.texte ?? "").texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 }
             }
-            Text("Résumés chaque nuit. Ils ne se corrigent pas ici : corrige plutôt la mémoire globale.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
         }
         .padding(Espace.interne)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -779,8 +767,6 @@ private struct CorrigerMemoire: View {
         FormulaireVerre {
             Section {
                 TextEditor(text: $texte).frame(minHeight: 240)
-            } footer: {
-                Text("L'ancienne version reste : tu pourras la remettre.")
             }
             Refus(texte: erreur)
         }
@@ -909,8 +895,6 @@ struct EcranPause: View {
                     LigneErreur(texte: erreur)
                     Button("Reprendre maintenant") { Task { await lever() } }
                         .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
-                    Text("HAL relit ce qui s'est passé et te propose une semaine de reprise (PAU-6).")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 } else {
                     EnTeteGroupe(texte: "Motif")
                     Flux(espacement: 8) {
@@ -1055,8 +1039,6 @@ struct EcranDemarrageReglages: View {
         FormulaireVerre {
             Section {
                 Button("Reprendre le démarrage") { conversation.demarrageOuvert = true }
-            } footer: {
-                Text("Il repart de là où tu t'étais arrêté. Ce qui est déjà rempli est sauté, et chaque ligne du récapitulatif se corrige.")
             }
             Section {
                 Toggle("Garder les données de la montre", isOn: $garderSante)
