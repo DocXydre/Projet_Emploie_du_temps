@@ -18,6 +18,8 @@ struct Racine: View {
     @Environment(Session.self) private var session
     @Environment(Aiguillage.self) private var aiguillage
     @State private var annonce: Annonce?
+    /// ORB-13 : clavier sorti, la barre d'onglets s'efface et laisse sa place.
+    @State private var clavier = false
 
     private var onglet: Onglet { aiguillage.onglet }
 
@@ -28,6 +30,11 @@ struct Racine: View {
             ZStack {
                 ForEach(Onglet.allCases) { candidat in
                     NavigationStack { ecran(candidat) }
+                        // Tout ce qui défile dans l'onglet, écrans poussés compris, finit
+                        // par la hauteur de ce qui flotte : son bas remonte au-dessus de
+                        // la barre. Le panneau ouvert l'agrandit, il pousse le contenu au
+                        // lieu de le recouvrir (ORB-1).
+                        .contentMargins(.bottom, margeBasse(geo), for: .scrollContent)
                         .opacity(candidat == onglet ? 1 : 0)
                         .allowsHitTesting(candidat == onglet)
                         .accessibilityHidden(candidat != onglet)
@@ -54,15 +61,19 @@ struct Racine: View {
                             .padding(.horizontal, Espace.marge)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    BarreOnglets(selection: Bindable(aiguillage).onglet)
+                    if !clavier {
+                        BarreOnglets(selection: Bindable(aiguillage).onglet)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
                 .padding(.bottom, 4)
             }
-            // Chaque écran finit par une marge de la hauteur de ce qui flotte : le
-            // dernier widget remonte au-dessus de la barre. Le panneau ouvert
-            // l'agrandit, il pousse le contenu au lieu de le recouvrir (ORB-1).
-            .environment(\.margeBasse, 68 + 4 + Espace.gouttiere
-                         + (conversation.ouvert ? hauteurPanneau(geo) + 8 : 0))
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                withAnimation(.smooth(duration: 0.25)) { clavier = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.smooth(duration: 0.25)) { clavier = false }
+            }
         }
         .background { Fond() }
         .overlay(alignment: .top) {
@@ -124,8 +135,20 @@ struct Racine: View {
         }
     }
 
+    /// La hauteur de ce qui flotte en bas de l'écran : la barre, et le panneau de HAL s'il est ouvert.
+    private func margeBasse(_ geo: GeometryProxy) -> CGFloat {
+        (clavier ? 4 : 68 + 4 + Espace.gouttiere) + (conversation.ouvert ? hauteurPanneau(geo) + 8 : 0)
+    }
+
+    /// La place de la barre d'onglets, quand elle est là.
+    private var hauteurBarre: CGFloat { clavier ? 4 : 68 + 4 + 8 }
+
+    /// La moitié de l'écran, ou tout ce qui reste au-dessus de la barre quand il est
+    /// étendu (ORB-12). Clavier sorti, il prend toute la place au-dessus du clavier :
+    /// `geo` s'arrête au clavier, et à mi-hauteur on ne verrait plus la conversation.
     private func hauteurPanneau(_ geo: GeometryProxy) -> CGFloat {
-        geo.size.height * 0.52
+        let toutEnHaut = geo.size.height - hauteurBarre - Espace.serre
+        return conversation.etendu || clavier ? toutEnHaut : min(geo.size.height * 0.52, toutEnHaut)
     }
 
     @ViewBuilder
@@ -156,9 +179,6 @@ extension EnvironmentValues {
         get { self[CleAnnonceur.self] }
         set { self[CleAnnonceur.self] = newValue }
     }
-
-    /// La hauteur de ce qui flotte en bas de l'écran : la barre, et le panneau de HAL s'il est ouvert.
-    @Entry var margeBasse: CGFloat = 0
 }
 
 /// La confirmation en haut de l'écran. Un glissement vers le haut ou sur le

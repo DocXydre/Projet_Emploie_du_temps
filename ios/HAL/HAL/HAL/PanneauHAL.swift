@@ -28,8 +28,15 @@ struct PanneauHAL: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Capsule().fill(Palette.verreBord).frame(width: 36, height: 5).padding(.top, 8)
-            entete
+            // ORB-12 : la poignée et l'en-tête se tirent vers le haut ou le bas.
+            VStack(spacing: 12) {
+                poignee
+                entete
+            }
+            .contentShape(Rectangle())
+            .gesture(gestePoignee)
+            // ORB-13 : toucher l'écran range le clavier.
+            .simultaneousGesture(TapGesture().onEnded { saisie = false })
             if let joint = conversation.joint { carteJointe(joint) }
             ScrollViewReader { defilement in
                 ScrollView {
@@ -57,6 +64,9 @@ struct PanneauHAL: View {
                     .padding(.horizontal, Espace.interne)
                 }
                 .scrollIndicators(.hidden)
+                // ORB-13 : faire défiler la conversation, ou la toucher, range le clavier.
+                .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(TapGesture().onEnded { saisie = false })
                 .onChange(of: conversation.messages.count) { descendre(defilement) }
                 .onChange(of: conversation.reflechit) { descendre(defilement) }
                 .onChange(of: conversation.echec) { descendre(defilement) }
@@ -86,9 +96,6 @@ struct PanneauHAL: View {
                 .overlay(forme.strokeBorder(Palette.verreBord, lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
         }
-        .gesture(DragGesture(minimumDistance: 20).onEnded { geste in
-            if geste.translation.height > 60 { conversation.fermer() }
-        })
         .sheet(item: $feuille) { choix in
             switch choix {
             case .seance(let detail):
@@ -167,6 +174,35 @@ struct PanneauHAL: View {
         }
     }
 
+    /// La poignée : on la tire, elle ne se touche pas (ORB-12). VoiceOver garde une action.
+    private var poignee: some View {
+        Capsule().fill(Palette.verreBord).frame(width: 36, height: 5)
+            .frame(maxWidth: .infinity, minHeight: 20)
+            .padding(.top, 2)
+            .accessibilityElement()
+            .accessibilityLabel(conversation.etendu ? "Réduire HAL" : "Étendre HAL")
+            .accessibilityAction { conversation.etendre(!conversation.etendu) }
+    }
+
+    /// Vers le haut, le panneau monte jusqu'en haut. Vers le bas, il range d'abord le
+    /// clavier, puis redescend à mi-hauteur, puis se ferme (ORB-2, ORB-12, ORB-13).
+    private var gestePoignee: some Gesture {
+        DragGesture(minimumDistance: 12).onEnded { geste in
+            let vertical = geste.translation.height
+            if vertical < -50 {
+                conversation.etendre(true)
+            } else if vertical > 50 {
+                if saisie {
+                    saisie = false
+                } else if conversation.etendu {
+                    conversation.etendre(false)
+                } else {
+                    conversation.fermer()
+                }
+            }
+        }
+    }
+
     private var entete: some View {
         HStack(spacing: 10) {
             Orbe(etat: conversation.etatOrbe, taille: 30)
@@ -176,7 +212,10 @@ struct PanneauHAL: View {
                     .lineLimit(1)
             }
             Spacer()
-            BoutonRond("chevron.down", libelle: "Fermer HAL") { conversation.fermer() }
+            BoutonRond("chevron.down", libelle: "Fermer HAL") {
+                saisie = false
+                conversation.fermer()
+            }
         }
         .padding(.horizontal, Espace.interne)
     }

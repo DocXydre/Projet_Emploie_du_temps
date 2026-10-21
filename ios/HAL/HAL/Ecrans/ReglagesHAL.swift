@@ -590,7 +590,6 @@ struct EcranMemoire: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Mémoire de HAL")
         .navigationBarTitleDisplayMode(.inline)
@@ -964,7 +963,6 @@ struct EcranPause: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Pause")
         .navigationBarTitleDisplayMode(.inline)

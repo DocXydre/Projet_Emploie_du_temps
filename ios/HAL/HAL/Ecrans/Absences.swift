@@ -30,7 +30,6 @@ struct EcranAbsences: View {
             .padding(Espace.marge)
         }
         .scrollIndicators(.hidden)
-        .margeDeLaBarre()
         .containerBackground(.clear, for: .navigation)
         .navigationTitle("Absences et voyages")
         .navigationBarTitleDisplayMode(.inline)

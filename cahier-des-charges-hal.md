@@ -3806,6 +3806,8 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | ORB-9 | D | Quand HAL pose une question, les réponses courantes sont proposées en boutons, et le texte libre reste possible [2.8] |
 | ORB-10 | M | « Demander un changement », sur une séance, une course ou la semaine, ouvre le panneau avec cet élément joint en haut (COA-32) [2.7]. On explique, HAL propose, on valide |
 | ORB-11 | M | Signaler une douleur, une fatigue ou un contretemps se fait en parlant à HAL : il pose ses questions avec des réponses prêtes, puis ajuste (COA-10) [2.8]. Il peut proposer d'ajouter une limitation, jamais l'ajouter seul (EXO-8) |
+| ORB-12 | M | Le panneau a deux hauteurs : la moitié de l'écran, et tout l'écran au-dessus de la barre. On l'étend d'un geste, en tirant la poignée ou l'en-tête vers le haut, sans bouton ; on le ramène d'un geste vers le bas. Tiré vers le bas à mi-hauteur, il se ferme (ORB-2). Fermé, il se rouvre à mi-hauteur |
+| ORB-13 | M | Le clavier se range sans fermer HAL, sans bouton : on touche l'écran, en dehors du champ, ou on fait défiler la conversation, ou on tire l'en-tête vers le bas. Clavier sorti, la barre d'onglets s'efface, partout dans l'appli, et le panneau prend toute la place au-dessus du clavier |
 
 ### C.7 Les écrans
 
@@ -4971,7 +4973,7 @@ Version du 21 octobre 2026, migration 074. Un compte peut maintenant se servir d
 
 ### Annexe 11 : la barre d'onglets, les textes de l'appli et la clé de secours
 
-Version du 21 octobre 2026, migration 075. Deux règles sont réécrites ; voici leur texte d'avant.
+Version du 21 octobre 2026, migration 075. Deux règles sont nouvelles : ORB-12, le panneau de HAL étendu jusqu'en haut, et ORB-13, le clavier qui se range sans fermer HAL. Deux règles sont réécrites ; voici leur texte d'avant.
 
 | Code | Ce qu'elle disait |
 |---|---|
