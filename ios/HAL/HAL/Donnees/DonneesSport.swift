@@ -78,6 +78,29 @@ struct EtatSport: Codable, Sendable {
     let invitations: [InvitationAPI]?
     /// DEM-1 : le premier bloc du démarrage de HAL qui manque, ou rien.
     var demarrage: String? = nil
+    /// MON-7 : l'interrupteur « J'ai une Apple Watch ». Absent d'un ancien cache : vrai.
+    var aUneMontre: Bool? = nil
+    /// MON-11 : les courses reçues sans la montre qui attendent leur note d'effort.
+    var effortsADonner: [EffortADonner]? = nil
+
+    /// MON-11 : une course ou du cardio reçus d'une autre appli que la montre.
+    struct EffortADonner: Codable, Hashable, Identifiable, Sendable {
+        let idOccurrence: Int
+        let discipline: String
+        let debut: Date
+        let dureeSecondes: Int
+        var distanceM: Int? = nil
+        var source: String? = nil
+        var id: Int { idOccurrence }
+
+        /// « Course de 5,2 km, reçue de Strava »
+        var enClair: String {
+            let quoi = discipline == "course" ? "Course" : "Cardio"
+            let combien = distanceM.map { "de \(EnFrancais.distance($0))" }
+                ?? "de \(EnFrancais.duree(minutes: max(1, dureeSecondes / 60)))"
+            return "\(quoi) \(combien)" + (source.map { ", reçue de \($0)" } ?? "")
+        }
+    }
 
     struct SemaineAValider: Codable, Sendable {
         let lundi: Date
@@ -266,6 +289,29 @@ struct DetailSeance: Codable, Hashable, Sendable {
             var zones: [Int]? = nil
             /// La fréquence cardiaque minute par minute.
             var frequence: [Int]? = nil
+            /// L'application qui l'a écrite dans Santé : « Apple Watch de Thomas », « Strava ».
+            var source: String? = nil
+            /// Le modèle de l'appareil : « Watch », « iPhone ».
+            var appareil: String? = nil
+            /// MON-12 : déclarée à la main, avec son terrain et sa note.
+            var saisieManuelle: Bool? = nil
+            var terrain: String? = nil
+            var effort: Int? = nil
+        }
+
+        /// SAN-15 : enregistrée par une Apple Watch, d'après l'appareil ou la source.
+        var deLaMontre: Bool {
+            [details?.appareil, details?.source].contains { $0?.localizedCaseInsensitiveContains("watch") == true }
+        }
+
+        var aLaMain: Bool { details?.saisieManuelle == true }
+
+        /// D'où vient la séance, en une phrase (3.14).
+        var provenance: String {
+            if aLaMain { return "Déclarée à la main." }
+            if deLaMontre { return "Données de l'Apple Watch, reçues par Santé." }
+            if let source = details?.source { return "Reçue de \(source) par Santé." }
+            return "Reçue par Santé."
         }
     }
 

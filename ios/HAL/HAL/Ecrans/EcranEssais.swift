@@ -111,6 +111,7 @@ struct EcranEssais: View {
                 bascule("Mesure demandée", "scalemass", .ia, $foyer.essais.mesure)
                 bascule("Jour de muscu", "dumbbell", .sport, $foyer.essais.jourDeMuscu)
                 bascule("Compte neuf", "tray", .perso, $foyer.essais.foyerVide)
+                bascule("Sans montre", "applewatch.slash", .sport, $foyer.essais.sansMontre)
             }
             EnTeteGroupe(texte: "États qui durent")
             GroupeReglages {

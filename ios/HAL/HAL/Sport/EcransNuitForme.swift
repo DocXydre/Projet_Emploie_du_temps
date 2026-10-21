@@ -269,8 +269,11 @@ struct EcranForme: View {
                 EnTeteSante(titre: "Forme et corps") { EmptyView() }
                 Segmente(choix: [(30, "30 j"), (90, "90 j"), (365, "1 an"), (0, "Tout")], selection: $periode)
                 if let forme {
-                    vo2max(forme.vo2max)
-                    recuperation(forme.fcRecuperation)
+                    // MON-8 : la VO2max et la FC de récupération ne viennent que de la montre.
+                    if foyer.aUneMontre {
+                        vo2max(forme.vo2max)
+                        recuperation(forme.fcRecuperation)
+                    }
                     poids(forme.poids)
                     quotidien(forme)
                     Text("Ce qui vient de Santé, toutes sources : Apple Watch, iPhone et la balance. Une même donnée venue de deux sources n'est comptée qu'une fois, la montre d'abord.")

@@ -5,9 +5,15 @@ import SwiftUI
 /// inscrit au registre y apparaît tout seul.
 struct Galerie: View {
     @Environment(Disposition.self) private var disposition
+    @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
     @State private var choisi: Module.ID?
     @State private var taille: TailleWidget = .moyen
+
+    /// MON-8 : sans montre, ses widgets ne se proposent pas.
+    private var disponibles: [Module] {
+        disposition.disponibles.filter { foyer.aUneMontre || !$0.avecMontre }
+    }
 
     var body: some View {
         NavigationStack {
@@ -26,10 +32,10 @@ struct Galerie: View {
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                             .frame(maxWidth: .infinity).padding(.top, 40)
                     }
-                    if !disposition.disponibles.isEmpty {
+                    if !disponibles.isEmpty {
                         EnTeteGroupe(texte: "Tous les modules")
                         GroupeReglages {
-                            ForEach(disposition.disponibles) { candidat in
+                            ForEach(disponibles) { candidat in
                                 Button {
                                     withAnimation(.snappy) {
                                         choisi = candidat.id
@@ -53,7 +59,7 @@ struct Galerie: View {
             .ecranHAL()
         }
         .onAppear {
-            if choisi == nil, let premier = disposition.disponibles.first {
+            if choisi == nil, let premier = disponibles.first {
                 choisi = premier.id
                 taille = premier.tailleParDefaut
             }
@@ -62,7 +68,7 @@ struct Galerie: View {
 
     /// Le module choisi, ou le premier disponible.
     private var module: Module? {
-        disposition.disponibles.first { $0.id == choisi } ?? disposition.disponibles.first
+        disponibles.first { $0.id == choisi } ?? disponibles.first
     }
 
     private func apercu(_ module: Module) -> some View {

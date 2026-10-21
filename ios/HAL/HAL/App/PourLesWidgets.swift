@@ -17,7 +17,9 @@ extension Foyer {
             misAJour: .now,
             sport: Instantane.Sport(faites: semaine.faites, prevues: semaine.prevues,
                                     prochaine: semaine.prochaine),
-            forme: Instantane.Forme(sommeilMinutes: forme.sommeilMinutes, fcRepos: forme.fcRepos,
+            // MON-8 : sans montre, pas de FC de repos sur l'écran d'accueil non plus.
+            forme: Instantane.Forme(sommeilMinutes: forme.sommeilMinutes,
+                                    fcRepos: aUneMontre ? forme.fcRepos : nil,
                                     pas: forme.pas),
             journee: journee,
             halADire: orbeADire)

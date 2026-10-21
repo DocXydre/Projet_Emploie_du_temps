@@ -3,7 +3,7 @@ import SwiftUI
 extension Module {
     static let montre = Module(
         id: "montre", nom: "Montre", icone: "applewatch", categorie: .sport,
-        tailles: [.petit],
+        tailles: [.petit], avecMontre: true,
         widget: { _ in AnyView(WidgetMontre()) },
         ecran: { AnyView(EcranSeancesMontre()) }
     )

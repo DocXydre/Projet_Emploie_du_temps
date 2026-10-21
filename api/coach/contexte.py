@@ -118,7 +118,7 @@ def pause(id_utilisateur: int) -> dict | None:
 def reglages(id_utilisateur: int) -> dict:
     return un_seul(
         """SELECT u.nom, u.coach_actif, u.repos_dur_heures, u.seances_max_semaine,
-                  u.besoin_sommeil_minutes
+                  u.besoin_sommeil_minutes, u.a_une_montre
              FROM utilisateur u WHERE u.id_utilisateur = %(u)s""",
         {"u": id_utilisateur}) or {}
 
@@ -249,6 +249,18 @@ def texte(id_utilisateur: int) -> str:
                            maximum if maximum else "non fixé, tu décides"))
     morceaux.append(_ligne("Besoin de sommeil",
                            f"{r.get('besoin_sommeil_minutes', 480) // 60} h"))
+    # MON-15 : sans montre, ni FC, ni VFC, ni phases ; la course se dose autrement.
+    if r.get("a_une_montre", True):
+        morceaux.append(_ligne("Apple Watch", "oui : les courses partent sur la montre"))
+    else:
+        morceaux.append(_ligne(
+            "Apple Watch",
+            "non. Pas de FC à l'effort, de FC de repos, de VFC, de VO2max ni de phases de "
+            "sommeil : ne les cherche pas. Le sommeil est estimé par l'iPhone, à lire en "
+            "tendance. Les courses arrivent de Strava ou d'une autre appli, ou sont déclarées "
+            "à la main, chacune avec sa note d'effort. Dose la course à l'allure et à "
+            "l'effort perçu, écris ses étapes pour qu'elles se lisent en courant, et "
+            "n'annonce aucun envoi à la montre (chapitre 2.2)"))
 
     morceaux.append("")
     morceaux.append(memoire.texte(id_utilisateur))

@@ -76,9 +76,13 @@ struct EcranPremierLancement: View {
         ) {
             Points {
                 Point(icone: "shoeprints.fill", texte: "Pas, sommeil, fréquence cardiaque, VFC")
-                Point(icone: "waveform.path.ecg", texte: "Tes séances de la montre, pour valider les courses")
+                Point(icone: "waveform.path.ecg", texte: "Tes séances de la montre ou de Strava, pour valider les courses")
                 Point(icone: "lock", texte: "Tout reste sur ton serveur, jamais partagé")
             }
+            // MON-7 : la question de la montre, réglée à la main.
+            InterrupteurMontre()
+                .padding(Espace.interne)
+                .carte(rayon: Rayon.controle)
             Text("iOS ouvre ensuite sa fenêtre : touche « Tout activer », puis « Autoriser ». Rien n'est écrit dans Santé.")
                 .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 .multilineTextAlignment(.center)

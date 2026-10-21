@@ -32,6 +32,9 @@ struct Module: Identifiable {
     let tailles: [TailleWidget]
     /// Un module fixe ne se retire pas et ne se déplace pas (WID-7).
     var fixe = false
+    /// MON-8 : un module qui ne vit que par la montre. Sans elle, il quitte
+    /// l'accueil et la galerie, et revient avec elle.
+    var avecMontre = false
     let widget: @MainActor (TailleWidget) -> AnyView
     /// Ce qui s'affiche quand on touche le widget, sur place (WID-5).
     var agrandi: (@MainActor () -> AnyView)? = nil

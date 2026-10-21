@@ -81,6 +81,7 @@ struct EcranAujourdhui: View {
         if foyer.conflit != nil { liste.append(.conflit) }
         if foyer.ajustement != nil { liste.append(.ajustement) }
         if foyer.mesureDemandee != nil { liste.append(.mesureDemandee) }
+        if !foyer.effortsADonner.isEmpty { liste.append(.effortADonner) }
         // Une séance lancée passe devant tout le reste, puis celle du jour à lancer.
         if seance.enCours {
             liste.insert(.seanceEnCours, at: 0)

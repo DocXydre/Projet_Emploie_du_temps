@@ -23,7 +23,7 @@ extension Module {
 
     static let frequenceDuJour = Module(
         id: "frequenceDuJour", nom: "Fréquence cardiaque · aujourd'hui", icone: "waveform", categorie: .alerte,
-        tailles: [.moyen],
+        tailles: [.moyen], avecMontre: true,
         widget: { _ in AnyView(WidgetFrequence()) }
     )
 
@@ -85,13 +85,20 @@ struct WidgetForme: View {
             if taille == .petit {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(sommeil(forme.sommeilMinutes)).texte(.chiffre).foregroundStyle(Palette.textePrincipal)
-                    Text("de sommeil").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    Text(foyer.aUneMontre ? "de sommeil" : "de sommeil estimé").texte(.legende)
+                        .foregroundStyle(Palette.texteSecondaire)
                 }
-            } else {
+            } else if foyer.aUneMontre {
                 HStack(alignment: .top) {
                     valeur("Sommeil", sommeil(forme.sommeilMinutes))
                     valeur("FC repos", forme.fcRepos.map(String.init) ?? "—", "bpm")
                     valeur("VFC", forme.vfc.map(String.init) ?? "—", "ms")
+                }
+            } else {
+                // MON-8, MON-14 : sans montre, le sommeil que l'iPhone estime et les pas.
+                HStack(alignment: .top) {
+                    valeur("Sommeil estimé", sommeil(forme.sommeilMinutes))
+                    valeur("Pas", forme.pas.map(EnFrancais.nombre) ?? "—")
                 }
             }
         }

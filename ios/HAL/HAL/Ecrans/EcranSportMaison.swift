@@ -152,6 +152,7 @@ struct AjoutRapide: View {
         case creneau = "Créneau"
         case absence = "Absence"
         case seanceLibre = "Séance libre"
+        case courseFaite = "Course faite"
         case mesure = "Mesure"
         case allege = "Mode allégé"
 
@@ -164,6 +165,7 @@ struct AjoutRapide: View {
             case .creneau: "bloquer un moment"
             case .absence: "je pars, je rentre"
             case .seanceLibre: "à mon idée"
+            case .courseFaite: "sans rien pour l'enregistrer"
             case .mesure: "poids, tours"
             case .allege: "en faire moins"
             }
@@ -176,6 +178,7 @@ struct AjoutRapide: View {
             case .creneau: "calendar.badge.plus"
             case .absence: "mappin"
             case .seanceLibre: "dumbbell"
+            case .courseFaite: "figure.run"
             case .mesure: "scalemass"
             case .allege: "moon"
             }
@@ -184,7 +187,7 @@ struct AjoutRapide: View {
         var categorie: Categorie {
             switch self {
             case .tache: .menage
-            case .faite, .seanceLibre: .sport
+            case .faite, .seanceLibre, .courseFaite: .sport
             case .creneau: .travail
             case .absence: .ia
             case .mesure, .allege: .linge
@@ -225,6 +228,7 @@ struct AjoutRapide: View {
                 case .absence: EcranAbsences()
                 case .allege: FormulaireAllege()
                 case .seanceLibre: FormulaireAnnonce()
+                case .courseFaite: FormulaireCourseALaMain()
                 case .mesure: EcranMesures()
                 }
             }

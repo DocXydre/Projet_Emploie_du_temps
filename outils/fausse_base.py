@@ -345,7 +345,7 @@ def course_de_la_montre(u: int, cle: str, debut: datetime, minutes: int, km: flo
                "denivele_m": 42, "energie_kcal": int(minutes * 11), "fc_moyenne": fc,
                "fc_max": fc + 22, "allure_s_km": allure, "cadence": 168,
                "details": {"kilometres": [allure + d for d in (12, 4, -3, 0, -8, 6)][:int(km)],
-                           "zones": zones, "frequence": frequence}}
+                           "zones": zones, "frequence": frequence, **MONTRE}}
     sql("""SELECT recevoir_activite(%(u)s, %(k)s, %(t)s, %(d)s, %(a)s, %(b)s,
                                     %(j)s::JSONB)""",
         u=u, k=cle, t="running" if discipline == "course" else "walking", d=discipline,
@@ -747,6 +747,18 @@ def footing(t: int) -> None:
         sql("SELECT recevoir_series(%(u)s, %(k)s, %(l)s)", u=t, k=cle, l=Jsonb(paquet))
 
 
+def course_strava(t: int) -> None:
+    """MON-11 : une course d'hier soir, reçue de Strava sans la montre ni FC. Elle
+    attend sa note d'effort, sur Aujourd'hui et sur Sport."""
+    debut = a(J - timedelta(days=1), 19, 10)
+    sql("""SELECT recevoir_activite(%(u)s, 'maquette-strava-hier', 'running', 'course',
+                                    %(a)s, %(b)s, %(j)s::JSONB)""",
+        u=t, a=debut, b=debut + timedelta(minutes=34),
+        j=json.dumps({"duree_secondes": 34 * 60, "distance_m": 5400, "allure_s_km": 378,
+                      "details": {"source": "Strava", "appareil": "iPhone"}}))
+    dire("une course de Strava, hier soir, qui attend sa note d'effort")
+
+
 def quotidien(t: int) -> None:
     """Trente jours de quotidien, mesure par mesure, et quatorze nuits en phases."""
     lignes = []
@@ -816,6 +828,7 @@ def principal() -> None:
     sport(t, lo)
     sante(t)
     fractionne(t)
+    course_strava(t)
     quotidien(t)
     print()
     for pseudo, mdp in MOTS_DE_PASSE.items():

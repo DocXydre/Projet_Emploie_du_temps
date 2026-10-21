@@ -423,6 +423,17 @@ class Bilan(BaseModel):
     cle_client: UUID | None = None
 
 
+class CourseALaMain(BaseModel):
+    cle_client: UUID
+    discipline: Literal["course", "cardio"] = "course"
+    debut: datetime = Field(description="Le départ")
+    duree_minutes: int = Field(ge=1, le=600)
+    effort: int = Field(ge=1, le=10)
+    distance_m: int | None = Field(default=None, ge=1, le=300_000)
+    terrain: Literal["route", "ville", "foret", "trail", "piste", "tapis"] | None = None
+    commentaire: str | None = None
+
+
 class Deplacement(BaseModel):
     debut: datetime | None = None
     id_lieu: int | None = None
@@ -480,6 +491,22 @@ def annoncer_seance_libre(qui: Authentifie, seance: SeanceLibre) -> dict:
                   "ce que tu conseilles d'éviter ce jour-là, et ajuste la suite de la "
                   "semaine sans attendre. Tu ne la refuses pas.")
     return {"seance": _detail(qui.id_utilisateur, ligne["id"]), "coach": rendu}
+
+
+@routeur.post("/seances/course-a-la-main", tags=["Coach : séances"], status_code=201,
+              summary="Déclarer une course ou du cardio faits sans rien qui les enregistre")
+def saisir_course_a_la_main(qui: Authentifie, course: CourseALaMain) -> dict:
+    """MON-12 : elle entre comme une séance reçue de Santé, marquée à la main, se
+    rattache à la course prévue ce jour-là ou devient une séance libre, et porte
+    son bilan. Rejouable par sa clé."""
+    ligne = executer(
+        "SELECT saisir_course_a_la_main(%(u)s, %(cle)s, %(d)s, %(debut)s, %(duree)s, %(e)s, "
+        "%(dist)s, %(terrain)s, %(c)s) AS rendu",
+        {"u": qui.id_utilisateur, "cle": course.cle_client, "d": course.discipline,
+         "debut": course.debut, "duree": course.duree_minutes, "e": course.effort,
+         "dist": course.distance_m, "terrain": course.terrain, "c": course.commentaire})
+    rendu = ligne["rendu"]
+    return {**rendu, "seance": _detail(qui.id_utilisateur, rendu["id_occurrence"])}
 
 
 @routeur.get("/seances/{id_occurrence}", tags=["Coach : séances"],
@@ -633,8 +660,15 @@ def enregistrer_bilan(qui: Authentifie, id_occurrence: int, bilan: Bilan,
                       appeler_coach: bool = False) -> dict:
     duree = bilan.duree_minutes
     if duree is None:
-        prevue = un_seul("SELECT duree_minutes FROM seance WHERE id_occurrence = %(o)s",
-                         {"o": id_occurrence})
+        # MON-11 : l'effort d'une course reçue de Strava prend sa durée réelle.
+        prevue = un_seul(
+            """SELECT COALESCE(
+                        (SELECT CEIL(a.duree_secondes / 60.0)::INTEGER FROM activite_sante a
+                          WHERE a.id_occurrence = s.id_occurrence AND a.doublon_de IS NULL
+                          ORDER BY a.id_activite LIMIT 1),
+                        s.duree_minutes) AS duree_minutes
+                 FROM seance s WHERE s.id_occurrence = %(o)s""",
+            {"o": id_occurrence})
         duree = prevue["duree_minutes"] if prevue else 60
     ligne = executer(
         "SELECT enregistrer_bilan(%(u)s, %(o)s, %(e)s, %(d)s, %(c)s, %(cle)s) AS rendu",
@@ -730,7 +764,7 @@ def recevoir_jour(qui: Authentifie, jour: date, donnees: SanteJour) -> dict:
 
 
 @routeur.put("/donnees-sante/activites/{cle_externe}", tags=["Coach : santé"],
-             summary="Séance de la montre, insérée ou mise à jour")
+             summary="Séance de la montre ou d'une appli, insérée ou mise à jour")
 def recevoir_activite(qui: Authentifie, cle_externe: str, activite: Activite) -> dict:
     discipline = activite.discipline or sante.discipline_de(activite.type)
     donnees = activite.model_dump(exclude={"type", "discipline", "debut", "fin"},

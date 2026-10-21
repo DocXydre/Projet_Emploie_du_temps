@@ -19,6 +19,7 @@ struct TableauDeBord: View {
     var ouvrir: (Module) -> Void
     var ajouter: () -> Void
     @Environment(Disposition.self) private var disposition
+    @Environment(Foyer.self) private var foyer
 
     /// La séance libre ferme toujours la grille, en bas à droite (WID-7).
     private static let placeSeanceLibre = Place(id: UUID(uuidString: "00000000-0000-0000-0000-00000000501E")!,
@@ -43,7 +44,11 @@ struct TableauDeBord: View {
     private var rangees: [Rangee] {
         var resultat: [Rangee] = []
         var enAttente: Place?
-        for place in disposition.places {
+        // MON-8 : sans montre, ses widgets se cachent ; la disposition les garde.
+        let places = disposition.places.filter { place in
+            foyer.aUneMontre || Registre.module(place.module)?.avecMontre != true
+        }
+        for place in places {
             if place.taille == .petit {
                 if let gauche = enAttente {
                     resultat.append(.double(gauche, place))
