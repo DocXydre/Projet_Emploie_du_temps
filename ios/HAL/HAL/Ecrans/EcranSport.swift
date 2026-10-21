@@ -441,9 +441,14 @@ private struct CetteSemaine: View {
     private func detail(_ seance: SemaineDeSport.SeanceDeLaSemaine) -> String {
         if seance.situation == "faite" {
             var morceaux = ["Faite"]
-            if let montre = foyer.seancesDeLaMontre.first(where: {
-                $0.discipline == seance.discipline && Calendar.current.isDate($0.debut, inSameDayAs: seance.jour)
-            }) {
+            // L'activité rattachée à cette séance-là : deux courses le même jour ont
+            // chacune la leur. Par le jour seulement pour un ancien cache, sans séance.
+            let activites = foyer.seancesDeLaMontre
+            if let montre = activites.first(where: { $0.idOccurrence == seance.idOccurrence })
+                ?? activites.first(where: {
+                    $0.idOccurrence == nil && $0.discipline == seance.discipline
+                        && Calendar.current.isDate($0.debut, inSameDayAs: seance.jour)
+                }) {
                 if let metres = montre.distanceM, metres > 0 { morceaux.append(EnFrancais.distance(metres)) }
                 if let secondes = montre.dureeSecondes { morceaux.append(EnFrancais.chrono(secondes)) }
             } else if let minutes = seance.dureeMinutes {
