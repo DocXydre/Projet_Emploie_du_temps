@@ -68,7 +68,7 @@ struct EcranReglages: View {
                 lien("Santé", "heart", Categorie.alerte.couleur,
                      valeur: !sante.disponible ? "Indisponible"
                         : sante.accesDemande ? "\(sante.lues.count) lues" : "À autoriser") { EcranReglagesSante() }
-                lien("Apple Watch", "applewatch", Categorie.sport.couleur) { EcranMontre() }
+                lien("Apple Watch et Strava", "applewatch", Categorie.sport.couleur) { EcranMontre() }
                 lien("Notifications et heures", "bell", Categorie.alerte.couleur,
                      valeur: etatNotifications) { EcranNotifications() }
             }

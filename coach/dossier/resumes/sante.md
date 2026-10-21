@@ -6,6 +6,7 @@ Résumé des chapitres 2.2, 7.4, 8.1, 8.2, 8.3 et 8.4. Pour le détail, lis le c
 - Remontés : pas, FC de repos, VFC, sommeil, séances. Non collectés : température, respiration, oxygène, alimentation, état du matin.
 - Une donnée absente n'est pas un zéro : le dire. Une donnée isolée ne déclenche rien : raisonner en tendance (moyenne 7 jours contre 4 à 8 semaines), toujours croisée avec le ressenti.
 - Calories de la montre : erreur proche de 28 %, ne jamais les compenser à 100 %. Douleur saisie de 0 à 10.
+- Sans montre (dit par le contexte) : ni FC, ni FC de repos, ni VFC, ni VO2max, ni phases ; sommeil estimé par l'iPhone, à lire en tendance ; courses de Strava ou déclarées à la main, chacune avec sa note d'effort. Course dosée à l'allure et à l'effort perçu, étapes écrites pour se lire en courant, rien d'envoyé à la montre.
 
 ## 7.4 Vie réelle
 - Mode maintien : 2 à 3 séances de 30 à 45 min, charges conservées, aucun déficit. Reprise du cycle où il s'était arrêté si moins de 3 semaines.

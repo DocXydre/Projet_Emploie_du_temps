@@ -271,14 +271,17 @@ struct EcranSommeil: View {
                 .frame(height: 44)
                 Segmente(choix: [(7, "7 j"), (30, "30 j"), (90, "90 j")], selection: $periode)
                 if let historique {
-                    carteVFC(historique.jours)
+                    // MON-8 : la VFC et la FC de repos ne viennent que de la montre.
+                    if foyer.aUneMontre { carteVFC(historique.jours) }
                     carteSommeil(historique.jours)
                     HStack(spacing: Espace.gouttiere) {
-                        tuile("FC repos", "heart", Categorie.alerte.couleur,
-                              historique.jours.last?.fcRepos.map(String.init), "bpm",
-                              ecart(historique.jours.compactMap { $0.fcRepos.map(Double.init) }).map {
-                                  "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) en \(periode) j"
-                              })
+                        if foyer.aUneMontre {
+                            tuile("FC repos", "heart", Categorie.alerte.couleur,
+                                  historique.jours.last?.fcRepos.map(String.init), "bpm",
+                                  ecart(historique.jours.compactMap { $0.fcRepos.map(Double.init) }).map {
+                                      "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) en \(periode) j"
+                                  })
+                        }
                         tuile("Pas / jour", "shoeprints.fill", Categorie.sport.couleur,
                               moyenne(historique.jours.compactMap { $0.pas.map(Double.init) })
                                   .map { EnFrancais.nombre(Int($0.rounded())) }, nil,
@@ -344,7 +347,9 @@ struct EcranSommeil: View {
         let minutes = jours.compactMap(\.sommeilMinutes)
         let moy = moyenne(minutes.map(Double.init))
         let derniers = Array(jours.suffix(periode == 7 ? 7 : periode))
-        return CoquilleWidget(titre: "Sommeil", icone: "bed.double", couleur: Categorie.linge.couleur,
+        // MON-14 : sans montre, la durée que l'iPhone estime, sans phases.
+        return CoquilleWidget(titre: foyer.aUneMontre ? "Sommeil" : "Sommeil estimé par l'iPhone",
+                              icone: "bed.double", couleur: Categorie.linge.couleur,
                               droite: moy.map { "moyenne \(EnFrancais.duree(minutes: Int($0.rounded())))" }) {
             VStack(alignment: .leading, spacing: 10) {
                 Chart {
@@ -382,13 +387,19 @@ struct EcranSommeil: View {
                         }
                     }
                 }
-                // 3.24 : la nuit en détail, phase par phase.
-                NavigationLink { EcranNuit(jour: nil) } label: {
-                    Label("Voir la dernière nuit en détail", systemImage: "chevron.right")
-                        .labelStyle(.titleOnly)
-                        .texte(.corpsFort)
+                if foyer.aUneMontre {
+                    // 3.24 : la nuit en détail, phase par phase.
+                    NavigationLink { EcranNuit(jour: nil) } label: {
+                        Label("Voir la dernière nuit en détail", systemImage: "chevron.right")
+                            .labelStyle(.titleOnly)
+                            .texte(.corpsFort)
+                    }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true))
+                } else {
+                    Text("Sans montre, l'iPhone estime la durée d'après ton heure de coucher et ton usage du téléphone : une approximation, sans phases. HAL la lit en tendance.")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.hal(.verre, pleineLargeur: true))
             }
         }
     }
@@ -1038,7 +1049,9 @@ struct FormulaireAnnonce: View {
                 if maintenant {
                     Text(discipline == "musculation"
                          ? "La séance s'ouvre tout de suite : tu ajoutes tes exercices au fil de l'eau, sans réseau s'il le faut."
-                         : "Une course ou du cardio se lance sur la montre : elle arrivera par Santé et comptera toute seule.")
+                         : foyer.aUneMontre
+                            ? "Une course ou du cardio se lance sur la montre : elle arrivera par Santé et comptera toute seule."
+                            : "Une course ou du cardio se lance dans Strava ou l'appli de ton choix : elle arrivera par Santé et comptera toute seule. Sans rien pour l'enregistrer, « Course faite » dans le +.")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {

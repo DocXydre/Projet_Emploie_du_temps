@@ -13,6 +13,8 @@ struct Essais: Hashable {
     var mesure = false
     var jourDeMuscu = false
     var foyerVide = false
+    /// MON-8 : l'appli comme la voit un compte sans Apple Watch.
+    var sansMontre = false
 }
 
 /// D'où viennent les données : les données fictives, ou le serveur.
@@ -226,6 +228,57 @@ final class Foyer {
             objectif = Objectif(titre: lu.libelle, joursRestants: lu.joursRestants ?? 0,
                                 avancee: total > 0 ? min(1, max(0, ecoule / total)) : 0)
         }
+    }
+
+    // MARK: Avec ou sans montre (MON-7 à MON-14)
+
+    /// Le réglage tout juste changé, en attendant que le serveur le rende.
+    private var montreReglee: Bool?
+
+    /// MON-7 : le compte a-t-il une Apple Watch ? Sans réponse du serveur, oui :
+    /// c'est le cas de tous les comptes qui existaient.
+    var aUneMontre: Bool {
+        guard connecte else { return !essais.sansMontre }
+        return montreReglee ?? sportDuServeur?.aUneMontre ?? true
+    }
+
+    /// MON-7 : réglé à la main, gardé sur le serveur pour que HAL le lise.
+    func reglerLaMontre(_ valeur: Bool) async throws {
+        guard connecte else {
+            essais.sansMontre = !valeur
+            return
+        }
+        montreReglee = valeur
+        do {
+            try await agir("PUT", "appli/montre",
+                           corps: try JSONSerialization.data(withJSONObject: ["valeur": valeur]))
+        } catch {
+            montreReglee = nil
+            throw error
+        }
+        montreReglee = nil
+    }
+
+    /// Les efforts notés ici, en attendant que le serveur les rende.
+    private var effortsNotes: Set<Int> = []
+
+    /// MON-11 : les courses reçues sans la montre qui attendent leur note.
+    var effortsADonner: [EtatSport.EffortADonner] {
+        let liste = connecte ? sportDuServeur?.effortsADonner ?? []
+            : essais.sansMontre ? [EtatSport.EffortADonner(
+                idOccurrence: 0, discipline: "course", debut: .now.addingTimeInterval(-7200),
+                dureeSecondes: 2280, distanceM: 5200, source: "Strava")] : []
+        return liste.filter { !effortsNotes.contains($0.idOccurrence) }
+    }
+
+    /// MON-11 : la note devient le bilan de la séance, avec la durée reçue. Elle
+    /// passe par la file d'attente : sans réseau, elle part au retour (APP-3).
+    func noterEffort(_ note: Int, seance idOccurrence: Int, file: FileAttente) {
+        effortsNotes.insert(idOccurrence)
+        guard connecte else { return }
+        let corps = try? JSONSerialization.data(withJSONObject: [
+            "effort": note, "cle_client": UUID().uuidString.lowercased()])
+        file.ajouter(methode: "POST", chemin: "seances/\(idOccurrence)/bilan", corps: corps)
     }
 
     /// La séance de musculation du jour qui reste à faire, prête sans réseau (SAI-10).

@@ -4,7 +4,8 @@
 -- Santé reçoit parfois la même course deux fois : de la montre, et de Strava ou
 -- d'une autre appli. Deux séances du même compte et de la même discipline qui
 -- se recouvrent sur plus de la moitié de la plus courte sont la même. Celle de
--- la montre compte ; entre deux montres ou deux applis, la première reçue.
+-- la montre compte, puis celle d'une appli, puis celle déclarée à la main
+-- (MON-13) ; à rang égal, la première reçue.
 -- L'autre garde tout son détail, mais pointe vers celle qui compte, et perd sa
 -- séance prévue au profit de celle-ci. Rend la séance qui compte.
 -- -----------------------------------------------------------------------------
@@ -14,13 +15,13 @@ DECLARE
     a            RECORD;
     r            RECORD;
 BEGIN
-    SELECT ac.*, activite_de_la_montre(ac.details) AS montre INTO a
+    SELECT ac.*, rang_activite(ac.details) AS rang INTO a
       FROM activite_sante ac WHERE ac.id_activite = p_activite;
     IF NOT FOUND THEN
         RETURN NULL;
     END IF;
 
-    SELECT ac.*, activite_de_la_montre(ac.details) AS montre INTO r
+    SELECT ac.*, rang_activite(ac.details) AS rang INTO r
       FROM activite_sante ac
      WHERE ac.id_utilisateur = a.id_utilisateur
        AND ac.id_activite <> a.id_activite
@@ -41,8 +42,9 @@ BEGIN
         RETURN p_activite;
     END IF;
 
-    IF a.montre AND NOT r.montre THEN
-        -- La nouvelle vient de la montre : elle prend la place, et la séance prévue.
+    IF a.rang > r.rang THEN
+        -- La nouvelle vaut mieux (la montre, ou une appli face à une saisie à la
+        -- main) : elle prend la place, et la séance prévue.
         PERFORM transmettre_activite(r.id_activite, p_activite);
         RETURN p_activite;
     END IF;
@@ -52,6 +54,6 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION departager_activite(BIGINT) IS
-    'SAN-15 : une séance reçue de deux applications n''est comptée qu''une fois,
-     celle de la montre d''abord. L''autre pointe vers elle (doublon_de) et
+    'SAN-15, MON-13 : une séance reçue de deux applications n''est comptée qu''une
+     fois, celle de la montre d''abord, celle déclarée à la main en dernier. L''autre pointe vers elle (doublon_de) et
      garde son détail. Rend la séance qui compte.';

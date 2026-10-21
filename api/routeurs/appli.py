@@ -368,10 +368,15 @@ def sport(qui: Authentifie) -> dict:
             GROUP BY lundi ORDER BY lundi LIMIT 1""",
         params,
     )
-    compte = un_seul("SELECT coach_actif FROM utilisateur WHERE id_utilisateur = %(moi)s",
-                     params)
+    compte = un_seul(
+        "SELECT coach_actif, a_une_montre FROM utilisateur WHERE id_utilisateur = %(moi)s",
+        params)
     return {
         "coach_actif": bool(compte and compte["coach_actif"]),
+        # MON-7, MON-8 : sans montre, l'appli retire ce qui ne vit que par elle.
+        "a_une_montre": bool(compte["a_une_montre"]) if compte else True,
+        # MON-11 : les courses reçues sans la montre qui attendent leur note.
+        "efforts_a_donner": lister("SELECT * FROM efforts_a_donner(%(moi)s)", params),
         "semaine": {**(semaine or {"faites": 0, "prevues": 0}), "prochaine": prochaine},
         "seances_du_jour": [d for d in du_jour if d is not None],
         "forme": forme,
@@ -679,6 +684,10 @@ class Brouillon(BaseModel):
     reponses: dict = Field(default_factory=dict)
 
 
+class Interrupteur(BaseModel):
+    valeur: bool
+
+
 class MaximumDeSeances(BaseModel):
     valeur: int | None = Field(default=None, ge=1, le=14)
 
@@ -764,3 +773,12 @@ def regler_le_maximum(qui: Authentifie, maximum: MaximumDeSeances) -> dict:
     executer("UPDATE utilisateur SET seances_max_semaine = %(v)s WHERE id_utilisateur = %(u)s",
              {"v": maximum.valeur, "u": qui.id_utilisateur})
     return {"seances_max_semaine": maximum.valeur}
+
+
+@routeur.put("/appli/montre", summary="J'ai une Apple Watch, ou pas")
+def regler_la_montre(qui: Authentifie, montre: Interrupteur) -> dict:
+    """5.10, MON-7 : réglé à la main, rien ne le devine. HAL le lit dans son contexte
+    (MON-15)."""
+    executer("UPDATE utilisateur SET a_une_montre = %(v)s WHERE id_utilisateur = %(u)s",
+             {"v": montre.valeur, "u": qui.id_utilisateur})
+    return {"a_une_montre": montre.valeur}

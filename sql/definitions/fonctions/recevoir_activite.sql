@@ -50,6 +50,10 @@ BEGIN
     -- SAN-15 : la même séance venue d'une autre appli n'est comptée qu'une fois.
     v_garde := departager_activite(v_activite);
     v_occurrence := rattacher_activite(v_garde);
+    -- MON-11 : reçue d'une autre appli que la montre, elle demande son effort.
+    IF v_creee AND v_garde = v_activite THEN
+        PERFORM demander_effort(v_activite);
+    END IF;
     RETURN jsonb_build_object('id_activite', v_activite, 'creee', v_creee,
                               'id_occurrence', CASE WHEN v_garde = v_activite
                                                     THEN v_occurrence END,
@@ -60,4 +64,5 @@ END $$;
 COMMENT ON FUNCTION recevoir_activite IS
     'SAN-2, SAN-3 : insère ou met à jour une séance de la montre par sa clé,
      la départage d''un éventuel doublon venu d''une autre appli (SAN-15),
-     puis rattache celle qui compte à la séance prévue (SAN-4).';
+     puis rattache celle qui compte à la séance prévue (SAN-4). Reçue d''une
+     autre appli que la montre, elle demande sa note d''effort (MON-11).';

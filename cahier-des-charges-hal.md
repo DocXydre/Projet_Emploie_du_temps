@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 20 octobre 2026 (migration 073)
+Version du 21 octobre 2026 (migration 074)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, et l'ouverture de HAL par MCP et par abonnement. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
 
@@ -1847,6 +1847,7 @@ HAL sert chaque membre du foyer, chacun avec le sien. Il couvre la musculation, 
 - **Le soir, une séance est faite ou pas faite.** À 23 h, toute séance du jour restée sans nouvelle se juge sur ce qui a été fait, qu'elle ait été validée ou seulement proposée.
 - **HAL peut être mis en pause.** Maladie, vacances, examens : il ne propose plus rien, et la synthèse ne passe plus qu'un soir sur trois.
 - **Une course objectif est une séance comme les autres.** Elle n'a ni type ni règle à part : HAL la met au plan à sa date et adapte ce qui l'entoure.
+- **La montre n'est pas obligatoire.** Chaque compte dit, d'un interrupteur, s'il a une Apple Watch (MON-7). Sans elle, la musculation ne change pas ; la course se court avec Strava ou une autre appli qui écrit dans Santé, ou se déclare à la main, et son effort se note de 1 à 10 ; le sommeil est celui que l'iPhone estime. Ce qui ne vit que par la montre disparaît de l'appli, et HAL le sait (MON-7 à MON-15).
 - **Les données de santé arrivent par l'application HAL**, qui lit l'application Santé toute seule, en tâche de fond (SAN-10), et sert à saisir les séances de musculation. Elle est décrite en partie C. Elle se connecte par mot de passe (CNX) et passe par `tailscale funnel` : le client Tailscale n'est pas nécessaire sur le téléphone.
 
 Ce module lève une exclusion de la partie A, qui écartait « tout apprentissage automatique ou prédiction de préférences ». Elle reste vraie pour le planning domestique.
@@ -1865,7 +1866,7 @@ Tout ce que le système utilise déjà est repris. S'y ajoutent :
 | Claude Sonnet 5.5 | Modèle de HAL | Tient un long jeu de règles simultanées pour un coût de quelques dollars par mois. Le nom du modèle est un réglage, pas du code |
 | Claude Haiku 4.5 | Petits travaux | Choisit les paquets du dossier pour un message libre (DOS-4), et reconnaît un exercice absent du catalogue (EXO-11). Un réglage permet de lui confier aussi le chat et la synthèse d'un jour sans séance (COA-31) |
 | Dossier de HAL en Markdown | Savoir sportif | Lisible, versionné, découpé par chapitre |
-| HealthKit, par l'application iPhone | Données de l'Apple Watch | Seule voie d'accès aux données de santé d'un iPhone |
+| HealthKit, par l'application iPhone | Données de l'Apple Watch, de l'iPhone et des applis qui écrivent dans Santé, comme Strava | Seule voie d'accès aux données de santé d'un iPhone. Strava n'a pas de branchement à part (MON-10) |
 | SwiftUI, XcodeGen | Application iPhone | Le projet Xcode se régénère depuis `project.yml` : rien de généré n'entre dans le dépôt |
 
 Sont volontairement écartés : les bases vectorielles et la recherche sémantique, les cadres d'agents. Claude Code, introduit par la partie F, n'en est pas un ici : il sert de fournisseur, sans outil propre, et la boucle reste bornée par les règles de HAL (FOU-10, FOU-11). La partie F lève l'exclusion d'un deuxième fournisseur : l'abonnement d'abord, l'API en secours. Le dossier a un sommaire de quarante-neuf chapitres : le modèle choisit le chapitre à lire, il n'y a rien à chercher par similarité.
@@ -2040,7 +2041,7 @@ Une séance libre est une séance que HAL n'a pas écrite : on suit le programme
 | Code | Type | Règle |
 |---|---|---|
 | LIB-1 | D | Une séance libre a pour auteur l'utilisateur. Elle se fait en musculation, en course ou sur les machines cardio. Son contenu est ce que l'utilisateur a réellement fait, pas ce qui était prévu |
-| LIB-2 | M | L'utilisateur y saisit les exercices du catalogue qu'il veut, dans l'ordre qu'il veut. Pour une course, la séance enregistrée par la montre suffit |
+| LIB-2 | M | L'utilisateur y saisit les exercices du catalogue qu'il veut, dans l'ordre qu'il veut. Pour une course, la séance reçue par Santé suffit, de la montre, de Strava ou d'une autre appli ; sans rien qui l'enregistre, elle se déclare à la main (MON-12) |
 | LIB-3 | M | L'utilisateur peut annoncer une séance libre d'avance : le jour, la discipline, et ce qu'il compte faire s'il le sait. Elle se pose au planning comme une séance posée à la main (SPT-17) |
 | LIB-4 | T | Une annonce déclenche un appel immédiat à HAL, comme un signalement : il dit ce qu'il conseille d'éviter ce jour-là et ajuste la suite sans attendre |
 | LIB-5 | T | Sans annonce, une séance libre se reconnaît d'elle-même : une saisie hors de toute séance prévue, ou une séance de la montre qu'aucune séance prévue n'explique (SAN-4). HAL la découvre à la synthèse |
@@ -2088,7 +2089,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAI-1 | M | Pendant la séance, l'utilisateur saisit chaque série : la charge et les répétitions, ou la durée, ou la distance, selon ce que l'exercice mesure |
 | SAI-2 | D | Une série saisie se rattache à un exercice du catalogue, et à la ligne prévue quand il y en a une. Un exercice fait à la place d'un autre garde le lien avec celui qu'il remplace |
 | SAI-3 | M | Changer de machine ne demande aucun appel au modèle : les alternatives sont dans le catalogue, et la ligne prévue garde ses séries et ses répétitions |
-| SAI-4 | M | En fin de séance de musculation, l'utilisateur donne une note d'effort de 1 à 10, la durée réelle, et un commentaire libre s'il en a un. Une course ou une séance de cardio n'a pas de note à saisir : l'effort vient de la montre (SAN-2) |
+| SAI-4 | M | En fin de séance de musculation, l'utilisateur donne une note d'effort de 1 à 10, la durée réelle, et un commentaire libre s'il en a un. Une course ou une séance de cardio enregistrée par la montre n'a pas de note à saisir : l'effort vient de la montre (SAN-2). Reçue d'une autre appli ou déclarée à la main, elle demande sa note (MON-11, MON-12) |
 | SAI-5 | T | Enregistrer le bilan valide la séance comme faite. Une séance faite sans aucune série saisie reste une séance faite : la saisie est un service, pas une condition |
 | SAI-6 | M | Une séance qui n'était pas prévue se saisit quand même, comme séance libre (LIB-1 à LIB-13). Elle compte dans la charge |
 | SAI-7 | M | Le bouton « Bilan » sur une séance déclenche un appel immédiat à HAL, sans attendre 23 h |
@@ -2125,7 +2126,7 @@ Ces règles ne remplacent pas le dossier. Elles rattrapent une erreur du modèle
 | SAN-12 | D | Chaque grandeur a son unité et ses bornes plausibles, écrites en données (`grandeur_sante`). Une mesure hors bornes, d'une grandeur inconnue, venue du futur, ou à plus de dix minutes de sa séance est écartée ; le reste de l'envoi entre. Un envoi porte au plus 5 000 lignes : l'historique part par paquets |
 | SAN-13 | D | Une séance garde son découpage : les kilomètres, les étapes (avec ce que HAL avait prévu pour chacune, MON-1), les tours, les pauses. Un découpage renvoyé remplace celui de la même sorte |
 | SAN-14 | D | Une séance garde son tracé GPS, point par point. Comme toute donnée de santé, il ne sort du serveur que vers le modèle (SAN-7) : l'autre personne du foyer ne le voit pas |
-| SAN-15 | T | Tout ce que Santé contient est lu, toutes sources, et gardé avec sa source et son appareil : la FC de la journée, la VFC, la VO2max, la FC de récupération, le poids, la SpO2, la respiration, la température du poignet, l'énergie active. Rien n'est jeté. À la lecture, la montre passe d'abord : une mesure d'une autre source qui recouvre une mesure de la montre de la même grandeur est laissée de côté. Une séance reçue de deux applications, même discipline et recouvrement de plus de la moitié de la plus courte, n'est comptée qu'une fois : celle de la montre, sinon la première reçue. L'autre garde son détail et pointe vers elle ; sa séance passe à celle qui compte si elle n'en a pas, et une séance libre née du doublon, où rien n'a été saisi, se retire. Les séances reçues avant la migration 069 se départagent une fois, après elle |
+| SAN-15 | T | Tout ce que Santé contient est lu, toutes sources, et gardé avec sa source et son appareil : la FC de la journée, la VFC, la VO2max, la FC de récupération, le poids, la SpO2, la respiration, la température du poignet, l'énergie active. Rien n'est jeté. À la lecture, la montre passe d'abord : une mesure d'une autre source qui recouvre une mesure de la montre de la même grandeur est laissée de côté. Une séance reçue de deux applications, même discipline et recouvrement de plus de la moitié de la plus courte, n'est comptée qu'une fois : celle de la montre, sinon celle d'une appli, sinon la première reçue ; une séance déclarée à la main passe toujours après (MON-13). L'autre garde son détail et pointe vers elle ; sa séance passe à celle qui compte si elle n'en a pas, et une séance libre née du doublon, où rien n'a été saisi, se retire. Les séances reçues avant la migration 069 se départagent une fois, après elle |
 | SAN-16 | D | Le sommeil est gardé phase par phase : au lit, endormi, éveillé, léger, profond, paradoxal, avec sa source. La montre donne les phases ; l'iPhone seul, la durée |
 | SAN-17 | T | HAL lit une course étape par étape, jamais ses mesures brutes ni son tracé : chaque étape avec son temps, son allure, sa FC moyenne et finale, et l'écart à ce qui était prévu ; les fractions en une ligne (leurs temps, combien tiennent l'objectif, ce que perd la dernière, la FC en fin de fraction et ce qu'elle redescend pendant les récupérations) ; pour une sortie continue, la dérive cardiaque, la FC à allure égale entre la seconde moitié et la première, échauffement mis à part ; les kilomètres, les zones, la dynamique de course, la FC de récupération. La séance close l'a dans `lire_seance` ; les dernières courses, résumées, sont lues d'office pour un plan, une faisabilité et la révision du dimanche (COA-28) |
 
@@ -2388,8 +2389,9 @@ Les tables sont rangées par domaine. Dans chaque table, les colonnes suivent l'
 | repos_dur_heures | SMALLINT | non | > 0 | | 48 | | |
 | seances_max_semaine | SMALLINT | oui | entre 1 et 14 | | | | |
 | besoin_sommeil_minutes | SMALLINT | non | > 0 | | 480 | | |
+| a_une_montre | BOOLEAN | non | | | TRUE | | |
 
-`minimum_sport` est retirée avec les réservations (annexe 2). `seances_max_semaine` vide laisse HAL décider (PLN-14) ; quatorze est le plafond, puisqu'un jour porte au plus deux séances (SPT-37). `besoin_sommeil_minutes` sert au score de forme.
+`a_une_montre` est l'interrupteur « J'ai une Apple Watch » (MON-7, migration 074) : rien ne le devine, l'utilisateur le règle. Les comptes qui existaient l'ont activé. `minimum_sport` est retirée avec les réservations (annexe 2). `seances_max_semaine` vide laisse HAL décider (PLN-14) ; quatorze est le plafond, puisqu'un jour porte au plus deux séances (SPT-37). `besoin_sommeil_minutes` sert au score de forme.
 
 #### B.6.2 Profil
 
@@ -3305,7 +3307,7 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation de
 
 #### B.9.1 Endpoints
 
-Les 76 routes ajoutées pour HAL, rangées sous les étiquettes « Coach » de la documentation interactive (`/documentation`). L'authentification reste l'en-tête `X-Cle-Api`, que l'application obtient par `POST /connexion` (partie A, CNX). Chaque route ne rend que ce qui appartient à l'appelant.
+Les 77 routes ajoutées pour HAL, rangées sous les étiquettes « Coach » de la documentation interactive (`/documentation`). L'authentification reste l'en-tête `X-Cle-Api`, que l'application obtient par `POST /connexion` (partie A, CNX). Chaque route ne rend que ce qui appartient à l'appelant.
 
 ```
 Profil
@@ -3331,6 +3333,7 @@ Séances et ajustements
   GET    /seances/aujourd-hui                             Les séances du jour, à charger d'avance
   POST   /seances/libre                                   Saisir une séance libre, faite ou en cours
   POST   /seances/libre/annoncer                          Annoncer une séance libre à venir
+  POST   /seances/course-a-la-main                        Déclarer une course ou du cardio faits sans rien qui les enregistre (MON-12)
   GET    /seances/{id_occurrence}                         Contenu, alternatives permises, séries saisies
   DELETE /seances/{id_occurrence}                         Supprimer une séance
   POST   /seances/{id_occurrence}/liberer                 Faire autre chose à la place de la séance prévue
@@ -3344,7 +3347,7 @@ Séances et ajustements
   POST   /seances/{id_occurrence}/series/changer-exercice Passer des séries faites à un autre exercice (SAI-22)
   POST   /seances/par-cle/{cle}/series/changer-exercice   La même chose, séance libre désignée par sa clé
   POST   /seances/par-cle/{cle}/annuler-saisie            Retirer des séries d'une séance libre (SAI-22)
-  POST   /seances/{id_occurrence}/bilan?appeler_coach=    Clore la séance : effort, durée, commentaire
+  POST   /seances/{id_occurrence}/bilan?appeler_coach=    Clore la séance : effort, durée, commentaire. Sans durée : celle de la séance reçue (MON-11)
   POST   /seances/{id_occurrence}/pas-faite               Déclarer la séance pas faite
   GET    /ajustements                                     Les ajustements en attente de réponse
   POST   /ajustements/{id_ajustement}/accepter            Accepter la version de HAL
@@ -3352,7 +3355,7 @@ Séances et ajustements
 
 Données de santé
   PUT    /donnees-sante/jours/{jour}                      Données du jour, insérées ou mises à jour
-  PUT    /donnees-sante/activites/{cle_externe}           Séance de la montre, insérée ou mise à jour
+  PUT    /donnees-sante/activites/{cle_externe}           Séance de la montre ou d'une appli, insérée ou mise à jour
   GET    /donnees-sante/fraicheur                         Date du dernier envoi
   GET    /donnees-sante/jours?depuis=                     Ce qui a été reçu, pour vérifier un envoi
   PUT    /donnees-sante/activites/{cle_externe}/series    Mesures brutes d'une séance (SAN-11)
@@ -3697,7 +3700,7 @@ La barre d'onglets compte quatre onglets et l'orbe de HAL au milieu.
 | APP-6 | D | Les données gardées sur le téléphone sont chiffrées par iOS tant que le téléphone est verrouillé. La clé d'API vit dans le trousseau (CNX) |
 | APP-7 | M | Les tâches, le planning, les absences et le mode allégé se modifient à la main. HAL ne change de lui-même que le sport (COA-32) ; pour le reste, il dépose une demande, que l'utilisateur accepte ou refuse (ACC-1, ACC-5). L'appli ne propose pas de bouton « demander à HAL » sur une tâche : on le lui dit dans le panneau |
 | APP-8 | D | Chaque écran est fait des composants de C.4. Une couleur, un arrondi ou une taille de texte se change à un seul endroit, et toute l'appli suit |
-| APP-9 | M | Le « + » en haut d'Aujourd'hui et de Maison ouvre l'ajout rapide : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, une séance libre, une mesure, ou passer en mode allégé [1.5]. Tout se fait à la main, sans HAL |
+| APP-9 | M | Le « + » en haut d'Aujourd'hui et de Maison ouvre l'ajout rapide : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, une séance libre, une course faite (MON-12), une mesure, ou passer en mode allégé [1.5]. Tout se fait à la main, sans HAL |
 | APP-10 | M | Une tâche cochée attend trente secondes avant de partir au serveur. Jusque-là, la toucher de nouveau la décoche et rien ne part ; la ligne montre le temps qui reste. Si l'appli passe en arrière-plan, l'envoi part tout de suite, par la file d'attente (APP-3) |
 
 ### C.3 Thème et fond : `THM`
@@ -3755,7 +3758,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | WID-3 | M | Le crayon d'Aujourd'hui passe en mode édition : les widgets bougent légèrement, on les déplace, « − » en retire un, le coin change sa taille, « + » ouvre la galerie des modules avec un aperçu [1.9, 1.10]. Un nouveau module apparaît dans la galerie tout seul |
 | WID-4 | D | La disposition d'Aujourd'hui est gardée sur l'appareil. Chacun compose la sienne [1.11]. Sport et Maison ont un ordre fixe, qui suit la maquette |
 | WID-5 | T | Toucher un widget l'agrandit sur place et floute le reste [1.7, 1.8, 8.15]. Les widgets qui ont une page complète l'ouvrent à la place : FC du jour [3.15], Dernière course [3.14], Ajustement [3.21], Semaine [1.12] |
-| WID-6 | T | Certains widgets passent devant la disposition choisie, tant que leur raison dure, dans cet ordre : les bandeaux d'état (hors réseau, mode allégé, absence, pause de HAL) [8.13] ; un conflit à régler (COL-12) [1.3] ; un ajustement de HAL en attente (PLN-18) [1.4] ; une mesure demandée (MES-1) [8.14] ; le jour d'une séance de musculation, « Lancer la séance » [1.2]. Ils disparaissent seuls quand leur raison disparaît |
+| WID-6 | T | Certains widgets passent devant la disposition choisie, tant que leur raison dure, dans cet ordre : les bandeaux d'état (hors réseau, mode allégé, absence, pause de HAL) [8.13] ; un conflit à régler (COL-12) [1.3] ; un ajustement de HAL en attente (PLN-18) [1.4] ; une mesure demandée (MES-1) [8.14] ; un effort de course à donner (MON-11) [3.27] ; le jour d'une séance de musculation, « Lancer la séance » [1.2]. Ils disparaissent seuls quand leur raison disparaît |
 | WID-7 | D | Le widget « Séance libre » est toujours en bas à droite d'Aujourd'hui, en Petit. Il ne se retire pas et ne se déplace pas : c'est l'entrée d'une séance de musculation non prévue [1.1] |
 | WID-8 | D | Un widget montre ce que l'API rend, rien de calculé dans l'appli. Un widget sans données dit ce qui manque et comment l'obtenir, en un bouton [8.6, 8.7, 8.8] |
 
@@ -3770,21 +3773,22 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | En retard | Petit | La tâche la plus en retard, « Je m'en charge » | Ce qui traîne [4.5] |
 | HAL | Moyen | La dernière chose que HAL a dite, avec ses boutons | Le panneau de HAL |
 | Week-end | Moyen | Le prochain week-end libre et ce qui est prévu | Les trains [1.13] |
-| Forme | Petit, Moyen | Sommeil, FC de repos, VFC, pas | Le détail [3.16] |
+| Forme | Petit, Moyen | Sommeil, FC de repos, VFC, pas. Sans montre : le sommeil estimé et les pas (MON-8, MON-14) | Le détail [3.16] |
 | Train | Petit | Le prochain train retenu | Les trains [1.13] |
 | Objectif | Petit | L'objectif principal et les jours qui restent | Objectifs [3.18] |
 | Chat | Petit | Litière, eau, fontaine : ce qui est dû | Maison |
 | Équilibre | Petit | Le temps passé par chacun aux tâches, sur la période | Maison |
 | Séance en cours | Moyen | L'exercice et la série en cours, le repos | La séance [3.5] |
-| Montre | Petit | La dernière séance de la montre | Le détail [3.14] |
+| Montre | Petit | La dernière séance de la montre. Avec la montre seulement (MON-8) | Le détail [3.14] |
 | Semaine | Grand | Les sept jours, tout compris | Le planning [1.12] |
 | Séance libre | Petit | « + Séance libre » | La recherche d'exercice [3.10] |
 | Lancer la séance | Moyen | La séance de musculation du jour, « Lancer » | La séance prévue [3.3] |
 | Conflit | Moyen | Deux cours qui se chevauchent, celui à garder | La vue agrandie [8.15] |
 | Ajustement HAL | Moyen | Ce que HAL propose de changer et pourquoi, Accepter, Refuser, En parler | Le détail [3.21] |
-| FC du jour | Moyen | La fréquence cardiaque de la journée | La courbe sur 24 h [3.15] |
+| FC du jour | Moyen | La fréquence cardiaque de la journée. Avec la montre seulement (MON-8) | La courbe sur 24 h [3.15] |
 | Dernière course | Moyen | Distance, durée, allure de la dernière course | Le détail [3.14] |
 | Mesure demandée | Moyen | La mesure que HAL attend, jusqu'à quand | Saisir une mesure [3.19] |
+| Effort à donner | Moyen | La course ou le cardio reçus sans la montre, et la note de 1 à 10 en un geste | La séance [3.27] |
 
 ### C.6 HAL dans l'appli : `ORB`
 
@@ -3851,11 +3855,11 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.9 Bilan de séance | Note d'effort, durée, commentaire ; HAL répond tout de suite | SAI-4, SAI-7 |
 | 3.10 Séance libre | Chercher un exercice, l'ajouter, réordonner ; les exercices interdits sont grisés ; un nom absent du catalogue s'ajoute | LIB-1, LIB-2, SEC-1, EXO-11 |
 | 3.11 Annoncer une séance libre | Discipline, jour, heure, contenu si on le sait | LIB-3, LIB-4, SPT-17 |
-| 3.12 Course prévue | Pas de « Commencer » : on l'envoie à la montre | MON-1, MON-2 |
-| 3.13 Envoyer à la montre | La séance pour l'app Exercice | MON-1 |
-| 3.14 Course faite | Le détail comme dans l'app Forme, puis l'avis de HAL. Une course qui a des étapes s'ouvre en 3.22 | MON-4, SAN-2 |
+| 3.12 Course prévue | Pas de « Commencer ». Avec la montre, on l'y envoie ; sans montre, ses étapes en clair, à courir avec Strava. « Je l'ai faite » la déclare à la main | MON-1, MON-2, MON-9, MON-12 |
+| 3.13 Envoyer à la montre | La séance pour l'app Exercice. Avec la montre seulement | MON-1, MON-8 |
+| 3.14 Course faite | Le détail comme dans l'app Forme, puis l'avis de HAL, et d'où vient la séance : la montre, Strava, la main. Une course qui a des étapes s'ouvre en 3.22 | MON-4, SAN-2, MON-11 |
 | 3.15 FC de la journée | La courbe sur 24 h, les séances et le planning en face | SAN |
-| 3.16 Sommeil et récupération | Courbe sur 7, 30 ou 90 jours | SAN-5 |
+| 3.16 Sommeil et récupération | Courbe sur 7, 30 ou 90 jours. Sans montre, le sommeil seul, dit « estimé par l'iPhone » | SAN-5, MON-14 |
 | 3.17 Progression d'un exercice | Meilleure charge, historique, remplacements | EXO-2 |
 | 3.18 Objectifs | Le principal, l'avis de HAL, la feuille de route, les secondaires | OBJ |
 | 3.19 Saisir une mesure | Poids, tours, tests ; « Je ne peux pas » | MES |
@@ -3863,8 +3867,10 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 3.21 Ajustement proposé | Alléger, modifier, déplacer, retirer, avec le motif | PLN-18, PLN-19 |
 | 3.22 Course fractionnée | La carte du parcours coloré par étape ; chaque étape, le prévu face au fait ; les fractions côte à côte ; l'allure et la FC sur une même courbe ; les zones ; la dynamique de course ; l'avis de HAL | SAN-11, SAN-13, SAN-14, MON-1 |
 | 3.23 Parcours en grand | La carte en plein écran, colorée par étape, allure, FC ou dénivelé ; toucher un kilomètre l'ouvre dans la feuille du bas, avec son profil de dénivelé | SAN-14 |
-| 3.24 Nuit en détail | Depuis une nuit de 3.16 : les phases heure par heure, leur durée face à l'habitude sur 30 nuits, la FC, la respiration, la SpO2, la température du poignet et la VFC de la nuit | SAN-15, SAN-16 |
-| 3.25 Forme et corps | VO2max, FC de récupération après chaque course, poids, moyennes du quotidien, sur 30 jours, 90 jours, un an ou tout | SAN-15 |
+| 3.24 Nuit en détail | Avec la montre seulement (MON-8). Depuis une nuit de 3.16 : les phases heure par heure, leur durée face à l'habitude sur 30 nuits, la FC, la respiration, la SpO2, la température du poignet et la VFC de la nuit | SAN-15, SAN-16 |
+| 3.25 Forme et corps | VO2max, FC de récupération après chaque course, poids, moyennes du quotidien, sur 30 jours, 90 jours, un an ou tout. Sans montre, ni VO2max ni FC de récupération | SAN-15, MON-8 |
+| 3.26 Course faite à la main | Le départ, la durée, la distance si on la connaît, le terrain, la note d'effort ; depuis une course prévue ou l'ajout rapide | MON-12, MON-13 |
+| 3.27 Effort d'une course | La course reçue sans la montre : sa distance, sa durée, d'où elle vient, et la note de 1 à 10 | MON-11, SAI-4 |
 
 **4 · Maison**
 
@@ -3896,7 +3902,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 5.7 Lieux de sport | Par discipline, rangés par préférence | LIE |
 | 5.8 Mémoire de HAL | Les quatre étages, corriger, revenir à une version | MEM-1, MEM-5 |
 | 5.9 Mettre HAL en pause | Motif, date de fin | PAU-1 |
-| 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu case par case, l'avancée du premier envoi de l'historique, « Tout renvoyer depuis le début » | SAN-10, SAN-14 |
+| 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu case par case, l'avancée du premier envoi de l'historique, « Tout renvoyer depuis le début ». « J'ai une Apple Watch » ; sans montre, comment faire écrire Strava dans Santé | SAN-10, SAN-14, MON-7, MON-10 |
 | 5.11 Notifications | Mes heures (bilan, relance, récap), ce qui prévient, et le silence | NOT-14, NOT-15 |
 | 5.12 Calendriers abonnés | Composer, copier le lien, renouveler le jeton | NOT-5 à NOT-9, UTI-3 |
 | 5.13 Serveur | Adresse, état de la connexion, mot de passe | CNX |
@@ -3935,7 +3941,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
-| 8.1 à 8.5 Premier lancement | Santé, la fenêtre d'iOS, les notifications, les calendriers, rencontrer HAL | PRE-1 à PRE-4 |
+| 8.1 à 8.5 Premier lancement | Santé et la question de la montre, la fenêtre d'iOS, les notifications, les calendriers, rencontrer HAL | PRE-1 à PRE-4, MON-7 |
 | 8.6 à 8.8 Onglets vides | Ce qui manque et comment l'obtenir | WID-8 |
 | 8.9 Serveur injoignable | Le bandeau et l'heure des données | APP-2, APP-3 |
 | 8.10 HAL réfléchit | Les trois points et ce qu'il regarde | ORB-7 |
@@ -3963,16 +3969,25 @@ Les écrans 4.9 à 4.12, et les nouvelles versions de 4.2 et 4.3, viennent des t
 
 Une séance libre suit le même chemin depuis le widget « Séance libre » [3.10] : on cherche un exercice par son nom et on l'ajoute, dans l'ordre qu'on veut (LIB-2). Les exercices interdits par une limitation sont grisés et refusés (SEC-1). Un nom que le catalogue ne connaît pas s'ajoute : HAL le reconnaît et le garde pour soi (EXO-11).
 
-### C.9 La course et l'Apple Watch : `MON`
+### C.9 La course, avec ou sans Apple Watch : `MON`
 
 | Code | Type | Règle |
 |---|---|---|
 | MON-1 | T | Une course ou une séance de cardio prévue s'envoie à la montre : l'appli crée la séance pour l'app Exercice de l'Apple Watch, avec ses étapes et ses alertes d'allure et de fréquence cardiaque [3.13] |
-| MON-2 | D | Une course n'a pas de bouton « Commencer » dans l'appli. On la lance sur la montre ; à la fin, elle arrive dans Santé, l'appli l'envoie, et elle valide la séance prévue toute seule (SAN-4, SAN-10) [3.12] |
+| MON-2 | D | Une course n'a pas de bouton « Commencer » dans l'appli. On la lance sur la montre, ou sans montre dans Strava ou une autre appli (MON-9) ; à la fin, elle arrive dans Santé, l'appli l'envoie, et elle valide la séance prévue toute seule (SAN-4, SAN-10) [3.12] |
 | MON-3 | D | Pas d'application Apple Watch à nous dans cette version. Le téléphone suffit pour la musculation ; la montre sert par l'app Exercice |
 | MON-4 | D | Une course faite s'affiche comme dans l'app Forme : distance, durée, allure, FC, dénivelé, énergie, cadence, temps au kilomètre, zones, courbes de FC et d'allure, puis l'avis de HAL [3.14] |
 | MON-5 | D | L'envoi à la montre est le seul envoi d'une séance hors de l'appli. Pas d'export en PDF ni en JSON |
 | MON-6 | M | Changer une course prévue passe par HAL : « Changer » ouvre le panneau avec la course jointe (COA-32) |
+| MON-7 | M | Chaque compte dit s'il a une Apple Watch, d'un interrupteur : dans Réglages [5.10] et à l'étape Santé du premier lancement [8.1]. Rien ne le devine. Le réglage est gardé sur le serveur (`utilisateur.a_une_montre`), pour que HAL le lise. Un compte qui existait l'a activé |
+| MON-8 | D | Sans montre, l'appli retire ce qui ne vit que par elle : « Envoyer à la montre » [3.13] et l'écran Apple Watch, les widgets Montre et FC du jour, la FC de repos et la VFC de la forme, la nuit en détail [3.24], la VO2max et la FC de récupération [3.25]. Un widget retiré quitte l'accueil et la galerie, et revient avec la montre. Les séances de la montre deviennent « séances reçues ». La musculation ne change pas |
+| MON-9 | D | Sans montre, une course ou une séance de cardio prévue montre ses étapes en clair, avec leurs durées, leurs distances et leurs allures [3.12]. On la court avec Strava ou toute appli qui écrit dans Santé ; elle revient par Santé et valide la séance comme une séance de la montre (SAN-4) |
+| MON-10 | M | Strava n'a pas de branchement à part : il écrit ses activités dans Santé quand on l'y autorise, dans Strava, et l'appli les lit de là avec le reste (SAN-10). Réglages dit comment faire [5.10]. Une activité reçue de Strava et de la montre ne compte qu'une fois (SAN-15) |
+| MON-11 | T | Une course ou une séance de cardio qui compte (SAN-15) et ne vient pas de la montre demande sa note d'effort, de 1 à 10. Une notification la demande une fois, si la séance a moins d'un jour, et la carte « Effort à donner » l'attend sur Aujourd'hui et sur Sport pendant trois jours [3.27]. La note devient le bilan de la séance, avec la durée reçue (SAI-4) : la charge s'en déduit, et l'intensité d'une séance libre aussi (LIB-12). Elle n'appelle pas HAL, qui la lit à la synthèse. Sans note, la séance reste sans charge (SAI-13) |
+| MON-12 | M | Une course ou une séance de cardio faite sans rien qui l'enregistre se déclare à la main [3.26] : le départ, la durée, la distance si on la connaît, le terrain pour une course, la note d'effort. Depuis une course prévue, « Je l'ai faite » ; sinon, l'ajout rapide (APP-9). Elle entre comme une séance reçue de Santé, marquée « à la main », se rattache comme elle (SAN-4, LIB-5) et porte son bilan. Elle porte une clé de l'appareil : la renvoyer ne crée rien de plus (SAI-9). Elle demande HAL actif et une date de moins de 28 jours (SAN-8) |
+| MON-13 | T | Une séance déclarée à la main passe après une séance reçue par Santé. Si la même course arrive ensuite de la montre ou de Strava, c'est celle-ci qui compte et qui prend la séance prévue (SAN-15) ; la note d'effort reste, puisqu'elle est le bilan de la séance |
+| MON-14 | D | Sans montre, le sommeil est la durée que l'iPhone estime, sans phases (SAN-16). L'appli le dit « estimé par l'iPhone », et HAL le lit comme une approximation |
+| MON-15 | T | HAL sait si le compte a une montre : le contexte le lui dit à chaque appel. Sans montre, il dose la course à l'allure et à l'effort perçu, pas à la fréquence cardiaque ; il n'annonce aucun envoi à la montre ; il ne cherche ni VFC ni FC de repos, et lit le sommeil comme une estimation (chapitre 2.2 du dossier) |
 
 ### C.10 Intégration à iOS : `IOS`
 
@@ -3988,7 +4003,7 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 | Code | Type | Règle |
 |---|---|---|
 | PRE-1 | M | On se connecte avec son pseudo et son mot de passe [5.14], ou on rejoint un foyer avec une invitation (FOY-3) [5.18] |
-| PRE-2 | T | Viennent ensuite quatre écrans, dans cet ordre : l'accès à Santé, les notifications, les calendriers, la rencontre avec HAL [8.1 à 8.5]. Chacun explique avant que la fenêtre d'iOS ne s'ouvre, sinon on refuse sans comprendre |
+| PRE-2 | T | Viennent ensuite quatre écrans, dans cet ordre : l'accès à Santé, avec la question de la montre (MON-7), les notifications, les calendriers, la rencontre avec HAL [8.1 à 8.5]. Chacun explique avant que la fenêtre d'iOS ne s'ouvre, sinon on refuse sans comprendre |
 | PRE-3 | M | Chaque étape a « Plus tard ». Ce qui est passé se rallume dans Réglages, et l'onglet concerné le rappelle tant que c'est vide [8.6, 8.7] |
 | PRE-4 | T | La dernière étape enchaîne sur le démarrage de HAL (section B.3.18), ou laisse découvrir l'appli d'abord ; Sport propose alors de reprendre [7.18] |
 
@@ -3999,7 +4014,7 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 | Apparence | Fond et couleurs [5.2] |
 | Planning | Calendriers à suivre [5.3, 5.4], calendriers abonnés [5.12], types de tâches [4.9], Historique [5.17] |
 | HAL et sport | Profil [5.5], limitations [5.6], lieux [5.7], mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5), Intelligence : fournisseurs, clients MCP et leurs clés (FOU-19, partie F) |
-| Appareil | Santé et Apple Watch [5.10], notifications et heures [5.11] |
+| Appareil | Santé, Apple Watch et Strava [5.10], notifications et heures [5.11] |
 | Foyer et compte | Le foyer, ses membres, l'invitation et les droits [5.15, 5.16], le serveur et la connexion [5.13], le mot de passe, se déconnecter |
 
 Il n'y a pas d'écran du coût de HAL : il se lit par le bot d'administration (ADM-3). Seule la dépense API du mois, face au plafond, se lit dans Intelligence (FOU-19).
@@ -4029,6 +4044,9 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Tout ce tablea
 | Foyer | Les routes de la partie D | D.4 |
 | Records d'un exercice | `/exercices/{code}/records` : le plus lourd, et le plus lourd sur dix répétitions | SAI-20 |
 | Exercice hors catalogue | `POST /exercices` : HAL reconnaît le nom, et l'exercice rejoint le catalogue du compte | EXO-11 |
+| Avec ou sans montre | `PUT /appli/montre` règle l'interrupteur ; `/appli/sport` rend `a_une_montre` et les efforts à donner | MON-7, MON-11 |
+| Effort d'une course | `POST /seances/{id}/bilan` sans durée prend celle de la séance reçue, à défaut celle prévue | MON-11 |
+| Course à la main | `POST /seances/course-a-la-main`, rejouable par sa clé : la séance reçue et son bilan, en une fonction (`saisir_course_a_la_main`) | MON-12, MON-13 |
 
 **Reste à faire côté API.** « Voir plus tard » sur un conflit ne fait que le cacher dans l'appli jusqu'au prochain chargement : la route qui le fait revenir sept jours avant manque (COL-23). « C'est fait » accepte une tâche du foyer faite sans être prévue, pas encore une tâche qui n'existe pas du tout (EXE-17). Une tâche en retard se dit « C'est fait » ; le bouton « Je m'en charge » de la maquette demande une route qui la prenne pour soi sans la valider.
 
@@ -4151,6 +4169,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21) ;
 - la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont construits et vérifiés dans le simulateur sur la fausse base : la course avec ses étapes et sa carte, le parcours en grand, la nuit phase par phase, la forme sur la durée. HAL lit chaque course étape par étape (SAN-17), dans la séance close et dans les dernières courses lues d'office ;
 - la séance de musculation corrigée en route : changer d'exercice en gardant ses séries, annuler une série, retirer ou passer un exercice (SAI-22) ; un exercice absent du catalogue, ajouté par son nom et reconnu par HAL (EXO-11, migration 073).
+- le sport sans montre, le 21 octobre (MON-7 à MON-15, migration 074, annexe 10) : l'interrupteur « J'ai une Apple Watch » dans Réglages et au premier lancement, les écrans qui ne vivent que par la montre retirés sans elle, la course prévue lisible pour Strava, la note d'effort d'une course reçue sans la montre (carte, widget en tête d'Aujourd'hui, notification), la course déclarée à la main, et le contexte de HAL. Vérifié par onze tests du serveur (`tests/test_sans_montre.py`) et dans le simulateur sur la fausse base, qui a maintenant une course de Strava sans note. La notification ne se vérifie que sur un iPhone.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
 
@@ -4904,3 +4923,46 @@ Le document a été relu en entier, pour qu'il dise ce qui tourne. Aucune règle
 | Renvois | « section A.2.2 » pour la partie B devient B.2.2, « son cahier, section A.5 » devient B.5, « section 3 » devient A.3, « 11.5 » devient B.11.5 |
 
 Les anciens cahiers, `cahier-des-charges.md` et `cahier-des-charges-coach.md`, sont rangés dans [`archive/`](archive/).
+
+### Annexe 10 : ce que change le sport sans montre
+
+Version du 21 octobre 2026, migration 074. Un compte peut maintenant se servir de HAL sans Apple Watch. Neuf règles sont nouvelles, MON-7 à MON-15. Sept sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| SAI-4 | En fin de séance de musculation, l'utilisateur donne une note d'effort de 1 à 10, la durée réelle, et un commentaire libre s'il en a un. Une course ou une séance de cardio n'a pas de note à saisir : l'effort vient de la montre (SAN-2) |
+| LIB-2 | L'utilisateur y saisit les exercices du catalogue qu'il veut, dans l'ordre qu'il veut. Pour une course, la séance enregistrée par la montre suffit |
+| SAN-15 | La phrase qui change : « Une séance reçue de deux applications, même discipline et recouvrement de plus de la moitié de la plus courte, n'est comptée qu'une fois : celle de la montre, sinon la première reçue. » |
+| MON-2 | Une course n'a pas de bouton « Commencer » dans l'appli. On la lance sur la montre ; à la fin, elle arrive dans Santé, l'appli l'envoie, et elle valide la séance prévue toute seule (SAN-4, SAN-10) [3.12] |
+| WID-6 | Certains widgets passent devant la disposition choisie, tant que leur raison dure, dans cet ordre : les bandeaux d'état (hors réseau, mode allégé, absence, pause de HAL) [8.13] ; un conflit à régler (COL-12) [1.3] ; un ajustement de HAL en attente (PLN-18) [1.4] ; une mesure demandée (MES-1) [8.14] ; le jour d'une séance de musculation, « Lancer la séance » [1.2]. Ils disparaissent seuls quand leur raison disparaît |
+| APP-9 | Le « + » en haut d'Aujourd'hui et de Maison ouvre l'ajout rapide : ajouter une tâche, déclarer une tâche faite, poser un créneau, une absence, une séance libre, une mesure, ou passer en mode allégé [1.5]. Tout se fait à la main, sans HAL |
+| PRE-2 | Viennent ensuite quatre écrans, dans cet ordre : l'accès à Santé, les notifications, les calendriers, la rencontre avec HAL [8.1 à 8.5]. Chacun explique avant que la fenêtre d'iOS ne s'ouvre, sinon on refuse sans comprendre |
+
+**Les choix faits.** Ils ont été posés avec Thomas avant d'écrire.
+
+| Question | Choix | Écarté |
+|---|---|---|
+| Comment savoir s'il y a une montre | Un interrupteur, réglé à la main (MON-7) | Le deviner d'après Santé : une montre prêtée ou oubliée trompe la détection |
+| Une course prévue, sans montre | Ses étapes en clair, courue avec Strava ou une autre appli (MON-9) | Un mode course dans HAL, chronomètre et GPS : une appli de course à refaire. Des sorties simples seulement : HAL perdait le fractionné |
+| L'effort d'une course sans montre | Une note de 1 à 10, demandée à l'arrivée (MON-11) | Rien : la séance restait « dure » par prudence et sans charge |
+| Une course sans rien qui l'enregistre | Déclarée à la main (MON-12) | « Faite, sans saisie » : comptée, mais sans chiffres pour HAL |
+| Le sommeil sans montre | Gardé, dit « estimé par l'iPhone » (MON-14) | L'ignorer, ou le montrer comme celui de la montre |
+| La forme sans VFC ni FC de repos | Rien de plus : le sommeil estimé, les notes d'effort et ce que dit l'utilisateur | Un ressenti du matin à noter |
+| Ce qui dépend de la montre | Retiré de l'appli (MON-8) | Laissé vide, avec « Nécessite une Apple Watch » |
+| Strava | Par Santé seulement (MON-10) | L'API de Strava : un branchement OAuth et des webhooks, pour des données qui arrivent déjà par Santé, et des conditions d'utilisation qui encadrent l'envoi à une IA |
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| En-tête | Version du 21 octobre 2026, migration 074 |
+| B.1.2 | Un choix de plus : la montre n'est pas obligatoire |
+| B.2.1 | HealthKit lit aussi l'iPhone et les applis comme Strava |
+| B.6.1 | La colonne `utilisateur.a_une_montre` |
+| B.9.1, C.13 | `POST /seances/course-a-la-main`, `PUT /appli/montre`, la durée facultative du bilan ; 77 routes de HAL au lieu de 76 |
+| C.5 | Le widget « Effort à donner » ; Montre, FC du jour et Forme disent ce qu'ils deviennent sans montre |
+| C.7 | Les écrans 3.12 à 3.16, 3.24, 3.25, 5.10 et 8.1 ; deux écrans nouveaux, 3.26 et 3.27 |
+| C.9, C.12 | Le titre de C.9 ; Strava dans le groupe Appareil |
+| Dossier, chapitre 2.2 | Un paragraphe « Sans montre » : ce que HAL a, ce qu'il n'a pas, et comment doser la course sans fréquence cardiaque |
+
+**Ce qui ne change pas.** La musculation, la saisie hors réseau, la séance en cours et sa Live Activity. Un compte avec montre fonctionne comme avant, à deux détails près : une course reçue d'une autre appli que la montre demande sa note d'effort, et une course prévue a « Je l'ai faite » à la place de « Déjà faite, sans saisie ».

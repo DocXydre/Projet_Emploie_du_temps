@@ -149,6 +149,10 @@ struct EcranSport: View {
         ForEach(foyer.sportDuServeur?.invitations ?? []) { invitation in
             BandeauInvitation(invitation: invitation)
         }
+        // MON-11 : les courses reçues sans la montre attendent leur note.
+        ForEach(foyer.effortsADonner) { course in
+            CarteEffort(course: course)
+        }
         ForEach(foyer.sportDuServeur?.seancesDuJour.filter { !$0.close && $0.seance.discipline != "musculation" } ?? []) { course in
             Button { prevue = course } label: {
                 BandeauEtat(icone: "figure.run", titre: "\(course.titre) aujourd'hui",
@@ -169,8 +173,6 @@ private struct FormeDuJour: View {
     @Environment(Foyer.self) private var foyer
 
     var body: some View {
-        let jours = foyer.complements.sante?.jours ?? []
-        let dernier = jours.last ?? foyer.sportDuServeur?.forme.first
         VStack(alignment: .leading, spacing: Espace.gouttiere) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Forme du jour").texte(.titre).foregroundStyle(Palette.textePrincipal).surLaPhoto()
@@ -181,47 +183,75 @@ private struct FormeDuJour: View {
                 }
             }
             Grid(horizontalSpacing: Espace.gouttiere, verticalSpacing: Espace.gouttiere) {
-                GridRow {
-                    lien(EcranSommeil()) {
-                        Mesure(titre: "Sommeil", icone: "bed.double",
-                               valeur: dernier?.sommeilMinutes.map { EnFrancais.duree(minutes: $0) },
-                               tendance: ecart(dernier?.sommeilMinutes.map(Double.init), jours.compactMap { $0.sommeilMinutes.map(Double.init) }) {
-                                   "\($0 >= 0 ? "+" : "−")\(EnFrancais.duree(minutes: Int(abs($0).rounded()))) vs moyenne"
-                               },
-                               couleur: Categorie.linge.couleur)
+                // MON-8 : la VFC et la FC de repos ne viennent que de la montre.
+                if foyer.aUneMontre {
+                    GridRow {
+                        sommeil
+                        vfc
                     }
-                    lien(EcranSommeil()) {
-                        Mesure(titre: "VFC", icone: "waveform.path.ecg",
-                               valeur: dernier?.vfcMs.map { String(Int($0.rounded())) }, unite: "ms",
-                               tendance: ecart(dernier?.vfcMs, jours.compactMap(\.vfcMs)) {
-                                   "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) vs \(periode) j"
-                               },
-                               couleur: Categorie.ia.couleur)
+                    GridRow {
+                        frequenceDeRepos
+                        pas
                     }
-                }
-                GridRow {
-                    lien(EcranFrequence()) {
-                        Mesure(titre: "FC repos", icone: "heart",
-                               valeur: dernier?.fcRepos.map(String.init), unite: "bpm",
-                               tendance: ecart(dernier?.fcRepos.map(Double.init), jours.compactMap { $0.fcRepos.map(Double.init) }) {
-                                   "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) vs \(periode) j"
-                               })
-                    }
-                    lien(EcranSommeil()) {
-                        Mesure(titre: "Pas", icone: "figure.walk",
-                               valeur: dernier?.pas.map(EnFrancais.nombre),
-                               tendance: moyenne(jours.compactMap { $0.pas.map(Double.init) }).map {
-                                   "moyenne \(EnFrancais.nombre(Int($0.rounded())))"
-                               },
-                               couleur: Categorie.sport.couleur)
+                } else {
+                    GridRow {
+                        sommeil
+                        pas
                     }
                 }
             }
             // 3.25 : VO2max, récupération, poids, sur la durée.
             NavigationLink { EcranForme() } label: {
-                Text("VO2max, récupération et poids")
+                Text(foyer.aUneMontre ? "VO2max, récupération et poids" : "Poids et moyennes du quotidien")
             }
             .buttonStyle(.hal(.verre, pleineLargeur: true))
+        }
+    }
+
+    private var jours: [EtatSport.JourDeForme] { foyer.complements.sante?.jours ?? [] }
+    private var dernier: EtatSport.JourDeForme? { jours.last ?? foyer.sportDuServeur?.forme.first }
+
+    /// MON-14 : sans montre, le sommeil est celui que l'iPhone estime.
+    private var sommeil: some View {
+        lien(EcranSommeil()) {
+            Mesure(titre: foyer.aUneMontre ? "Sommeil" : "Sommeil estimé", icone: "bed.double",
+                   valeur: dernier?.sommeilMinutes.map { EnFrancais.duree(minutes: $0) },
+                   tendance: ecart(dernier?.sommeilMinutes.map(Double.init), jours.compactMap { $0.sommeilMinutes.map(Double.init) }) {
+                       "\($0 >= 0 ? "+" : "−")\(EnFrancais.duree(minutes: Int(abs($0).rounded()))) vs moyenne"
+                   },
+                   couleur: Categorie.linge.couleur)
+        }
+    }
+
+    private var vfc: some View {
+        lien(EcranSommeil()) {
+            Mesure(titre: "VFC", icone: "waveform.path.ecg",
+                   valeur: dernier?.vfcMs.map { String(Int($0.rounded())) }, unite: "ms",
+                   tendance: ecart(dernier?.vfcMs, jours.compactMap(\.vfcMs)) {
+                       "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) vs \(periode) j"
+                   },
+                   couleur: Categorie.ia.couleur)
+        }
+    }
+
+    private var frequenceDeRepos: some View {
+        lien(EcranFrequence()) {
+            Mesure(titre: "FC repos", icone: "heart",
+                   valeur: dernier?.fcRepos.map(String.init), unite: "bpm",
+                   tendance: ecart(dernier?.fcRepos.map(Double.init), jours.compactMap { $0.fcRepos.map(Double.init) }) {
+                       "\($0 >= 0 ? "+" : "−")\(Int(abs($0).rounded())) vs \(periode) j"
+                   })
+        }
+    }
+
+    private var pas: some View {
+        lien(EcranSommeil()) {
+            Mesure(titre: "Pas", icone: "figure.walk",
+                   valeur: dernier?.pas.map(EnFrancais.nombre),
+                   tendance: moyenne(jours.compactMap { $0.pas.map(Double.init) }).map {
+                       "moyenne \(EnFrancais.nombre(Int($0.rounded())))"
+                   },
+                   couleur: Categorie.sport.couleur)
         }
     }
 
@@ -701,10 +731,12 @@ private struct CarteMontre: View {
 
     var body: some View {
         let seances = Array(foyer.seancesDeLaMontre.prefix(2))
-        CoquilleWidget(titre: "Dernières séances de la montre", icone: "applewatch",
+        // MON-8 : sans montre, ce sont les séances reçues de Strava ou d'une autre appli.
+        CoquilleWidget(titre: foyer.aUneMontre ? "Dernières séances de la montre" : "Dernières séances reçues",
+                       icone: foyer.aUneMontre ? "applewatch" : "figure.run",
                        couleur: Categorie.alerte.couleur) {
             if seances.isEmpty {
-                Text("Les séances de la montre arrivent par Santé.")
+                Text("Les séances arrivent par Santé.")
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             } else {
                 VStack(alignment: .leading, spacing: 0) {

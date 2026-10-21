@@ -101,16 +101,23 @@ struct EcranReglagesSante: View {
 
             Section("Voir les données") {
                 NavigationLink("Sommeil et récupération") { EcranSommeil() }
-                NavigationLink("La dernière nuit en détail") { EcranNuit(jour: nil) }
+                // MON-8 : sans montre, ni phases de la nuit ni FC de la journée.
+                if foyer.aUneMontre {
+                    NavigationLink("La dernière nuit en détail") { EcranNuit(jour: nil) }
+                }
                 NavigationLink("Forme et corps") { EcranForme() }
-                NavigationLink("Séances de la montre") { EcranSeancesMontre() }
-                NavigationLink("Fréquence cardiaque du jour") { EcranFrequence() }
+                NavigationLink(foyer.aUneMontre ? "Séances de la montre" : "Séances reçues") { EcranSeancesMontre() }
+                if foyer.aUneMontre {
+                    NavigationLink("Fréquence cardiaque du jour") { EcranFrequence() }
+                }
             }
 
             Section {
-                NavigationLink("Apple Watch") { EcranMontre() }
+                NavigationLink("Apple Watch et Strava") { EcranMontre() }
             } footer: {
-                Text("Les séances faites avec la montre arrivent par Santé. Une course prévue part sur la montre depuis sa séance.")
+                Text(foyer.aUneMontre
+                     ? "Les séances faites avec la montre arrivent par Santé. Une course prévue part sur la montre depuis sa séance."
+                     : "Sans montre : les courses arrivent de Strava ou d'une autre appli, par Santé, et le sommeil est celui que l'iPhone estime.")
             }
         }
         .navigationTitle("Santé")
@@ -315,7 +322,8 @@ struct EcranSeancesMontre: View {
                 Segmente(choix: [(7, "7 jours"), (30, "30 jours"), (90, "90 jours")], selection: $periode)
                 if let historique {
                     if historique.seances.isEmpty {
-                        Text("Aucune séance de la montre sur la période.")
+                        Text(foyer.aUneMontre ? "Aucune séance de la montre sur la période."
+                             : "Aucune séance reçue sur la période.")
                             .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     }
                     ForEach(historique.seances, id: \.self) { activite in
@@ -326,13 +334,15 @@ struct EcranSeancesMontre: View {
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 200)
                 }
-                Text("Elles arrivent par Santé. Une séance de la montre compte la séance prévue du même jour comme faite.")
+                Text(foyer.aUneMontre
+                     ? "Elles arrivent par Santé. Une séance de la montre compte la séance prévue du même jour comme faite."
+                     : "Elles arrivent par Santé, de Strava ou d'une autre appli, ou sont déclarées à la main. Chacune compte la séance prévue du même jour comme faite.")
                     .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(Espace.marge)
         }
-        .navigationTitle("Séances de la montre")
+        .navigationTitle(foyer.aUneMontre ? "Séances de la montre" : "Séances reçues")
         .navigationBarTitleDisplayMode(.inline)
         .containerBackground(.clear, for: .navigation)
         .task(id: periode) {

@@ -5,6 +5,7 @@ Résumé des chapitres 5.1 à 5.8. Pour le détail (tableaux complets, plans, fo
 ## 5.1 Les bases : zones, séances, progression
 - Environ 80 % du volume à faible intensité, 20 % à intensité élevée.
 - Zones (% FC de réserve / % VMA) : Z1 50-60 / moins de 60 ; Z2 60-70 / 60-70 (conversation possible, majorité du volume) ; Z3 70-80 / 75-85 ; Z4 80-90 / 85-90 ; Z5 90-100 / 95-105.
+- Sans montre : les zones à la VMA et à l'effort perçu seulement (Z2 on parle en phrases, seuil en quelques mots), jamais à la FC (chapitre 2.2).
 - Séances : footing 30 à 60 min Z2 ; sortie longue 60 à 150 min Z2, au plus 30 à 35 % du volume hebdo, 1 par semaine ; seuil et VO2max 0 à 1 fois chacune ; récupération 20 à 30 min Z1.
 - Débutant : marche et course jusqu'à 30 min sans arrêt (8 à 10 semaines). Aucune séance intense avant.
 - Volume hebdo : +10 % au maximum, semaine allégée toutes les 3 à 4 semaines.

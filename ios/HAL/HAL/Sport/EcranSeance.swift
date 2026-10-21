@@ -20,6 +20,7 @@ struct EcranSeancePrevue: View {
     @State private var envoyee = false
     @State private var envoi = false
     @State private var versLaMontre = false
+    @State private var aLaMain = false
 
     /// 3.3 : sur la photo, comme un écran poussé. Le titre, le lieu, la durée ;
     /// chaque exercice avec son bouton pour le changer (SAI-3) ; puis « Lancer »,
@@ -66,8 +67,15 @@ struct EcranSeancePrevue: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .carte(rayon: Rayon.controle)
                     }
-                    Text("Données de l'Apple Watch, reçues par Santé. La séance prévue a été validée toute seule.")
+                    Text(montre.provenance + (detail.seance.libre == true ? ""
+                                              : " La séance prévue a été validée toute seule."))
                         .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
+                    // MON-11 : reçue d'une autre appli que la montre, elle attend sa note.
+                    if let attend = foyer.effortsADonner.first(where: {
+                        $0.idOccurrence == detail.seance.idOccurrence
+                    }) {
+                        CarteEffort(course: attend)
+                    }
                 }
                 actions
             }
@@ -105,8 +113,18 @@ struct EcranSeancePrevue: View {
             Text("HAL en tient compte pour la suite de la semaine.")
         }
         .task {
-            guard ["course", "cardio"].contains(detail.seance.discipline ?? ""), !detail.close else { return }
+            guard ["course", "cardio"].contains(detail.seance.discipline ?? ""), !detail.close,
+                  foyer.aUneMontre else { return }
             envoyee = await EnvoiMontre.dejaEnvoyee(detail.seance.idOccurrence)
+        }
+        .sheet(isPresented: $aLaMain) {
+            NavigationStack { FormulaireCourseALaMain(prevue: detail) }
+                .environment(\.fermerFeuille, ActionFermer {
+                    aLaMain = false
+                    fermer()
+                })
+                .presentationDetents([.large])
+                .feuilleEnVerre()
         }
         .sheet(isPresented: $versLaMontre) {
             FeuilleMontre(detail: detail, envoi: envoi) {
@@ -158,7 +176,7 @@ struct EcranSeancePrevue: View {
                     Image(systemName: "checkmark").font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Categorie.sport.couleur)
                 } else if ["course", "cardio"].contains(detail.seance.discipline ?? "") {
-                    Puce(texte: "Sur la montre")
+                    Puce(texte: foyer.aUneMontre ? "Sur la montre" : "Avec Strava")
                 } else {
                     Puce(texte: EcranSemaine.situation(detail.seance.situation).capitalized)
                 }
@@ -223,6 +241,15 @@ struct EcranSeancePrevue: View {
                     fermer()
                 }
                 .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
+            } else if detail.montre?.first != nil {
+                // Déjà reçue par Santé : rien à lancer ni à déclarer.
+                EmptyView()
+            } else if !foyer.aUneMontre {
+                // MON-9 : sans montre, on la court avec l'appli de son choix, en
+                // suivant les étapes ci-dessus ; elle revient par Santé.
+                Text("Cours-la avec Strava ou l'appli de ton choix, en suivant ces étapes. Elle arrive par Santé et se valide toute seule.")
+                    .texte(.corps).foregroundStyle(Palette.texteSecondaire)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 // MON-1, MON-2 : une course ne se lance pas ici, elle part sur la montre.
                 // 3.13 : on voit d'abord ce qui part.
@@ -249,12 +276,18 @@ struct EcranSeancePrevue: View {
                     libelle: "\(detail.titre) · \(sousTitre)"))
             }
             .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
-            Button("Déjà faite, sans saisie") {
-                SeanceEnCours.dejaFaite(detail, file: file)
-                annoncer("Séance comptée faite")
-                fermer()
+            if detail.seance.discipline == "musculation" {
+                Button("Déjà faite, sans saisie") {
+                    SeanceEnCours.dejaFaite(detail, file: file)
+                    annoncer("Séance comptée faite")
+                    fermer()
+                }
+                .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
+            } else if detail.montre?.first == nil {
+                // MON-12 : faite sans rien qui l'enregistre, elle se déclare à la main.
+                Button("Je l'ai faite") { aLaMain = true }
+                    .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
             }
-            .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
         }
     }
 
@@ -1285,22 +1318,7 @@ struct EcranBilan: View {
                 }
                 .frame(height: 44)
                 chiffres
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 4) {
-                        ForEach(1...10, id: \.self) { note in
-                            Button { withAnimation(.snappy) { effort = note } } label: {
-                                Text("\(note)").texte(.corpsFort)
-                                    .foregroundStyle(note == effort ? Color.black.opacity(0.85) : Palette.texteSecondaire)
-                                    .frame(maxWidth: .infinity, minHeight: 34)
-                                    .background(note == effort ? Categorie.sport.couleur : Palette.verreTeinte,
-                                                in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Effort \(note) sur 10")
-                        }
-                    }
-                    Text("\(effort) · \(libelleEffort)").texte(.corps).foregroundStyle(Palette.textePrincipal)
-                }
+                ChoixEffort(effort: $effort)
                 .padding(Espace.interne)
                 .carte(rayon: Rayon.controle)
                 VStack(spacing: 10) {
@@ -1366,16 +1384,6 @@ struct EcranBilan: View {
             Text(legende).texte(.legende).foregroundStyle(Palette.texteSecondaire)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var libelleEffort: String {
-        switch effort {
-        case ...3: "facile, il en restait beaucoup"
-        case 4...5: "modéré"
-        case 6...7: "dur mais propre"
-        case 8...9: "très dur, presque rien en réserve"
-        default: "maximal"
-        }
     }
 }
 
