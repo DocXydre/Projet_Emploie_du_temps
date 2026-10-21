@@ -722,7 +722,7 @@ private struct Recapitulatif: View {
             groupe("Lieux") { ligne("Où", lieux, .lieux) }
             groupe("Objectif") { ligne("Principal", modele.objectifEnClair, .objectif) }
             if !fini {
-                Text("Tes notes écrites partent aussi à HAL. Il donne d'abord son avis sur l'objectif, puis construit quatre semaines : ça prend quelques minutes.")
+                Text("HAL construit tes quatre semaines : ça prend quelques minutes.")
                     .texte(.legende).foregroundStyle(Palette.texteTertiaire)
             }
         }
@@ -824,14 +824,14 @@ private struct Construction: View {
             if modele.attendLePlan {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("Il place quatre semaines autour de ton emploi du temps. Tu peux fermer : le plan arrive aussi en message.")
+                    Text("Tu peux fermer : le plan arrive aussi en message.")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(Espace.interne)
                 .carte()
             } else if modele.plan == nil {
-                Text("Le plan n'est pas encore là. Il arrivera en message dans HAL, et la semaine à valider apparaîtra dans Sport.")
+                Text("Le plan n'est pas encore là. Il arrivera en message dans HAL.")
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             }
         } entete: {

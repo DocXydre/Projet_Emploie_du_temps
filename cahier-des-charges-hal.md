@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 21 octobre 2026 (migration 074)
+Version du 21 octobre 2026 (migration 075)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, et l'ouverture de HAL par MCP et par abonnement. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
 
@@ -3676,6 +3676,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 - **Un seul rendu, sur photo.** Pas de mode clair ni de mode sombre : une photo de fond, assombrie et floutée pour rester lisible, et quatre combinaisons de couleurs.
 - **Tout est fait de composants réutilisables.** Un écran assemble des composants ; une fonction est un module qui déclare son widget et ses écrans. Ajouter une fonction, c'est ajouter un module (C.5).
 - **Chaque membre a exactement la même appli.** Rien n'est propre à un compte, à part le rôle d'administrateur du serveur.
+- **L'appli ne justifie pas ses règles à l'écran.** Pas de pied de section ni de légende qui explique pourquoi elle fait ce qu'elle fait : le pourquoi est dans ce document. Elle garde ce qui dit quoi faire : un format à respecter, les étapes pour obtenir un lien, un jeton ou une autorisation, une alerte, une erreur, un état vide, et ce qu'une suppression fait perdre.
 - **Texte en SF Pro** dans l'appli. La maquette utilise Inter, qui s'affiche mieux dans Figma : les tailles et les graisses sont les mêmes.
 
 ### C.2 Structure : `APP`
@@ -3692,7 +3693,7 @@ La barre d'onglets compte quatre onglets et l'orbe de HAL au milieu.
 
 | Code | Type | Règle |
 |---|---|---|
-| APP-1 | D | L'appli a quatre onglets et l'orbe de HAL au centre de la barre. L'orbe n'est pas un onglet : il ouvre un panneau qui vit au-dessus des onglets (ORB-1) |
+| APP-1 | D | L'appli a quatre onglets et l'orbe de HAL au centre de la barre. L'orbe n'est pas un onglet : il ouvre un panneau qui vit au-dessus des onglets (ORB-1). Un onglet n'est qu'une icône, grande et centrée, sans libellé dessous : un calendrier pour Aujourd'hui, un coureur pour Sport, une maison, des curseurs pour Réglages. Le nom reste pour VoiceOver |
 | APP-2 | T | L'appli garde les dernières données reçues et s'ouvre sans réseau. Un bandeau en haut dit alors que le serveur est injoignable et l'heure des données affichées [8.9] |
 | APP-3 | T | Ce qu'on fait sans réseau est gardé sur le téléphone et envoyé au retour, dans l'ordre et avec l'heure où on l'a fait : cocher une tâche, déclarer une tâche faite, saisir une série, clore une séance, saisir une mesure. Chaque envoi porte une clé créée par l'appareil, comme SAI-9 : renvoyer ne crée rien de plus. L'API doit l'accepter aussi pour les tâches (C.13) |
 | APP-4 | D | Une donnée absente s'affiche par un tiret, jamais par 0 (SAN-5). Un graphique laisse vide un jour sans données |
@@ -3737,7 +3738,7 @@ Ce sont les « presets » : chacun existe une fois dans la maquette, sur la plan
 | Interrupteur | Activé ou non | Réglages |
 | Segmenté | Deux à quatre choix | 7, 30 ou 90 jours ; Petit, Moyen, Grand |
 | Barre de titre | Titre, sous-titre, boutons | Le haut des écrans poussés |
-| Barre de navigation | Onglet actif | La barre d'onglets avec l'orbe |
+| Barre de navigation | Onglet actif | La barre d'onglets avec l'orbe, des icônes sans libellé (APP-1) |
 | Orbe | Repos, Active, Récap | HAL, dans la barre et dans le panneau |
 | Message | Moi, HAL | La conversation |
 | Champ IA | Vide, en saisie, dictée | La zone de saisie du panneau |
@@ -4169,6 +4170,7 @@ Depuis, l'appli a été reprise écran par écran sur la maquette, dans le simul
 - le sport : 38 exercices de plus (migration 068), la charge au demi-kilo et les trois poids pendant l'exercice (SAI-20), la bulle de la gourde Yanga pendant la séance (SAI-21) ;
 - la santé en détail : la base et les routes (migration 069, SAN-11 à SAN-16), et la collecte dans l'appli, sur tout l'historique, avec ses cases et son avancée dans Réglages [5.10]. Vérifiée de bout en bout dans le simulateur, sur une Santé remplie d'une course inventée. Les écrans [3.22 à 3.25] sont construits et vérifiés dans le simulateur sur la fausse base : la course avec ses étapes et sa carte, le parcours en grand, la nuit phase par phase, la forme sur la durée. HAL lit chaque course étape par étape (SAN-17), dans la séance close et dans les dernières courses lues d'office ;
 - la séance de musculation corrigée en route : changer d'exercice en gardant ses séries, annuler une série, retirer ou passer un exercice (SAI-22) ; un exercice absent du catalogue, ajouté par son nom et reconnu par HAL (EXO-11, migration 073).
+- le 21 octobre aussi (annexe 11) : la barre d'onglets en icônes seules, les textes d'explication retirés de l'appli, l'écran des essais supprimé, et la clé du serveur gardée en secours derrière l'abonnement Claude (FOU-1, migration 075, cinq tests dans `tests/test_fournisseurs_secours.py`) ;
 - le sport sans montre, le 21 octobre (MON-7 à MON-15, migration 074, annexe 10) : l'interrupteur « J'ai une Apple Watch » dans Réglages et au premier lancement, les écrans qui ne vivent que par la montre retirés sans elle, la course prévue lisible pour Strava, la note d'effort d'une course reçue sans la montre (carte, widget en tête d'Aujourd'hui, notification), la course déclarée à la main, et le contexte de HAL. Vérifié par onze tests du serveur (`tests/test_sans_montre.py`) et dans le simulateur sur la fausse base, qui a maintenant une course de Strava sans note. La notification ne se vérifie que sur un iPhone.
 
 Ce que la section C.13 laisse côté API reste à faire. Les écrans hors de l'appli [6.1 à 6.4] et la fin du démarrage [7.14 à 7.17] ne se vérifient pas dans le simulateur : le premier demande un iPhone, le second un vrai appel à HAL.
@@ -4340,7 +4342,7 @@ Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est
 
 | Code | Type | Règle |
 |---|---|---|
-| FOU-1 | D | Chaque compte a une liste rangée de fournisseurs, de types `claude_code` (son abonnement), `api` (une clé d'API Anthropic) et `gemini_cli` (son compte Google ou une clé de l'API Gemini, lot 15). Un compte sans liste utilise la clé d'API du serveur, comme aujourd'hui |
+| FOU-1 | D | Chaque compte a une liste rangée de fournisseurs, de types `claude_code` (son abonnement), `api` (une clé d'API Anthropic) et `gemini_cli` (son compte Google ou une clé de l'API Gemini, lot 15). Un compte sans liste utilise la clé d'API du serveur. Brancher un premier fournisseur ne la lui retire pas : elle reste derrière lui, comme fournisseur `api` sans secret, avec son plafond, en secours quand l'abonnement est épuisé. Elle se coupe d'un interrupteur, ou se remplace par une clé à soi (migration 075) |
 | FOU-2 | D | Un abonnement est personnel. Un compte ne branche que le sien, par un jeton créé sur sa machine avec `claude setup-token` et collé dans Réglages. Il ne sert qu'aux appels de ce compte : ni à l'autre membre, ni à un travail du serveur pour quelqu'un d'autre |
 | FOU-3 | D | Les jetons et les clés sont chiffrés en base, avec une clé qui vit dans `.env`. Ils ne sont jamais rendus par l'API (seuls leurs quatre derniers caractères), jamais écrits dans un journal, une trace, un échange ou un appel (COA-15) |
 | FOU-4 | T | Un appel essaie les fournisseurs dans l'ordre, en sautant ceux qui sont de côté. Il passe au suivant sur une limite d'usage, un jeton refusé, un plafond atteint ou un client injoignable. Il n'y passe pas sur un refus de la base, qui est un résultat, ni sur un dépassement de tours (COA-7) |
@@ -4966,3 +4968,23 @@ Version du 21 octobre 2026, migration 074. Un compte peut maintenant se servir d
 | Dossier, chapitre 2.2 | Un paragraphe « Sans montre » : ce que HAL a, ce qu'il n'a pas, et comment doser la course sans fréquence cardiaque |
 
 **Ce qui ne change pas.** La musculation, la saisie hors réseau, la séance en cours et sa Live Activity. Un compte avec montre fonctionne comme avant, à deux détails près : une course reçue d'une autre appli que la montre demande sa note d'effort, et une course prévue a « Je l'ai faite » à la place de « Déjà faite, sans saisie ».
+
+### Annexe 11 : la barre d'onglets, les textes de l'appli et la clé de secours
+
+Version du 21 octobre 2026, migration 075. Deux règles sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| APP-1 | L'appli a quatre onglets et l'orbe de HAL au centre de la barre. L'orbe n'est pas un onglet : il ouvre un panneau qui vit au-dessus des onglets (ORB-1) |
+| FOU-1 | Chaque compte a une liste rangée de fournisseurs, de types `claude_code` (son abonnement), `api` (une clé d'API Anthropic) et `gemini_cli` (son compte Google ou une clé de l'API Gemini, lot 15). Un compte sans liste utilise la clé d'API du serveur, comme aujourd'hui |
+
+**Pourquoi FOU-1 change.** Brancher son abonnement Claude faisait disparaître la clé du serveur : la liste n'était plus vide, et l'API apparaissait décochée dans Réglages. HAL n'avait plus de secours quand l'abonnement était épuisé. La migration 075 remet la clé du serveur derrière les comptes déjà branchés.
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| En-tête | Migration 075 |
+| C.1 | Un choix de plus : l'appli ne justifie pas ses règles à l'écran |
+| C.4 | La barre de navigation en icônes sans libellé |
+| L'appli | Les pieds de section et les légendes qui expliquaient une règle sont retirés, ainsi que leurs codes entre parenthèses ; l'écran Intelligence ne garde que les options, leur état et ce qu'il faut coller. Réglages perd son groupe Essais (les composants et les états à forcer de la démonstration) |

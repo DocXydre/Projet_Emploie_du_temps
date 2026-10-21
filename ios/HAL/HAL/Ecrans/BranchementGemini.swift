@@ -32,11 +32,7 @@ struct CarteGemini: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Pastille(icone: "sparkles", couleur: Categorie.ia.couleur)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Gemini").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-                    Text("Comme l'abonnement Claude, avec ton compte Google")
-                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                }
+                Text("Gemini").texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
             }
             if aRecoller {
                 Text("Google a refusé les identifiants gardés : refais les étapes et recolle-les.")
@@ -58,15 +54,15 @@ struct CarteGemini: View {
             case .google:
                 etape(1, "Sur ton ordinateur, installe Gemini CLI (il lui faut Node.js) :",
                       commande: Self.installer)
-                etape(2, "Lance `gemini` dans le terminal, choisis « Sign in with Google » et valide dans le navigateur. C'est ton abonnement Google AI qui servira, ou le quota gratuit sans abonnement.")
-                etape(3, "Copie le fichier de connexion. Sur Mac, cette commande le met dans le presse-papiers, qui arrive tout seul sur l'iPhone :",
+                etape(2, "Lance `gemini`, choisis « Sign in with Google » et valide dans le navigateur.")
+                etape(3, "Copie le fichier de connexion :",
                       commande: Self.copierFichier)
                 etape(4, "Colle-le ci-dessous, en entier : il commence par { et contient « refresh_token ».")
             case .cle:
                 etape(1, "Crée une clé sur Google AI Studio, avec ton compte Google.")
                 Button("Ouvrir Google AI Studio") { ouvrir(Self.pageDesCles) }
                     .buttonStyle(.hal(.verre, pleineLargeur: true))
-                etape(2, "Colle-la ci-dessous : elle commence par AIza. Elle est facturée à l'usage par Google, au-delà du quota gratuit.")
+                etape(2, "Colle-la ci-dessous : elle commence par AIza.")
             }
 
             TextField(facon == .google ? "{\"access_token\": …, \"refresh_token\": …}" : "AIza…",
@@ -98,9 +94,6 @@ struct CarteGemini: View {
             Button("Brancher Gemini", action: brancher)
                 .buttonStyle(.hal(.accent, pleineLargeur: true))
                 .disabled(!(avis?.bon ?? false) || envoi || !installe)
-            Text("Le serveur l'essaie une fois, puis le garde chiffré. Gemini répond avec la consigne et les outils de HAL, et rien ne change sans ton accord. Ses réponses n'ont pas encore été comparées à celles de Claude sur les scénarios du coach.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Espace.interne)
         .carte(rayon: Rayon.controle)

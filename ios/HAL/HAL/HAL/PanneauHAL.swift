@@ -560,7 +560,7 @@ private struct Echec: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("HAL n'a pas pu répondre", systemImage: "exclamationmark.circle")
                 .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-            Text("Ton message est gardé. Il repart tout seul à la prochaine ouverture, ou maintenant :")
+            Text("Ton message est gardé.")
                 .texte(.legende).foregroundStyle(Palette.texteSecondaire)
             HStack {
                 Button("Réessayer") { conversation.reessayer(horsReseau: foyer.essais.horsReseau) }

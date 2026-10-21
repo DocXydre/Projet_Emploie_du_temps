@@ -91,10 +91,6 @@ struct EcranNuit: View {
                     hypnogramme(nuit)
                     durees(nuit)
                     corps(nuit)
-                    Text(nuit.deLaMontre
-                         ? "Apple Watch, reçu par Santé. Les phases viennent de la montre ; une nuit sans montre n'a pas de phases, seulement sa durée."
-                         : "Nuit enregistrée sans la montre : Santé ne donne que le temps endormi.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
                 } else if let erreur {
                     Text(erreur).texte(.corps).foregroundStyle(Palette.texteSecondaire)
                         .padding(Espace.interne).frame(maxWidth: .infinity, alignment: .leading)
@@ -123,7 +119,7 @@ struct EcranNuit: View {
             erreur = nil
         } catch {
             nuit = nil
-            erreur = "Pas de phases de sommeil pour cette nuit. Avec la montre au poignet, elles arrivent par Santé."
+            erreur = "Pas de phases de sommeil pour cette nuit."
         }
     }
 
@@ -276,8 +272,6 @@ struct EcranForme: View {
                     }
                     poids(forme.poids)
                     quotidien(forme)
-                    Text("Ce qui vient de Santé, toutes sources : Apple Watch, iPhone et la balance. Une même donnée venue de deux sources n'est comptée qu'une fois, la montre d'abord.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
                 } else if let erreur {
                     Text(erreur).texte(.corps).foregroundStyle(Palette.texteSecondaire)
                 } else {
@@ -332,7 +326,7 @@ struct EcranForme: View {
                     .chartXAxis { axeDates }
                     .frame(height: 90)
                 } else {
-                    Text("Il faut quelques courses dehors avec la montre pour qu'elle l'estime.")
+                    Text("Pas encore de VO2max.")
                         .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 }
             }
@@ -368,9 +362,6 @@ struct EcranForme: View {
                     .chartXAxis(.hidden)
                     .frame(height: 70)
                 }
-                Text("Une barre par séance de course. Plus la FC redescend vite, mieux tu récupères.")
-                    .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

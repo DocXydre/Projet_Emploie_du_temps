@@ -109,8 +109,6 @@ struct EcranSeancePrevue: View {
                 annoncer("Séance notée pas faite : HAL décide de la suite")
                 fermer()
             }
-        } message: {
-            Text("HAL en tient compte pour la suite de la semaine.")
         }
         .task {
             guard ["course", "cardio"].contains(detail.seance.discipline ?? ""), !detail.close,
@@ -247,7 +245,7 @@ struct EcranSeancePrevue: View {
             } else if !foyer.aUneMontre {
                 // MON-9 : sans montre, on la court avec l'appli de son choix, en
                 // suivant les étapes ci-dessus ; elle revient par Santé.
-                Text("Cours-la avec Strava ou l'appli de ton choix, en suivant ces étapes. Elle arrive par Santé et se valide toute seule.")
+                Text("Cours-la avec Strava ou l'appli de ton choix, en suivant ces étapes.")
                     .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
@@ -265,7 +263,7 @@ struct EcranSeancePrevue: View {
                 .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
                 .disabled(envoi)
                 if envoyee {
-                    Text("Elle t'attend dans l'app Exercice, à son heure. Faite, elle arrive par Santé et se valide toute seule.")
+                    Text("Elle t'attend dans l'app Exercice.")
                         .texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 }
             }
@@ -383,8 +381,6 @@ private struct FeuilleMontre: View {
                 }
                 .padding(.horizontal, Espace.interne)
                 .carte(rayon: Rayon.controle)
-                Text("Faite, elle revient par Santé et la séance prévue se valide toute seule.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                 Button(action: envoyer) {
                     HStack {
                         if envoi { ProgressView() }
@@ -712,7 +708,7 @@ struct EcranSeanceEnCours: View {
                 }
                 Button("Garder", role: .cancel) {}
             } message: {
-                Text("Ses séries déjà notées sont effacées. Pour changer de machine en les gardant, utilise plutôt « Changer ».")
+                Text("Ses séries déjà notées sont effacées.")
             }
             .sheet(isPresented: $terminer) {
                 FeuilleTerminer(prevue: seance.seance?.idOccurrence != nil) { choix in
@@ -1003,14 +999,6 @@ struct EcranSeanceEnCours: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text(intermediaire ? "Série intermédiaire · ajoutée" : "Série \(numero)")
                 .texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
-            if intermediaire {
-                HStack(alignment: .top, spacing: 8) {
-                    Orbe(etat: .repos, taille: 18)
-                    Text("Le poids baisse, les répétitions restent. Puis la suite au poids prévu.")
-                        .texte(.legende).foregroundStyle(Palette.textePrincipal)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
             if exercice.enDuree {
                 Compteur(titre: "Durée", valeur: $duree, pas: 5, bornes: 5...3600, unite: "s")
             } else if exercice.enDistance {
@@ -1156,8 +1144,6 @@ private struct FeuilleBloque: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Espace.gouttiere) {
             Text("J'ai bloqué avant").texte(.titre).foregroundStyle(Palette.textePrincipal)
-            Text("La série est notée telle quelle. Une série intermédiaire suit, avec le poids un peu baissé.")
-                .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             Compteur(titre: "Répétitions faites", valeur: $faites, pas: 1, bornes: 0...Double(max(0, repsVisees - 1)))
             Button("Noter la série") {
                 valider(Int(faites))
@@ -1344,16 +1330,6 @@ struct EcranBilan: View {
                     annoncer(avisDeHAL ? "Séance close : HAL te répond dans son panneau" : "Séance close")
                 }
                 .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
-                if avisDeHAL {
-                    HStack(alignment: .top, spacing: 10) {
-                        Orbe(etat: .repos, taille: 22)
-                        Text("HAL répond tout de suite après l'enregistrement, dans son panneau.")
-                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
-                    }
-                    .padding(Espace.interne)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .carte(rayon: Rayon.controle)
-                }
             }
             .padding(.horizontal, Espace.marge)
             .padding(.bottom, 40)

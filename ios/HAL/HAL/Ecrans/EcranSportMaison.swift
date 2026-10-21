@@ -31,8 +31,8 @@ struct EcranMaison: View {
             if foyer.sansTache {
                 CarteVide(icone: "house", categorie: .menage, titre: "Aucune tâche dans le foyer",
                           texte: foyer.droits.ajouter
-                              ? "Ajoute ce qui revient : la vaisselle, les lessives, la litière. Le moteur les place dans vos creux et les répartit."
-                              : "C'est l'administrateur du foyer qui ajoute les tâches (FOY-6).",
+                              ? "Ajoute ce qui revient : la vaisselle, les lessives, la litière."
+                              : "C'est l'administrateur du foyer qui ajoute les tâches.",
                           bouton: foyer.droits.ajouter ? "Ajouter une tâche" : nil) {
                     aiguillage.feuille = .ajouterTache
                 }

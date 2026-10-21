@@ -15,10 +15,6 @@ struct EcranMontre: View {
         FormulaireVerre {
             Section {
                 InterrupteurMontre()
-            } footer: {
-                Text(foyer.aUneMontre
-                     ? "HAL lit la fréquence cardiaque, la VFC et les phases de sommeil, et les courses partent sur la montre."
-                     : "Sans montre, l'appli retire ce qui ne vit que par elle. La musculation ne change pas ; la course se court avec Strava ou une autre appli, et ton effort se note de 1 à 10 ; le sommeil est celui que l'iPhone estime.")
             }
 
             if foyer.aUneMontre {
@@ -37,15 +33,6 @@ struct EcranMontre: View {
                     }
                 } header: {
                     Text("Les courses prévues")
-                } footer: {
-                    Text("Ouvre une course ou une séance de cardio prévue par HAL, puis « Envoyer à la montre ». Elle arrive dans l'app Exercice à son heure, avec ses étapes et ses alertes. À la fin, elle revient par Santé et valide la séance toute seule.")
-                }
-
-                Section {
-                    Text("Toute séance faite avec la montre arrive dans HAL par Santé, même sans avoir été envoyée : une séance prévue le même jour est validée, sinon elle devient une séance libre.")
-                        .foregroundStyle(Palette.textePrincipal)
-                } header: {
-                    Text("Les séances faites")
                 }
             }
 
@@ -61,8 +48,6 @@ struct EcranMontre: View {
                 }
             } header: {
                 Text("Strava")
-            } footer: {
-                Text("Strava écrit alors chaque activité dans Santé, et HAL la lit de là avec le reste : une course compte la séance prévue du même jour comme faite. Reçue de Strava et de la montre, elle ne compte qu'une fois. Sans rien pour l'enregistrer, une course se déclare à la main, dans le « + ».")
             }
         }
         .navigationTitle("Apple Watch et Strava")

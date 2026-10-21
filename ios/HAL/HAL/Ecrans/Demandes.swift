@@ -34,8 +34,6 @@ struct EcranDemandes: View {
                     .buttonStyle(.hal(.accent, pleineLargeur: true, grand: true))
                 }
                 LigneErreur(texte: erreur)
-                Text("Une demande essaie déjà sa place dans le planning avant de t'arriver. Acceptée, elle se fait comme si tu l'avais faite toi-même ; sans réponse, elle expire au bout de 48 heures.")
-                    .texte(.legende).foregroundStyle(Palette.texteTertiaire)
             }
             .padding(Espace.marge)
         }

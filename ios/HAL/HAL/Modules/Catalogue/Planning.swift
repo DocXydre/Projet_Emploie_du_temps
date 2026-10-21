@@ -146,7 +146,7 @@ struct WidgetConflit: View {
     private func detail(_ conflit: Conflit) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Deux cours à \(conflit.premier.horaire.prefix(5))").texte(.titre).foregroundStyle(Palette.textePrincipal)
-            Text("Le flux de la fac a deux cours en même temps. Garde celui où tu vas : le choix est retenu pour les prochaines fois.")
+            Text("Garde celui où tu vas.")
                 .texte(.corps).foregroundStyle(Palette.texteSecondaire)
             ForEach([conflit.premier, conflit.second], id: \.self) { cours in
                 Button { choix = cours } label: {
@@ -178,8 +178,6 @@ struct WidgetConflit: View {
                 Button("Voir plus tard") { foyer.remettreAPlusTard() }
                     .buttonStyle(.hal(.verre, pleineLargeur: true, grand: true))
             }
-            Text("« Voir plus tard » le cache ; s'il n'est pas réglé, il revient au prochain chargement.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
         }
     }
 

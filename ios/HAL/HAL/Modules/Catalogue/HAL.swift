@@ -155,9 +155,6 @@ struct EcranAjustement: View {
                     genre: .seance, idOccurrence: ajustement.idOccurrence, libelle: ajustement.titre))
             }
             .buttonStyle(.hal(.verre, pleineLargeur: true))
-            Text("Sans réponse quand la séance commence : un allègement s'applique, un déplacement devient caduc.")
-                .texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(Espace.interne)
         .carte()

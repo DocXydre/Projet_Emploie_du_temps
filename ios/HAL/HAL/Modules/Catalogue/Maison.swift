@@ -399,11 +399,6 @@ struct EcranCeQuiTraine: View {
                 ForEach(taches) { tache in
                     carte(tache)
                 }
-                if !taches.isEmpty {
-                    Text("Une tâche ordinaire est abandonnée après 5 jours de retard, une séance de sport après 3. La suivante repart normalement.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire).surLaPhoto()
-                        .fixedSize(horizontal: false, vertical: true)
-                }
             }
             .padding(.horizontal, Espace.marge)
             .padding(.bottom, 40)

@@ -17,7 +17,7 @@ enum Onglet: String, CaseIterable, Identifiable {
 
     var icone: String {
         switch self {
-        case .aujourdhui: "checklist"
+        case .aujourdhui: "calendar"
         case .sport: "figure.run"
         case .maison: "house"
         case .reglages: "slider.horizontal.3"
@@ -52,10 +52,8 @@ struct BarreOnglets: View {
         Button {
             withAnimation(.snappy) { selection = onglet }
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: onglet.icone).font(.system(size: 19, weight: .medium))
-                Text(onglet.libelle).texte(.onglet).lineLimit(1).minimumScaleFactor(0.8)
-            }
+            // L'icône seule, centrée : le libellé reste pour VoiceOver.
+            Image(systemName: onglet.icone).font(.system(size: 25, weight: .medium))
             .foregroundStyle(selection == onglet ? Palette.textePrincipal : Palette.texteSecondaire)
             .frame(maxWidth: .infinity)
             .frame(height: 56)

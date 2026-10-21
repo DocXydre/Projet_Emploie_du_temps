@@ -256,8 +256,6 @@ struct WidgetLancerSeance: View {
                     }
                 }
             }
-        } message: {
-            Text("Elle a été lancée par erreur : elle disparaît, sans rien laisser.")
         }
     }
 }

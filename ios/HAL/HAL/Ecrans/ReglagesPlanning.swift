@@ -127,14 +127,12 @@ struct EcranCalendriersSuivis: View {
                 let autres = calendriers.filter { $0.pour != foyer.moi.id }
                 Section {
                     if miens.isEmpty {
-                        Text("Aucun pour l'instant. Colle le lien de ta fac, de ton travail ou de ton agenda : le planning s'organise autour.")
+                        Text("Aucun pour l'instant. Colle le lien de ta fac, de ton travail ou de ton agenda.")
                             .foregroundStyle(Palette.texteSecondaire)
                     }
                     ForEach(miens) { ligne($0) }
                 } header: {
                     Text("Les tiens")
-                } footer: {
-                    Text("Un calendrier en panne ne répond plus depuis deux fois sa fréquence de lecture : le planning garde ce qu'il avait lu.")
                 }
                 ForEach(parMembre(autres)) { groupe in
                     Section("Ceux de \(groupe.nom)") {
@@ -180,7 +178,7 @@ struct EcranCalendriersSuivis: View {
             }
             Button("Annuler", role: .cancel) { nouvelleUE = "" }
         } message: {
-            Text("Un extrait du nom suffit (COL-17).")
+            Text("Un extrait du nom suffit.")
         }
     }
 
@@ -373,8 +371,6 @@ struct EcranCalendrierSuivi: View {
                     .disabled(envoi)
                 } header: {
                     Text("Filtre")
-                } footer: {
-                    Text("Les TD des autres groupes sont écartés, et le planning relu tout de suite.")
                 }
                 Section {
                     ForEach(calendrier.coursEcartes, id: \.self) { cours in
@@ -394,7 +390,7 @@ struct EcranCalendrierSuivi: View {
                 } header: {
                     Text("UE que tu ne suis pas")
                 } footer: {
-                    Text("Toutes les options arrivent dans le même flux. Un extrait du nom suffit, sans tenir compte des accents ni des majuscules (COL-17).")
+                    Text("Un extrait du nom suffit.")
                 }
             }
             LigneRefus(texte: erreur)
@@ -405,10 +401,6 @@ struct EcranCalendrierSuivi: View {
                 } else if calendrier.lienDonne {
                     Button("Suivre de nouveau") { Task { await reprendre() } }.disabled(envoi)
                 }
-            } footer: {
-                Text(calendrier.active
-                     ? "Ne plus suivre retire du planning ce qui est à venir ; le passé reste dans le calendrier (COL-21)."
-                     : "Le lien n'est jamais montré ni écrit au journal : il peut contenir un jeton personnel.")
             }
         }
         .navigationTitle(calendrier.libelle)
@@ -427,8 +419,6 @@ struct EcranCalendrierSuivi: View {
         .confirmationDialog("Ne plus suivre « \(calendrier.libelle) » ?", isPresented: $arret,
                             titleVisibility: .visible) {
             Button("Ne plus suivre", role: .destructive) { Task { await arreter() } }
-        } message: {
-            Text("Il ne sera plus lu. Ce qui est à venir quitte le planning, le passé reste.")
         }
     }
 
@@ -600,9 +590,7 @@ struct FormulaireCalendrier: View {
                     }
                 } footer: {
                     if let essai, verifie {
-                        Text("\(essai.aVenir) événement\(essai.aVenir > 1 ? "s" : "") dans les deux mois. Rien n'est gardé tant que tu n'as pas validé.")
-                    } else {
-                        Text("Le serveur lit le lien sans rien garder, et montre ce qui arrive.")
+                        Text("\(essai.aVenir) événement\(essai.aVenir > 1 ? "s" : "") dans les deux mois.")
                     }
                 }
                 if existant == nil {
@@ -624,8 +612,6 @@ struct FormulaireCalendrier: View {
                         }
                     }
                     .disabled(!verifie || envoi)
-                } footer: {
-                    Text("Le lien n'est jamais montré ni écrit au journal : il peut contenir un jeton personnel (COL-7).")
                 }
             }
         }
@@ -750,8 +736,6 @@ struct EcranCalendriersAbonnes: View {
                         .carte(rayon: Rayon.controle)
                     }
                     .buttonStyle(.plain)
-                    Text("Le lien ne s'affiche jamais : il porte une clé personnelle. Il ne donne que la lecture (UTI-2). Sur l'iPhone, « Ajouter à Calendrier » l'abonne directement.")
-                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
                     LigneErreur(texte: erreur)
                 }
             }
@@ -767,7 +751,7 @@ struct EcranCalendriersAbonnes: View {
         .confirmationDialog("Renouveler le lien ?", isPresented: $renouveler, titleVisibility: .visible) {
             Button("Renouveler", role: .destructive) { Task { await renouvelerLeLien() } }
         } message: {
-            Text("Les abonnements en place cessent de se mettre à jour : il faudra recoller le nouveau lien partout (UTI-3). Les calendriers composés ne changent pas.")
+            Text("Il faudra recoller le nouveau lien partout.")
         }
         .confirmationDialog("Supprimer « \(aSupprimer?.libelle ?? "") » ?",
                             isPresented: Binding { aSupprimer != nil } set: { if !$0 { aSupprimer = nil } },
@@ -775,8 +759,6 @@ struct EcranCalendriersAbonnes: View {
             Button("Supprimer", role: .destructive) {
                 if let compose = aSupprimer { Task { await supprimer(compose) } }
             }
-        } message: {
-            Text("Son adresse est coupée, rien d'autre (NOT-7).")
         }
         .sheet(isPresented: $composition) {
             NavigationStack { FormulaireComposition { await charger() } }.feuilleEnVerre()
@@ -909,8 +891,6 @@ private struct FormulaireComposition: View {
                 }
             } header: {
                 Text("Quoi")
-            } footer: {
-                Text("Dans un calendrier à plusieurs, chaque événement porte le nom de la personne.")
             }
             Section("Nom") {
                 TextField(nomPropose, text: $libelle)
