@@ -180,6 +180,8 @@ struct HistoriqueSante: Codable, Sendable {
         let fcMax: Int?
         let allureSKm: Int?
         let energieKcal: Int?
+        /// La séance qu'elle a fait compter (SAN-4). Absent d'un ancien cache.
+        var idOccurrence: Int? = nil
     }
 
     let jours: [EtatSport.JourDeForme]
