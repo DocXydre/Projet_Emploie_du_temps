@@ -168,12 +168,6 @@ struct TacheRecurrente: Codable, Identifiable, Hashable {
     var dates: Fenetre? = nil
     /// TAC-27 : elle naît d'un lien « Ensuite ».
     var naitDUneAutre: Bool? = nil
-    /// CND-4 : N fois par semaine ou par mois, au lieu de tous les N jours.
-    var rythmeNombre: Int? = nil
-    var rythmePeriode: String? = nil
-    var rythmeMoment: String? = nil
-    /// CND-16 : combien de règles spéciales actives.
-    var regles: Int? = nil
     var id: Int { idTache }
 
     var sansHeure: Bool { rappelJournee ?? true }
@@ -193,9 +187,6 @@ struct TacheRecurrente: Codable, Identifiable, Hashable {
             let au = Fenetre.court(dates.fin.addingTimeInterval(-1))
             return du == au ? (Calendar.current.isDateInToday(dates.debut) ? "aujourd'hui" : "le \(du)")
                             : "du \(du) au \(au)"
-        }
-        if let fois = rythmeNombre, let par = rythmePeriode {
-            return "\(fois == 1 ? "une fois" : "\(fois) fois") par \(par)"
         }
         guard let min = periodiciteMinJours, let max = periodiciteMaxJours else { return "" }
         if min == 1 && max <= 1 { return "tous les jours" }
@@ -310,81 +301,4 @@ struct EtatAllegement: Codable {
     let enCours: Bool
     let fin: Date?
     let texte: String
-}
-
-
-// MARK: - Les règles spéciales d'une tâche                     (CND-1 à CND-16)
-
-/// Les paramètres d'une brique : seuls ceux de sa nature sont remplis.
-struct ParametresBrique: Codable, Hashable {
-    var jours: [Int]? = nil
-    var dates: [String]? = nil
-    var rang: Int? = nil
-    var jourSemaine: Int? = nil
-    var partie: String? = nil
-    var heures: Double? = nil
-    var minutes: Int? = nil
-    /// « Avant un départ » : combien de jours avant.
-    var joursAvant: Int? = nil
-}
-
-/// Une brique d'une règle (CND-3 à CND-6). `phrase` vient de la base, en lecture.
-struct BriqueRegle: Codable, Hashable, Identifiable {
-    var nature: String
-    var pourQui: String? = nil
-    var idUtilisateur: Int? = nil
-    var parametres = ParametresBrique()
-    var phrase: String? = nil
-    var id: String { nature }
-
-    enum CodingKeys: String, CodingKey { case nature, pourQui, idUtilisateur, parametres, phrase }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(nature, forKey: .nature)
-        try c.encodeIfPresent(pourQui, forKey: .pourQui)
-        try c.encodeIfPresent(idUtilisateur, forKey: .idUtilisateur)
-        try c.encode(parametres, forKey: .parametres)
-    }
-}
-
-struct FrequenceRegle: Codable, Hashable {
-    var min: Int? = nil
-    var max: Int? = nil
-    var fois: Int? = nil
-    var par: String? = nil
-}
-
-/// Une règle spéciale, telle que `v_regle_tache` la rend.
-struct RegleTache: Codable, Identifiable, Hashable {
-    let idRegleTache: Int
-    let idTache: Int
-    var phrase: String? = nil
-    let traduction: String
-    /// « 2026-06-01 » : un jour, sans heure.
-    var valideDu: String? = nil
-    var valideAu: String? = nil
-    var chaqueAnnee: Bool? = nil
-    var frequence: FrequenceRegle? = nil
-    let etat: String
-    var poseeParNom: String? = nil
-    var briques: [BriqueRegle] = []
-    /// CND-12 : depuis quand aucun jour ne tient la règle.
-    var impossibleDepuis: Date? = nil
-    var id: Int { idRegleTache }
-
-    var active: Bool { etat == "active" }
-}
-
-/// Le détail d'une tâche lit ses règles et ses prochains jours possibles.
-struct ReglesDeTache: Codable, Hashable {
-    var regles: [RegleTache] = []
-    /// « 2026-10-23 », les cinq prochains.
-    var prochainsJours: [String] = []
-}
-
-/// Ce que rend l'essai d'une règle, avant de la poser.
-struct EssaiRegle: Codable, Hashable {
-    var traduction: String? = nil
-    var jours: [String] = []
 }

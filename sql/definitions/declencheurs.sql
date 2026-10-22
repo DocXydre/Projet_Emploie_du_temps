@@ -97,29 +97,7 @@ CREATE OR REPLACE TRIGGER journal_tache
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'foyer', 'libelle', 'active', 'duree_minutes', 'periodicite_min_jours',
         'periodicite_max_jours', 'heure_min', 'heure_max', 'id_utilisateur_defaut',
-        'priorite', 'avant_depart', 'id_type_tache', 'si_pas_faite',
-        'rythme_nombre', 'rythme_periode', 'rythme_moment', 'penibilite');
-
-
--- CND-11 : une règle se pose, se suspend et se retire dans l'appli, par l'un
--- ou l'autre. Elle se lit à deux, comme la tâche.
-CREATE OR REPLACE TRIGGER journal_regle_tache
-    AFTER INSERT OR UPDATE OR DELETE ON regle_tache
-    FOR EACH ROW EXECUTE FUNCTION trg_journal(
-        'foyer', 'id_tache', 'traduction', 'etat', 'validite');
-
-
--- CND-3 à CND-6 : une brique mal formée ne s'écrit pas.
-CREATE OR REPLACE TRIGGER brique_regle_verifier
-    BEFORE INSERT OR UPDATE ON brique_regle
-    FOR EACH ROW EXECUTE FUNCTION trg_brique_regle_verifier();
-
-
--- CND-4 : une tâche à rythme garde une périodicité équivalente.
-CREATE OR REPLACE TRIGGER tache_rythme
-    BEFORE INSERT OR UPDATE OF rythme_nombre, rythme_periode, periodicite_min_jours,
-                               periodicite_max_jours ON tache
-    FOR EACH ROW EXECUTE FUNCTION trg_tache_rythme();
+        'priorite', 'avant_depart', 'id_type_tache', 'si_pas_faite');
 
 
 -- TAC-25 à TAC-27 : les types et les liens se règlent dans l'appli, par l'un
@@ -127,7 +105,7 @@ CREATE OR REPLACE TRIGGER tache_rythme
 CREATE OR REPLACE TRIGGER journal_type_tache
     AFTER INSERT OR UPDATE OR DELETE ON type_tache
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
-        'foyer', 'libelle', 'couleur', 'icone', 'duree_minutes', 'priorite', 'penibilite');
+        'foyer', 'libelle', 'couleur', 'icone', 'duree_minutes', 'priorite');
 
 
 CREATE OR REPLACE TRIGGER journal_enchainement
