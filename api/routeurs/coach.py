@@ -11,6 +11,8 @@ sensibles du système.
 
 import logging
 import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, time, timedelta
 from typing import Literal
 from uuid import UUID
@@ -21,8 +23,19 @@ from fastapi.responses import PlainTextResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
+from api import aiguillage
 from api.base import connexion, executer, lister, un_seul
-from api.coach import appel, contexte, exercices, memoire, outils, planifie, reponse, sante
+from api.coach import (
+    appel,
+    contexte,
+    exercices,
+    foyer,
+    memoire,
+    outils,
+    planifie,
+    reponse,
+    sante,
+)
 from api.coach.clair import aujourd_hui, clair, fuseau, lundi_de
 from api.erreurs import refus_coach
 from api.securite import Administrateur, Authentifie
@@ -64,6 +77,108 @@ def demander_au_coach(id_utilisateur: int, moment: str, texte: str | None = None
     except appel.CoachInactif:
         raise _refuser("coach_inactif", "Le coach n'est pas activé pour ce compte",
                        403) from None
+
+
+# ---------------------------------------------------------------------------
+# L'aiguillage : le HAL du foyer, le HAL sport, ou les deux        (AIG, HDF)
+# ---------------------------------------------------------------------------
+
+QUESTION_AIGUILLAGE = "C'est pour la maison ou pour le sport ?"
+
+AUSSI_A_L_AUTRE = ("Ce message part aussi à l'autre HAL, {autre} : ne traite que ta part, "
+                   "et ne dis rien de la sienne.")
+
+
+def _sport_actif(id_utilisateur: int) -> bool:
+    ligne = un_seul("SELECT coach_actif FROM utilisateur WHERE id_utilisateur = %(u)s",
+                    {"u": id_utilisateur})
+    return bool(ligne and ligne["coach_actif"])
+
+
+def _vers(choix: str | None, foyer_actif: bool, sport_actif: bool) -> str | None:
+    """Ce que le choix devient avec les HAL que le compte a : sans HAL du foyer,
+    la maison n'a personne, et l'inverse. Un seul HAL actif répond à tout. Sans
+    aucun, le HAL sport, qui refuse avec son code (COA-1)."""
+    if not foyer_actif and not sport_actif:
+        return aiguillage.SPORT
+    if foyer_actif and not sport_actif:
+        return aiguillage.MAISON
+    if sport_actif and not foyer_actif:
+        return aiguillage.SPORT
+    return choix
+
+
+def _demander(demande: appel.Demande) -> dict:
+    try:
+        return appel.appeler_coach(demande)
+    except appel.CoachInactif:
+        raise _refuser("coach_inactif", "Le coach n'est pas activé pour ce compte",
+                       403) from None
+    except appel.FoyerInactif:
+        raise _refuser("foyer_inactif", "Le HAL du foyer n'est pas actif pour ce compte",
+                       403) from None
+
+
+def parler_a_hal(id_utilisateur: int, moment: str, texte: str,
+                 id_occurrence: int | None, cle_client: UUID, ecran: str | None,
+                 hal: str | None = None) -> dict:
+    """AIG-1 à AIG-6 : un message de l'appli va au HAL du foyer, au HAL sport, ou
+    aux deux. `hal`, donné par l'utilisateur quand l'aiguillage n'a pas su (AIG-4)."""
+    if hal:
+        choix = aiguillage.Choix(hal, "utilisateur")
+    else:
+        choix = aiguillage.choisir(texte, id_utilisateur, ecran, id_occurrence)
+    vers = _vers(choix.hal, foyer.actif_pour(id_utilisateur) is not None,
+                 _sport_actif(id_utilisateur))
+
+    if vers is None:
+        # AIG-4 : ni le contexte, ni les mots, ni le petit modèle n'ont tranché.
+        # Une question de HAL, pas une erreur : elle s'affiche comme ses réponses.
+        return {"id_echange": None, "moment": moment, "auteur": "coach",
+                "message": QUESTION_AIGUILLAGE, "elements": [], "quand": None,
+                "hal": None, "aiguiller": {"texte": texte}}
+
+    commun = {"id_utilisateur": id_utilisateur, "declencheur": "utilisateur",
+              "texte": texte, "ecran": ecran, "aiguillage": choix.par}
+    if vers == aiguillage.MAISON:
+        return _demander(appel.Demande(moment="maison", hal="foyer",
+                                       cle_client=str(cle_client), **commun))
+    if vers == aiguillage.SPORT:
+        return _demander(appel.Demande(moment=moment, id_occurrence=id_occurrence,
+                                       cle_client=str(cle_client), **commun))
+    return _aux_deux(moment, id_occurrence, cle_client, commun)
+
+
+def _aux_deux(moment: str, id_occurrence: int | None, cle_client: UUID,
+              commun: dict) -> dict:
+    """AIG-5 : les deux HAL en même temps, chacun sa part, une seule réponse. Le
+    texte n'est gardé qu'une fois, et chacun le relit dans ses derniers échanges."""
+    executer(
+        """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, hal, aiguillage)
+           SELECT %(u)s, 'utilisateur', %(m)s, %(c)s, 'les_deux', %(a)s
+            WHERE NOT EXISTS (SELECT 1 FROM appel_coach WHERE cle_client = %(k)s)""",
+        {"u": commun["id_utilisateur"], "m": moment, "c": commun["texte"].strip(),
+         "a": commun["aiguillage"], "k": str(cle_client)})
+    # COA-26 : une clé par appel ; celle du HAL du foyer se déduit de celle de l'appli.
+    cle_foyer = str(uuid.uuid5(cle_client, "foyer"))
+    maison = appel.Demande(moment="maison", hal="foyer", cle_client=cle_foyer,
+                           garder_texte=False,
+                           precision=AUSSI_A_L_AUTRE.format(autre="celui du sport"),
+                           **commun)
+    sport = appel.Demande(moment=moment, id_occurrence=id_occurrence,
+                          cle_client=str(cle_client), garder_texte=False,
+                          precision=AUSSI_A_L_AUTRE.format(autre="celui de la maison"),
+                          **commun)
+    with ThreadPoolExecutor(max_workers=2) as fil:
+        a_la_maison = fil.submit(_demander, maison)
+        au_sport = fil.submit(_demander, sport)
+        parties = [a_la_maison.result(), au_sport.result()]
+    return {"id_echange": parties[1]["id_echange"] or parties[0]["id_echange"],
+            "moment": moment, "auteur": "coach",
+            "message": "\n\n".join(p["message"] for p in parties if p.get("message")),
+            "elements": [e for p in parties for e in (p.get("elements") or [])],
+            "quand": parties[1].get("quand"), "hal": "les_deux",
+            "parties": parties}
 
 
 def lancer_le_plan(id_utilisateur: int, precision: str | None = None) -> bool:
@@ -976,6 +1091,8 @@ class DemandeAuCoach(BaseModel):
     cle_client: UUID
     # COA-33 : l'onglet, et la séance ou la semaine ouverte, en clair.
     ecran: str | None = Field(default=None, max_length=200)
+    # AIG-4 : la réponse de l'utilisateur à « la maison ou le sport ? ».
+    hal: Literal["maison", "sport"] | None = None
 
 
 class DemandeDeChangement(DemandeAuCoach):
@@ -991,16 +1108,18 @@ class Pause(BaseModel):
 @routeur.post("/coach/signalement", tags=["Coach"],
               summary="Signaler une douleur, une fatigue, un contretemps")
 def signaler(qui: Authentifie, demande: DemandeAuCoach) -> dict:
-    """COA-10 : un signalement déclenche un appel immédiat. Il n'attend jamais 23 h."""
-    return demander_au_coach(qui.id_utilisateur, "signalement", demande.texte,
-                             demande.id_occurrence, demande.cle_client, ecran=demande.ecran)
+    """COA-10 : un signalement déclenche un appel immédiat. Il n'attend jamais 23 h.
+    Un contretemps peut toucher la maison : il passe par l'aiguillage (AIG-1)."""
+    return parler_a_hal(qui.id_utilisateur, "signalement", demande.texte,
+                        demande.id_occurrence, demande.cle_client, demande.ecran, demande.hal)
 
 
 @routeur.post("/coach/question", tags=["Coach"], summary="Poser une question")
 def questionner(qui: Authentifie, demande: DemandeAuCoach) -> dict:
-    """Si le texte est en fait un signalement, le coach le requalifie lui-même (COA-25)."""
-    return demander_au_coach(qui.id_utilisateur, "chat", demande.texte,
-                             demande.id_occurrence, demande.cle_client, ecran=demande.ecran)
+    """AIG-1 : le HAL du foyer, le HAL sport, ou les deux. Côté sport, si le texte
+    est en fait un signalement, le coach le requalifie lui-même (COA-25)."""
+    return parler_a_hal(qui.id_utilisateur, "chat", demande.texte,
+                        demande.id_occurrence, demande.cle_client, demande.ecran, demande.hal)
 
 
 @routeur.post("/coach/changement", tags=["Coach"],
@@ -1032,7 +1151,7 @@ def relire_echanges(qui: Authentifie, limite: int = Query(default=20, ge=1, le=2
     """CAR-8 : seul leur propriétaire les lit."""
     lignes = lister(
         """SELECT id_echange, quand, auteur, moment, contenu, elements, id_occurrence,
-                  importance, client
+                  importance, client, hal
              FROM echange
             WHERE id_utilisateur = %(u)s AND (%(m)s::TEXT IS NULL OR moment = %(m)s::TEXT)
             ORDER BY id_echange DESC LIMIT %(n)s""",

@@ -32,7 +32,7 @@ from starlette.datastructures import Headers
 from starlette.responses import JSONResponse
 
 from api import demandes, operation
-from api.coach import course, dossier
+from api.coach import course, dossier, foyer
 from api.coach.outils import executer_outil
 from api.config import configuration
 from api.securite import par_le_funnel
@@ -130,7 +130,7 @@ def executer_pour_la_course(etat: course.EtatCourse, nom: str,
                             arguments: dict) -> tuple[str, bool]:
     """FOU-10 : un outil de Claude Code, dans l'opération de l'appel, sous l'acteur
     du coach, comme dans la boucle de l'API (COA-6)."""
-    with operation.ouvrir_a_part(f"coach : {etat.moment}", "coach", etat.operation):
+    with operation.ouvrir_a_part(*foyer.origine_et_acteur(etat.moment), etat.operation):
         try:
             return course.executer_outil(etat, nom, arguments)
         except Exception:

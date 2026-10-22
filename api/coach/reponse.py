@@ -123,4 +123,6 @@ def depuis_echange(echange: dict) -> dict:
             "auteur": echange["auteur"],
             "message": message,
             "elements": echange.get("elements") or [],
-            "quand": clair(echange.get("quand"))}
+            "quand": clair(echange.get("quand")),
+            # HDF : de quel HAL vient le message, pour l'appli qui en montre deux.
+            "hal": echange.get("hal") or "sport"}

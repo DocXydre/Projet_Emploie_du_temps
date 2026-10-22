@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from api import mot_de_passe
-from api.base import executer, lister, un_seul
+from api.base import connexion, executer, lister, un_seul
 from api.securite import Authentifie, par_le_funnel
 
 routeur = APIRouter(tags=["Foyer"])
@@ -56,12 +56,15 @@ class ReglageFoyer(BaseModel):
     nom: str | None = Field(default=None, min_length=1, max_length=60)
     ajout_taches: Literal["tous", "admin"] | None = None
     modif_taches: Literal["tous", "admin"] | None = None
+    # HDF-1 : le HAL du foyer.
+    hal_actif: bool | None = None
 
 
 def _foyer(qui_id: int) -> dict:
     foyer = un_seul(
         """
         SELECT f.id_foyer, f.nom, f.id_administrateur, f.ajout_taches, f.modif_taches,
+               f.hal_actif,
                f.cree_le, places_libres(f.id_foyer) AS places_libres,
                f.id_administrateur = %(moi)s AS je_suis_admin,
                droit_sur_les_taches(%(moi)s, 'ajouter') AS je_peux_ajouter,
@@ -110,11 +113,15 @@ def lire_foyer(qui: Authentifie) -> dict:
 
 @routeur.patch("/foyer", summary="Renommer le foyer, régler les droits sur les tâches")
 def regler_foyer(qui: Authentifie, reglage: ReglageFoyer) -> dict:
-    executer(
-        "SELECT regler_foyer(%(moi)s, %(nom)s, %(ajout)s, %(modif)s)",
-        {"moi": qui.id_utilisateur, "nom": reglage.nom,
-         "ajout": reglage.ajout_taches, "modif": reglage.modif_taches},
-    )
+    with connexion() as conn:
+        conn.execute(
+            "SELECT regler_foyer(%(moi)s, %(nom)s, %(ajout)s, %(modif)s)",
+            {"moi": qui.id_utilisateur, "nom": reglage.nom,
+             "ajout": reglage.ajout_taches, "modif": reglage.modif_taches},
+        )
+        if reglage.hal_actif is not None:
+            conn.execute("SELECT regler_hal_du_foyer(%(moi)s, %(actif)s)",
+                         {"moi": qui.id_utilisateur, "actif": reglage.hal_actif})
     return _foyer(qui.id_utilisateur)
 
 

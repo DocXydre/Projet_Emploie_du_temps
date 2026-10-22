@@ -42,6 +42,7 @@ ACTEURS = {
     "api": "automatique",
     "deploiement": "déploiement",
     "direct": "en base, à la main",
+    "hal_foyer": "HAL du foyer",
 }
 
 TYPES_OCCUPATION = {"cours": "Cours", "travail": "Travail", "autre": "Créneau",

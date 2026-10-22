@@ -99,14 +99,31 @@ struct MessageHAL: Identifiable, Hashable, Sendable {
     var noteFournisseur: String? = nil
     /// Un message parti de l'appli qui attend encore sa réponse (ORB-8).
     var enAttente = false
+    /// HDF : « foyer » ou « sport », le HAL qui a répondu.
+    var hal: String? = nil
+    /// AIG-5 : une réponse des deux HAL, une partie chacun, dans la même bulle.
+    var parties: [MessageHAL] = []
+    /// AIG-4 : l'aiguillage n'a pas su ; le texte à renvoyer avec le choix.
+    var aiguiller: String? = nil
+
+    /// AIG-9 : le titre d'une partie, « Maison » ou « Sport ».
+    var titreDuHAL: String? {
+        switch hal {
+        case "foyer": "Maison"
+        case "sport": "Sport"
+        default: nil
+        }
+    }
 }
 
 extension MessageHAL: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case idEchange, auteur, message, elements, quand, moment, fournisseur
+        case idEchange, auteur, message, elements, quand, moment, fournisseur, hal, parties,
+             aiguiller
     }
 
     private struct Fournisseur: Decodable { let note: String? }
+    private struct Aiguiller: Decodable { let texte: String }
 
     /// Un élément qu'on ne sait pas lire est sauté, pas le message entier.
     private struct Peut: Decodable {
@@ -128,6 +145,9 @@ extension MessageHAL: Decodable {
         quand = try? c.decodeIfPresent(Date.self, forKey: .quand)
         moment = try c.decodeIfPresent(String.self, forKey: .moment)
         noteFournisseur = (try? c.decodeIfPresent(Fournisseur.self, forKey: .fournisseur))?.note
+        hal = try? c.decodeIfPresent(String.self, forKey: .hal)
+        parties = (try? c.decodeIfPresent([MessageHAL].self, forKey: .parties)) ?? []
+        aiguiller = (try? c.decodeIfPresent(Aiguiller.self, forKey: .aiguiller))?.texte
     }
 }
 
@@ -149,6 +169,8 @@ struct DemandeEnAttente: Codable, Equatable, Sendable {
     var moment: String
     var joint: ElementJoint?
     var ecran: String
+    /// AIG-4 : « maison » ou « sport », quand c'est l'utilisateur qui a choisi.
+    var hal: String? = nil
 }
 
 /// Le corps de `POST /coach/question`, `/coach/signalement` et `/coach/changement`.
@@ -158,6 +180,7 @@ struct EnvoiAHAL: Encodable {
     let ecran: String
     let idOccurrence: Int?
     let lundi: String?
+    var hal: String? = nil
 }
 
 enum TexteHAL {
