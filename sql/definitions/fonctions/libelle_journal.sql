@@ -39,6 +39,11 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
                FROM tache a, tache b
               WHERE a.id_tache = (p_ligne ->> 'id_tache')::INTEGER
                 AND b.id_tache = (p_ligne ->> 'id_tache_jointe')::INTEGER)
+        -- CND-2 : une règle se lit par sa tâche et sa traduction.
+        WHEN 'regle_tache' THEN
+            (SELECT t.libelle FROM tache t
+              WHERE t.id_tache = (p_ligne ->> 'id_tache')::INTEGER)
+            || ' : ' || (p_ligne ->> 'traduction')
         WHEN 'remplacement' THEN
             (SELECT a.libelle || ' vaut aussi ' || b.libelle
                FROM tache a, tache b

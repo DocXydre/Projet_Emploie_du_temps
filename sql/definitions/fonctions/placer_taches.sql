@@ -17,6 +17,8 @@ DECLARE
     v_gele    TIMESTAMPTZ;
     v_assigne INTEGER;
     v_lieu    INTEGER;
+    v_regles  BOOLEAN;
+    v_autre   INTEGER;
 BEGIN
     -- ABS-8 : ce qu'on refait en rentrant. Avant la génération, pour que la
     -- chaîne de la tâche reparte du retour et non d'une prévision tombée
@@ -53,7 +55,13 @@ BEGIN
        AND (creneau IS NULL
             OR lower(creneau) > v_gele
             OR (id_utilisateur IS NOT NULL
-                AND est_absent(id_utilisateur, jour_de(lower(creneau)))));
+                AND est_absent(id_utilisateur, jour_de(lower(creneau))))
+            -- CND-9 : un jour qui ne tient plus la règle de la tâche, même
+            -- dans les sept jours. Un cours ajouté le seul jour libre du mois
+            -- ne laisse pas la tâche y rester.
+            OR (id_utilisateur IS NOT NULL
+                AND a_des_regles(id_tache)
+                AND NOT regles_tiennent(id_tache, id_utilisateur, jour_de(lower(creneau)))));
 
     -- TAC-19 : une première fois avant d'attribuer quoi que ce soit, pour que
     -- le ramassage retiré ne compte pas dans le tour de celui qui l'aurait eu.
@@ -63,7 +71,7 @@ BEGIN
         SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,
                oc.rappel_journee, oc.utilise_machine,
                t.duree_minutes, t.heure_min, t.heure_max,
-               t.requiert_les_deux, t.libelle, t.categorie
+               t.requiert_les_deux, t.libelle, t.categorie, t.id_utilisateur_defaut
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
          WHERE oc.statut = 'a_placer'
@@ -94,13 +102,25 @@ BEGIN
 
         v_duree := make_interval(mins => o.duree_minutes);
         v_lieu := NULL;
+        v_regles := a_des_regles(o.id_tache);
 
-        IF o.rappel_journee THEN
-            v_creneau := chercher_jour(v_assigne, o.fenetre, v_duree);
-        ELSE
-            v_creneau := chercher_creneau(v_assigne, o.fenetre, v_duree,
-                                          o.heure_min, o.heure_max, o.utilise_machine,
-                                          o.requiert_les_deux);
+        v_creneau := chercher_place(v_assigne, o.id_tache, o.fenetre);
+
+        -- CND-5 : « un jour où je suis libre » peut ne tenir que pour l'autre.
+        -- Une tâche partagée lui revient alors, plutôt que de rester à placer.
+        IF v_creneau IS NULL AND v_regles AND o.id_utilisateur_defaut IS NULL
+           AND NOT o.requiert_les_deux THEN
+            FOR v_autre IN SELECT id_utilisateur FROM utilisateur
+                            WHERE actif AND id_utilisateur <> v_assigne
+                            ORDER BY id_utilisateur LOOP
+                v_creneau := chercher_place(v_autre, o.id_tache, o.fenetre);
+                IF v_creneau IS NOT NULL THEN
+                    v_assigne := v_autre;
+                    UPDATE occurrence SET id_utilisateur = v_assigne
+                     WHERE id_occurrence = o.id_occurrence;
+                    EXIT;
+                END IF;
+            END LOOP;
         END IF;
 
         -- PLA-8 : une occurrence non plaçable n'est jamais supprimée. Elle garde
@@ -108,6 +128,11 @@ BEGIN
         IF v_creneau IS NULL THEN
             UPDATE occurrence
                SET motif = CASE
+                               -- CND-12 : la règle n'est jamais assouplie par
+                               -- le moteur ; elle se dit dans le motif.
+                               WHEN v_regles THEN
+                                   format('Aucun jour ne tient sa règle avant le %s',
+                                          to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
                                WHEN o.requiert_les_deux THEN
                                    format('Aucun moment où vous êtes libres tous les deux avant le %s',
                                           to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
@@ -117,6 +142,18 @@ BEGIN
                                           to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
                            END
              WHERE id_occurrence = o.id_occurrence;
+
+            -- RAP-3 : la règle devient impossible ; son rappel est dû, une
+            -- fois par jour au plus (RAP-5).
+            IF v_regles THEN
+                UPDATE rappel_hal
+                   SET declenche_le = now()
+                 WHERE etat = 'attente'
+                   AND evenement = 'impossible'
+                   AND id_regle_tache IN (SELECT id_regle_tache FROM regle_tache
+                                           WHERE id_tache = o.id_tache AND etat = 'active')
+                   AND (declenche_le IS NULL OR declenche_le < debut_jour(jour_de(now())));
+            END IF;
 
             -- PLA-9 : aucun créneau commun aux deux personnes. On envoie une
             -- alerte au lieu de placer la tâche à un moment impossible.
@@ -137,12 +174,21 @@ BEGIN
                SET creneau = v_creneau,
                    statut  = 'planifiee',
                    id_lieu = v_lieu,
+                   -- CND-8 : la règle qui a décidé du jour, la plus ancienne
+                   -- s'il y en a plusieurs.
+                   id_regle_tache = CASE WHEN v_regles THEN
+                                        (SELECT min(id_regle_tache) FROM regle_tache
+                                          WHERE id_tache = o.id_tache AND etat = 'active')
+                                    END,
                    motif   = CASE
                                  WHEN v_lieu IS NOT NULL THEN
                                      format('%s le %s, trajet compris',
                                             (SELECT libelle FROM lieu_sport
                                               WHERE id_lieu = v_lieu),
                                             to_char(lower(v_creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM à HH24hMI'))
+                                 WHEN o.rappel_journee AND v_regles THEN
+                                     format('À faire le %s, selon sa règle',
+                                            to_char(lower(v_creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
                                  WHEN o.rappel_journee THEN
                                      format('À faire le %s',
                                             to_char(lower(v_creneau) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
