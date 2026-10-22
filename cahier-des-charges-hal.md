@@ -4,9 +4,9 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 21 octobre 2026 (migration 075)
+Version du 22 octobre 2026 (migration 077 ; partie G écrite, pas encore construite)
 
-Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, et l'ouverture de HAL par MCP et par abonnement. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
+Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
 
 ## Comment lire ce document
 
@@ -27,6 +27,7 @@ Ce document sert de base à l'écriture du code. Une règle écrite ici est une 
 - Partie D. Foyer, comptes et administration
 - Partie E. Plan de réalisation
 - Partie F. HAL par MCP et par abonnement
+- Partie G. Le HAL du foyer
 - Annexes
 
 ---
@@ -40,6 +41,8 @@ HAL est un assistant pour un foyer. Il croise les emplois du temps de chacun (co
 Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glass d'iOS 26 : quatre onglets (Aujourd'hui, Sport, Maison, Réglages) et l'orbe de HAL au milieu. Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui ne change rien sans accord ; le contenu du sport passe par HAL. Le serveur est auto-hébergé, les règles vivent dans PostgreSQL, et le bot Telegram ne sert plus qu'à l'administration.
 
 HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F).
+
+La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'appli, on peut le lui demander, et il le fait. On lui dit aussi les consignes particulières d'une tâche, « une fois par mois, un jour où je suis libre » : il les retient dans la mémoire de la tâche, place la tâche en conséquence, et vérifie chaque semaine et après chaque changement que c'est respecté. Le ménage peut se répartir équitablement chaque lundi (partie G).
 
 ### 0.2 Principaux choix
 
@@ -66,7 +69,10 @@ HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qu
 | Compte Apple | Le compte développeur payant devient un prérequis | E.1 |
 | Clients de HAL | HAL est un serveur MCP : Claude Code, Gemini CLI ou Claude Desktop le lisent et lui demandent des changements, avec une clé par client | MCP |
 | Fournisseur du modèle | Chacun branche son abonnement Claude ; l'API prend le relais quand il est épuisé, dans un plafond mensuel | FOU |
-| Accords | Un modèle, quel que soit son client, dépose une demande ; rien ne change sans l'accord de l'utilisateur, donné dans l'appli | ACC |
+| Accords | Un client externe dépose une demande ; rien ne change sans l'accord de l'utilisateur, donné dans l'appli. Dans l'appli, HAL fait directement ce qu'on lui demande | ACC, ACT |
+| HAL du foyer | Un HAL commun pour la maison, à côté du HAL sport de chacun ; un aiguillage en Python envoie chaque message à l'un, à l'autre ou aux deux | HDF, AIG |
+| Consignes des tâches | Dites à HAL en langage libre, notées dans la mémoire de la tâche, lisibles dans son détail. HAL place selon elles et épingle ; il vérifie chaque semaine et après chaque déplacement | MTA, VER |
+| Répartition | Au choix du foyer, le lundi à 7 h : même charge en minutes × pénibilité, écart reporté, préférences dites à HAL | REP |
 
 ### 0.3 Valeurs retenues
 
@@ -312,7 +318,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | PLA-9 | T | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
-| PLA-12 | T | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
+| PLA-12 | T | Sans la répartition de la semaine (REP-1), la répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge. Avec elle, qui fait quoi se décide le lundi (REP-2) |
 | PLA-13 | T | Reprendre une tâche à quelqu'un rouvre la semaine à la répartition : ce qui n'a pas encore été annoncé repasse à placer et se redistribue avec les charges à jour. Sans cela, le gel de sept jours empêcherait la balance de tenir compte du coup de main. Ce qui est épinglé, annoncé ou nominatif ne bouge pas |
 | PLA-14 | D | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives, tâches ponctuelles. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage, cycles longs ajoutés |
 | PLA-15 | T | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour, pas plus que les tâches de départ et de retour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
@@ -330,7 +336,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | EXE-6 | T | Une occurrence du jour non validée le soir est reportée d'office au lendemain et re-notifiée. Le compteur de relances croît tant qu'elle n'est pas faite |
 | EXE-7 | M | L'utilisateur valide, reporte ou refuse une occurrence dans l'appli : depuis la ligne de la tâche, le widget À cocher ou la notification |
 | EXE-8 | M | La validation peut être rétroactive : déclarer avoir fait la tâche la veille |
-| EXE-9 | M | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé |
+| EXE-9 | M | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé. HAL épingle aussi ce qu'il place selon la mémoire d'une tâche (VER-1) |
 | EXE-10 | M | L'administrateur du serveur peut déclencher une collecte ou un replacement à tout moment, par les routes privées ou le bot (ADM-3) |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
 | EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
@@ -2157,11 +2163,11 @@ Le carnet de notes a été remplacé par la mémoire en quatre étages (section 
 
 | Code | Type | Règle |
 |---|---|---|
-| COA-1 | D | HAL s'active par compte, et l'est pour chaque membre du foyer. Il est personnel : il ne dépend pas du foyer et n'y partage rien (FOY-8). Un compte sans HAL n'a ni plan ni récap, et fait des séances libres |
+| COA-1 | D | Le HAL sport s'active par compte, et l'est pour chaque membre du foyer. Il est personnel : il ne dépend pas du foyer et n'y partage rien (FOY-8). Un compte sans HAL n'a ni plan ni récap, et fait des séances libres. La maison a son propre HAL, commun au foyer (HDF-1) ; un message va à l'un, à l'autre ou aux deux par l'aiguillage (AIG) |
 | COA-2 | T | Huit situations déclenchent un appel : un objectif créé ou modifié, un plan à construire, la révision du dimanche, la synthèse du soir, un bilan demandé, un signalement ou l'annonce d'une séance libre, une question dans le chat, une demande de changement sur une séance ou une semaine (COA-32) |
 | COA-3 | T | Chaque appel reçoit le socle du dossier (chapitres 1.1, 1.2, 2.4, 10.2 et 10.3), son sommaire, les paquets choisis pour lui (DOS), le contexte de l'utilisateur, sa mémoire et les dix derniers échanges |
 | COA-4 | T | HAL n'agit que par une liste fermée d'outils. Un outil d'écriture appelle une fonction SQL et rien d'autre |
-| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire, note une mesure et dépose des demandes sur le planning et la maison (ACC-1) : il ne propose aucune séance. S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement, et les demandes. Le signalement a aussi les demandes, pour un contretemps qui touche le planning |
+| COA-5 | D | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire, note une mesure et fait les gestes de l'onglet Sport qu'on lui demande (ACT-1, ACT-2) ; de lui-même, il ne propose aucune séance. Ce qui touche la maison et le planning, absences comprises, va au HAL du foyer par l'aiguillage (AIG-5, AIG-6). S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement |
 | COA-6 | T | Un appel est une opération du journal, sous l'acteur « coach ». Tout ce qu'il change partage son numéro, et l'Historique le rend en phrases |
 | COA-7 | T | Un appel est borné à douze tours d'outils, trente pour la construction du plan et la révision du dimanche. Au-delà, il est arrêté, rien de plus n'est écrit, et l'échec est annoncé |
 | COA-8 | D | Le dossier vit dans le dépôt, un fichier par chapitre. Il ne nomme personne et ne décrit aucun cas personnel. Le nom du modèle est un réglage. Les deux sont notés dans chaque échange, pour savoir avec quoi une réponse a été produite |
@@ -4079,7 +4085,7 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 | FOY-5 | M | L'administrateur retire un membre, après confirmation. Les tâches à venir du membre repassent à ceux qui restent ; ce qu'il a fait reste au journal du foyer. Tant que le système ne tient qu'un foyer, son compte est mis en pause : il garde son planning personnel, son HAL et son historique, et revient en rejoignant un foyer |
 | FOY-6 | M | L'administrateur règle, pour le foyer, qui peut ajouter des tâches, et qui peut les modifier et les arrêter : tout le monde, ou lui seul. Par défaut, tout le monde. Cocher une tâche, la déclarer faite et la reporter restent ouverts à tous (EXE-14) |
 | FOY-7 | M | L'administrateur passe son rôle à un autre membre. Il ne peut quitter le foyer qu'après l'avoir fait, sauf s'il y est seul. Le dernier qui part ferme le foyer : ses tâches s'arrêtent, son historique reste |
-| FOY-8 | D | HAL est personnel. Le profil, les limitations, les objectifs, la santé, les mesures, la mémoire et les échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17) |
+| FOY-8 | D | HAL est double. Le HAL sport est à chacun : le profil, les limitations, les objectifs, la santé, les mesures, sa mémoire et ses échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17). Le HAL du foyer est commun : il tient la maison, sa mémoire et celle des tâches sont au foyer, et les conversations qu'on a avec lui restent à leur auteur (HDF) |
 | FOY-9 | D | Ce qui se lit à deux se lit dans le foyer, et seulement dans le foyer : le journal (JRN-6), les calendriers de l'autre (NOT-9), les absences, les tâches. Deux foyers ne voient rien l'un de l'autre |
 | FOY-10 | D | Les tâches, leurs enchaînements et leurs accompagnements, les tâches de départ et de retour, et ce qui concerne les animaux appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
 | FOY-11 | D | Un compte porte le rôle d'administrateur du serveur. C'est le seul que le bot écoute (ADM-1), le seul qui lit la partie technique du journal (JRN-6) et qui joint les routes privées (CNX-5) |
@@ -4132,7 +4138,7 @@ Appareil
 
 Chaque lot se termine par quelque chose qu'on peut vérifier. Rien ne part sur `main` sans avoir tourné en local d'abord : chaque push y est déployé (A.2.3).
 
-Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule, puis 12 à 15, ceux de la partie F.
+Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule, puis 12 à 15, ceux de la partie F, puis 16 à 19, ceux de la partie G.
 
 | Lot | Contenu | Ce qu'on peut vérifier à la fin |
 |---|---|---|
@@ -4151,6 +4157,10 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 13. Fournisseurs | Table des fournisseurs et des tarifs, chiffrement, Claude Code dans l'image `api`, course avec jeton et outils du moment, chaîne et mise de côté, plafond de l'API ; Réglages, Intelligence | La synthèse du soir passe par l'abonnement ; avec un jeton faux, elle passe par l'API et le dit sous le message ; un plafond d'un centime coupe l'API et laisse le message de COA-12 ; les scénarios de sécurité passent avec Claude Code |
 | 14. Accords | Table des demandes, essai au dépôt, accord par la route du geste, expiration de 0h05 ; outils `demander_…` dans le profil externe et les moments chat, signalement et changement ; élément « demande », bandeau d'Aujourd'hui, notification à deux boutons | « Décale l'aspirateur à jeudi », dit à Claude Code sur le Mac, arrive en notification ; accepté, le planning change et l'autre membre est prévenu « proposé par Claude Code » ; une absence qui chevauche un départ déjà déclaré est refusée au dépôt, avec le motif de la base ; aucun outil ne peut accepter une demande |
 | 15. Gemini CLI | Le fournisseur `gemini_cli`, sa carte dans Réglages, Intelligence, avec les étapes pour le brancher, et la commande à copier pour le brancher comme client | Ses identifiants collés dans l'appli sont essayés puis gardés ; les scénarios du chapitre 10.5 passent avec lui (FOU-17) |
+| 16. HAL du foyer et aiguillage | `api/aiguillage.py` et ses mots-clés, `coach/consigne_foyer.md`, le moment « maison », la mémoire du foyer, le verrou par HAL ; la réponse en deux blocs | « Décale l'aspirateur à jeudi », depuis Maison, va au HAL du foyer sans petit modèle ; « je pars ce week-end, décale ma séance et la litière » rend une réponse en deux blocs ; Lorette ne lit pas la conversation de Thomas |
+| 17. Les gestes par HAL | Un outil par geste des boutons, pour les deux HAL ; exécution directe, « Annuler », notification de l'autre ; les clients externes gardent les demandes | Chaque geste de Maison et de Sport, demandé à HAL, donne le même résultat que le bouton ; refusé avec le même motif ; défait par « Annuler » |
+| 18. Mémoire des tâches et vérifications | Migration 078 : mémoire des tâches, file des vérifications, épingle par HAL, réglage du jour ; les moments « semaine » et « vérification » ; la ligne « HAL retient » du détail | « Trier les papiers une fois par mois quand je suis libre » est noté et placé sur une journée vide ; un cours ajouté ce jour-là fait déplacer la tâche par HAL, avec la raison ; une semaine sans tâche à mémoire ne fait aucun appel |
+| 19. Répartition de la semaine | Attributions, charges, préférences et pénibilité dites à HAL ; le calcul du lundi et ses imprévus ; l'annonce ; le bloc « Ma semaine » | Rejouée sur huit semaines réelles, l'écart n'est pas pire qu'avec PLA-12 ; une absence mercredi ne redonne que les jours qui restent ; aucune route ni aucun outil ne rend la préférence de l'autre |
 
 Trois raisons fixent cet ordre :
 
@@ -4159,6 +4169,8 @@ Trois raisons fixent cet ordre :
 - **Les retraits viennent en dernier.** Le lot 2 retire le bot des membres et l'ancien sport. Il ne se fait qu'une fois que l'appli remplace le bot pour tout l'usage quotidien, juste avant la bascule.
 
 Pour la partie F, la lecture vient avant l'écriture : le lot 12 n'écrit rien qui ne soit déjà permis à HAL, le lot 13 change le fournisseur sans changer les outils, et les demandes n'arrivent qu'au lot 14, avec leurs accords.
+
+Pour la partie G, le HAL du foyer et l'aiguillage viennent d'abord : les gestes, la mémoire des tâches et la répartition s'appuient sur eux.
 
 ### E.3 Où en est-on
 
@@ -4188,6 +4200,8 @@ Les **lots 13 à 15** sont faits le même jour (migrations 071 et 072, `api/coac
 Restent à faire avant de s'y fier : les scénarios du chapitre 10.5 avec le vrai modèle, par Claude Code puis par Gemini CLI (FOU-17), puisque la consigne parle maintenant des demandes ; la compilation de l'appli, où l'écran Demandes, la carte du panneau et les actions de la notification n'ont pas tourné ; l'image construite avec Gemini CLI ; le démarrage de Claude Code mesuré sur le portable (F.11). Gemini CLI se branche déjà dans Réglages (FOU-17).
 
 Ce qui a changé en route est reporté dans les règles : le jeton de course (FOU-12), les petits travaux (FOU-15), l'annulation d'un accord (ACC-7), la consigne des clients externes (FOU-10), la conduite de Gemini CLI (FOU-11, F.11).
+
+La partie G est écrite le 22 octobre 2026, à partir des choix faits avec Thomas. Rien n'en est construit. Une première version, construite le même jour puis retirée, est racontée à l'annexe 12.
 
 ---
 
@@ -4328,7 +4342,7 @@ Les gardes-fous de la partie B tiennent déjà le sport : une séance de HAL est
 
 | Code | Type | Règle |
 |---|---|---|
-| ACC-1 | D | Un modèle, quel que soit son client, ne change le planning, les tâches, les occurrences, les absences, les occupations, le mode allégé, le profil, les limitations ou les lieux qu'en déposant une demande. Rien ne change tant que l'utilisateur ne l'a pas acceptée |
+| ACC-1 | D | Un client externe, quel que soit son modèle, ne change le planning, les tâches, les occurrences, les absences, les occupations, le mode allégé, le profil, les limitations ou les lieux qu'en déposant une demande. Rien ne change tant que l'utilisateur ne l'a pas acceptée. HAL dans l'appli, lui, fait directement ce qu'on lui demande dans la conversation (ACT-2) |
 | ACC-2 | D | Une demande porte : le compte, l'action (liste fermée, section F.8.2), ses paramètres, le motif écrit par le modèle, son origine (HAL dans l'appli, ou un client externe et son nom), l'appel ou la session qui l'a déposée, son opération, son état (en attente, acceptée, refusée, expirée, échouée) et, si elle a échoué, le motif de la base |
 | ACC-3 | T | Une demande est essayée dès son dépôt : la fonction SQL de l'action est exécutée dans une transaction annulée. Si la base refuse, la demande n'est pas déposée, et le modèle reçoit le motif (MCP-9) |
 | ACC-4 | T | Accepter une demande exécute la même fonction que le geste fait à la main, au nom de l'utilisateur : mêmes droits (FOY-6), mêmes refus, même journal. La raison jointe à la notification de l'autre membre dit « proposé par HAL » ou le nom du client (NOT-17). Si la base refuse à ce moment-là, parce que le planning a bougé depuis, la demande passe à échouée, avec son motif |
@@ -4658,6 +4672,409 @@ Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire,
 
 ---
 
+## Partie G. Le HAL du foyer
+
+Cette partie est nouvelle. Elle est écrite le 22 octobre 2026 avec Thomas, avant d'être construite : ses lots, 16 à 19, sont en section E.2. Une première version, faite de règles structurées en « briques » et d'un écran pour les saisir, a été construite puis retirée le même jour : ce n'était pas ce qui était voulu (annexe 12). Les parties A à F ne changent que là où l'annexe 12 le dit.
+
+### G.1 Rappel du besoin et choix effectués
+
+#### G.1.1 Le besoin
+
+- **Tout faire en parlant à HAL.** Chaque action qu'on fait avec un bouton de l'appli, on doit pouvoir la demander à HAL, avec ses mots.
+- **Des consignes libres sur les tâches.** « Trier les papiers une fois par mois, un jour où je suis complètement libre », « l'aspirateur jamais le mardi », « les vitres quand Lorette n'est pas là ». Ce ne sont pas des règles précises : on les dit à HAL, il les retient et s'en souvient.
+- **HAL vérifie.** Chaque semaine, et chaque fois que le système déplace une tâche qui a une consigne, HAL regarde si elle est respectée, et corrige.
+- **Le ménage réparti équitablement**, calculé en début de semaine.
+
+#### G.1.2 Choix effectués
+
+- **Deux HAL.** Le HAL du foyer s'occupe de la maison et du planning ; il est le même pour tous les membres. Le HAL sport reste à chacun (partie B).
+- **Un aiguillage en Python** décide qui répond : l'écran d'où part le message, puis des mots-clés, puis un petit modèle en dernier recours. Un message qui parle des deux part aux deux, et l'appli rend une seule réponse.
+- **HAL fait ce qu'on lui demande, directement.** Une action demandée dans la conversation s'exécute tout de suite, par la même fonction que le bouton, avec les mêmes droits et les mêmes refus. HAL dit ce qu'il a fait, et on peut annuler pendant cinq secondes (ORB-6).
+- **Une consigne est une mémoire, pas une règle.** HAL note la consigne en texte libre dans la mémoire de la tâche, et c'est lui qui l'interprète. Le moteur ne la lit pas. On la voit dans le détail de la tâche, sans pouvoir l'y modifier : pour la changer, on le dit à HAL.
+- **Ce que HAL place selon une mémoire est épinglé.** Le moteur ne le déplace plus, sauf absence ou geste à la main : HAL et le moteur ne se renvoient pas la tâche.
+- **HAL vérifie à deux moments.** Une fois par semaine, le lundi matin par défaut, réglable. Et après un placement qui a déplacé des tâches à mémoire, en un seul appel pour toutes.
+- **La répartition de la semaine** se calcule le lundi à 7 h : la même charge pour chacun, en minutes multipliées par la pénibilité, avec l'écart de la semaine passée reporté et les préférences de chacun. Les préférences et la pénibilité se disent à HAL, comme les consignes.
+- **Rien de nouveau à régler à la main**, sauf ce qui est un réglage du foyer : le HAL du foyer, la répartition, le jour et l'heure de la vérification.
+
+---
+
+### G.2 Outils et architecture
+
+#### G.2.1 Outils ajoutés
+
+Aucun outil extérieur. Le HAL du foyer est le module HAL de la partie B, avec une autre consigne, d'autres outils et d'autres mémoires. Il passe par la même chaîne de fournisseurs (FOU) et le même catalogue MCP (MCP-1). Le petit modèle de l'aiguillage est un réglage, comme celui de la synthèse courte (COA-31).
+
+| Fichier | Rôle |
+|---|---|
+| `api/aiguillage.py` | Décide maison, sport ou les deux (AIG) |
+| `coach/aiguillage.json` | Les mots-clés de chaque côté : des données du dépôt, pas du code |
+| `coach/consigne_foyer.md` | La consigne du HAL du foyer : son rôle, agir quand on le lui demande, tenir la mémoire des tâches, vérifier, quand poser une question |
+| `api/coach/foyer.py` | Les moments du HAL du foyer : maison, semaine, vérification |
+
+#### G.2.2 Schéma d'ensemble
+
+```
+  Appli : message, onglet, élément joint
+            │
+            ▼
+   aiguillage (AIG) : contexte ─► mots-clés ─► petit modèle
+       │                   │
+ maison│                   │sport              les deux : les deux HAL,
+       ▼                   ▼                   une seule réponse
+  HAL du foyer          HAL sport (partie B)
+       │  outils : chaque geste de l'appli, mémoire des tâches,
+       │           préférences, pénibilité, déplacer en épinglant
+       ▼
+   PostgreSQL ◄── moteur de placement (7 h, et après chaque geste)
+       │                    │ a déplacé une tâche à mémoire ?
+       │                    ▼
+       │            file des vérifications ─► HAL du foyer, moment « vérification »
+       │
+  Lundi (réglable) 6h30 : HAL du foyer, moment « semaine »
+  Lundi 7h00 : répartition de la semaine (REP)
+```
+
+#### G.2.3 Pas à pas
+
+**Une consigne.** Thomas, depuis la tâche « Trier les papiers » : « une fois par mois, quand je suis complètement libre ». L'aiguillage voit l'écran d'une tâche : c'est la maison. Le HAL du foyer note la consigne dans la mémoire de la tâche, telle qu'il la comprend : « Une fois par mois, un jour où Thomas n'a rien du tout dans son agenda. » S'il doute de ce que veut dire « complètement libre », il demande avant, avec des réponses prêtes (ORB-9). Il lit l'agenda, choisit le samedi 24, y place l'occurrence et l'épingle. Il répond : « C'est noté. Je l'ai mise samedi 24, ta seule journée vide du mois. » La tâche montre désormais, dans son détail : « HAL retient : une fois par mois, un jour où Thomas n'a rien du tout. »
+
+**Une vérification.** Jeudi, un cours est ajouté le samedi 24. Le moteur ne déplace pas la tâche, puisqu'elle est épinglée ; mais l'occupation nouvelle tombe sur le jour d'une tâche à mémoire, et la tâche entre dans la file des vérifications (VER-3). Le quart d'heure suivant, HAL est appelé avec elle, voit que le samedi n'est plus libre, la déplace au dimanche 8 et prévient Thomas : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24. »
+
+**Une action.** « Je pars chez mes parents de vendredi à dimanche. » Le HAL du foyer déclare l'absence, comme le bouton « Je pars », et répond avec « Annuler » pendant cinq secondes. Le placement qui suit repasse les tâches de Thomas à Lorette ; celles qui ont une mémoire sont vérifiées.
+
+---
+
+### G.3 Règles de gestion
+
+Mêmes conventions que les parties précédentes.
+
+#### G.3.1 HAL du foyer : `HDF`
+
+| Code | Type | Règle |
+|---|---|---|
+| HDF-1 | D | Un foyer a un HAL du foyer, commun à tous ses membres. Il s'active pour le foyer, par l'administrateur, et l'est par défaut. Le HAL sport reste à chacun (COA-1) |
+| HDF-2 | D | Le HAL du foyer s'occupe de la maison et du planning : tâches, occurrences, liens, types, absences et voyages, occupations saisies à la main, conflits, mode allégé, répartition. Il ne lit rien du sport, de la santé, du profil ni des objectifs (FOY-8) ; une séance n'y est qu'un créneau pris |
+| HDF-3 | D | De celui qui ne lui parle pas, il ne lit que ce qu'il faut pour la maison : ses créneaux pris, sans titre ni lieu, ses absences, ses tâches (COA-15) |
+| HDF-4 | D | Il a deux sortes de mémoire. La mémoire du foyer, commune, pour ce qui touche la maison en général (« Sassy vomit si on change sa litière trop tard ») ; elle se lit et se corrige dans Réglages, Maison, comme la mémoire de HAL (MEM). Et la mémoire de chaque tâche (MTA) |
+| HDF-5 | D | Les conversations avec le HAL du foyer sont à celui qui écrit : l'autre ne les lit pas. Ce qui en sort de concret (une tâche, une mémoire, un déplacement) se voit dans Maison et dans l'Historique |
+| HDF-6 | T | Un message est payé par la chaîne de fournisseurs de celui qui l'écrit (FOU-4). Un appel automatique, la vérification de la semaine ou celle d'après un placement, par celle de l'administrateur du foyer |
+| HDF-7 | T | Un appel du HAL du foyer est une opération du journal, sous l'acteur « hal_foyer ». Il suit les règles d'un appel de HAL : bornes de tours, nouveaux essais, réponse construite depuis la base (COA-7, COA-11, COA-17, COA-18, COA-23, COA-24). Son verrou est par membre et par HAL : on peut parler à ses deux HAL en même temps, pas deux fois au même. Un appel automatique prend le verrou de l'administrateur |
+| HDF-8 | T | Sans HAL du foyer, ou HAL injoignable, rien ne s'arrête : les boutons font tout, les tâches épinglées restent où elles sont, et la vérification suivante rattrape ce qui a été manqué |
+
+#### G.3.2 Aiguillage : `AIG`
+
+| Code | Type | Règle |
+|---|---|---|
+| AIG-1 | T | Chaque message à HAL passe par l'aiguillage, un script Python, qui rend « maison », « sport » ou « les deux ». Il essaie dans l'ordre le contexte, les mots-clés, le petit modèle, et s'arrête au premier qui tranche |
+| AIG-2 | T | Le contexte : un message parti de l'onglet Sport, avec une séance ou une semaine jointe, va au sport ; de l'onglet Maison, avec une tâche ou une occurrence jointe, à la maison (COA-33). Aujourd'hui et Réglages ne tranchent pas, sauf élément joint |
+| AIG-3 | T | Les mots-clés de `coach/aiguillage.json`, sans égard à la casse ni aux accents. Un côté l'emporte s'il a des mots et l'autre aucun. Des mots des deux côtés donnent « les deux » |
+| AIG-4 | T | Sans mot-clé, un appel très court au petit modèle, qui ne reçoit que le message et répond d'un mot. Un échec, ou une réponse hors des trois, fait demander à l'utilisateur, par deux boutons, « Maison » ou « Sport » |
+| AIG-5 | T | « Les deux » envoie le message aux deux HAL en même temps. Chacun ne fait que sa part, avec ses outils. L'appli rend une seule réponse : les deux messages, chacun sous son titre |
+| AIG-6 | T | Une absence touche les deux : elle se fait par le HAL du foyer, même dite au HAL sport. Le HAL sport la lit ensuite comme aujourd'hui |
+| AIG-7 | D | La décision et ce qui l'a prise (contexte, mots, modèle, utilisateur) sont gardées avec l'échange. Un message mal aiguillé se corrige en ajoutant un mot au fichier, pas dans le code |
+| AIG-8 | T | Un client MCP externe n'est pas aiguillé : il a les outils des deux côtés pour son titulaire, et choisit lui-même (MCP-4) |
+
+#### G.3.3 Ce qu'on demande à HAL : `ACT`
+
+| Code | Type | Règle |
+|---|---|---|
+| ACT-1 | D | Chaque geste qu'un bouton de l'appli permet a son outil chez HAL : celui du foyer pour la maison et le planning, celui du sport pour le sport. L'outil appelle la même fonction que le bouton, avec les mêmes droits (FOY-6) et les mêmes refus |
+| ACT-2 | T | Une action demandée dans la conversation s'exécute directement. La réponse dit ce qui a été fait, avec « Annuler » pendant cinq secondes (ORB-6). L'autre membre est prévenu comme pour le geste, avec la raison « demandé à HAL par Thomas » (NOT-17) |
+| ACT-3 | T | Si la demande laisse un doute (quelle tâche, quel jour, pour qui), HAL demande avant d'agir, avec des réponses prêtes (ORB-9). Il ne devine pas une action |
+| ACT-4 | T | De lui-même, sans qu'on le lui demande, HAL ne fait que ce que cette partie lui confie, déplacer une tâche pour respecter sa mémoire (VER), et ce que la partie B permettait déjà au HAL sport : proposer des séances et des ajustements. Le reste, il le suggère dans son message |
+| ACT-5 | D | Restent aux boutons seuls : l'administration du foyer (inviter, retirer un membre, passer son rôle, régler les droits), le compte (mot de passe, clés MCP, fournisseurs, abonnement), et les données de santé |
+| ACT-6 | D | Un client MCP externe garde les demandes : il ne change rien sans l'accord donné dans l'appli (ACC-1). Il peut tourner seul ; la conversation dans l'appli, non |
+
+#### G.3.4 La mémoire des tâches : `MTA`
+
+| Code | Type | Règle |
+|---|---|---|
+| MTA-1 | D | Une tâche peut avoir une mémoire : un texte libre, de 1 000 caractères au plus, que tient le HAL du foyer. Ce n'est pas une règle : rien d'autre que HAL ne la lit pour placer |
+| MTA-2 | T | Quand un membre dit à HAL une consigne sur une tâche, HAL l'écrit dans la mémoire de la tâche, telle qu'il la comprend, en une ou deux phrases. Une nouvelle consigne complète ou remplace l'ancienne : HAL réécrit la mémoire en entier. Si la tâche n'existe pas encore, il la crée d'abord (ACT-1) |
+| MTA-3 | T | Dès qu'une consigne est notée, HAL place les occurrences à venir de la tâche selon elle, sans attendre la vérification de la semaine (VER-4) |
+| MTA-4 | D | La mémoire d'une tâche est au foyer : les deux membres la voient. Elle se lit dans le détail de la tâche, « HAL retient : … », sans y être modifiable. Pour la changer ou l'effacer, on le dit à HAL. Chaque version est gardée, avec qui l'a dite, et passe au journal |
+| MTA-5 | T | Une mémoire dit aussi, si on le lui a dit, pour qui est la tâche : « quand je suis libre » dit par Thomas veut dire que Thomas la fait. HAL règle alors « pour qui » de la tâche, comme le bouton (ACT-1) |
+| MTA-6 | T | Une tâche arrêtée garde sa mémoire, avec son historique (TAC-21) |
+
+#### G.3.5 Les vérifications de HAL : `VER`
+
+| Code | Type | Règle |
+|---|---|---|
+| VER-1 | D | Une occurrence que HAL place selon la mémoire de sa tâche est épinglée par HAL. Le moteur ne la déplace plus (PLA-5), et elle porte le motif écrit par HAL : « samedi 24 : ta seule journée vide du mois » |
+| VER-2 | T | Une occurrence épinglée par HAL un jour d'absence de celui à qui elle revient est désépinglée et replacée par le moteur (ABS-5), puis vérifiée (VER-3). Déplacée à la main, elle reste où on l'a mise : celui qui la déplace a le dernier mot, et elle n'est pas vérifiée |
+| VER-3 | T | Une occurrence d'une tâche à mémoire entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer, ou quand une occupation, une absence ou un conflit tombe sur son jour. Ce que HAL vient de faire lui-même n'y entre pas |
+| VER-4 | T | La file des vérifications part au plus une fois par quart d'heure, en un seul appel au HAL du foyer, moment « vérification », avec chaque occurrence, sa mémoire et ce qui l'a fait entrer. HAL laisse, ou déplace en épinglant (VER-1). Une file vide ne fait aucun appel |
+| VER-5 | T | Chaque semaine, au jour et à l'heure réglés pour le foyer, le lundi à 6h30 par défaut, HAL relit toutes les tâches à mémoire et leurs occurrences des quatre semaines à venir, moment « semaine ». Il place ce qui manque et corrige ce qui ne respecte pas la mémoire. Sans tâche à mémoire, pas d'appel |
+| VER-6 | T | Quand HAL déplace une occurrence, celui à qui elle revient est prévenu avec la raison, en une phrase (NOT-17) : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24 ». Les messages d'une même vérification partent ensemble |
+| VER-7 | T | Si aucun jour ne respecte la mémoire, HAL le dit à la personne concernée et propose un compromis dans son message : le jour qui s'en approche le plus, ou plus tard. L'occurrence reste là où elle est jusqu'à sa réponse |
+| VER-8 | M | L'administrateur du foyer règle le jour et l'heure de la vérification de la semaine, dans Réglages, Maison |
+| VER-9 | T | Une vérification qui échoue est réessayée comme un appel planifié (COA-11). Si HAL reste injoignable, rien ne bouge, et la file est gardée pour l'appel suivant |
+
+#### G.3.6 La répartition de la semaine : `REP`
+
+| Code | Type | Règle |
+|---|---|---|
+| REP-1 | M | L'administrateur du foyer active la répartition de la semaine, dans Réglages, Maison. Activée, elle remplace l'alternance et la balance de chaque matin (PLA-12). Arrêtée, elles reprennent dès le lendemain |
+| REP-2 | T | Elle se calcule le lundi à 7h00, après la vérification de la semaine et le placement, pour le lundi au dimanche. Elle porte sur les tâches domestiques sans « pour qui » fixe (PLA-10) : ni le sport, ni les tâches à deux, ni celles de départ et de retour (PLA-15) |
+| REP-3 | D | La charge d'une occurrence est sa durée multipliée par sa pénibilité, de 1 à 3 : des points. Chaque type de tâche a une pénibilité, et une tâche peut avoir la sienne. On la dit à HAL : « récurer, c'est dur » |
+| REP-4 | T | Le but est que les deux aient la même charge sur la semaine, corrigée de l'écart de la semaine passée : celui qui en a fait plus en fait d'autant moins. L'écart se compte sur ce qui a été fait, hors des jours allégés et de ce qu'on a fait seul (PLA-15), plafonné à 120 points, et ne remonte qu'à la semaine passée |
+| REP-5 | T | Une absence réduit la part : la cible de chacun suit le nombre de jours où il est là (ABS-3). Le mode allégé donne un quart et trois quarts de ses jours (PLA-16) |
+| REP-6 | T | Chacun dit à HAL ce qu'il aime et ce qu'il déteste faire : « je déteste passer l'aspirateur ». HAL le note, pour cette personne et cette tâche. Personne d'autre ne voit ces préférences, ni dans l'appli ni par HAL ; on n'en voit que l'effet |
+| REP-7 | T | À trente points près de la cible, la répartition donne à chacun ce qu'il préfère. Une tâche que les deux détestent, ou que les deux aiment, tourne d'une semaine à l'autre. À préférences égales, l'alternance départage (PLA-12) |
+| REP-8 | T | Elle décide aussi qui prendra les occurrences qui ne sont pas encore nées : celles des enchaînements, et celles que la récurrence recrée après une validation. Pour chaque tâche, la k-ième occurrence de la semaine revient à quelqu'un. Une de plus que prévu revient à celui qui porte le moins de charge |
+| REP-9 | T | Une fois calculée, la semaine ne change plus de mains, sauf : absence déclarée (ABS-5), coup de main (PLA-13), mode allégé, tâche ajoutée en cours de semaine. Seul ce qui n'est pas fait, sur les jours qui restent, est redonné. Une tâche à mémoire qui change de mains entre dans la file des vérifications (VER-3) |
+| REP-10 | T | Chaque attribution garde son motif : « à toi cette semaine : ta charge restait sous la sienne ». Le motif ne cite jamais la préférence de l'autre |
+| REP-11 | T | Le lundi, à l'heure du bilan de chacun (NOT-15), l'annonce de la semaine : ses tâches jour par jour, sa charge et celle de l'autre, l'écart reporté, et ce que HAL a placé ou déplacé selon les mémoires. Elle contient le bilan du lundi |
+
+---
+
+### G.4 Acteurs du système
+
+| Acteur | Type | Rôle |
+|---|---|---|
+| HAL du foyer | Programme du système | Fait ce qu'on lui demande pour la maison, tient la mémoire des tâches, les place et les vérifie |
+| HAL sport | Programme du système | Celui de la partie B ; fait aussi, à la demande, les gestes de l'onglet Sport (ACT-1) |
+| Aiguillage | Programme du système | Envoie chaque message au bon HAL, ou aux deux |
+| Administrateur du foyer | Humain | Active le HAL du foyer et la répartition, règle le jour de la vérification |
+| Membre | Humain | Parle à HAL : demandes, consignes, préférences |
+
+### G.5 Dictionnaire de données
+
+Les migrations partent de 078 : la 076 et la 077 ont servi à la première version, retirée (annexe 12).
+
+#### Table : MemoireTache
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_memoire_tache | BIGINT | non | | oui | identité | oui | |
+| id_tache | INTEGER | non | | | | | Tache (cascade) |
+| texte | TEXT | non | de 0 à 1 000 caractères ; vide : effacée | | | | |
+| dite_par | INTEGER | oui | le membre dont vient la consigne | | | | Utilisateur |
+| id_appel | BIGINT | oui | l'appel qui l'a écrite | | | | AppelCoach (mise à nul) |
+| quand | TIMESTAMPTZ | non | | | now() | | |
+
+Une ligne par version (MTA-4). La mémoire en vigueur est la dernière, lue par `v_memoire_tache`. Une tâche « a une mémoire » si sa dernière version n'est pas vide.
+
+#### Table : MemoireFoyer
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_memoire | BIGINT | non | | oui | identité | oui | |
+| id_foyer | INTEGER | non | | | | | Foyer |
+| niveau | VARCHAR(12) | non | 'globale', 'mois', 'semaine' | | | | |
+| periode | DATE | oui | comme MemoireCoach | | | | |
+| texte | TEXT | non | sous la limite de son étage (MEM-3) | | | | |
+| auteur | VARCHAR(12) | non | 'hal', 'utilisateur', 'resume' | | | | |
+| id_auteur | INTEGER | oui | le membre, si auteur = 'utilisateur' | | | | Utilisateur |
+| couvre_jusqu_au | DATE | oui | | | | | |
+| quand | TIMESTAMPTZ | non | | | now() | | |
+
+#### Table : VerificationTache
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_verification | BIGINT | non | | oui | identité | oui | |
+| id_occurrence | INTEGER | non | | une seule en attente par occurrence | | | Occurrence (cascade) |
+| raison | VARCHAR(16) | non | 'creee', 'deplacee', 'a_placer', 'occupation', 'absence', 'conflit', 'repartition' | | | | |
+| cree_le | TIMESTAMPTZ | non | | | now() | | |
+| traitee_le | TIMESTAMPTZ | oui | | | | | |
+| id_appel | BIGINT | oui | l'appel qui l'a traitée | | | | AppelCoach (mise à nul) |
+
+La file de VER-3 et VER-4.
+
+#### Table : Preference
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_utilisateur | INTEGER | non | | | | oui | Utilisateur |
+| id_tache | INTEGER | non | | | | oui | Tache (cascade) |
+| note | VARCHAR(8) | non | 'aime', 'egal', 'deteste' | | 'egal' | | |
+| maj | TIMESTAMPTZ | non | | | now() | | |
+
+Une ligne absente vaut « égal ». Aucune vue ni aucun outil ne rend les préférences d'un autre que l'appelant (REP-6).
+
+#### Table : Attribution
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| lundi | DATE | non | un lundi | | | oui | |
+| id_tache | INTEGER | non | | | | oui | Tache |
+| rang | SMALLINT | non | > 0 : la k-ième occurrence de la semaine | | | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur |
+| motif | TEXT | non | REP-10 | | | | |
+| rouverte_le | TIMESTAMPTZ | oui | redonnée par un imprévu (REP-9) | | | | |
+
+#### Table : ChargeSemaine
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_utilisateur | INTEGER | non | | | | oui | Utilisateur |
+| lundi | DATE | non | un lundi | | | oui | |
+| cible | INTEGER | non | >= 0, en points | | | | |
+| prevue | INTEGER | non | >= 0 | | 0 | | |
+| faite | INTEGER | non | >= 0, tenue à jour à chaque validation | | 0 | | |
+| ecart_reporte | INTEGER | non | entre −120 et 120 (REP-4) | | 0 | | |
+
+#### Tables existantes : ce qui change
+
+| Table | Changement | Règles |
+|---|---|---|
+| Foyer | Colonnes `hal_actif` (vrai par défaut), `verification_jour` (1 à 7, 1 par défaut), `verification_heure` (6h30 par défaut), `repartition_semaine` (faux par défaut) | HDF-1, VER-8, REP-1 |
+| TypeTache | Colonne `penibilite`, de 1 à 3, 2 par défaut | REP-3 |
+| Tache | Colonne `penibilite`, de 1 à 3 ; vide : celle du type | REP-3 |
+| Occurrence | Colonne `epinglee_par` ('admin', 'hal'), renseignée si et seulement si `epinglee` ; et `rang_semaine` (REP-8) | VER-1, REP-8 |
+| AppelCoach | Colonnes `hal` ('sport', 'foyer') et `id_foyer`. `moment` accepte 'maison', 'semaine', 'verification'. Le verrou devient : un appel en cours par utilisateur et par HAL | HDF-6, HDF-7 |
+| Echange | Colonnes `hal` et `aiguillage` ('contexte', 'mots', 'modele', 'utilisateur'). Mêmes moments qu'AppelCoach | AIG-7 |
+| Notification | `type` accepte 'semaine' | REP-11 |
+| Evenement | L'acteur accepte 'hal_foyer' | HDF-7 |
+
+### G.6 Contraintes d'intégrité
+
+| Code | Contrainte | Où elle est tenue |
+|---|---|---|
+| MTA-1 | Une mémoire de 1 000 caractères au plus | `CHECK` sur `memoire_tache` |
+| VER-1 | Épinglée par HAL ou par l'administrateur, et seulement épinglée | `CHECK ((epinglee_par IS NOT NULL) = epinglee)` |
+| VER-3 | Une seule vérification en attente par occurrence | Unicité partielle sur `id_occurrence` quand `traitee_le IS NULL` |
+| REP-3 | Pénibilité de 1 à 3 | `CHECK` sur `type_tache` et `tache` |
+| REP-4 | Écart plafonné | `CHECK (ecart_reporte BETWEEN -120 AND 120)` |
+| REP-6 | Les préférences de l'autre ne sortent pas | `v_preference` filtrée sur l'appelant ; aucun outil ne les rend |
+| ACT-1 | Un outil de HAL a les droits du geste | L'outil appelle la fonction du bouton, qui vérifie FOY-6 |
+| HDF-7 | Un appel en cours par utilisateur et par HAL | Unicité partielle (`id_utilisateur`, `hal`) quand `statut = 'en_cours'` |
+
+### G.7 Description des opérations
+
+#### Opération G1 : Une demande à HAL
+
+| | |
+|---|---|
+| Déclencheur | Un message dans le panneau de HAL |
+| Entrée | Le texte, l'onglet, l'élément joint |
+| Traitement | L'aiguillage choisit le HAL (AIG). Le HAL lit ce qu'il faut ; si la demande est claire, il appelle l'outil du geste, sinon il pose sa question (ACT-3). Une consigne sur une tâche va dans sa mémoire, et la tâche est placée selon elle (MTA-2, MTA-3) |
+| Sortie | Le message, ce qui a été fait avec « Annuler », ou une question à réponses prêtes |
+| Règles | AIG, ACT-1 à ACT-4, MTA-2, MTA-3 |
+
+#### Opération G2 : Une vérification après placement
+
+| | |
+|---|---|
+| Déclencheur | Toutes les quinze minutes, une file non vide |
+| Entrée | Les occurrences en attente, la mémoire de leur tâche, ce qui les a fait entrer, l'agenda |
+| Traitement | Un appel au HAL du foyer, moment « vérification », sur la chaîne de l'administrateur. Il laisse, déplace en épinglant, ou propose un compromis. Les lignes sont closes avec l'appel |
+| Sortie | Les déplacements et leurs notifications |
+| Règles | VER-1 à VER-4, VER-6, VER-7, VER-9 |
+
+#### Opération G3 : La vérification de la semaine
+
+| | |
+|---|---|
+| Déclencheur | Le jour et l'heure réglés pour le foyer, lundi 6h30 par défaut |
+| Entrée | Les tâches à mémoire, leurs occurrences des quatre semaines à venir, l'agenda des membres |
+| Traitement | Un appel au HAL du foyer, moment « semaine ». Il place ce qui manque, corrige ce qui ne respecte pas la mémoire, vide la file des vérifications au passage |
+| Sortie | Les placements, les déplacements, et ce qu'en dira l'annonce du lundi |
+| Règles | VER-5, VER-6, REP-11 |
+
+#### Opération G4 : La répartition de la semaine
+
+| | |
+|---|---|
+| Déclencheur | Lundi 7h00, après le placement ; un imprévu de REP-9 |
+| Entrée | Les occurrences domestiques de la semaine et celles qui en naîtront, les présences, les modes allégés, les pénibilités, les préférences, l'écart de la semaine passée |
+| Traitement | Calcule la cible de chacun, range chaque occurrence attendue à quelqu'un selon REP-4 à REP-7, écrit les attributions, leurs motifs et les charges |
+| Sortie | Les attributions de la semaine, la charge de chacun, l'annonce |
+| Règles | REP-2 à REP-11 |
+
+### G.8 Interfaces exposées
+
+#### G.8.1 Routes
+
+Elles s'ajoutent à celles des sections A.9.1, B.9.1, D.4 et F.8.1, et passent par le funnel, derrière la clé (CNX-5).
+
+```
+Maison
+  GET    /maison/semaine?lundi=              Qui fait quoi, les charges, l'écart reporté, le motif de chaque attribution
+  PATCH  /foyer                              Gagne hal_actif, repartition_semaine, verification_jour et verification_heure
+
+HAL du foyer
+  GET    /hal-foyer/memoire                  La mémoire du foyer, ses étages et ses versions
+  PUT    /hal-foyer/memoire                  La corriger
+  GET    /hal-foyer/echanges?limite=         Mes conversations avec le HAL du foyer
+```
+
+`GET /taches` rend en plus, pour chaque tâche, `memoire` : la mémoire en vigueur, et qui l'a dite. `POST /coach/question`, `/coach/changement` et `/coach/signalement` gardent leur nom et passent par l'aiguillage.
+
+Il n'y a pas de route pour écrire la mémoire d'une tâche, ni les préférences, ni la pénibilité : elles passent par HAL.
+
+#### G.8.2 Outils du HAL du foyer
+
+| Outil | Ce qu'il fait | Ce qu'il appelle |
+|---|---|---|
+| `lire_aujourdhui`, `lire_taches`, `lire_occurrences`, `lire_absences`, `lire_conflits` | Ceux de la section F.8.2 ; `lire_taches` rend aussi la mémoire de chaque tâche | |
+| `lire_planning` | Celui de la section B.9.2, réduit aux créneaux pour l'autre membre (HDF-3) | `v_planning` |
+| `lire_semaine_maison` | La répartition, les charges, l'écart, les motifs | `v_semaine_maison` |
+| Un outil par geste de la maison | Créer, modifier, arrêter une tâche ; lier, délier ; types ; faite, reporter, refuser ; absence, départ, retour ; occupation à la main ; mode allégé ; trancher un conflit. Les actions des demandes de la section F.8.2, exécutées directement (ACT-1) | Les fonctions des routes |
+| `ecrire_memoire_tache` | Écrit ou efface la mémoire d'une tâche (MTA-2) | `ecrire_memoire_tache()` |
+| `placer_occurrence` | Pose une occurrence un jour donné et l'épingle, avec son motif (VER-1) | `placer_par_hal()` |
+| `noter_preference` | Note ce que la personne qui parle aime ou déteste faire (REP-6) | `noter_preference()` |
+| `regler_penibilite` | Règle la pénibilité d'un type ou d'une tâche (REP-3) | `regler_penibilite()` |
+| `lire_memoire_foyer`, `ecrire_memoire_foyer`, `ajouter_memoire_foyer` | La mémoire du foyer (HDF-4) | `v_memoire_foyer`, `ecrire_memoire_foyer()` |
+
+Le HAL sport gagne de même un outil par geste de l'onglet Sport (ACT-1) : valider une séance ou la semaine, déplacer, supprimer, déclarer pas faite, poser une séance libre, noter une mesure.
+
+Les outils permis selon le moment (COA-5) :
+
+| Moment | Lecture | Gestes | Mémoire des tâches | Placer en épinglant | Préférences et pénibilité | Mémoire du foyer |
+|---|---|---|---|---|---|---|
+| maison | oui | oui | oui | oui | oui | oui |
+| semaine | oui | | | oui | | oui |
+| verification | oui | | | oui | | |
+
+La semaine et la vérification n'ont pas les gestes : personne ne les a demandés (ACT-4).
+
+### G.9 Dans l'application
+
+| Code | Type | Règle |
+|---|---|---|
+| MTA-7 | D | Le détail d'une tâche [4.2] montre sa mémoire, si elle en a une : « HAL retient : … », avec qui l'a dite. Rien n'y est modifiable ; un toucher ouvre le panneau de HAL avec la tâche jointe (ORB-10) |
+| ACT-7 | D | Ce que HAL a fait s'affiche dans sa réponse, un bloc par action, avec « Annuler » pendant cinq secondes (ORB-6) |
+| AIG-9 | D | Une réponse des deux HAL montre deux blocs, « Maison » et « Sport », dans la même bulle |
+| REP-12 | D | Maison a un bloc « Ma semaine » : mes tâches jour par jour, ma charge et celle de l'autre en points, l'écart reporté. Toucher une tâche montre son motif |
+| REP-13 | D | Réglages, Maison : le HAL du foyer, la répartition de la semaine, le jour et l'heure de la vérification (l'administrateur les règle), la mémoire du foyer. Ni préférences ni pénibilité : on les dit à HAL |
+
+---
+
+### G.10 Ce que la partie change dans le système existant
+
+| Élément | Avant | Après | Règles |
+|---|---|---|---|
+| HAL | Un par compte | Le HAL sport, à chacun, et le HAL du foyer, commun | FOY-8, COA-1, HDF |
+| Chat de HAL | Un seul HAL reçoit tout | L'aiguillage choisit, ou envoie aux deux | AIG |
+| HAL dans l'appli | Il dépose des demandes à accepter | Il fait directement ce qu'on lui demande ; les clients externes gardent les demandes | ACC-1, ACT |
+| Épingler | L'administrateur du serveur seul | Aussi HAL, pour ce qu'il place selon une mémoire | EXE-9, VER-1 |
+| Répartition | Alternance et balance d'une heure, chaque matin | Au choix du foyer : la même chose, ou la répartition de la semaine | PLA-12, REP |
+| Ordonnanceur | 7h00 placement ; 0h05 report | En plus : la vérification de la semaine, la file des vérifications toutes les quinze minutes, la répartition du lundi | VER, REP |
+
+Ne changent pas : le moteur de placement et ses choix, les enchaînements et les liens, le HAL sport et tout le sport, la chaîne des fournisseurs. Un foyer sans HAL du foyer et sans répartition fonctionne exactement comme avant.
+
+### G.11 Risques et points ouverts
+
+| Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
+|---|---|---|
+| HAL agit directement | Un modèle peut mal comprendre une demande | Il demande s'il doute (ACT-3), dit ce qu'il a fait, et « Annuler » le défait. Des scénarios de demandes (phrase, action attendue, question attendue) sont à écrire, comme le chapitre 10.5, et à rejouer avant chaque changement de consigne |
+| Interprétation des mémoires | Rien ne vérifie qu'une mémoire est respectée, sinon HAL | C'est le choix : la mémoire est libre. La vérification de la semaine rattrape ce que les vérifications d'après placement auraient manqué |
+| Coût des vérifications | Chaque placement peut remplir la file | Une file au plus par quart d'heure, et seulement pour les tâches à mémoire. À mesurer après un mois |
+| Calcul de la répartition | L'algorithme exact n'est pas choisi | À écrire au lot 19, rejoué sur huit semaines réelles : déterministe, expliqué par son motif, pas pire que PLA-12 sur l'écart |
+| Deux HAL à la fois | Un message aux deux lance deux Claude Code | Deux au plus à la fois (FOU-16). À mesurer sur le portable |
+| Foyer de deux | La répartition est écrite pour deux | Comme FOY-4 |
+
+### G.12 Ce qui est volontairement exclu
+
+- Des règles structurées que le moteur appliquerait, et un écran pour les saisir : la consigne reste un texte que HAL interprète.
+- Modifier la mémoire d'une tâche, les préférences ou la pénibilité à la main.
+- Par HAL : l'administration du foyer, le compte, les données de santé (ACT-5).
+- L'échange de tâches entre membres, toujours remplacé par le coup de main (EXE-16).
+
+---
+
 ## Annexes
 
 ### Annexe 1 : règles du planning remplacées ou retirées avant octobre 2026
@@ -4723,6 +5140,13 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Conflit caché | Revient sept jours avant sa date | Choix du projet | COL-23 |
 | Annulation d'une action de HAL | Cinq secondes | Maquette [2.4] | ORB-6 |
 | Historique minimal pour le rapport de charge | 4 semaines | Chapitre 8.1 du dossier | `v_charge_entrainement` |
+| Mémoire d'une tâche | 1 000 caractères | Choix de conception | MTA-1 |
+| Vérification de la semaine | Lundi 6h30, réglable par le foyer | Choix du projet | VER-5, VER-8 |
+| File des vérifications | Au plus un appel par quart d'heure | Choix de conception | VER-4 |
+| Vérification de la semaine : horizon | Quatre semaines | Choix de conception | VER-5 |
+| Pénibilité | De 1 à 3 ; 2 par défaut ; le linge, la vaisselle et le chat à 1 | Choix du projet, à revoir après un mois | REP-3 |
+| Écart reporté d'une semaine à l'autre | 120 points au plus, la semaine passée seule | Choix du projet | REP-4 |
+| Marge laissée aux préférences | 30 points | Choix du projet | REP-7 |
 
 ### Annexe 4 : règles de HAL remplacées ou retirées avant octobre 2026
 
@@ -4990,3 +5414,29 @@ Version du 21 octobre 2026, migration 075. Deux règles sont nouvelles : ORB-12,
 | C.1 | Un choix de plus : l'appli ne justifie pas ses règles à l'écran |
 | C.4 | La barre de navigation en icônes sans libellé |
 | L'appli | Les pieds de section et les légendes qui expliquaient une règle sont retirés, ainsi que leurs codes entre parenthèses ; l'écran Intelligence ne garde que les options, leur état et ce qu'il faut coller. Réglages perd son groupe Essais (les composants et les états à forcer de la démonstration) |
+
+### Annexe 12 : ce que change la partie G
+
+Version du 22 octobre 2026. La partie G est écrite avant d'être construite, à partir des choix faits avec Thomas le même jour. Ses règles sont nouvelles : HDF-1 à HDF-8, AIG-1 à AIG-9, ACT-1 à ACT-7, MTA-1 à MTA-7, VER-1 à VER-9, REP-1 à REP-13. Six règles sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| PLA-12 | La répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge |
+| EXE-9 | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé |
+| COA-1 | HAL s'active par compte, et l'est pour chaque membre du foyer. Il est personnel : il ne dépend pas du foyer et n'y partage rien (FOY-8). Un compte sans HAL n'a ni plan ni récap, et fait des séances libres |
+| COA-5 | Chaque moment a ses outils permis. Dans le chat, HAL lit, tient sa mémoire, note une mesure et dépose des demandes sur le planning et la maison (ACC-1) : il ne propose aucune séance. S'il lit un signalement, il le requalifie (COA-25). Une demande de changer le plan passe par le moment changement (COA-32), qui a les outils de proposition et d'ajustement, et les demandes. Le signalement a aussi les demandes, pour un contretemps qui touche le planning |
+| ACC-1 | Un modèle, quel que soit son client, ne change le planning, les tâches, les occurrences, les absences, les occupations, le mode allégé, le profil, les limitations ou les lieux qu'en déposant une demande. Rien ne change tant que l'utilisateur ne l'a pas acceptée |
+| FOY-8 | HAL est personnel. Le profil, les limitations, les objectifs, la santé, les mesures, la mémoire et les échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17) |
+
+**Pourquoi elles changent.** HAL devient double : le HAL sport reste à chacun, le HAL du foyer prend la maison (FOY-8, COA-1). Dans l'appli, HAL fait ce qu'on lui demande au lieu de déposer une demande ; les clients externes gardent les demandes (ACC-1, COA-5). HAL épingle ce qu'il place selon la mémoire d'une tâche (EXE-9). La répartition de la semaine peut remplacer l'alternance (PLA-12).
+
+**Une première version, retirée.** Une première partie G a été écrite et construite le même jour, comme lot 16 : les consignes y devenaient des règles structurées en « briques » (jours, dates, agenda, présence), que le moteur appliquait, et qu'un écran permettait de saisir à la main, avec un rythme « N fois par semaine ou par mois ». Ce n'était pas ce qui était voulu : une consigne se dit à HAL, qui la retient et l'applique ; il n'y a pas d'écran pour la régler. Le commit a été annulé, et la migration 077 retire de la base ce que la 076 y avait mis. Les deux numéros restent pris : les migrations de cette partie partent de 078.
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| En-tête et sommaire | La partie G |
+| 0.1 et 0.2 | Le HAL du foyer, les actions par HAL, la mémoire des tâches, la répartition |
+| E.2 et E.3 | Les lots 16 à 19 |
+| Annexe 3 | Les valeurs de la partie G |
