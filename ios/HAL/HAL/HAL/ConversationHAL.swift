@@ -163,7 +163,8 @@ final class ConversationHAL {
 
     /// Un message libre. Avec un élément joint, c'est une demande de changement.
     /// `moment` force un signalement depuis les réponses prêtes (ORB-11).
-    func envoyer(_ texte: String, moment: String? = nil, horsReseau: Bool = false) {
+    func envoyer(_ texte: String, moment: String? = nil, horsReseau: Bool = false,
+                 hal: String? = nil) {
         let propre = texte.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !propre.isEmpty, !reflechit, enAttente == nil else { return }
         guard client != nil else {
@@ -174,11 +175,14 @@ final class ConversationHAL {
         let demande = DemandeEnAttente(
             texte: propre, cleClient: UUID(),
             moment: joint != nil ? "changement" : (moment ?? "question"),
-            joint: joint, ecran: voit)
+            joint: joint, ecran: voit, hal: hal)
         enAttente = demande
         Self.garder(demande)
-        messages.append(MessageHAL(id: demande.cleClient.uuidString, auteur: .moi, texte: propre,
-                                   enAttente: true))
+        // AIG-4 : le texte renvoyé avec « Maison » ou « Sport » est déjà affiché.
+        if hal == nil {
+            messages.append(MessageHAL(id: demande.cleClient.uuidString, auteur: .moi, texte: propre,
+                                       enAttente: true))
+        }
         Task { await envoyerLAttente() }
     }
 
@@ -205,7 +209,7 @@ final class ConversationHAL {
         let corps = ClientAPI.corps(EnvoiAHAL(
             texte: demande.texte, cleClient: demande.cleClient, ecran: String(demande.ecran.prefix(200)),
             idOccurrence: demande.joint?.idOccurrence,
-            lundi: demande.joint?.lundi.map(TexteHAL.jourISO)))
+            lundi: demande.joint?.lundi.map(TexteHAL.jourISO), hal: demande.hal))
         do {
             // COA-16 : le serveur répond une fois HAL terminé, quatre-vingt-dix
             // secondes au plus. La même clé renvoyée ne relance rien (COA-24).

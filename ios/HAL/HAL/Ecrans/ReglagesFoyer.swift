@@ -180,6 +180,22 @@ struct EcranFoyer: View {
         .disabled(!lu.jeSuisAdmin)
 
         Section {
+            Toggle("HAL du foyer", isOn: Binding {
+                lu.halActif ?? true
+            } set: { actif in
+                Task { await reglerHAL(actif) }
+            })
+            .disabled(!lu.jeSuisAdmin)
+            NavigationLink {
+                EcranMemoireFoyer()
+            } label: {
+                Label("Mémoire du foyer", systemImage: "brain")
+            }
+        } header: {
+            Text("HAL")
+        }
+
+        Section {
             Button("Quitter le foyer", role: .destructive) { quitter = true }
         }
     }
@@ -220,6 +236,23 @@ struct EcranFoyer: View {
             nom = rendu.nom
             annoncer(annonce)
             await foyer.charger()
+        } catch {
+            erreur = motifDe(error)
+        }
+    }
+
+    private struct ReglageHAL: Encodable { let halActif: Bool }
+
+    /// HDF-1 : l'administrateur active ou arrête le HAL du foyer.
+    private func reglerHAL(_ actif: Bool) async {
+        envoi = true
+        erreur = nil
+        defer { envoi = false }
+        do {
+            let rendu: FoyerLu = try await foyer.demander("PATCH", "foyer",
+                                                          corps: ClientAPI.corps(ReglageHAL(halActif: actif)))
+            lu = rendu
+            annoncer(actif ? "HAL du foyer activé" : "HAL du foyer arrêté")
         } catch {
             erreur = motifDe(error)
         }
@@ -649,6 +682,134 @@ struct EcranServeur: View {
             nouveau = ""
             confirmation = ""
             annoncer("Mot de passe changé")
+        } catch {
+            erreur = motifDe(error)
+        }
+    }
+}
+
+
+// MARK: - La mémoire du foyer                                          (HDF-4)
+
+/// Ce que le HAL du foyer retient pour la maison. Commune : chaque membre la lit
+/// et la corrige, et sa correction est signée de lui.
+struct EcranMemoireFoyer: View {
+    @Environment(Foyer.self) private var foyer
+    @State private var lue: MemoireFoyerLue?
+    @State private var niveau = "semaine"
+    @State private var aCorriger: String?
+    @State private var erreur: String?
+
+    var body: some View {
+        FormulaireVerre {
+            Section {
+                Picker("Étage", selection: $niveau) {
+                    Text("Cette semaine").tag("semaine")
+                    Text("Ce qui dure").tag("globale")
+                }
+                .pickerStyle(.segmented)
+            }
+            if let lue {
+                let etage = niveau == "semaine" ? lue.semaine : lue.globale
+                Section {
+                    Text((etage?.texte ?? "").isEmpty ? "Vide pour l'instant." : etage?.texte ?? "")
+                        .foregroundStyle((etage?.texte ?? "").isEmpty ? Palette.texteSecondaire
+                                                                      : Palette.textePrincipal)
+                        .textSelection(.enabled)
+                    Button("Corriger") { aCorriger = etage?.texte ?? "" }
+                } footer: {
+                    Text(pied(etage))
+                }
+                if niveau == "semaine" {
+                    ForEach(lue.semainesPassees, id: \.self) { passee in
+                        Section {
+                            Text(passee.texte).foregroundStyle(Palette.textePrincipal)
+                        } header: {
+                            Text(passee.periode.map { "Semaine du \($0)" } ?? "Une semaine passée")
+                        }
+                    }
+                }
+            } else if let erreur {
+                Section { Text(erreur).foregroundStyle(Palette.texteSecondaire) }
+            } else {
+                Section { ProgressView().frame(maxWidth: .infinity) }
+            }
+        }
+        .navigationTitle("Mémoire du foyer")
+        .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL("Réglages, mémoire du foyer")
+        .task { await charger() }
+        .sheet(item: Binding(get: { aCorriger.map { TexteACorriger(texte: $0) } },
+                             set: { aCorriger = $0?.texte })) { aCorriger in
+            NavigationStack {
+                CorrigerMemoireFoyer(niveau: niveau, texte: aCorriger.texte) { await charger() }
+            }
+            .feuilleEnVerre()
+        }
+    }
+
+    private struct TexteACorriger: Identifiable {
+        let texte: String
+        var id: String { texte }
+    }
+
+    private func pied(_ etage: MemoireFoyerLue.Etage?) -> String {
+        var morceaux = [niveau == "semaine" ? "Ce que HAL retient pour la maison, cette semaine."
+                                            : "Ce que HAL garde sur le long terme pour la maison."]
+        if let nom = etage?.nomAuteur { morceaux.append("Corrigée par \(nom).") }
+        if let longueur = etage?.longueur, let limite = etage?.limite {
+            morceaux.append("\(longueur) / \(limite) caractères.")
+        }
+        return morceaux.joined(separator: " ")
+    }
+
+    private func charger() async {
+        do {
+            lue = try await foyer.demander("GET", "hal-foyer/memoire")
+            erreur = nil
+        } catch {
+            erreur = motifDe(error)
+        }
+    }
+}
+
+private struct CorrigerMemoireFoyer: View {
+    let niveau: String
+    let texteLu: String
+    var apres: () async -> Void
+    @Environment(Foyer.self) private var foyer
+    @Environment(\.dismiss) private var fermer
+    @State private var texte = ""
+    @State private var erreur: String?
+
+    init(niveau: String, texte: String, apres: @escaping () async -> Void) {
+        self.niveau = niveau
+        self.texteLu = texte
+        self.apres = apres
+    }
+
+    var body: some View {
+        FormulaireVerre {
+            Section { TextEditor(text: $texte).frame(minHeight: 240) }
+            if let erreur { Section { Text(erreur).foregroundStyle(Palette.texteSecondaire) } }
+        }
+        .navigationTitle(niveau == "semaine" ? "Cette semaine" : "Ce qui dure")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Fermer") { fermer() } }
+            ToolbarItem(placement: .confirmationAction) { Button("Enregistrer") { Task { await enregistrer() } } }
+        }
+        .onAppear { texte = texteLu }
+    }
+
+    private struct Corps: Encodable { let niveau: String; let texte: String }
+
+    private func enregistrer() async {
+        do {
+            try await foyer.agir("PUT", "hal-foyer/memoire",
+                                 corps: ClientAPI.corps(Corps(niveau: niveau, texte: texte)))
+            await apres()
+            fermer()
         } catch {
             erreur = motifDe(error)
         }

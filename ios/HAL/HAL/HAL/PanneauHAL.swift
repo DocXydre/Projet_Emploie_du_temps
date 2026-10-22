@@ -249,8 +249,14 @@ struct PanneauHAL: View {
                 HStack(spacing: 8) {
                     ForEach(choix, id: \.texte) { proposition in
                         Button {
-                            conversation.envoyer(proposition.texte, moment: proposition.moment,
-                                                 horsReseau: foyer.essais.horsReseau)
+                            if let aiguiller = proposition.aiguiller {
+                                // AIG-4 : le texte de départ repart, avec le choix.
+                                conversation.envoyer(aiguiller.texte, horsReseau: foyer.essais.horsReseau,
+                                                     hal: aiguiller.hal)
+                            } else {
+                                conversation.envoyer(proposition.texte, moment: proposition.moment,
+                                                     horsReseau: foyer.essais.horsReseau)
+                            }
                         } label: {
                             HStack(spacing: 6) {
                                 Orbe(etat: .repos, taille: 14)
@@ -271,16 +277,24 @@ struct PanneauHAL: View {
         }
     }
 
-    private var propositions: [(texte: String, moment: String?)] {
+    private typealias Proposition = (texte: String, moment: String?,
+                                     aiguiller: (texte: String, hal: String)?)
+
+    private var propositions: [Proposition] {
         if conversation.joint != nil {
-            return [("Décale-la", nil), ("Raccourcis-la", nil), ("Je ne peux pas ce jour-là", nil)]
+            return [("Décale-la", nil, nil), ("Raccourcis-la", nil, nil),
+                    ("Je ne peux pas ce jour-là", nil, nil)]
+        }
+        // AIG-4 : « C'est pour la maison ou pour le sport ? »
+        if let dernier = conversation.messages.last, let texte = dernier.aiguiller {
+            return [("Maison", nil, (texte, "maison")), ("Sport", nil, (texte, "sport"))]
         }
         if let dernier = conversation.messages.last, dernier.auteur == .hal,
            dernier.texte.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") {
-            return [("Oui", nil), ("Non", nil), ("Je ne sais pas", nil)]
+            return [("Oui", nil, nil), ("Non", nil, nil), ("Je ne sais pas", nil, nil)]
         }
-        return [("J'ai mal quelque part", "signalement"), ("Je suis fatigué", "signalement"),
-                ("J'ai un contretemps", "signalement")]
+        return [("J'ai mal quelque part", "signalement", nil), ("Je suis fatigué", "signalement", nil),
+                ("J'ai un contretemps", "signalement", nil)]
     }
 
     private var champ: some View {
@@ -328,10 +342,7 @@ private struct Bulle: View {
         HStack(alignment: .bottom, spacing: 6) {
             if message.auteur == .moi { Spacer(minLength: 48) }
             VStack(alignment: message.auteur == .moi ? .trailing : .leading, spacing: 3) {
-                Text(Self.enForme(message.texte))
-                    .texte(.corps)
-                    .foregroundStyle(Palette.textePrincipal)
-                    .fixedSize(horizontal: false, vertical: true)
+                contenu
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(fond, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -342,6 +353,33 @@ private struct Bulle: View {
             }
             if message.auteur != .moi { Spacer(minLength: 48) }
         }
+    }
+
+    /// AIG-9 : une réponse des deux HAL montre ses deux parties, chacune sous son
+    /// titre, dans la même bulle.
+    @ViewBuilder private var contenu: some View {
+        if message.parties.isEmpty {
+            texte(message.texte)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(message.parties) { partie in
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let titre = partie.titreDuHAL {
+                            Text(titre.uppercased()).texte(.etiquette)
+                                .foregroundStyle(Palette.texteTertiaire)
+                        }
+                        texte(partie.texte)
+                    }
+                }
+            }
+        }
+    }
+
+    private func texte(_ brut: String) -> some View {
+        Text(Self.enForme(brut))
+            .texte(.corps)
+            .foregroundStyle(Palette.textePrincipal)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     /// HAL écrit en markdown : le gras, l'italique et les listes s'affichent,

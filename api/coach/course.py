@@ -120,7 +120,7 @@ def executer_outil(etat: EtatCourse, nom: str, arguments: dict) -> tuple[str, bo
         contenu, refus = REQUALIFIEE, False
     else:
         contenu, refus = outils.executer_outil(nom, etat.id_utilisateur, arguments or {},
-                                               etat.noms)
+                                               etat.noms, outils.catalogue_avec(etat.permis))
     etat.deroule.append({"tour": tour, "outil": nom, "arguments": arguments,
                          "refus": bool(refus), "resultat": contenu[:400]})
     return contenu, refus

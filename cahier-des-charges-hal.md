@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 22 octobre 2026 (migration 077 ; partie G écrite, pas encore construite)
+Version du 22 octobre 2026 (migration 078 ; partie G : lot 16 construit)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
 
@@ -4201,7 +4201,11 @@ Restent à faire avant de s'y fier : les scénarios du chapitre 10.5 avec le vra
 
 Ce qui a changé en route est reporté dans les règles : le jeton de course (FOU-12), les petits travaux (FOU-15), l'annulation d'un accord (ACC-7), la consigne des clients externes (FOU-10), la conduite de Gemini CLI (FOU-11, F.11).
 
-La partie G est écrite le 22 octobre 2026, à partir des choix faits avec Thomas. Rien n'en est construit. Une première version, construite le même jour puis retirée, est racontée à l'annexe 12.
+La partie G est écrite le 22 octobre 2026, à partir des choix faits avec Thomas. Une première version, construite le même jour puis retirée, est racontée à l'annexe 12.
+
+Le **lot 16** est fait le même jour (migration 078, `api/aiguillage.py` et `coach/aiguillage.json`, `api/coach/foyer.py`, `coach/consigne_foyer.md`, `api/routeurs/hal_foyer.py` ; dans l'appli, la réponse en deux parties, les boutons « Maison » et « Sport », le HAL du foyer et sa mémoire dans Réglages, le foyer). Le même module d'appel sert les deux HAL : un appel dit de quel HAL il est, son verrou est par compte et par HAL, et le HAL du foyer a sa consigne, son contexte (les membres, la mémoire du foyer), ses outils (la lecture de la maison, les demandes, sa mémoire) et son moment « maison ». Vérifié par dix-neuf tests du serveur (`tests/test_hal_foyer.py`) ; la suite entière passe, sauf trois tests du bloc Nettoyage et du planning du jour (`test_ensemble.py`, `test_bot.py`) qui échouaient déjà avant ce lot, à cette date. Dans le simulateur, sur la fausse base, avec le vrai modèle : « Bonjour » depuis Aujourd'hui a eu deux réponses dans la même bulle, la maison puis le sport ; « Merci » a fait demander « la maison ou le sport ? », et « Maison » a fait répondre le HAL du foyer, sans réécrire le message.
+
+Ce que le lot 16 laisse aux suivants : le HAL du foyer agit encore par des demandes à accepter ; les gestes directs sont le lot 17. La mémoire du foyer a sa globale et une étape par semaine, mais pas encore le roulement de la nuit (MEM-6) : les semaines passées restent lisibles, les trois dernières entrent dans la consigne.
 
 ---
 
@@ -4766,9 +4770,9 @@ Mêmes conventions que les parties précédentes.
 | Code | Type | Règle |
 |---|---|---|
 | AIG-1 | T | Chaque message à HAL passe par l'aiguillage, un script Python, qui rend « maison », « sport » ou « les deux ». Il essaie dans l'ordre le contexte, les mots-clés, le petit modèle, et s'arrête au premier qui tranche |
-| AIG-2 | T | Le contexte : un message parti de l'onglet Sport, avec une séance ou une semaine jointe, va au sport ; de l'onglet Maison, avec une tâche ou une occurrence jointe, à la maison (COA-33). Aujourd'hui et Réglages ne tranchent pas, sauf élément joint |
+| AIG-2 | T | Le contexte : une séance ou une semaine jointe envoie au sport, seule. L'onglet tranche aussi, Sport pour le sport, Maison pour la maison (COA-33), sauf si les mots-clés parlent de l'autre côté : « décale ma séance et la litière », écrit depuis Maison, va aux deux. Aujourd'hui et Réglages ne tranchent pas |
 | AIG-3 | T | Les mots-clés de `coach/aiguillage.json`, sans égard à la casse ni aux accents. Un côté l'emporte s'il a des mots et l'autre aucun. Des mots des deux côtés donnent « les deux » |
-| AIG-4 | T | Sans mot-clé, un appel très court au petit modèle, qui ne reçoit que le message et répond d'un mot. Un échec, ou une réponse hors des trois, fait demander à l'utilisateur, par deux boutons, « Maison » ou « Sport » |
+| AIG-4 | T | Sans mot-clé, un appel très court au petit modèle, qui ne reçoit que le message et répond d'un mot : maison, sport, les deux, ou aucun pour un message qui ne parle ni de l'un ni de l'autre (« merci »). Aucun, un échec, ou une autre réponse font demander à l'utilisateur, par deux boutons, « Maison » ou « Sport » ; le texte repart avec son choix, sans être réécrit. Un compte qui n'a qu'un des deux HAL actif ne se le voit jamais demander : ce HAL répond |
 | AIG-5 | T | « Les deux » envoie le message aux deux HAL en même temps. Chacun ne fait que sa part, avec ses outils. L'appli rend une seule réponse : les deux messages, chacun sous son titre |
 | AIG-6 | T | Une absence touche les deux : elle se fait par le HAL du foyer, même dite au HAL sport. Le HAL sport la lit ensuite comme aujourd'hui |
 | AIG-7 | D | La décision et ce qui l'a prise (contexte, mots, modèle, utilisateur) sont gardées avec l'échange. Un message mal aiguillé se corrige en ajoutant un mot au fichier, pas dans le code |

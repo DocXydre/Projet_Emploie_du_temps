@@ -5,8 +5,9 @@ module lui envoie une consigne et la liste des outils permis pour ce moment,
 exécute les outils qu'il demande, et recommence jusqu'à ce qu'il rende un
 texte. Il ne décide de rien : il transmet.
 
-    1. un seul appel en cours par compte, l'appel est enregistré      (COA-21, COA-22)
-    2. une opération du journal à lui, sous l'acteur « coach »        (COA-6)
+    1. un seul appel en cours par compte et par HAL, enregistré   (COA-21, COA-22, HDF-7)
+    2. une opération du journal à lui, sous l'acteur « coach », ou
+       « hal_foyer » pour le HAL du foyer                          (COA-6, HDF-7)
     3. la consigne : socle, paquets du sujet, contexte et mémoire,
        derniers échanges, moment                       (COA-3, DOS-3, MEM-1)
     4. la boucle, bornée en tours et en temps                         (COA-7, COA-16)
@@ -30,6 +31,7 @@ from api.coach import (
     course,
     course_gemini,
     dossier,
+    foyer,
     fournisseurs,
     modele,
     office,
@@ -63,6 +65,10 @@ class CoachInactif(Exception):
     """COA-1 : le compte n'a pas le coach."""
 
 
+class FoyerInactif(Exception):
+    """HDF-1 : le compte n'a pas de foyer, ou le HAL du foyer est arrêté."""
+
+
 @dataclass
 class Demande:
     id_utilisateur: int
@@ -83,6 +89,12 @@ class Demande:
     extra: dict = field(default_factory=dict)
     # COA-33 : ce que l'appli affiche quand le message part, en clair.
     ecran: str | None = None
+    # HDF : « sport », le HAL de chacun, ou « foyer », celui de la maison.
+    hal: str = "sport"
+    # AIG-5 : un message envoyé aux deux HAL n'est gardé qu'une fois, par la route.
+    garder_texte: bool = True
+    # AIG-7 : ce qui a choisi le HAL, gardé avec le texte de l'utilisateur.
+    aiguillage: str | None = None
 
 
 def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -> str:
@@ -164,6 +176,8 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
             "n'est pas claire, pose une seule question, avec deux ou trois réponses "
             "possibles. Ton message dit en une ou deux phrases ce que tu proposes et "
             "pourquoi ; les boutons pour valider s'affichent dessous.")
+    elif m == "maison":
+        lignes = [foyer.moment(demande.id_utilisateur)]
     elif m == "chat":
         lignes.append(
             "L'utilisateur t'écrit. Une question : réponds-y. Tu n'as pas ici les outils "
@@ -208,15 +222,17 @@ def _resume(elements: list[dict]) -> str:
     return json.dumps(allege, ensure_ascii=False)
 
 
-def derniers_echanges(id_utilisateur: int) -> str:
-    """CAR-7 : les derniers échanges, du plus ancien au plus récent."""
+def derniers_echanges(id_utilisateur: int, hal: str = "sport") -> str:
+    """CAR-7 : les derniers échanges avec ce HAL, du plus ancien au plus récent.
+    Un message envoyé aux deux HAL est relu par chacun (AIG-5)."""
     lignes = lister(
         """SELECT quand, auteur, moment, contenu, client FROM (
                SELECT e.id_echange, e.quand, e.auteur, e.moment, e.contenu, e.client
-                 FROM echange e WHERE e.id_utilisateur = %(u)s
+                 FROM echange e
+                WHERE e.id_utilisateur = %(u)s AND e.hal IN (%(h)s, 'les_deux')
                 ORDER BY e.id_echange DESC LIMIT %(n)s) x
             ORDER BY id_echange""",
-        {"u": id_utilisateur, "n": configuration().coach_echanges_rendus})
+        {"u": id_utilisateur, "h": hal, "n": configuration().coach_echanges_rendus})
     if not lignes:
         return "# Derniers échanges\n\nAucun échange pour l'instant : c'est le premier."
     morceaux = ["# Derniers échanges (du plus ancien au plus récent)"]
@@ -238,14 +254,24 @@ def derniers_echanges(id_utilisateur: int) -> str:
     return "\n\n".join(morceaux)
 
 
-def consigne(id_utilisateur: int, choix: dict[str, str] | None = None) -> list[dict]:
+def consigne(id_utilisateur: int, choix: dict[str, str] | None = None,
+             hal: str = "sport") -> list[dict]:
     """La consigne, du plus stable au plus changeant.
+
+    Le HAL du foyer a la sienne, sans le dossier sportif : sa consigne, puis le
+    foyer et sa mémoire (HDF-4).
 
     Le fournisseur facture moins cher une partie déjà vue : la partie fixe vient
     donc en premier et reste identique d'un appel à l'autre, au caractère près.
     Puis les paquets du dossier choisis pour cet appel (DOS-3), identiques pour
     un même choix. Puis le contexte et la mémoire.
     """
+    if hal == "foyer":
+        return [
+            {"type": "text", "text": foyer.consigne(), "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": foyer.texte_contexte(id_utilisateur),
+             "cache_control": {"type": "ephemeral"}},
+        ]
     return [
         {"type": "text", "text": dossier.consigne() + "\n\n" + dossier.base(),
          "cache_control": {"type": "ephemeral"}},
@@ -256,10 +282,11 @@ def consigne(id_utilisateur: int, choix: dict[str, str] | None = None) -> list[d
     ]
 
 
-def appel_en_cours(id_utilisateur: int) -> str | None:
-    """Le moment de l'appel en cours pour ce compte, s'il y en a un (COA-22)."""
+def appel_en_cours(id_utilisateur: int, hal: str = "sport") -> str | None:
+    """Le moment de l'appel en cours pour ce compte et ce HAL, s'il y en a un (COA-22)."""
     ligne = un_seul("SELECT moment FROM appel_coach WHERE id_utilisateur = %(u)s "
-                    "AND statut = 'en_cours' LIMIT 1", {"u": id_utilisateur})
+                    "AND hal = %(h)s AND statut = 'en_cours' LIMIT 1",
+                    {"u": id_utilisateur, "h": hal})
     return (ligne or {}).get("moment")
 
 
@@ -319,12 +346,13 @@ def _ouvrir_appel(demande: Demande, operation_id: str, delai: float) -> int | No
         try:
             ligne = executer(
                 """INSERT INTO appel_coach (id_utilisateur, moment, declencheur, operation,
-                                            essai, cle_client, modele)
-                   VALUES (%(u)s, %(m)s, %(d)s, %(o)s, %(e)s, %(c)s, %(mo)s)
+                                            essai, cle_client, modele, hal, id_foyer)
+                   VALUES (%(u)s, %(m)s, %(d)s, %(o)s, %(e)s, %(c)s, %(mo)s, %(h)s::VARCHAR,
+                           CASE WHEN %(h)s::VARCHAR = 'foyer' THEN foyer_de(%(u)s) END)
                    RETURNING id_appel""",
                 {"u": demande.id_utilisateur, "m": demande.moment,
                  "d": demande.declencheur, "o": operation_id, "e": demande.essai,
-                 "c": demande.cle_client, "mo": modele_de(demande)})
+                 "c": demande.cle_client, "mo": modele_de(demande), "h": demande.hal})
             return ligne["id_appel"]
         except psycopg.errors.UniqueViolation:
             if time.monotonic() >= limite:
@@ -360,16 +388,16 @@ def _enregistrer(demande: Demande, moment: str, auteur: str, message: str,
         cur.execute(
             """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, id_occurrence,
                                     operation, modele, version_dossier, elements, id_appel,
-                                    fournisseur)
+                                    fournisseur, hal)
                VALUES (%(u)s, %(a)s, %(m)s, %(c)s, %(o)s, %(op)s, %(mo)s, %(v)s, %(e)s, %(ap)s,
-                       %(f)s)
-               RETURNING id_echange, moment, auteur, contenu, elements, quand""",
+                       %(f)s, %(h)s)
+               RETURNING id_echange, moment, auteur, contenu, elements, quand, hal""",
             {"u": demande.id_utilisateur, "a": auteur, "m": moment, "c": message,
              "o": demande.id_occurrence, "op": operation_id,
              "mo": modele_de(demande) if auteur == "coach" else None,
              "v": dossier.version() if auteur == "coach" else None,
              "e": Jsonb(elements), "ap": id_appel,
-             "f": fournisseur if auteur == "coach" else None})
+             "f": fournisseur if auteur == "coach" else None, "h": demande.hal})
         echange = cur.fetchone()
         cur.execute(
             """INSERT INTO notification (id_utilisateur, type, contenu, id_echange,
@@ -387,10 +415,13 @@ def garder_le_texte(demande: Demande, moment: str | None = None) -> int | None:
     if not (demande.texte or "").strip():
         return None
     ligne = executer(
-        """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, id_occurrence)
-           VALUES (%(u)s, 'utilisateur', %(m)s, %(c)s, %(o)s) RETURNING id_echange""",
+        """INSERT INTO echange (id_utilisateur, auteur, moment, contenu, id_occurrence, hal,
+                               aiguillage)
+           VALUES (%(u)s, 'utilisateur', %(m)s, %(c)s, %(o)s, %(h)s, %(ai)s)
+           RETURNING id_echange""",
         {"u": demande.id_utilisateur, "m": moment or demande.moment,
-         "c": demande.texte.strip(), "o": demande.id_occurrence})
+         "c": demande.texte.strip(), "o": demande.id_occurrence, "h": demande.hal,
+         "ai": demande.aiguillage})
     return ligne["id_echange"]
 
 
@@ -406,6 +437,8 @@ def modele_de(demande: Demande) -> str:
     """Le modèle de cet appel : le moins cher pour le chat et la synthèse simple,
     s'il est réglé (COA-31)."""
     conf = configuration()
+    if demande.hal == "foyer":
+        return conf.coach_modele
     simple = demande.moment == "chat" or demande.extra.get("simple")
     return (conf.coach_modele_simple if simple else "") or conf.coach_modele
 
@@ -423,11 +456,17 @@ def appeler_coach(demande: Demande) -> dict:
                   else conf.coach_delai_secondes)
     depart = time.monotonic()
 
-    compte = un_seul("SELECT coach_actif, en_pause(id_utilisateur) AS en_pause "
-                     "FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
-                     {"u": demande.id_utilisateur})
-    if compte is None or not compte["coach_actif"]:
-        raise CoachInactif("Le coach n'est pas activé pour ce compte")
+    if demande.hal == "foyer":
+        # HDF-1 : le HAL du foyer ne dépend pas du HAL sport du compte.
+        if foyer.actif_pour(demande.id_utilisateur) is None:
+            raise FoyerInactif("Le HAL du foyer n'est pas actif pour ce compte")
+        compte = {"coach_actif": True, "en_pause": False}
+    else:
+        compte = un_seul("SELECT coach_actif, en_pause(id_utilisateur) AS en_pause "
+                         "FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
+                         {"u": demande.id_utilisateur})
+        if compte is None or not compte["coach_actif"]:
+            raise CoachInactif("Le coach n'est pas activé pour ce compte")
 
     deja = _deja_demande(demande, delai)
     if deja is not None:
@@ -436,10 +475,11 @@ def appeler_coach(demande: Demande) -> dict:
     # Le texte de l'utilisateur lui est rendu avec les derniers échanges des
     # appels suivants : il est donc lu avant d'être gardé, pour ne pas figurer
     # deux fois dans celui-ci.
-    echanges = derniers_echanges(demande.id_utilisateur)
+    echanges = derniers_echanges(demande.id_utilisateur, demande.hal)
     # DOS-2 : les paquets du dossier, choisis avant que le texte soit gardé, pour
-    # que « le dernier message du coach » soit bien celui auquel il répond.
-    if demande.extra.get("simple"):
+    # que « le dernier message du coach » soit bien celui auquel il répond. Le
+    # HAL du foyer n'a pas de dossier.
+    if demande.extra.get("simple") or demande.hal == "foyer":
         # COA-31 : un jour sans séance, le socle suffit.
         choix = aiguillage.Aiguillage()
     else:
@@ -447,7 +487,8 @@ def appeler_coach(demande: Demande) -> dict:
                                    demande.id_occurrence,
                                    dernier_message_du_coach(demande.id_utilisateur)
                                    if demande.texte else None)
-    id_texte = garder_le_texte(demande) if demande.essai == 1 else None
+    id_texte = garder_le_texte(demande) if demande.essai == 1 and demande.garder_texte \
+        else None
 
     operation_id = demande.operation_id or uuid.uuid4().hex[:16]
     # Un message écrit pendant qu'un plan se construit attend la fin du plan, qui
@@ -475,7 +516,7 @@ def appeler_coach(demande: Demande) -> dict:
                           "tokens_entree": choix.tokens_entree,
                           "tokens_sortie": choix.tokens_sortie}],
              "choix": choix.choix}
-    with operation.ouvrir_a_part(f"coach : {demande.moment}", "coach", operation_id):
+    with operation.ouvrir_a_part(*foyer.origine_et_acteur(demande.moment), operation_id):
         try:
             texte = _par_les_fournisseurs(demande, compte, echanges, id_texte, suivi,
                                           depart + delai)
@@ -596,17 +637,19 @@ def _preparer(demande: Demande, compte: dict, echanges: str, suivi: dict) -> _Pr
     moment = suivi["moment"]
     # PAU-6 : à la reprise, la pause vient d'être levée et la révision a tout.
     en_pause = bool(compte["en_pause"]) and not demande.extra.get("reprise")
-    permis = outils.outils_du_moment(moment, en_pause)
+    permis = foyer.outils_du_moment(moment) if demande.hal == "foyer" \
+        else outils.outils_du_moment(moment, en_pause)
     if demande.extra.get("simple"):
         permis = [o for o in permis if o.famille not in FERMEES_SI_SIMPLE]
     borne = conf.coach_tours_plan if moment in MOMENTS_LONGS else conf.coach_tours
     relais = bool(suivi.get("relais"))
     deja_ecrit = reponse.elements_de(suivi_operation()) \
         if demande.essai > 1 or relais else []
-    systeme = consigne(id_utilisateur, suivi.get("choix"))
+    systeme = consigne(id_utilisateur, suivi.get("choix"), demande.hal)
     # COA-28 : ce que le moment lit à coup sûr est joint d'office, pour épargner
     # un passage entier au modèle.
-    lu = office.texte(id_utilisateur, moment, demande.id_occurrence)
+    lu = foyer.office(id_utilisateur) if demande.hal == "foyer" \
+        else office.texte(id_utilisateur, moment, demande.id_occurrence)
     premier = "\n\n".join(x for x in (echanges, lu, _moment_du(demande, deja_ecrit, relais))
                            if x)
     return _Preparation(permis, borne, modele_de(demande), systeme, premier, en_pause)
@@ -801,8 +844,11 @@ def _boucler(demande: Demande, compte: dict, echanges: str, id_texte: int | None
                     "proposées, et déposer un ajustement sur une séance validée. Garde la "
                     "trace de ce qui est signalé dans la mémoire de la semaine.", False)
             else:
+                # Le catalogue est celui du moment : le HAL du foyer a des outils
+                # que le HAL sport n'a pas.
                 contenu, erreur = outils.executer_outil(
-                    voulu.nom, id_utilisateur, voulu.arguments, noms_permis)
+                    voulu.nom, id_utilisateur, voulu.arguments, noms_permis,
+                    outils.catalogue_avec(permis))
             suivi["deroule"].append({"tour": suivi["tours"], "outil": voulu.nom,
                                      "arguments": voulu.arguments, "refus": bool(erreur),
                                      "resultat": contenu[:400]})

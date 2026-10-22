@@ -919,6 +919,13 @@ def tous_les_outils() -> tuple[Outil, ...]:
     return (*OUTILS, *demandes.OUTILS)
 
 
+def catalogue_avec(permis: list[Outil]) -> dict[str, Outil]:
+    """Tous les outils du coach, et ceux du moment : un outil du HAL du foyer n'est
+    pas dans le catalogue du coach, et un outil hors du moment reste « non permis »
+    plutôt qu'« inconnu »."""
+    return {**{o.nom: o for o in tous_les_outils()}, **{o.nom: o for o in permis}}
+
+
 def outils_du_moment(moment: str, en_pause: bool = False) -> list[Outil]:
     """COA-5, PAU-2 : les outils permis pour ce moment."""
     familles = set(FAMILLES_DU_MOMENT[moment])

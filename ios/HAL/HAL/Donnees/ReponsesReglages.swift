@@ -159,6 +159,8 @@ struct FoyerLu: Codable, Sendable {
     /// « tous » ou « admin » (FOY-6).
     let ajoutTaches: String
     let modifTaches: String
+    /// HDF-1 : le HAL du foyer, actif par défaut.
+    var halActif: Bool? = nil
     let placesLibres: Int
     let jeSuisAdmin: Bool
     let membres: [MembreLu]
@@ -234,4 +236,23 @@ enum Heure {
         guard morceaux.count == 2, let h = Int(morceaux[0]), let m = Int(morceaux[1]) else { return texte }
         return m == 0 ? "\(h) h" : "\(h) h \(String(format: "%02d", m))"
     }
+}
+
+
+/// HDF-4 : la mémoire du foyer, commune aux membres.
+struct MemoireFoyerLue: Codable, Sendable {
+    struct Etage: Codable, Hashable, Sendable {
+        var texte: String = ""
+        var longueur: Int? = nil
+        var limite: Int? = nil
+        /// Le membre qui l'a corrigée en dernier ; vide si c'est HAL.
+        var nomAuteur: String? = nil
+        var quand: Date? = nil
+        /// « 2026-10-19 » pour une semaine.
+        var periode: String? = nil
+    }
+
+    var globale: Etage? = nil
+    var semaine: Etage? = nil
+    var semainesPassees: [Etage] = []
 }
