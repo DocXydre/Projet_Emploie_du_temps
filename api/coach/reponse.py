@@ -52,6 +52,9 @@ def actions(element: dict) -> list[dict]:
                         f"/objectifs/{element['id_objectif']}")]
     if genre == "plan":
         return [_action("Voir le plan", "GET", "/plan")]
+    if genre == "demande" and element.get("geste"):
+        # ACT-2 : un geste se fait seul ; « Annuler » le retient, quelques secondes.
+        return [_action("Annuler", "POST", f"/demandes/{element['id_demande']}/refuser")]
     if genre == "demande":
         # ACC-5, ACC-12 : l'accord se donne d'un bouton, jamais par un outil.
         d = element["id_demande"]

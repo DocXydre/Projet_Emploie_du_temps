@@ -306,6 +306,24 @@ final class ConversationHAL {
         })
     }
 
+    /// ACT-2 : un geste de HAL est déjà parti au serveur, qui l'exécute dans
+    /// quelques secondes. « Annuler » le refuse avant.
+    func annulerGeste(_ element: ElementHAL, annoncer: AnnonceurAction) {
+        guard let idDemande = element.idDemande, faits[element.id] == nil else { return }
+        faits[element.id] = "Annulé"
+        guard let client else { return }
+        Task { [weak self] in
+            do {
+                try await client.envoyer("POST", "demandes/\(idDemande)/refuser")
+                annoncer("Annulé")
+                await self?.apresAction?()
+            } catch {
+                // Trop tard : le geste est fait. On le dit, sans rien défaire.
+                self?.faits[element.id] = "Fait : trop tard pour annuler"
+            }
+        }
+    }
+
     // MARK: Le message gardé
 
     private static var fichierAttente: URL { Foyer.fichier("hal-en-attente.json") }

@@ -42,9 +42,10 @@ FAMILLES_DU_MOMENT = {
     # rien ne s'applique sans le bouton de l'utilisateur.
     "changement":  {"lecture", "seances", "memoire", "demandes"},
     # Dans le chat, le coach lit et tient sa mémoire : il ne propose aucune séance.
-    # S'il lit un signalement dans le texte, il le requalifie (COA-25). Pour le
-    # planning et la maison, il dépose des demandes, que l'utilisateur accepte (ACC-1).
-    "chat":        {"lecture", "memoire", "requalification", "mesure", "demandes"},
+    # S'il lit un signalement dans le texte, il le requalifie (COA-25). Il fait les
+    # gestes de l'onglet Sport qu'on lui demande (ACT-1) ; la maison est au HAL du
+    # foyer (AIG).
+    "chat":        {"lecture", "memoire", "requalification", "mesure", "gestes_sport"},
 }
 
 # PAU-2 : en pause, ces familles sont fermées pour tous les moments.
@@ -916,7 +917,7 @@ def tous_les_outils() -> tuple[Outil, ...]:
     """Ceux du coach, et les demandes (ACC). Importées ici : `api.demandes` appelle
     les routes, qui importent ce module."""
     from api import demandes
-    return (*OUTILS, *demandes.OUTILS)
+    return (*OUTILS, *demandes.OUTILS, *demandes.OUTILS_GESTES_SPORT)
 
 
 def catalogue_avec(permis: list[Outil]) -> dict[str, Outil]:

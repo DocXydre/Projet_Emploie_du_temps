@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import psycopg
 from psycopg.types.json import Jsonb
 
-from api import operation
+from api import demandes, operation
 from api.base import connexion, executer, lister, un_seul
 from api.coach import (
     aiguillage,
@@ -180,12 +180,14 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
         lignes = [foyer.moment(demande.id_utilisateur)]
     elif m == "chat":
         lignes.append(
-            "L'utilisateur t'écrit. Une question : réponds-y. Tu n'as pas ici les outils "
-            "de séance. Appelle d'abord `requalifier_en_signalement` si son texte demande "
-            "un changement du plan (ajouter, déplacer, retirer ou changer une séance, "
-            "courir un autre jour), s'il signale une douleur, une fatigue ou un "
-            "contretemps, ou s'il répond à une question que tu as posée : tu auras alors "
-            "les outils pour agir. Une mesure qu'il te donne (poids, tour de bras, temps) "
+            "L'utilisateur t'écrit. Une question : réponds-y. S'il te demande un geste de "
+            "l'onglet Sport (valider la semaine ou une séance, déplacer ou supprimer une "
+            "séance validée, déclarer une séance pas faite), fais-le avec l'outil du geste. "
+            "Tu n'as pas ici les outils pour proposer des séances. Appelle d'abord "
+            "`requalifier_en_signalement` s'il faut changer le plan lui-même (ajouter une "
+            "séance, en changer le contenu, remplacer une séance par une autre), s'il "
+            "signale une douleur, une fatigue ou un contretemps, ou s'il répond à une "
+            "question que tu as posée : tu auras alors les outils pour agir. Une mesure qu'il te donne (poids, tour de bras, temps) "
             "s'enregistre avec `noter_mesure`. N'écris jamais « c'est noté », « je vais "
             "proposer » ou « je déplace » sans l'avoir fait par un outil dans cet appel.")
 
@@ -525,6 +527,8 @@ def appeler_coach(demande: Demande) -> dict:
             rendu = _enregistrer(demande, moment, "coach",
                                  texte.strip() or reponse.MESSAGE_SANS_TEXTE,
                                  elements, operation_id, id_appel, suivi.get("fournisseur"))
+            # ACT-2 : les gestes de l'appel partiront dans quelques secondes.
+            demandes.programmer_les_gestes(operation_id)
             _clore_appel(id_appel, "termine", suivi)
             trace.ecrire(id_appel, moment, suivi, texte)
             # FOU-9 : la réponse dit par qui elle est venue, quand ce n'est pas le premier.

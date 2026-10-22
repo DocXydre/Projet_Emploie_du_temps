@@ -424,6 +424,8 @@ private struct CarteElement: View {
     let ouvrir: (OuvertureDepuisHAL) -> Void
     @Environment(ConversationHAL.self) private var conversation
     @Environment(\.annoncer) private var annoncer
+    /// ACT-2 : un geste se laisse annuler cinq secondes, puis il est fait.
+    @State private var annulable = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -443,7 +445,8 @@ private struct CarteElement: View {
                         .texte(.corps).foregroundStyle(Palette.textePrincipal).lineLimit(1)
                 }
             }
-            if let regle = conversation.faits[element.id] ?? element.regle {
+            if let regle = conversation.faits[element.id] ?? element.regle
+                ?? (element.geste == true && !annulable ? "Fait" : nil) {
                 Label(regle, systemImage: "checkmark.circle.fill")
                     .texte(.corpsFort).foregroundStyle(Categorie.sport.couleur)
             } else if !boutons.isEmpty {
@@ -463,6 +466,14 @@ private struct CarteElement: View {
         .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Palette.verreBord, lineWidth: 0.5))
         .padding(.trailing, 24)
+        .task(id: element.id) {
+            guard element.geste == true, element.etat == nil else {
+                annulable = false
+                return
+            }
+            try? await Task.sleep(for: .seconds(5))
+            annulable = false
+        }
     }
 
     private var titre: String {
@@ -491,7 +502,7 @@ private struct CarteElement: View {
         case "fenetre_mesure": "scalemass"
         case "avis_objectif": "target"
         case "plan": "calendar"
-        case "demande": "hand.raised"
+        case "demande": element.geste == true ? "checkmark.circle" : "hand.raised"
         default: "sparkle"
         }
     }
@@ -518,6 +529,8 @@ private struct CarteElement: View {
         case "avis_objectif", "avis_seance_libre":
             return [TexteHAL.avis(element.avis), element.detail].compactMap { $0 }
         case "demande":
+            // ACT-2 : un geste est déjà fait ; il n'attend pas d'accord.
+            if element.geste == true { return [] }
             return [element.motif, "Rien ne change sans ton accord"].compactMap { $0 }
         case "plan":
             return (element.semaines ?? []).map { semaine in
@@ -570,6 +583,10 @@ private struct CarteElement: View {
             return [Bouton(libelle: "Voir les objectifs") { ouvrir(.objectifs) }]
         case "plan":
             return [Bouton(libelle: "Voir la semaine") { ouvrir(.semaine(nil)) }]
+        case "demande" where element.geste == true:
+            return annulable ? [Bouton(libelle: "Annuler") {
+                conversation.annulerGeste(element, annoncer: annoncer)
+            }] : []
         case "demande":
             // ACC-5, ACC-7 : l'accord part au bout de cinq secondes, « Annuler » le retient.
             return [differe("Accepter", "Demande acceptée"),
