@@ -8,7 +8,7 @@ les tâches (FOY-6) ; la base refuse un nom déjà pris et un type encore porté
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.base import connexion, executer, lister, un_seul
+from api.base import executer, lister, un_seul
 from api.routeurs.taches import _exiger_droit
 from api.securite import Authentifie
 
@@ -16,7 +16,7 @@ routeur = APIRouter(prefix="/types-taches", tags=["Types de tâches"])
 
 LIRE_TYPES = """
     SELECT y.id_type_tache AS id, y.libelle, y.couleur, y.icone, y.duree_minutes,
-           y.priorite, y.categorie, y.ordre, y.penibilite,
+           y.priorite, y.categorie, y.ordre,
            (SELECT count(*) FROM tache t
              WHERE t.id_type_tache = y.id_type_tache AND t.active)::INTEGER AS taches
       FROM type_tache y
@@ -31,8 +31,6 @@ class NouveauType(BaseModel):
     icone: str = Field(default="checklist", max_length=60)
     duree_minutes: int = Field(default=15, ge=1, le=480)
     priorite: int = Field(default=4, ge=1, le=5)
-    # REP-3 : de 1 à 3.
-    penibilite: int = Field(default=2, ge=1, le=3)
 
 
 class ModificationType(BaseModel):
@@ -41,7 +39,6 @@ class ModificationType(BaseModel):
     icone: str | None = Field(default=None, max_length=60)
     duree_minutes: int | None = Field(default=None, ge=1, le=480)
     priorite: int | None = Field(default=None, ge=1, le=5)
-    penibilite: int | None = Field(default=None, ge=1, le=3)
 
 
 def lire_types() -> list[dict]:
@@ -66,30 +63,23 @@ def lister_types(qui: Authentifie) -> list[dict]:
 @routeur.post("", status_code=status.HTTP_201_CREATED, summary="Créer un type")
 def creer_type(demande: NouveauType, qui: Authentifie) -> dict:
     _exiger_droit(qui, "modifier")
-    with connexion() as conn:
-        cree = conn.execute(
-            "SELECT enregistrer_type_tache(NULL, %(l)s, %(c)s, %(i)s, %(d)s, %(p)s) AS id",
-            {"l": demande.libelle, "c": demande.couleur, "i": demande.icone,
-             "d": demande.duree_minutes, "p": demande.priorite},
-        ).fetchone()
-        assert cree is not None
-        conn.execute("UPDATE type_tache SET penibilite = %(n)s WHERE id_type_tache = %(id)s",
-                     {"n": demande.penibilite, "id": cree["id"]})
+    cree = executer(
+        "SELECT enregistrer_type_tache(NULL, %(l)s, %(c)s, %(i)s, %(d)s, %(p)s) AS id",
+        {"l": demande.libelle, "c": demande.couleur, "i": demande.icone,
+         "d": demande.duree_minutes, "p": demande.priorite},
+    )
+    assert cree is not None
     return _un_type(cree["id"])
 
 
 @routeur.patch("/{id_type}", summary="Le renommer, le recolorer, changer ses valeurs par défaut")
 def modifier_type(id_type: int, demande: ModificationType, qui: Authentifie) -> dict:
     _exiger_droit(qui, "modifier")
-    with connexion() as conn:
-        conn.execute(
-            "SELECT enregistrer_type_tache(%(id)s, %(l)s, %(c)s, %(i)s, %(d)s, %(p)s)",
-            {"id": id_type, "l": demande.libelle, "c": demande.couleur, "i": demande.icone,
-             "d": demande.duree_minutes, "p": demande.priorite},
-        )
-        if demande.penibilite is not None:
-            conn.execute("UPDATE type_tache SET penibilite = %(n)s WHERE id_type_tache = %(id)s",
-                         {"n": demande.penibilite, "id": id_type})
+    executer(
+        "SELECT enregistrer_type_tache(%(id)s, %(l)s, %(c)s, %(i)s, %(d)s, %(p)s)",
+        {"id": id_type, "l": demande.libelle, "c": demande.couleur, "i": demande.icone,
+         "d": demande.duree_minutes, "p": demande.priorite},
+    )
     return _un_type(id_type)
 
 

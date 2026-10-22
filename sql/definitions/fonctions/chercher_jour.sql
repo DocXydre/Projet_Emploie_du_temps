@@ -5,22 +5,16 @@
 --
 -- Et le jour le moins chargé de la fenêtre, pas le premier venu : prendre le
 -- premier entassait toutes les tâches sur la même journée.
---
--- CND-8 : avec la tâche, seuls les jours où ses règles tiennent comptent. Une
--- tâche à règle se cherche alors sur toute sa fenêtre : le seul jour libre du
--- mois peut tomber le 28.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chercher_jour(
     p_utilisateur INTEGER,
     p_fenetre     TSTZRANGE,
-    p_duree       INTERVAL,
-    p_tache       INTEGER DEFAULT NULL
+    p_duree       INTERVAL
 ) RETURNS TSTZRANGE LANGUAGE plpgsql STABLE AS $$
 DECLARE
     -- Au-delà, l'examen de chaque jour coûte plus qu'il ne rapporte : une tâche
     -- mensuelle n'a pas besoin d'être comparée sur trente et un jours.
     EXAMEN_MAX CONSTANT INTEGER := 21;
-    EXAMEN_REGLE CONSTANT INTEGER := 62;
 
     v_jour       DATE;
     v_dernier    DATE;
@@ -29,17 +23,15 @@ DECLARE
     v_meilleur   DATE     := NULL;
     v_charge_min INTEGER  := NULL;
     v_libre_max  INTERVAL := NULL;
-    v_regles     BOOLEAN  := p_tache IS NOT NULL AND a_des_regles(p_tache);
 BEGIN
     v_jour    := GREATEST(jour_de(lower(p_fenetre)), jour_de(now()));
     v_dernier := LEAST(jour_de(upper(p_fenetre) - INTERVAL '1 second'),
-                       v_jour + CASE WHEN v_regles THEN EXAMEN_REGLE ELSE EXAMEN_MAX END);
+                       v_jour + EXAMEN_MAX);
 
     WHILE v_jour <= v_dernier LOOP
         -- ABS-1 : un jour d'absence ne reçoit rien. On ne fait pas le ménage
         -- d'un appartement où l'on n'est pas.
-        IF est_absent(p_utilisateur, v_jour)
-           OR (v_regles AND NOT regles_tiennent(p_tache, p_utilisateur, v_jour)) THEN
+        IF est_absent(p_utilisateur, v_jour) THEN
             v_jour := v_jour + 1;
             CONTINUE;
         END IF;

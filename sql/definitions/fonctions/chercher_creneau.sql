@@ -1,7 +1,5 @@
 -- -----------------------------------------------------------------------------
 -- Recherche d'un créneau horaire, pour une tâche à heure imposée         (PLA-2)
---
--- CND-8 : avec la tâche, seuls les jours où ses règles tiennent comptent.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION chercher_creneau(
     p_utilisateur INTEGER,
@@ -10,15 +8,13 @@ CREATE OR REPLACE FUNCTION chercher_creneau(
     p_heure_min   TIME,
     p_heure_max   TIME,
     p_machine     BOOLEAN,
-    p_commun      BOOLEAN DEFAULT FALSE,
-    p_tache       INTEGER DEFAULT NULL
+    p_commun      BOOLEAN DEFAULT FALSE
 ) RETURNS TSTZRANGE LANGUAGE plpgsql STABLE AS $$
 DECLARE
     v_jour    DATE;
     v_dernier DATE;
     v_plage   TSTZRANGE;
     v_dispo   TSTZRANGE;
-    v_regles  BOOLEAN := p_tache IS NOT NULL AND a_des_regles(p_tache);
 BEGIN
     v_jour    := GREATEST(jour_de(lower(p_fenetre)), jour_de(now()));
     v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
@@ -26,8 +22,7 @@ BEGIN
     WHILE v_jour <= v_dernier LOOP
         -- ABS-1 : ni machine ni ménage un jour où l'on n'est pas là.
         IF NOT est_absent(p_utilisateur, v_jour)
-           AND NOT (p_machine AND machine_occupee(v_jour))
-           AND NOT (v_regles AND NOT regles_tiennent(p_tache, p_utilisateur, v_jour)) THEN
+           AND NOT (p_machine AND machine_occupee(v_jour)) THEN
 
             -- Plage autorisée ce jour-là, ramenée à la fenêtre d'échéance et
             -- à ce qui reste à venir : on ne propose pas 14h quand il est 16h.

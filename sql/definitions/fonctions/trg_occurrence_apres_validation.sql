@@ -6,7 +6,6 @@ AS $function$
 DECLARE
     t          RECORD;
     e          RECORD;
-    f          RECORD;
     v_cible    RECORD;
     v_depart   TIMESTAMPTZ;
     v_limite   TIMESTAMPTZ;
@@ -29,18 +28,14 @@ BEGIN
        AND NOT epinglee;
 
     -- ---- EXE-1 : l'occurrence suivante part de la date réelle ------------------
-    --
-    -- CND-4 : une tâche à rythme ne repart pas d'une date, elle remplit sa
-    -- période. Le placement qui suit la régénère.
-    SELECT * INTO f FROM frequence_de(t.id_tache, jour_de(NEW.date_faite));
-    IF t.active AND t.recurrente AND f.rythme_nombre IS NULL THEN
+    IF t.active AND t.recurrente THEN
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
                                 id_occurrence_source)
         VALUES (t.id_tache,
                 t.id_utilisateur_defaut,
                 fenetre_pour(t.rappel_journee,
-                             NEW.date_faite + make_interval(days => f.periodicite_min_jours),
-                             NEW.date_faite + make_interval(days => f.periodicite_max_jours)),
+                             NEW.date_faite + make_interval(days => t.periodicite_min_jours),
+                             NEW.date_faite + make_interval(days => t.periodicite_max_jours)),
                 'recurrence',
                 NEW.id_occurrence);
     END IF;
@@ -114,7 +109,6 @@ BEGIN
 
         -- TAC-19 : le planning a déjà retiré le ramassage du jour, il n'y a
         -- alors rien à couvrir. La chaîne repart quand même de la date réelle.
-        SELECT * INTO f FROM frequence_de(e.id_tache, jour_de(NEW.date_faite));
         IF v_couvertes = 0 AND e.active AND e.recurrente THEN
             DELETE FROM occurrence
              WHERE id_tache = e.id_tache
@@ -122,17 +116,15 @@ BEGIN
                AND statut IN ('a_placer', 'planifiee')
                AND NOT epinglee;
 
-            IF f.rythme_nombre IS NULL THEN
-                INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
-                                        id_occurrence_source)
-                VALUES (e.id_tache,
-                        e.id_utilisateur_defaut,
-                        fenetre_pour(e.rappel_journee,
-                                     NEW.date_faite + make_interval(days => f.periodicite_min_jours),
-                                     NEW.date_faite + make_interval(days => f.periodicite_max_jours)),
-                        'recurrence',
-                        NEW.id_occurrence);
-            END IF;
+            INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
+                                    id_occurrence_source)
+            VALUES (e.id_tache,
+                    e.id_utilisateur_defaut,
+                    fenetre_pour(e.rappel_journee,
+                                 NEW.date_faite + make_interval(days => e.periodicite_min_jours),
+                                 NEW.date_faite + make_interval(days => e.periodicite_max_jours)),
+                    'recurrence',
+                    NEW.id_occurrence);
         END IF;
     END LOOP;
 

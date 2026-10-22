@@ -100,45 +100,6 @@ private struct ChoixDuType: View {
     }
 }
 
-// MARK: - Le rythme d'une tâche régulière                         (TAC-1, CND-4)
-
-/// Tous les N jours, ou N fois par semaine ou par mois.
-enum SorteRythme: String, CaseIterable, Identifiable {
-    case jours = "Tous les N jours"
-    case semaine = "Par semaine"
-    case mois = "Par mois"
-    var id: String { rawValue }
-    var periode: String? {
-        switch self {
-        case .jours: nil
-        case .semaine: "semaine"
-        case .mois: "mois"
-        }
-    }
-}
-
-/// Le choix du rythme, et le nombre qui va avec.
-private struct ChampsRythme: View {
-    @Binding var sorte: SorteRythme
-    @Binding var tousLes: Int
-    @Binding var fois: Int
-
-    var body: some View {
-        Picker("Rythme", selection: $sorte) {
-            ForEach(SorteRythme.allCases) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        switch sorte {
-        case .jours:
-            Stepper(tousLes == 1 ? "Tous les jours" : "Tous les \(tousLes) jours",
-                    value: $tousLes, in: 1...365)
-        case .semaine, .mois:
-            Stepper("\(fois == 1 ? "Une fois" : "\(fois) fois") par \(sorte.periode ?? "")",
-                    value: $fois, in: 1...(sorte == .semaine ? 7 : 31))
-        }
-    }
-}
-
 // MARK: - Nouvelle tâche                                  (TAC-20 à TAC-24, FOY-6)
 
 struct FormulaireTache: View {
@@ -176,8 +137,6 @@ struct FormulaireTache: View {
     @State private var au = Date.now
     @State private var oublier = false
     @State private var tousLes = 7
-    @State private var sorteRythme = SorteRythme.jours
-    @State private var fois = 1
     @State private var apres: Int?
     @State private var delai = Delai.lendemain
     @State private var delaiMin = 8
@@ -213,7 +172,8 @@ struct FormulaireTache: View {
                 switch maniere {
                 case .uneFois: champsUneFois
                 case .reguliere:
-                    ChampsRythme(sorte: $sorteRythme, tousLes: $tousLes, fois: $fois)
+                    Stepper(tousLes == 1 ? "Tous les jours" : "Tous les \(tousLes) jours",
+                            value: $tousLes, in: 1...365)
                 case .apres: champsApres
                 }
             } header: {
@@ -295,8 +255,6 @@ struct FormulaireTache: View {
         let dureeMinutes: Int
         let pour: Int?
         var tousLesJours: Int? = nil
-        var fois: Int? = nil
-        var par: String? = nil
         var du: String? = nil
         var au: String? = nil
         var apres: Int? = nil
@@ -320,12 +278,7 @@ struct FormulaireTache: View {
             demande.au = jourAPI(moment == .aujourdhui ? aujourdhui : au)
             demande.siPasFaite = oublier ? "oublier" : "reporter"
         case .reguliere:
-            if let periode = sorteRythme.periode {
-                demande.fois = fois
-                demande.par = periode
-            } else {
-                demande.tousLesJours = tousLes
-            }
+            demande.tousLesJours = tousLes
         case .apres:
             demande.apres = apres
             switch delai {
@@ -524,10 +477,6 @@ struct EcranDetailTache: View {
     /// Le rythme lu : on ne renvoie la périodicité que s'il a changé, pour ne
     /// pas élargir une tâche sans jeu comme les poubelles (TAC-11).
     @State private var tousLesLu = 7
-    /// CND-4 : le rythme lu, pour ne renvoyer que ce qui change.
-    @State private var sorteRythme = SorteRythme.jours
-    @State private var fois = 1
-    @State private var rythmeLu: (SorteRythme, Int) = (.jours, 1)
     @State private var heure = ChoixHeure()
     @State private var pourQui: Int?
     @State private var ajoutLien = false
@@ -543,8 +492,8 @@ struct EcranDetailTache: View {
                     TextField("Nom", text: $libelle).disabled(!modifiable)
                     Stepper("Durée : \(duree) min", value: $duree, in: 5...240, step: 5).disabled(!modifiable)
                     if tache.recurrente != false {
-                        ChampsRythme(sorte: $sorteRythme, tousLes: $tousLes, fois: $fois)
-                            .disabled(!modifiable)
+                        Stepper(tousLes == 1 ? "Tous les jours" : "Tous les \(tousLes) jours",
+                                value: $tousLes, in: 1...365).disabled(!modifiable)
                     } else {
                         LabeledContent("Quand", value: tache.rythme)
                     }
@@ -582,7 +531,6 @@ struct EcranDetailTache: View {
                 } header: {
                     Text("Liens")
                 }
-                SectionRegles(idTache: idTache, libelle: tache.libelle, modifiable: modifiable)
                 LigneErreur(texte: erreur)
                 if modifiable {
                     BoutonEnvoi(titre: "Enregistrer", actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty,
@@ -626,9 +574,6 @@ struct EcranDetailTache: View {
             duree = lue.dureeMinutes ?? duree
             tousLes = lue.periodiciteMinJours ?? tousLes
             tousLesLu = tousLes
-            sorteRythme = SorteRythme.allCases.first { $0.periode == lue.rythmePeriode } ?? .jours
-            fois = lue.rythmeNombre ?? 1
-            rythmeLu = (sorteRythme, fois)
             heure = ChoixHeure(tache: lue)
             pourQui = lue.idUtilisateurDefaut
             await chargerLiens()
@@ -648,8 +593,6 @@ struct EcranDetailTache: View {
         let dureeMinutes: Int
         var periodiciteMinJours: Int? = nil
         var periodiciteMaxJours: Int? = nil
-        var rythmeNombre: Int? = nil
-        var rythmePeriode: String? = nil
         let idUtilisateurDefaut: Int?
         let idTypeTache: Int?
         var sansHeure = false
@@ -659,7 +602,6 @@ struct EcranDetailTache: View {
         // « pour qui » vide veut dire « à tour de rôle » : il part, même nul.
         enum CodingKeys: String, CodingKey {
             case libelle, dureeMinutes, periodiciteMinJours, periodiciteMaxJours
-            case rythmeNombre, rythmePeriode
             case idUtilisateurDefaut, idTypeTache, sansHeure, heureMin, heureMax
         }
 
@@ -669,8 +611,6 @@ struct EcranDetailTache: View {
             try c.encode(dureeMinutes, forKey: .dureeMinutes)
             try c.encodeIfPresent(periodiciteMinJours, forKey: .periodiciteMinJours)
             try c.encodeIfPresent(periodiciteMaxJours, forKey: .periodiciteMaxJours)
-            try c.encodeIfPresent(rythmeNombre, forKey: .rythmeNombre)
-            try c.encodeIfPresent(rythmePeriode, forKey: .rythmePeriode)
             try c.encode(idUtilisateurDefaut, forKey: .idUtilisateurDefaut)
             try c.encodeIfPresent(idTypeTache, forKey: .idTypeTache)
             try c.encode(sansHeure, forKey: .sansHeure)
@@ -687,16 +627,9 @@ struct EcranDetailTache: View {
         var demande = Modification(libelle: libelle.trimmingCharacters(in: .whitespaces),
                                    dureeMinutes: duree, idUtilisateurDefaut: pourQui,
                                    idTypeTache: idType == tache.type?.id ? nil : idType)
-        if tache.recurrente != false {
-            if let periode = sorteRythme.periode {
-                if rythmeLu != (sorteRythme, fois) {
-                    demande.rythmeNombre = fois
-                    demande.rythmePeriode = periode
-                }
-            } else if tousLes != tousLesLu || rythmeLu.0 != .jours {
-                demande.periodiciteMinJours = tousLes
-                demande.periodiciteMaxJours = tousLes + max(1, tousLes / 7)
-            }
+        if tache.recurrente != false && tousLes != tousLesLu {
+            demande.periodiciteMinJours = tousLes
+            demande.periodiciteMaxJours = tousLes + max(1, tousLes / 7)
         }
         if let plage = heure.plage(duree: duree) {
             demande.heureMin = plage.debut.api
