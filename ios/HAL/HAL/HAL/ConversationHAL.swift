@@ -324,6 +324,13 @@ final class ConversationHAL {
         }
     }
 
+    /// ACT-2 : le serveur fait le geste quelques secondes après l'heure limite
+    /// d'« Annuler » ; les écrans se rechargent ensuite pour le montrer.
+    func rechargerApresGeste() async {
+        try? await Task.sleep(for: .seconds(4))
+        await apresAction?()
+    }
+
     // MARK: Le message gardé
 
     private static var fichierAttente: URL { Foyer.fichier("hal-en-attente.json") }

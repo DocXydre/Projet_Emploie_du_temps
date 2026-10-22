@@ -473,6 +473,9 @@ private struct CarteElement: View {
             }
             try? await Task.sleep(for: .seconds(5))
             annulable = false
+            if conversation.faits[element.id] == nil {
+                await conversation.rechargerApresGeste()
+            }
         }
     }
 
