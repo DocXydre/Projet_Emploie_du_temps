@@ -116,7 +116,9 @@ RETURNS JSONB LANGUAGE sql STABLE AS $$
                    'id_demande', dm.id_demande,
                    'action', dm.action,
                    'libelle', dm.resume,
-                   'motif', dm.motif)
+                   'motif', dm.motif,
+                   -- ACT-2 : un geste est déjà fait ; l'appli offre de l'annuler.
+                   'geste', dm.geste)
           FROM derniere d
           JOIN demande dm ON dm.id_demande = d.id_objet
          WHERE d.type = 'demande' AND dm.etat = 'en_attente'

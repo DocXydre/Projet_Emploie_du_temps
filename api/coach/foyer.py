@@ -141,8 +141,9 @@ def moment(id_utilisateur: int) -> str:
         "# Moment : maison",
         f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
         "Un membre du foyer t'écrit. Une question : réponds-y, après avoir lu ce qu'il "
-        "faut. Une demande de changement : dépose la demande qui correspond, avec son "
-        "motif en une phrase. Ce qui dure et sert la maison va dans la mémoire du foyer."])
+        "faut. Une demande de changement : fais le geste qui correspond, avec son motif "
+        "en une phrase, puis dis ce qui a changé. Ce qui dure et sert la maison va dans "
+        "la mémoire du foyer."])
 
 
 # ---------------------------------------------------------------------------
@@ -198,9 +199,8 @@ def outils_du_moment(moment_: str) -> list[Outil]:
     if moment_ not in MOMENTS:
         raise ValueError(f"Moment inconnu pour le HAL du foyer : {moment_}")
     lectures = [catalogue.EXTERNE[nom] for nom in LECTURES]
-    # Les demandes de la maison ; une séance reste au HAL sport.
-    maison = [o for o in demandes.OUTILS if o.nom != "demander_seance"]
-    return [*lectures, *maison, *OUTILS_PROPRES]
+    # ACT-1 : les gestes de la maison, faits à la demande de celui qui écrit.
+    return [*lectures, *demandes.OUTILS_GESTES_MAISON, *OUTILS_PROPRES]
 
 
 def office(id_utilisateur: int) -> str:

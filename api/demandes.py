@@ -14,9 +14,17 @@ paramètres et la base, jamais par le modèle (ACC-12).
 
 Les routes sont importées au moment de servir : elles importent elles-mêmes
 le module HAL, qui importe celui-ci.
+
+Les gestes (ACT-1, ACT-2) : dans la conversation de l'appli, ce que
+l'utilisateur demande à HAL ne l'attend pas. C'est une demande essayée de la
+même façon, que le serveur accepte seul quelques secondes après la réponse,
+sauf si l'utilisateur a touché « Annuler » entre-temps : l'annulation la
+refuse. Rien n'est donc à défaire, comme pour les boutons de l'appli (ORB-6).
 """
 
 import json
+import logging
+import threading
 from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -33,6 +41,14 @@ from api.coach.clair import fuseau, jour_en_clair
 from api.coach.outils import Outil, RefusOutil
 from api.erreurs import message_lisible, refus_coach
 from api.securite import Appelant
+
+LOG = logging.getLogger(__name__)
+
+# ACT-2 : l'appli montre « Annuler » cinq secondes ; le serveur attend un peu plus,
+# le temps que le refus lui parvienne.
+DELAI_GESTE_SECONDES = 8
+# Les tests déclenchent les gestes eux-mêmes, sans minuteur qui court en même temps.
+MINUTEUR_DES_GESTES = True
 
 # Qui dépose : le client MCP et sa session, posés par le serveur MCP (MCP-10).
 # Vides dans une course de HAL : la demande vient alors de HAL (ACC-2).
@@ -209,6 +225,15 @@ class PSeance(BaseModel):
     id_lieu: int | None = None
 
 
+class PSemaine(BaseModel):
+    """La semaine de sport à valider, par son lundi ; vide, la semaine en cours."""
+    lundi: date | None = None
+
+
+class PSeanceSeule(BaseModel):
+    id_occurrence: int
+
+
 # ---------------------------------------------------------------------------
 # Faire : la route du geste à la main. `essai` : sans replacer le planning.
 # ---------------------------------------------------------------------------
@@ -308,6 +333,21 @@ def _faire_seance(qui: Appelant, p: PSeance, essai: bool):
         raise DemandeImpossible("requete_invalide",
                                 "Un déplacement donne un nouveau début, ou un lieu")
     return deplacer_seance(qui, p.id_occurrence, Deplacement(debut=p.debut, id_lieu=p.id_lieu))
+
+
+def _faire_valider_semaine(qui: Appelant, p: PSemaine, essai: bool):
+    from api.routeurs.coach import valider_semaine
+    return valider_semaine(qui, p.lundi)
+
+
+def _faire_valider_seance(qui: Appelant, p: PSeanceSeule, essai: bool):
+    from api.routeurs.coach import valider_seance
+    return valider_seance(qui, p.id_occurrence)
+
+
+def _faire_pas_faite(qui: Appelant, p: PSeanceSeule, essai: bool):
+    from api.routeurs.coach import declarer_pas_faite
+    return declarer_pas_faite(qui, p.id_occurrence)
 
 
 # ---------------------------------------------------------------------------
@@ -443,6 +483,26 @@ def _resumer_seance(u: int, p: PSeance) -> str:
     return f"Déplacer la séance {nom} " + " ".join(vers)
 
 
+def _nom_de_seance(id_occurrence: int) -> str:
+    ligne = un_seul("""SELECT type_seance, discipline, debut FROM v_seance_coach
+                        WHERE id_occurrence = %(o)s""", {"o": id_occurrence})
+    return (f"« {ligne['type_seance'] or ligne['discipline']} » du {_instant(ligne['debut'])}"
+            if ligne else f"la séance {id_occurrence}")
+
+
+def _resumer_valider_semaine(u: int, p: PSemaine) -> str:
+    return ("Valider la semaine de sport du " + _jour(p.lundi)) if p.lundi \
+        else "Valider la semaine de sport en cours"
+
+
+def _resumer_valider_seance(u: int, p: PSeanceSeule) -> str:
+    return f"Valider la séance {_nom_de_seance(p.id_occurrence)}"
+
+
+def _resumer_pas_faite(u: int, p: PSeanceSeule) -> str:
+    return f"Déclarer pas faite la séance {_nom_de_seance(p.id_occurrence)}"
+
+
 # ---------------------------------------------------------------------------
 # Le catalogue des actions (F.8.2)
 # ---------------------------------------------------------------------------
@@ -509,6 +569,17 @@ ACTIONS: dict[str, Action] = {a.nom: a for a in (
            "change avec modifier_seance_proposee.",
            PSeance, _faire_seance, _resumer_seance,
            lambda p: None),
+    # ACT-1 : les gestes de l'onglet Sport.
+    Action("valider_semaine", "demander_validation_semaine",
+           "Demande de valider la semaine de sport proposée (lundi ; vide : la semaine "
+           "en cours).",
+           PSemaine, _faire_valider_semaine, _resumer_valider_semaine),
+    Action("valider_seance", "demander_validation_seance",
+           "Demande de valider une séance proposée, seule (id_occurrence).",
+           PSeanceSeule, _faire_valider_seance, _resumer_valider_seance),
+    Action("pas_faite", "demander_pas_faite",
+           "Demande de déclarer pas faite une séance du jour ou passée (id_occurrence).",
+           PSeanceSeule, _faire_pas_faite, _resumer_pas_faite),
 )}
 
 
@@ -551,9 +622,12 @@ def _jouer(action: Action, qui: Appelant, parametres: BaseModel, essai: bool):
         raise _refus_de(erreur) from None
 
 
-def deposer(id_utilisateur: int, nom: str, arguments: dict) -> dict:
+def deposer(id_utilisateur: int, nom: str, arguments: dict, geste: bool = False) -> dict:
     """Essaie l'action sans rien garder, puis dépose la demande. Lève RefusOutil
-    si la base ou la route refusent : le modèle lit le motif (MCP-9)."""
+    si la base ou la route refusent : le modèle lit le motif (MCP-9).
+
+    `geste` : HAL dans l'appli, à la demande de l'utilisateur (ACT-2). La demande
+    s'acceptera seule après la réponse, sauf annulation."""
     action = ACTIONS[nom]
     arguments = dict(arguments or {})
     motif = str(arguments.pop("motif", "") or "").strip()
@@ -582,6 +656,11 @@ def deposer(id_utilisateur: int, nom: str, arguments: dict) -> dict:
             mode="json", exclude_unset=True)), "r": resume, "m": motif, "c": client,
          "s": session_courante.get(), "e": action.echeance(parametres)})
     id_demande = ligne["id"]
+    if geste:
+        executer("UPDATE demande SET geste = TRUE WHERE id_demande = %(d)s", {"d": id_demande})
+        return {"fait": resume, "id_demande": id_demande,
+                "note": "C'est fait : dis-le simplement. L'utilisateur voit l'action sous ton "
+                        "message et peut l'annuler dans les cinq secondes."}
     if client is not None:
         # ACC-9 : l'utilisateur n'est pas dans l'appli ; la demande vient à lui.
         executer(
@@ -616,7 +695,9 @@ def accepter(id_utilisateur: int, id_demande: int) -> dict:
     action = ACTIONS[demande["action"]]
     parametres = action.modele(**demande["parametres"])
     qui = _appelant(id_utilisateur)
-    origine = f"demande de {demande['client'] or 'HAL'} : {demande['resume']}"[:200]
+    # NOT-17 : la raison dit d'où vient le changement.
+    origine = (f"demandé à HAL par {qui.pseudo} : {demande['resume']}" if demande.get("geste")
+               else f"demande de {demande['client'] or 'HAL'} : {demande['resume']}")[:200]
     with operation.ouvrir_a_part(origine, qui.pseudo):
         try:
             resultat = _jouer(action, qui, parametres, essai=False)
@@ -643,7 +724,7 @@ def _decider(id_utilisateur: int, id_demande: int, etat_: str, motif: str | None
 
 
 COLONNES = """id_demande, action, resume, motif, origine, client, etat, deposee_le, expire_le,
-              decidee_le, motif_echec"""
+              decidee_le, motif_echec, geste"""
 
 
 def etat(id_utilisateur: int, id_demande: int) -> dict:
@@ -658,6 +739,8 @@ def lister_pour(id_utilisateur: int, seulement_en_attente: bool = False,
     return lister(
         f"""SELECT {COLONNES} FROM demande
              WHERE id_utilisateur = %(u)s AND (NOT %(a)s OR etat = 'en_attente')
+               -- ACT-2 : un geste n'attend pas d'accord ; il ne s'affiche pas en attente.
+               AND NOT (geste AND etat = 'en_attente')
              ORDER BY etat <> 'en_attente', deposee_le DESC LIMIT %(l)s""",
         {"u": id_utilisateur, "a": seulement_en_attente, "l": limite})
 
@@ -705,3 +788,81 @@ OUTILS: tuple[Outil, ...] = (
 )
 
 PAR_NOM = {o.nom: o for o in OUTILS}
+
+
+# ---------------------------------------------------------------------------
+# Les gestes : ce qu'on demande à HAL dans l'appli               (ACT-1, ACT-2)
+# ---------------------------------------------------------------------------
+
+# Le nom de l'outil de chaque geste, et ce qu'il dit au modèle. Le geste fait ce
+# que fait le bouton : la même route, les mêmes droits, les mêmes refus.
+GESTES_MAISON = {
+    "tache": "creer_tache", "modification_tache": "modifier_tache",
+    "arret_tache": "arreter_tache", "lien": "lier_taches", "report": "reporter_tache",
+    "faite": "declarer_faite", "absence": "declarer_absence",
+    "occupation": "poser_creneau", "allegement": "regler_mode_allege",
+    "conflit": "trancher_conflit",
+}
+GESTES_SPORT = {
+    "seance": "deplacer_ou_supprimer_seance", "valider_semaine": "valider_semaine",
+    "valider_seance": "valider_seance", "pas_faite": "declarer_seance_pas_faite",
+}
+
+
+def _description_du_geste(action: Action) -> str:
+    texte = action.description
+    for avant, apres in (("Demande d'", ""), ("Demande de ", "")):
+        if texte.startswith(avant):
+            texte = texte[len(avant):]
+            break
+    return (texte[:1].upper() + texte[1:] + " À n'utiliser que si l'utilisateur te le "
+            "demande dans ce message, ou vient de te le confirmer. C'est fait tout de suite ; "
+            "il peut l'annuler dans les cinq secondes.")
+
+
+def _outil_de_geste(nom_action: str, nom_outil: str, famille: str) -> Outil:
+    action = ACTIONS[nom_action]
+    return Outil(nom_outil, famille, _description_du_geste(action), _schema(action),
+                 lambda u, a, nom=nom_action: deposer(u, nom, a, geste=True))
+
+
+OUTILS_GESTES_MAISON: tuple[Outil, ...] = tuple(
+    _outil_de_geste(a, o, "gestes") for a, o in GESTES_MAISON.items())
+OUTILS_GESTES_SPORT: tuple[Outil, ...] = tuple(
+    _outil_de_geste(a, o, "gestes_sport") for a, o in GESTES_SPORT.items())
+
+
+def programmer_les_gestes(operation_id: str) -> int:
+    """ACT-2 : la réponse est rendue ; les gestes de l'appel partiront dans
+    quelques secondes, sauf annulation. Rend leur nombre."""
+    ligne = executer(
+        """WITH dus AS (
+               UPDATE demande SET auto_le = now() + make_interval(secs => %(s)s)
+                WHERE operation = %(o)s AND geste AND etat = 'en_attente' AND auto_le IS NULL
+               RETURNING 1)
+           SELECT count(*)::INTEGER AS n FROM dus""",
+        {"o": operation_id, "s": DELAI_GESTE_SECONDES})
+    nombre = (ligne or {}).get("n", 0)
+    if nombre and MINUTEUR_DES_GESTES:
+        minuteur = threading.Timer(DELAI_GESTE_SECONDES + 0.5, executer_les_gestes)
+        minuteur.daemon = True
+        minuteur.start()
+    return nombre
+
+
+def executer_les_gestes() -> int:
+    """Accepte les gestes arrivés à leur heure et pas annulés. Appelée par le
+    minuteur de la réponse, et par l'ordonnanceur pour ceux qu'un redémarrage
+    aurait laissés. Un geste que la base refuse maintenant échoue avec son motif."""
+    faits = 0
+    for d in lister("""SELECT id_demande, id_utilisateur FROM demande
+                        WHERE geste AND etat = 'en_attente' AND auto_le <= now()
+                        ORDER BY id_demande"""):
+        try:
+            accepter(d["id_utilisateur"], d["id_demande"])
+            faits += 1
+        except DemandeImpossible as refus:
+            LOG.info("Geste %s échoué : %s", d["id_demande"], refus.motif)
+        except Exception:  # noqa: BLE001 - un geste en échec n'arrête pas les autres
+            LOG.exception("Geste %s en erreur", d["id_demande"])
+    return faits

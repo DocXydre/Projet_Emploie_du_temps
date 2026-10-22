@@ -214,9 +214,14 @@ def heures_de_chacun() -> int:
 
 
 def notifications_de_l_appli() -> dict:
-    """Chaque minute : les changements à raconter (NOT-17), puis l'envoi par Apple."""
-    from api import apple, changements
+    """Chaque minute : les gestes de HAL qu'un redémarrage aurait laissés (ACT-2),
+    les changements à raconter (NOT-17), puis l'envoi par Apple."""
+    from api import apple, changements, demandes
     bilan: dict = {}
+    try:
+        bilan["gestes"] = demandes.executer_les_gestes()
+    except Exception:
+        LOG.exception("Échec des gestes de HAL")
     try:
         bilan["changements"] = changements.annoncer()
     except Exception:

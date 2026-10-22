@@ -33,6 +33,8 @@ struct ElementHAL: Codable, Hashable, Identifiable, Sendable {
     var idPlan: Int?
     /// ACC-12 : une demande, et l'action qu'elle ferait.
     var idDemande: Int?
+    /// ACT-2 : un geste demandé à HAL, déjà fait ; « Annuler » cinq secondes.
+    var geste: Bool?
     var action: String?
     var jour: String?
     var debut: String?
@@ -62,6 +64,14 @@ struct ElementHAL: Codable, Hashable, Identifiable, Sendable {
     /// L'élément est réglé : ses boutons ne servent plus.
     var regle: String? {
         guard let etat, etat != "en_attente" else { return nil }
+        if geste == true {
+            // ACT-2 : un geste accepté est fait ; refusé, il a été annulé.
+            switch etat {
+            case "accepte": return "Fait"
+            case "refuse": return "Annulé"
+            default: break
+            }
+        }
         switch etat {
         case "accepte": return "Accepté"
         case "refuse": return "Refusé"

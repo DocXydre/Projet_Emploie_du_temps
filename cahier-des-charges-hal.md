@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 22 octobre 2026 (migration 078 ; partie G : lot 16 construit)
+Version du 22 octobre 2026 (migration 079 ; partie G : lots 16 et 17 construits)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
 
@@ -4205,7 +4205,9 @@ La partie G est écrite le 22 octobre 2026, à partir des choix faits avec Thoma
 
 Le **lot 16** est fait le même jour (migration 078, `api/aiguillage.py` et `coach/aiguillage.json`, `api/coach/foyer.py`, `coach/consigne_foyer.md`, `api/routeurs/hal_foyer.py` ; dans l'appli, la réponse en deux parties, les boutons « Maison » et « Sport », le HAL du foyer et sa mémoire dans Réglages, le foyer). Le même module d'appel sert les deux HAL : un appel dit de quel HAL il est, son verrou est par compte et par HAL, et le HAL du foyer a sa consigne, son contexte (les membres, la mémoire du foyer), ses outils (la lecture de la maison, les demandes, sa mémoire) et son moment « maison ». Vérifié par dix-neuf tests du serveur (`tests/test_hal_foyer.py`) ; la suite entière passe, sauf trois tests du bloc Nettoyage et du planning du jour (`test_ensemble.py`, `test_bot.py`) qui échouaient déjà avant ce lot, à cette date. Dans le simulateur, sur la fausse base, avec le vrai modèle : « Bonjour » depuis Aujourd'hui a eu deux réponses dans la même bulle, la maison puis le sport ; « Merci » a fait demander « la maison ou le sport ? », et « Maison » a fait répondre le HAL du foyer, sans réécrire le message.
 
-Ce que le lot 16 laisse aux suivants : le HAL du foyer agit encore par des demandes à accepter ; les gestes directs sont le lot 17. La mémoire du foyer a sa globale et une étape par semaine, mais pas encore le roulement de la nuit (MEM-6) : les semaines passées restent lisibles, les trois dernières entrent dans la consigne.
+Le **lot 17** est fait le même jour (migration 079). Un geste demandé à HAL passe par une demande essayée comme les autres (ACC-3), marquée `geste`, que le serveur accepte seul huit secondes après la réponse (`auto_le`), sauf si « Annuler », montré cinq secondes, l'a refusée ; l'ordonnanceur rattrape chaque minute un geste qu'un redémarrage aurait laissé. La raison jointe dit « demandé à HAL par … » (NOT-17). Le HAL du foyer a les gestes de la maison ; le HAL sport, dans le chat, ceux de l'onglet Sport (valider la semaine ou une séance, déplacer ou supprimer, pas faite), qui rejoignent aussi la liste des demandes des clients externes. Vérifié par vingt-deux tests du serveur (`tests/test_hal_foyer.py`) ; l'appli compile, le bloc « Annuler » n'a pas encore été vu dans le simulateur. Les consignes des deux HAL changent : les scénarios du chapitre 10.5 sont à rejouer avec le vrai modèle (COA-14).
+
+Ce que le lot 16 laissait aux suivants : les gestes directs, faits au lot 17. La mémoire du foyer a sa globale et une étape par semaine, mais pas encore le roulement de la nuit (MEM-6) : les semaines passées restent lisibles, les trois dernières entrent dans la consigne.
 
 ---
 
