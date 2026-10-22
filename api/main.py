@@ -39,6 +39,7 @@ from api.routeurs.foyer import routeur as routeur_du_foyer
 from api.routeurs.journal import routeur as routeur_du_journal
 from api.routeurs.moi import routeur as routeur_de_moi
 from api.routeurs.types_taches import routeur as routeur_des_types_de_taches
+from api.routeurs.regles import routeur as routeur_des_regles
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
 from api.serveur_mcp import serveur as serveur_mcp
 
@@ -112,6 +113,7 @@ app.add_exception_handler(RequestValidationError, gerer_erreur_validation)
 app.include_router(planning.routeur)
 app.include_router(taches.routeur)
 app.include_router(routeur_des_types_de_taches)
+app.include_router(routeur_des_regles)
 app.include_router(occurrences.routeur)
 app.include_router(contraintes.routeur)
 app.include_router(notifications.routeur)

@@ -262,6 +262,11 @@ def report_de_minuit() -> dict:
         LOG.info("Journal : %s événement(s) purgé(s)", purges)
     bilan["journal_purge"] = purges
 
+    # CND-14 : les règles dont la période est finie s'éteignent ; une semaine
+    # avant, celui qui les a posées est prévenu.
+    bilan["regles_expirees"] = (executer("SELECT entretenir_regles() AS nombre")
+                                or {}).get("nombre", 0)
+
     # ACC-8 : les demandes restées sans réponse expirent.
     bilan["demandes_expirees"] = (executer("SELECT expirer_demandes() AS nombre")
                                   or {}).get("nombre", 0)

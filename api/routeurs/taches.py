@@ -38,7 +38,11 @@ LIRE_TACHES = """
                AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
              ORDER BY lower(o.fenetre) LIMIT 1) AS dates,
            EXISTS (SELECT 1 FROM enchainement e
-                    WHERE e.id_tache_suivante = t.id_tache) AS nait_d_une_autre
+                    WHERE e.id_tache_suivante = t.id_tache) AS nait_d_une_autre,
+           -- CND-16 : le détail montre ses règles ; la liste, qu'il y en a.
+           (SELECT count(*) FROM regle_tache r
+             WHERE r.id_tache = t.id_tache AND r.etat = 'active')::INTEGER AS regles,
+           COALESCE(t.penibilite, y.penibilite) AS penibilite_effective
       FROM tache t
       LEFT JOIN type_tache y ON y.id_type_tache = t.id_type_tache
 """
@@ -73,6 +77,12 @@ class ModificationTache(BaseModel):
     active: bool | None = None
     # TAC-25 : le type, dont la famille technique suit.
     id_type_tache: int | None = None
+    # CND-4 : N fois par semaine ou par mois, au lieu de tous les N jours.
+    rythme_nombre: int | None = Field(default=None, ge=1, le=31)
+    rythme_periode: Literal["semaine", "mois"] | None = None
+    rythme_moment: Literal["debut", "milieu", "fin", "indifferent"] | None = None
+    # REP-3 : de 1 à 3 ; la tâche suit son type tant qu'on ne la change pas.
+    penibilite: int | None = Field(default=None, ge=1, le=3)
     # TAC-23 : « sans_heure » rend la tâche à la journée ; sinon les deux bornes.
     sans_heure: bool = False
     heure_min: time | None = None
@@ -82,8 +92,9 @@ class ModificationTache(BaseModel):
 class NouvelleTache(BaseModel):
     """TAC-20 à TAC-24 : une seule façon de revenir, et l'une de trois heures.
 
-    Régulière : `tous_les_jours`. Une fois : `au`, et `du` s'il n'est pas
-    aujourd'hui. Après une autre : `apres`, et le délai en heures.
+    Régulière : `tous_les_jours`, ou `fois` par `par` (CND-4). Une fois : `au`,
+    et `du` s'il n'est pas aujourd'hui. Après une autre : `apres`, et le délai
+    en heures.
     """
 
     libelle: str
@@ -91,6 +102,9 @@ class NouvelleTache(BaseModel):
     duree_minutes: int | None = Field(default=None, ge=1, le=480)
     pour: int | None = None
     tous_les_jours: int | None = Field(default=None, ge=1, le=730)
+    fois: int | None = Field(default=None, ge=1, le=31)
+    par: Literal["semaine", "mois"] | None = None
+    moment: Literal["debut", "milieu", "fin", "indifferent"] = "indifferent"
     du: date | None = None
     au: date | None = None
     apres: int | None = None
@@ -165,7 +179,8 @@ def creer_depuis_l_appli(demande: NouvelleTache, qui: Authentifie) -> dict:
             p_tous_les_jours => %(rythme)s, p_du => %(du)s, p_au => %(au)s,
             p_apres => %(apres)s, p_delai_min_heures => %(dmin)s,
             p_delai_max_heures => %(dmax)s, p_heure_min => %(hmin)s,
-            p_heure_max => %(hmax)s, p_si_pas_faite => %(oubli)s) AS id_tache
+            p_heure_max => %(hmax)s, p_si_pas_faite => %(oubli)s,
+            p_fois => %(fois)s, p_par => %(par)s, p_moment => %(moment)s) AS id_tache
         """,
         {
             "libelle": demande.libelle,
@@ -182,6 +197,9 @@ def creer_depuis_l_appli(demande: NouvelleTache, qui: Authentifie) -> dict:
             "hmin": demande.heure_min,
             "hmax": demande.heure_max,
             "oubli": demande.si_pas_faite,
+            "fois": demande.fois,
+            "par": demande.par,
+            "moment": demande.moment,
         },
     )
     assert cree is not None
@@ -249,6 +267,20 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
                   exclude_unset=True,
                   exclude={"id_type_tache", "sans_heure", "heure_min", "heure_max"}).items()
               if valeur is not None or nom == "id_utilisateur_defaut"}
+    # CND-4 : une périodicité en jours remplace le rythme, et l'inverse ; le
+    # déclencheur de la base recalcule la périodicité d'un rythme.
+    if "rythme_nombre" in champs or "rythme_periode" in champs:
+        if not ("rythme_nombre" in champs and "rythme_periode" in champs):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "rythme_incomplet",
+                        "message": "Un rythme dit combien de fois, et par semaine ou par mois"},
+            )
+        champs.pop("periodicite_min_jours", None)
+        champs.pop("periodicite_max_jours", None)
+    elif "periodicite_min_jours" in champs or "periodicite_max_jours" in champs:
+        champs["rythme_nombre"] = None
+        champs["rythme_periode"] = None
     change_l_heure = demande.sans_heure or demande.heure_min is not None
     if not champs and demande.id_type_tache is None and not change_l_heure:
         raise HTTPException(
@@ -275,7 +307,7 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
                           "hmin": None if demande.sans_heure else demande.heure_min,
                           "hmax": None if demande.sans_heure else demande.heure_max,
                           "duree": duree})
-    if change_l_heure or "duree_minutes" in champs:
+    if change_l_heure or "duree_minutes" in champs or "rythme_periode" in champs:
         _replacer()
     return _une_tache(id_tache)
 
