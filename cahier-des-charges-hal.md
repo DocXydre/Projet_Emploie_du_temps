@@ -496,9 +496,13 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 | CNX-1 | D | Un compte peut avoir un mot de passe. Il n'est jamais stocké, seulement son empreinte scrypt. Sans mot de passe, la connexion par mot de passe est fermée pour ce compte |
 | CNX-2 | M | Le mot de passe se choisit en rejoignant le foyer (FOY-3), puis se change dans Réglages, Compte, ou par l'API avec sa clé. Dix caractères au moins |
 | CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe et rend la clé d'API. Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
-| CNX-4 | D | `/connexion`, l'acceptation d'une invitation (FOY-3) et la page de son lien (5.16) sont les seules routes ouvertes sans clé. La page ne lit rien en base : elle ouvre l'appli avec le code et l'adresse du serveur. Chaque autre route exige la clé d'API |
+| CNX-4 | D | `/connexion`, `/connexion/apple` (CNX-7), l'acceptation d'une invitation (FOY-3) et la page de son lien (5.16) sont les seules routes ouvertes sans clé. La page ne lit rien en base : elle ouvre l'appli avec le code et l'adresse du serveur. Chaque autre route exige la clé d'API |
 | CNX-5 | D | Toutes les routes de l'application passent par `tailscale funnel`, derrière la clé. Les routes d'administration restent sur le tailnet : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, tour des week-ends, relève et relecture des courriels. L'API refuse ces routes (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
 | CNX-6 | M | Se déconnecter, dans Réglages, efface la clé du trousseau et retire l'appareil de la liste des notifications. Changer de mot de passe ne change pas la clé ; la renouveler déconnecte tous les appareils |
+| CNX-7 | T | « Se connecter avec Apple » : l'appli envoie le jeton d'identité d'Apple à `POST /connexion/apple`, ouverte sans clé. Le serveur vérifie sa signature par les clés publiées par Apple, l'émetteur, le destinataire (l'identifiant de l'appli) et l'expiration, puis rend la clé d'API du compte relié à son identifiant (`sub`). Un jeton refusé ne compte pas dans les échecs de CNX-3 |
+| CNX-8 | M | Un identifiant Apple ouvre un seul compte. Il se relie la première fois en donnant le pseudo et le mot de passe avec le jeton, ou dans Réglages, Serveur et connexion, qui permet aussi de le délier. Relié à un autre compte, il quitte le premier |
+| CNX-9 | M | On rejoint le foyer avec Apple, sans mot de passe : le code et le pseudo suffisent (FOY-3). Le mot de passe se choisit plus tard si on le veut (CNX-2) |
+| CNX-10 | D | L'adresse du serveur est intégrée à l'appli à la compilation, depuis `ios/HAL/Serveur.local.xcconfig`, hors du dépôt public. L'écran de connexion ne la demande que si on choisit « Autre serveur » |
 
 ---
 
@@ -3676,7 +3680,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 - **Une seule application, HAL**, pour tout : le planning, la maison, le sport, la santé et l'IA. Elle remplace la bêta Coach Santé, rangée dans `anciennes_fonctionnalites/coach_sante/` à la bascule (lot 10 de la partie E).
 - **Le bot Telegram ne sert plus qu'à l'administration** (partie D, `ADM`). Tout ce qu'un membre du foyer faisait par le bot se fait dans l'appli. L'annexe 5 donne, commande par commande, l'écran qui la remplace.
 - **iOS 26 au minimum, SwiftUI, et le vrai Liquid Glass** d'Apple (`glassEffect`). Pas d'imitation pour les versions plus anciennes.
-- **Le compte développeur Apple payant est un prérequis.** Il permet les notifications envoyées par le serveur, les widgets iOS qui partagent les données de l'appli, et met fin à la réinstallation tous les sept jours.
+- **Le compte développeur Apple payant est un prérequis.** Il permet les notifications envoyées par le serveur, les widgets iOS qui partagent les données de l'appli, « Se connecter avec Apple » (CNX-7), la distribution par TestFlight, et met fin à la réinstallation tous les sept jours.
 - **L'appli ne porte aucune règle métier.** Elle affiche ce que l'API rend et envoie ce que l'utilisateur fait. Cinq exceptions assumées, parce qu'elles doivent marcher sans réseau ou ne regardent que l'appareil : la série intermédiaire (SAI-17), la file d'attente hors réseau (APP-3), la disposition de l'accueil (WID-4), le thème (THM) et la gourde Yanga (SAI-21).
 - **Le quotidien se règle à la main.** Les tâches, l'emploi du temps, les absences et le mode allégé se modifient dans l'appli, sans IA. HAL, ou un client MCP, peut en demander le changement, qui attend l'accord de l'utilisateur (APP-7, ACC-1).
 - **Un seul rendu, sur photo.** Pas de mode clair ni de mode sombre : une photo de fond, assombrie et floutée pour rester lisible, et quatre combinaisons de couleurs.
@@ -3766,7 +3770,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | WID-4 | D | La disposition d'Aujourd'hui est gardée sur l'appareil. Chacun compose la sienne [1.11]. Sport et Maison ont un ordre fixe, qui suit la maquette |
 | WID-5 | T | Toucher un widget l'agrandit sur place et floute le reste [1.7, 1.8, 8.15]. Les widgets qui ont une page complète l'ouvrent à la place : FC du jour [3.15], Dernière course [3.14], Ajustement [3.21], Semaine [1.12] |
 | WID-6 | T | Certains widgets passent devant la disposition choisie, tant que leur raison dure, dans cet ordre : les bandeaux d'état (hors réseau, mode allégé, absence, pause de HAL) [8.13] ; un conflit à régler (COL-12) [1.3] ; un ajustement de HAL en attente (PLN-18) [1.4] ; une mesure demandée (MES-1) [8.14] ; un effort de course à donner (MON-11) [3.27] ; le jour d'une séance de musculation, « Lancer la séance » [1.2]. Ils disparaissent seuls quand leur raison disparaît |
-| WID-7 | D | Le widget « Séance libre » est toujours en bas à droite d'Aujourd'hui, en Petit. Il ne se retire pas et ne se déplace pas : c'est l'entrée d'une séance de musculation non prévue [1.1] |
+| WID-7 | D | Le widget « Séance libre », en Petit, est l'entrée d'une séance de musculation non prévue [1.1]. Il est sur Aujourd'hui par défaut, en bas à droite, et se déplace, se retire et se rajoute depuis la galerie comme les autres |
 | WID-8 | D | Un widget montre ce que l'API rend, rien de calculé dans l'appli. Un widget sans données dit ce qui manque et comment l'obtenir, en un bouton [8.6, 8.7, 8.8] |
 
 **Les widgets de la maquette**
@@ -3821,7 +3825,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
-| 1.1 Tableau de bord | La page entière, qui défile. « + » ajoute, le crayon modifie l'accueil, « Séance libre » en bas à droite | APP-9, WID-7 |
+| 1.1 Tableau de bord | La page entière, qui défile. « + » ajoute, le crayon modifie l'accueil, « Séance libre » où on l'a posée | APP-9, WID-7 |
 | 1.2 Jour de muscu | « Lancer la séance » passe en tête | WID-6 |
 | 1.3 Conflit en premier | Deux cours se chevauchent : on touche celui à garder, ou « Voir plus tard » | COL-12, COL-23 |
 | 1.4 Ajustement de HAL en premier | Accepter, refuser, en parler | PLN-18, NOT-18 |
@@ -3915,7 +3919,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 5.11 Notifications | Mes heures (bilan, relance, récap), ce qui prévient, et le silence | NOT-14, NOT-15 |
 | 5.12 Calendriers abonnés | Composer, copier le lien, renouveler le jeton | NOT-5 à NOT-9, UTI-3 |
 | 5.13 Serveur | Adresse, état de la connexion, mot de passe | CNX |
-| 5.14 Connexion | Pseudo et mot de passe, ou une invitation | CNX-3, FOY-3 |
+| 5.14 Connexion | Apple, ou pseudo et mot de passe, ou une invitation | CNX-3, CNX-7, FOY-3 |
 | 5.15 Le foyer | Les membres, inviter, les droits sur les tâches, passer l'admin, retirer, quitter | FOY-2, FOY-5 à FOY-7 |
 | 5.16 Inviter dans le foyer | Le code et le lien, valables 48 h, une seule fois ; partager, copier, annuler | FOY-3 |
 | 5.17 Historique | Les actions du foyer jour par jour, avec ce qu'elles ont changé, et une recherche | JRN-9 |
@@ -3927,7 +3931,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 |---|---|---|
 | 6.1 Notifications | Chaque changement avec sa raison ; le récap et les ajustements de HAL ; la tâche d'un membre faite par un autre | NOT-16 à NOT-19 |
 | 6.2 Écran verrouillé | Anneau Sport et prochain événement, raccourci vers l'orbe, Live Activity du repos | IOS-2, IOS-3 |
-| 6.3 Écran d'accueil iOS | Les mêmes modules en widgets iOS | IOS-1 |
+| 6.3 Écran d'accueil iOS | Tous les widgets de la galerie en widgets iOS, Séance libre comprise | IOS-1 |
 | 6.4 Dynamic Island | La séance en cours, compacte, minimale ou déployée | IOS-3 |
 
 **7 · Démarrage de HAL**
@@ -4002,7 +4006,7 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 
 | Code | Type | Règle |
 |---|---|---|
-| IOS-1 | D | Les modules qui s'y prêtent existent aussi en widgets iOS, pour l'écran d'accueil : Sport, Forme, Ta journée [6.3]. Toucher un widget iOS ouvre l'appli au bon endroit. Ils lisent les données que l'appli a gardées, sans appel de leur côté |
+| IOS-1 | D | Tous les widgets de la galerie existent aussi en widgets iOS, pour l'écran d'accueil, à leurs tailles (Petit, Moyen, Grand) [6.3]. Toucher un widget iOS ouvre l'appli au bon endroit ; « Séance libre » lance la séance libre, ou reprend celle en cours. Ils lisent les données que l'appli a gardées, sans appel de leur côté |
 | IOS-2 | D | Sur l'écran verrouillé : l'anneau Sport, le prochain événement, et un raccourci qui ouvre directement le panneau de HAL [6.2] |
 | IOS-3 | T | Pendant une séance de musculation, une Live Activity montre l'exercice, la série et le repos, sur l'écran verrouillé et dans la Dynamic Island : compacte, minimale quand une autre activité tourne, déployée avec ses boutons [6.4] |
 | IOS-4 | D | Pas de Raccourcis à installer : l'envoi de Santé est automatique (SAN-10) |
@@ -4130,7 +4134,7 @@ Appareil
 
 ### E.1 Prérequis
 
-- Le compte développeur Apple payant : il conditionne les notifications (lot 3), les widgets iOS et la Live Activity (lot 9).
+- Le compte développeur Apple payant : il conditionne les notifications (lot 3), les widgets iOS et la Live Activity (lot 9), et « Se connecter avec Apple » (CNX-7). Pris le 23 octobre 2026.
 - Xcode 26 sur le Mac, un iPhone sous iOS 26, et l'Apple Watch reliée pour essayer l'envoi d'une course.
 - La maquette validée : ce document et la page « V2 · Liquid Glass » disent la même chose.
 

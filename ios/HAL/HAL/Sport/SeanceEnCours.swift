@@ -160,6 +160,7 @@ final class SeanceEnCours {
     private func publierLActivite() {
         guard let seance else {
             activite.terminer()
+            PourLesWidgets.publier(seance: nil)
             return
         }
         let exercice = exerciceCourant
@@ -171,6 +172,7 @@ final class SeanceEnCours {
             debutDuRepos: finDuRepos == nil ? nil : debutDuRepos,
             finDuRepos: finDuRepos)
         activite.publier(titre: seance.titre, debut: seance.debut, etat: etat)
+        PourLesWidgets.publier(seance: SeanceEnWidget(titre: seance.titre, debut: seance.debut, etat: etat))
     }
 
     var enCours: Bool { seance != nil }

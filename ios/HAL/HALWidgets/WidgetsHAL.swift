@@ -7,20 +7,57 @@ import WidgetKit
 // le dossier partagé, sans appel au serveur. Toucher un widget ouvre l'appli au
 // bon endroit, par un lien hal://.
 
+// IOS-1 : chaque widget de l'appli existe aussi sur l'écran d'accueil, à ses
+// tailles. Un paquet de widgets en compte dix au plus : ils vont par familles.
 @main
 struct WidgetsHAL: WidgetBundle {
     var body: some Widget {
+        WidgetsDuPlanning().body
+        WidgetsDuSport().body
+        WidgetsDeLaMaison().body
+    }
+}
+
+struct WidgetsDuPlanning: WidgetBundle {
+    var body: some Widget {
+        WidgetMaintenant()
+        WidgetJournee()
+        WidgetSemaine()
+        WidgetWeekEnd()
+        WidgetTrain()
+        WidgetHAL()
+        WidgetOrbe()
+    }
+}
+
+struct WidgetsDuSport: WidgetBundle {
+    var body: some Widget {
+        WidgetSeanceLibre()
         WidgetSport()
         WidgetForme()
-        WidgetJournee()
-        WidgetOrbe()
+        WidgetObjectif()
+        WidgetFrequence()
+        WidgetMontre()
+        WidgetDerniereCourse()
+        WidgetSeanceEnCours()
         ActiviteDeSeance()
+    }
+}
+
+struct WidgetsDeLaMaison: WidgetBundle {
+    var body: some Widget {
+        WidgetACocher()
+        WidgetEnRetard()
+        WidgetChat()
+        WidgetEquilibre()
+        WidgetLinge()
+        WidgetBientot()
     }
 }
 
 // MARK: - Les couleurs
 
-private enum Teinte {
+enum Teinte {
     static let sport = Color(red: 0.36, green: 0.88, blue: 0.77)
     static let hal = Color(red: 0.62, green: 0.58, blue: 1.0)
     static let alerte = Color(red: 1.0, green: 0.42, blue: 0.38)
@@ -41,13 +78,19 @@ private enum Teinte {
     }
 }
 
-private let francais = Locale(identifier: "fr_FR")
+let francais = Locale(identifier: "fr_FR")
 
 // MARK: - La chronologie
 
 struct Entree: TimelineEntry {
     let date: Date
     let instantane: Instantane?
+    /// La séance de musculation en cours, s'il y en a une.
+    var seance: SeanceEnWidget? = nil
+    var motDeHAL: MotDeHAL? = nil
+
+    static let exemple = Entree(date: .now, instantane: .exemple, seance: nil,
+                                motDeHAL: MotDeHAL(texte: "Jambes ce soir ? Tu as bien dormi et ta dernière séance date de jeudi."))
 }
 
 /// Une entrée tout de suite, puis toutes les quinze minutes : « maintenant » et
@@ -55,24 +98,29 @@ struct Entree: TimelineEntry {
 /// chaque chargement.
 struct Lecteur: TimelineProvider {
     func placeholder(in context: Context) -> Entree {
-        Entree(date: .now, instantane: .exemple)
+        .exemple
     }
 
     func getSnapshot(in context: Context, completion: @escaping (Entree) -> Void) {
-        completion(Entree(date: .now, instantane: context.isPreview ? .exemple : Partage.lire() ?? .exemple))
+        guard !context.isPreview, let lu = Partage.lire() else { return completion(.exemple) }
+        completion(Entree(date: .now, instantane: lu, seance: Partage.lire("seance.json"),
+                          motDeHAL: Partage.lire("hal.json")))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entree>) -> Void) {
         let lu = Partage.lire()
+        let seance: SeanceEnWidget? = Partage.lire("seance.json")
+        let motDeHAL: MotDeHAL? = Partage.lire("hal.json")
         let entrees = (0..<8).map { rang in
-            Entree(date: Date.now.addingTimeInterval(Double(rang) * 900), instantane: lu)
+            Entree(date: Date.now.addingTimeInterval(Double(rang) * 900), instantane: lu,
+                   seance: seance, motDeHAL: motDeHAL)
         }
         completion(Timeline(entries: entrees, policy: .atEnd))
     }
 }
 
 /// Ce qu'un widget dit quand l'appli n'a encore rien gardé.
-private struct PasEncore: View {
+struct PasEncore: View {
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: "iphone.and.arrow.forward")
@@ -87,27 +135,26 @@ private struct PasEncore: View {
 struct WidgetSport: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "fr.docxydre.hal.sport", provider: Lecteur()) { entree in
-            VueSport(entree: entree)
-                .containerBackground(Teinte.fond.gradient, for: .widget)
-                .widgetURL(URL(string: "hal://sport"))
+            VueSport(entree: entree).widgetHAL("hal://sport")
         }
         .configurationDisplayName("Sport")
         .description("Les séances de la semaine, et la prochaine.")
-        .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryInline])
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryInline])
     }
 }
 
-private struct Anneau: View {
+struct Anneau: View {
     let faites: Int
     let prevues: Int
     var epaisseur: CGFloat = 8
+    var couleur = Teinte.sport
 
     var body: some View {
         let part = prevues > 0 ? min(1, Double(faites) / Double(prevues)) : 0
         ZStack {
-            Circle().stroke(Teinte.sport.opacity(0.25), lineWidth: epaisseur)
+            Circle().stroke(couleur.opacity(0.25), lineWidth: epaisseur)
             Circle().trim(from: 0, to: part)
-                .stroke(Teinte.sport, style: StrokeStyle(lineWidth: epaisseur, lineCap: .round))
+                .stroke(couleur, style: StrokeStyle(lineWidth: epaisseur, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
     }
@@ -159,13 +206,11 @@ private struct VueSport: View {
 struct WidgetForme: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "fr.docxydre.hal.forme", provider: Lecteur()) { entree in
-            VueForme(entree: entree)
-                .containerBackground(Teinte.fond.gradient, for: .widget)
-                .widgetURL(URL(string: "hal://sport"))
+            VueForme(entree: entree).widgetHAL("hal://sport")
         }
         .configurationDisplayName("Forme")
         .description("Ta nuit, ta fréquence au repos et tes pas.")
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
 
@@ -180,6 +225,9 @@ private struct VueForme: View {
                 ligne("bed.double", forme.sommeilMinutes.map { "\($0 / 60) h \(String(format: "%02d", $0 % 60))" })
                 ligne("heart", forme.fcRepos.map { "\($0) bpm au repos" })
                 ligne("figure.walk", forme.pas.map { "\($0.formatted(.number.locale(francais))) pas" })
+                if let vfc = forme.vfc {
+                    ligne("waveform.path.ecg", "VFC \(vfc) ms")
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         } else {
@@ -201,13 +249,11 @@ private struct VueForme: View {
 struct WidgetJournee: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "fr.docxydre.hal.journee", provider: Lecteur()) { entree in
-            VueJournee(entree: entree)
-                .containerBackground(Teinte.fond.gradient, for: .widget)
-                .widgetURL(URL(string: "hal://aujourdhui"))
+            VueJournee(entree: entree).widgetHAL("hal://aujourdhui")
         }
         .configurationDisplayName("Ta journée")
         .description("Ce qui se passe maintenant, et la suite.")
-        .supportedFamilies([.systemMedium, .systemSmall, .accessoryRectangular])
+        .supportedFamilies([.systemMedium, .systemSmall, .systemLarge, .accessoryRectangular])
     }
 }
 
@@ -238,7 +284,7 @@ private struct VueJournee: View {
                         Text("Rien d'autre aujourd'hui").font(.callout).foregroundStyle(.secondary)
                         Spacer(minLength: 0)
                     }
-                    ForEach(suite.prefix(famille == .systemSmall ? 2 : 3)) { moment in
+                    ForEach(suite.prefix(famille == .systemSmall ? 2 : famille == .systemLarge ? 8 : 3)) { moment in
                         HStack(spacing: 8) {
                             Capsule().fill(Teinte.categorie(moment.categorie)).frame(width: 4, height: 30)
                             VStack(alignment: .leading, spacing: 1) {

@@ -9,7 +9,6 @@ struct Place: Codable, Identifiable, Hashable {
 }
 
 /// La disposition d'Aujourd'hui, gardée sur l'appareil (WID-4).
-/// Le widget « Séance libre » n'y figure pas : il est toujours en bas à droite (WID-7).
 @Observable
 final class Disposition {
     private(set) var places: [Place] { didSet { enregistrer() } }
@@ -25,6 +24,7 @@ final class Disposition {
         Place(module: "taJournee", taille: .moyen),
         Place(module: "frequenceDuJour", taille: .moyen),
         Place(module: "enRetard", taille: .petit),
+        Place(module: "seanceLibre", taille: .petit),
     ]
 
     init() {
@@ -43,9 +43,18 @@ final class Disposition {
                 places.insert(Place(module: "weekend", taille: .moyen), at: rang)
             }
         }
+        // WID-7 : la séance libre était fixe, en bas à droite, hors de la
+        // disposition. Elle y entre une fois, à la même place, et se déplace ensuite.
+        if !UserDefaults.standard.bool(forKey: Self.cleSeanceLibre) {
+            UserDefaults.standard.set(true, forKey: Self.cleSeanceLibre)
+            if !places.contains(where: { $0.module == "seanceLibre" }) {
+                places.append(Place(module: "seanceLibre", taille: .petit))
+            }
+        }
     }
 
     private static let cleWeekEnd = "disposition.weekend_ajoute"
+    private static let cleSeanceLibre = "disposition.seance_libre_ajoutee"
 
     /// Les modules qu'on peut encore ajouter depuis la galerie.
     var disponibles: [Module] {

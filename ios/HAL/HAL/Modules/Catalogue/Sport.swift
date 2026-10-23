@@ -27,10 +27,11 @@ extension Module {
         widget: { _ in AnyView(WidgetFrequence()) }
     )
 
-    /// Toujours en bas à droite d'Aujourd'hui : l'entrée d'une séance non prévue (WID-7).
+    /// L'entrée d'une séance non prévue (WID-7). Il se pose, se déplace et se
+    /// retire comme les autres.
     static let seanceLibre = Module(
         id: "seanceLibre", nom: "Séance libre", icone: "plus", categorie: .sport,
-        tailles: [.petit], fixe: true,
+        tailles: [.petit],
         widget: { _ in AnyView(WidgetSeanceLibre()) }
     )
 
