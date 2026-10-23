@@ -195,6 +195,7 @@ def table_rase(base):
         # comptes de départ se retrouvent seuls dans un foyer neuf, à leurs droits
         # par défaut. Un membre retiré par un test redevient actif.
         conn.execute("DELETE FROM appareil")
+        conn.execute("DELETE FROM session_appareil")
         conn.execute("DELETE FROM invitation")
         conn.execute("UPDATE utilisateur SET id_foyer = NULL")
         # HDF-4 : la mémoire du foyer part avec lui.

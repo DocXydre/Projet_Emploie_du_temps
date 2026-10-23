@@ -1,8 +1,8 @@
 """Le mot de passe d'un compte                                   (CNX-1 à CNX-4)
 
-Il ne sert qu'à une chose : rendre la clé d'API à l'appli, qui la garde ensuite
-dans le trousseau de l'iPhone. Il n'est jamais stocké, seulement son empreinte
-scrypt, et la comparaison se fait en temps constant.
+Il ne sert qu'à une chose : ouvrir une session de l'appli, dont la clé est
+gardée ensuite dans le trousseau de l'iPhone (CNX-11). Il n'est jamais stocké,
+seulement son empreinte scrypt, et la comparaison se fait en temps constant.
 """
 
 import hashlib
@@ -68,11 +68,11 @@ class CompteBloque(Exception):
 
 
 def connecter(pseudo: str, mot_de_passe: str) -> dict | None:
-    """CNX-3 : rend le compte, son numéro et sa clé, ou None. Un compte bloqué refuse tout,
+    """CNX-3 : rend le compte et son numéro, ou None. Un compte bloqué refuse tout,
     même le bon mot de passe, jusqu'à la fin du blocage (CompteBloque). Un pseudo
     inconnu et un mauvais mot de passe ne se distinguent pas."""
     compte = un_seul(
-        """SELECT id_utilisateur, pseudo, cle_api, mot_de_passe,
+        """SELECT id_utilisateur, pseudo, mot_de_passe,
                   bloque_jusqu_a > now() AS bloque
              FROM utilisateur WHERE lower(pseudo) = lower(%(p)s) AND actif""",
         {"p": (pseudo or "").strip()})
@@ -92,5 +92,4 @@ def connecter(pseudo: str, mot_de_passe: str) -> dict | None:
         return None
     executer("UPDATE utilisateur SET echecs_connexion = 0, bloque_jusqu_a = NULL "
              "WHERE id_utilisateur = %(u)s", {"u": compte["id_utilisateur"]})
-    return {"id_utilisateur": compte["id_utilisateur"], "pseudo": compte["pseudo"],
-            "cle_api": compte["cle_api"]}
+    return {"id_utilisateur": compte["id_utilisateur"], "pseudo": compte["pseudo"]}

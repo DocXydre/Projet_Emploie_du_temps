@@ -738,9 +738,11 @@ struct EcranServeur: View {
         annoncer(foyer.erreur == nil ? "Serveur joignable" : (foyer.erreur ?? "Injoignable"))
     }
 
-    /// CNX-6 : l'iPhone quitte la liste des notifications avant que la clé ne s'efface.
+    /// CNX-6 : l'iPhone quitte la liste des notifications, puis le serveur révoque
+    /// sa clé, avant qu'elle ne s'efface.
     private func deconnecter() async {
         await notifications.oublier()
+        await session.fermerLaSession()
         file.vider(sansEnvoyer: true)
         session.deconnecter()
     }

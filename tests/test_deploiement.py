@@ -35,8 +35,9 @@ echo "docker $*" >> "$SCENE/appels"
 # Ce qui arrive sur l'entrée de psql : c'est là que passe la note au journal.
 case "$*" in *"--set libelle="*) cat >> "$SCENE/journal" ;; esac
 case "$*" in
-  *"pg_dump"*) [ -f "$SCENE/sauvegarde_cassee" ] && { echo "pg_dump: connexion refusée" >&2; exit 1; }
-               echo "PGDMP copie" ;;
+  *"pg_dump"*)
+    [ -f "$SCENE/sauvegarde_cassee" ] && { echo "pg_dump: connexion refusée" >&2; exit 1; }
+    echo "PGDMP copie" ;;
   *"SELECT id_telegram"*) echo 4242 ;;
   "compose up"*) [ -f "$SCENE/image_cassee" ] && { echo "build failed"; exit 1; } ;;
   "compose logs"*) echo "api  | Traceback: fonction SQL introuvable" ;;

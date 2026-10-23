@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from api import identifiant_apple, mot_de_passe
+from api import identifiant_apple, mot_de_passe, sessions
 from api.base import connexion, executer, lister, un_seul
 from api.routeurs.connexion import identifiant_du_jeton
 from api.securite import Authentifie, par_le_funnel
@@ -228,10 +228,12 @@ class Adhesion(BaseModel):
     mot_de_passe: str | None = Field(default=None, max_length=200)
     # CNX-9 : rejoindre avec Apple, sans mot de passe.
     jeton_apple: str | None = Field(default=None, max_length=5000)
+    # CNX-11 : le nom de l'iPhone, pour reconnaître sa session.
+    appareil: str | None = Field(default=None, max_length=80)
 
 
 @routeur.post("/invitations/{code}/accepter", status_code=status.HTTP_201_CREATED,
-              summary="Rejoindre un foyer : crée le compte et rend sa clé d'API")
+              summary="Rejoindre un foyer : crée le compte et ouvre sa session")
 def accepter(code: str, adhesion: Adhesion) -> dict:
     if len(code) > 40:
         raise HTTPException(
@@ -254,6 +256,7 @@ def accepter(code: str, adhesion: Adhesion) -> dict:
                     "message": f"Ton identifiant Apple ouvre déjà le compte « {deja['pseudo']} » : "
                                "connecte-toi avec Apple."})
 
+    # La clé du compte, que personne ne voit : l'appli reçoit celle d'une session.
     cle = secrets.token_urlsafe(36)
     # La fonction est appelée seule : une jointure sur `utilisateur` l'appellerait
     # une fois par ligne, et le compte qu'elle crée n'y serait pas encore visible.
@@ -266,10 +269,10 @@ def accepter(code: str, adhesion: Adhesion) -> dict:
     assert cree is not None
     if apple:
         identifiant_apple.relier(cree["id"], apple)
-    compte = un_seul("SELECT pseudo, cle_api FROM utilisateur WHERE id_utilisateur = %(id)s",
+    compte = un_seul("SELECT pseudo FROM utilisateur WHERE id_utilisateur = %(id)s",
                      {"id": cree["id"]})
     assert compte is not None
-    return compte
+    return {"pseudo": compte["pseudo"], "cle_api": sessions.ouvrir(cree["id"], adhesion.appareil)}
 
 
 # -----------------------------------------------------------------------------

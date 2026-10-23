@@ -489,20 +489,22 @@ Presque toutes les questions posées au système ont la même forme : « pourquo
 
 #### A.3.14 Connexion de l'application : `CNX`
 
-Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonnable. Le mot de passe ne sert qu'à une chose : rendre la clé d'API à l'application, qui la garde ensuite dans le trousseau et l'envoie comme avant.
+Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonnable. Le mot de passe ne sert qu'à une chose : ouvrir une session de l'application, dont la clé est gardée ensuite dans le trousseau et envoyée comme celle du compte (CNX-11).
 
 | Code | Type | Règle |
 |---|---|---|
 | CNX-1 | D | Un compte peut avoir un mot de passe. Il n'est jamais stocké, seulement son empreinte scrypt. Sans mot de passe, la connexion par mot de passe est fermée pour ce compte |
 | CNX-2 | M | Le mot de passe se choisit en rejoignant le foyer (FOY-3), puis se change dans Réglages, Compte, ou par l'API avec sa clé. Dix caractères au moins |
-| CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe et rend la clé d'API. Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
+| CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe, ouvre une session et rend sa clé (CNX-11). Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent pas, ni par la réponse ni par sa durée |
 | CNX-4 | D | `/connexion`, `/connexion/apple` (CNX-7), l'acceptation d'une invitation (FOY-3) et la page de son lien (5.16) sont les seules routes ouvertes sans clé. La page ne lit rien en base : elle ouvre l'appli avec le code et l'adresse du serveur. Chaque autre route exige la clé d'API |
 | CNX-5 | D | Toutes les routes de l'application passent par `tailscale funnel`, derrière la clé. Les routes d'administration restent sur le tailnet : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, tour des week-ends, relève et relecture des courriels. L'API refuse ces routes (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
-| CNX-6 | M | Se déconnecter, dans Réglages, efface la clé du trousseau et retire l'appareil de la liste des notifications. Changer de mot de passe ne change pas la clé ; la renouveler déconnecte tous les appareils |
-| CNX-7 | T | « Se connecter avec Apple » : l'appli envoie le jeton d'identité d'Apple à `POST /connexion/apple`, ouverte sans clé. Le serveur vérifie sa signature par les clés publiées par Apple, l'émetteur, le destinataire (l'identifiant de l'appli) et l'expiration, puis rend la clé d'API du compte relié à son identifiant (`sub`). Un jeton refusé ne compte pas dans les échecs de CNX-3 |
+| CNX-6 | M | Se déconnecter, dans Réglages, retire l'appareil de la liste des notifications, révoque sa session (`DELETE /moi/session`) et efface la clé du trousseau. Les autres appareils restent connectés, et une session se ferme aussi depuis un autre appareil (`DELETE /moi/sessions/{id}`). Changer de mot de passe ne ferme aucune session |
+| CNX-7 | T | « Se connecter avec Apple » : l'appli envoie le jeton d'identité d'Apple à `POST /connexion/apple`, ouverte sans clé. Le serveur vérifie sa signature par les clés publiées par Apple, l'émetteur, le destinataire (l'identifiant de l'appli) et l'expiration, puis ouvre une session du compte relié à son identifiant (`sub`) et rend sa clé (CNX-11). Un jeton refusé ne compte pas dans les échecs de CNX-3 |
 | CNX-8 | M | Un identifiant Apple ouvre un seul compte. Il se relie la première fois en donnant le pseudo et le mot de passe avec le jeton, ou dans Réglages, Serveur et connexion, qui permet aussi de le délier. Relié à un autre compte, il quitte le premier |
 | CNX-9 | M | On rejoint le foyer avec Apple, sans mot de passe : le code et le pseudo suffisent (FOY-3). Le mot de passe se choisit plus tard si on le veut (CNX-2) |
 | CNX-10 | D | L'adresse du serveur est intégrée à l'appli à la compilation, depuis `ios/HAL/Serveur.local.xcconfig`, hors du dépôt public. L'écran de connexion ne la demande que si on choisit « Autre serveur » |
+| CNX-11 | D | Chaque connexion (CNX-3, CNX-7, FOY-3) ouvre une session : une clé à elle, montrée une seule fois, avec le nom de l'appareil. La base n'en garde que l'empreinte SHA-256. `GET /moi/sessions` liste les sessions ouvertes. Une session révoquée, ou celle d'un compte mis en pause, n'ouvre plus rien. La clé du compte reste valable, pour les appareils connectés avant les sessions, les scripts et le bot d'administration, et ne se révoque pas par `DELETE /moi/session` |
+| CNX-12 | D | Aucune clé d'API n'est gardée en clair. Une clé écrite dans `utilisateur.cle_api` est hachée dans `empreinte_cle_api` par un déclencheur, et la colonne repart vide |
 
 ---
 
@@ -1442,6 +1444,8 @@ SPT-5, SPT-18, SPT-21 et SPT-30 sont retirées (annexe 2). Leurs contraintes res
 | CNX-3 | `echecs_connexion` compte les échecs d'affilée et revient à zéro à la première réussite. Au cinquième, `bloque_jusqu_a` reçoit quinze minutes plus tard, et toute connexion est refusée d'ici là | Dynamique forte |
 | CNX-4 | Toute route autre que `POST /connexion` et `POST /invitations/{code}/accepter` exige l'en-tête `X-Cle-Api` | Dynamique forte |
 | CNX-5 | Une route d'administration appelée avec l'en-tête `Tailscale-Funnel-Request`, ou sur le port du funnel, répond 403 `reseau_prive` | Dynamique forte |
+| CNX-11 | Deux connexions rendent deux clés distinctes, gardées en empreinte. Révoquer l'une ne coupe ni l'autre ni la clé du compte | Dynamique forte |
+| CNX-12 | `utilisateur.cle_api` est vide sur toutes les lignes, y compris après un `INSERT` ou un `UPDATE` qui y écrit | Dynamique forte |
 
 ---
 
