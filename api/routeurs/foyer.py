@@ -21,8 +21,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from api import mot_de_passe
+from api import identifiant_apple, mot_de_passe
 from api.base import connexion, executer, lister, un_seul
+from api.routeurs.connexion import identifiant_du_jeton
 from api.securite import Authentifie, par_le_funnel
 
 routeur = APIRouter(tags=["Foyer"])
@@ -224,7 +225,9 @@ def annuler_invitation(id_invitation: int, qui: Authentifie) -> dict:
 class Adhesion(BaseModel):
     pseudo: str = Field(min_length=3, max_length=30)
     nom: str | None = Field(default=None, max_length=50)
-    mot_de_passe: str = Field(max_length=200)
+    mot_de_passe: str | None = Field(default=None, max_length=200)
+    # CNX-9 : rejoindre avec Apple, sans mot de passe.
+    jeton_apple: str | None = Field(default=None, max_length=5000)
 
 
 @routeur.post("/invitations/{code}/accepter", status_code=status.HTTP_201_CREATED,
@@ -236,12 +239,20 @@ def accepter(code: str, adhesion: Adhesion) -> dict:
             detail={"code": "invitation_invalide",
                     "message": "Ce code d'invitation n'est plus valable : demande-en un nouveau"},
         )
-    try:
-        mot_de_passe.valider(adhesion.mot_de_passe)
-    except mot_de_passe.MotDePasseRefuse as refus:
+    apple = identifiant_du_jeton(adhesion.jeton_apple) if adhesion.jeton_apple else None
+    if apple is None or adhesion.mot_de_passe is not None:
+        try:
+            mot_de_passe.valider(adhesion.mot_de_passe or "")
+        except mot_de_passe.MotDePasseRefuse as refus:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"code": "mot_de_passe_refuse", "message": str(refus)}) from None
+    if apple and (deja := identifiant_apple.compte(apple)):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "mot_de_passe_refuse", "message": str(refus)}) from None
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "apple_deja_relie",
+                    "message": f"Ton identifiant Apple ouvre déjà le compte « {deja['pseudo']} » : "
+                               "connecte-toi avec Apple."})
 
     cle = secrets.token_urlsafe(36)
     # La fonction est appelée seule : une jointure sur `utilisateur` l'appellerait
@@ -249,9 +260,12 @@ def accepter(code: str, adhesion: Adhesion) -> dict:
     cree = executer(
         "SELECT rejoindre_le_foyer(%(empreinte)s, %(pseudo)s, %(nom)s, %(cle)s, %(mdp)s) AS id",
         {"empreinte": _empreinte(code), "pseudo": adhesion.pseudo, "nom": adhesion.nom,
-         "cle": cle, "mdp": mot_de_passe.empreinte(adhesion.mot_de_passe)},
+         "cle": cle,
+         "mdp": mot_de_passe.empreinte(adhesion.mot_de_passe) if adhesion.mot_de_passe else None},
     )
     assert cree is not None
+    if apple:
+        identifiant_apple.relier(cree["id"], apple)
     compte = un_seul("SELECT pseudo, cle_api FROM utilisateur WHERE id_utilisateur = %(id)s",
                      {"id": cree["id"]})
     assert compte is not None

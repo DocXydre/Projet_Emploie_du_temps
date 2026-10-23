@@ -104,6 +104,13 @@ final class Session {
         return nil
     }
 
+    /// L'adresse du serveur du foyer, intégrée à l'appli à la compilation
+    /// (`Serveur.local.xcconfig`) : plus rien à taper. Vide si le fichier manque,
+    /// et l'écran de connexion la demande alors.
+    static let serveurIntegre: String =
+        (Bundle.main.object(forInfoDictionaryKey: "HALServeur") as? String ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
     /// « planif.xxx.ts.net:8443 » ou une adresse complète : on ajoute https:// s'il manque.
     static func adresse(depuis texte: String) -> URL? {
         var propre = texte.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -116,6 +123,21 @@ final class Session {
     private struct Identifiants: Encodable {
         let pseudo: String
         let motDePasse: String
+        /// CNX-8 : le jeton d'Apple à relier au compte, la première fois.
+        let jetonApple: String?
+    }
+
+    private struct JetonApple: Encodable {
+        let jeton: String
+    }
+
+    /// L'adresse tapée, ou celle intégrée à l'appli.
+    private static func adresseVisee(_ serveur: String) throws -> URL {
+        let texte = serveur.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let adresse = Self.adresse(depuis: texte.isEmpty ? serveurIntegre : texte) else {
+            throw ErreurAPI(code: "adresse", message: "Donne l'adresse du serveur")
+        }
+        return adresse
     }
 
     private struct Compte: Decodable {
@@ -123,34 +145,47 @@ final class Session {
         let cleApi: String
     }
 
-    /// CNX-2 : le pseudo et le mot de passe rendent la clé d'API.
-    func connecter(serveur: String, pseudo: String, motDePasse: String) async throws {
-        guard let adresse = Self.adresse(depuis: serveur) else {
-            throw ErreurAPI(code: "adresse", message: "Donne l'adresse du serveur")
-        }
+    /// CNX-2 : le pseudo et le mot de passe rendent la clé d'API. Avec un jeton
+    /// d'Apple, ils relient aussi l'identifiant Apple au compte (CNX-8).
+    func connecter(serveur: String, pseudo: String, motDePasse: String,
+                   jetonApple: String? = nil) async throws {
+        let adresse = try Self.adresseVisee(serveur)
         let client = ClientAPI(adresse: adresse, cle: nil)
         let compte: Compte = try await client.requete(
-            "POST", "connexion", corps: ClientAPI.corps(Identifiants(pseudo: pseudo, motDePasse: motDePasse)))
+            "POST", "connexion",
+            corps: ClientAPI.corps(Identifiants(pseudo: pseudo, motDePasse: motDePasse,
+                                                jetonApple: jetonApple)))
+        enregistrer(adresse: adresse, compte: compte)
+    }
+
+    /// CNX-7 : « Se connecter avec Apple ». Un identifiant pas encore relié
+    /// répond `apple_inconnu` : l'écran demande alors le mot de passe une fois.
+    func connecterAvecApple(serveur: String, jeton: String) async throws {
+        let adresse = try Self.adresseVisee(serveur)
+        let client = ClientAPI(adresse: adresse, cle: nil)
+        let compte: Compte = try await client.requete(
+            "POST", "connexion/apple", corps: ClientAPI.corps(JetonApple(jeton: jeton)))
         enregistrer(adresse: adresse, compte: compte)
     }
 
     private struct Adhesion: Encodable {
         let pseudo: String
         let nom: String?
-        let motDePasse: String
+        let motDePasse: String?
+        let jetonApple: String?
     }
 
-    /// FOY-3 : un code d'invitation crée le compte et le connecte.
+    /// FOY-3 : un code d'invitation crée le compte et le connecte. Avec Apple,
+    /// sans mot de passe (CNX-9).
     func rejoindre(serveur: String, code: String, pseudo: String, nom: String?,
-                   motDePasse: String) async throws {
-        guard let adresse = Self.adresse(depuis: serveur) else {
-            throw ErreurAPI(code: "adresse", message: "Donne l'adresse du serveur")
-        }
+                   motDePasse: String?, jetonApple: String? = nil) async throws {
+        let adresse = try Self.adresseVisee(serveur)
         let propre = code.uppercased().filter { $0.isLetter || $0.isNumber }
         let client = ClientAPI(adresse: adresse, cle: nil)
         let compte: Compte = try await client.requete(
             "POST", "invitations/\(propre)/accepter",
-            corps: ClientAPI.corps(Adhesion(pseudo: pseudo, nom: nom, motDePasse: motDePasse)))
+            corps: ClientAPI.corps(Adhesion(pseudo: pseudo, nom: nom, motDePasse: motDePasse,
+                                            jetonApple: jetonApple)))
         enregistrer(adresse: adresse, compte: compte)
     }
 

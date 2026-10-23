@@ -33,6 +33,8 @@ local/
 *.xcodeproj/
 xcuserdata/
 DerivedData/
+# L'adresse du serveur intégrée à l'appli : hors du dépôt public.
+ios/HAL/Serveur.local.xcconfig
 
 # Copies laissées par une fusion (git mergetool).
 *.orig

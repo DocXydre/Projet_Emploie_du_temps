@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 import UIKit
 
@@ -566,8 +567,9 @@ struct EcranNotifications: View {
 
 // MARK: - 5.13 Serveur et connexion
 
-/// À quel serveur on est connecté et dans quel état, changer son mot de passe,
-/// se déconnecter (CNX-2, CNX-6). En démonstration, se connecter.
+/// À quel serveur on est connecté et dans quel état, se connecter avec Apple,
+/// changer son mot de passe, se déconnecter (CNX-2, CNX-6, CNX-8). En
+/// démonstration, se connecter.
 struct EcranServeur: View {
     @Environment(Session.self) private var session
     @Environment(Foyer.self) private var foyer
@@ -580,6 +582,8 @@ struct EcranServeur: View {
     @State private var essai = false
     @State private var erreur: String?
     @State private var confirmer = false
+    /// CNX-8 : le compte s'ouvre-t-il avec Apple ? Inconnu tant que le serveur n'a pas répondu.
+    @State private var apple: Bool?
 
     var body: some View {
         FormulaireVerre {
@@ -602,6 +606,31 @@ struct EcranServeur: View {
                     .disabled(essai)
                 } header: {
                     Text("Connexion")
+                }
+                if let apple {
+                    Section {
+                        if apple {
+                            LabeledContent("Se connecter avec Apple", value: "Oui")
+                            Button("Ne plus se connecter avec Apple", role: .destructive) {
+                                Task { await delierApple() }
+                            }
+                        } else {
+                            SignInWithAppleButton(.continue) { $0.requestedScopes = [] } onCompletion: { resultat in
+                                Task { await relierApple(resultat) }
+                            }
+                            .signInWithAppleButtonStyle(.white)
+                            .frame(height: 50)
+                            .clipShape(.capsule)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
+                        }
+                    } header: {
+                        Text("Apple")
+                    } footer: {
+                        if !apple {
+                            Text("Ensuite, plus besoin du mot de passe pour te connecter.")
+                        }
+                    }
                 }
                 Section {
                     SecureField("Nouveau mot de passe", text: $nouveau)
@@ -637,6 +666,51 @@ struct EcranServeur: View {
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("Se déconnecter ?", isPresented: $confirmer, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) { Task { await deconnecter() } }
+        }
+        .task { await lireApple() }
+    }
+
+    private struct EtatApple: Decodable, Sendable { let relie: Bool }
+    private struct JetonApple: Encodable { let jeton: String }
+
+    private func lireApple() async {
+        let etat: EtatApple? = try? await session.client?.requete("GET", "moi/apple")
+        apple = etat?.relie
+    }
+
+    /// CNX-8 : relie l'identifiant Apple au compte connecté.
+    private func relierApple(_ resultat: Result<ASAuthorization, Error>) async {
+        erreur = nil
+        guard case .success(let autorisation) = resultat else {
+            if case .failure(let echec) = resultat,
+               (echec as? ASAuthorizationError)?.code != .canceled {
+                erreur = "Apple n'a pas pu confirmer qui tu es. Réessaie."
+            }
+            return
+        }
+        guard let identite = autorisation.credential as? ASAuthorizationAppleIDCredential,
+              let donnees = identite.identityToken,
+              let jeton = String(data: donnees, encoding: .utf8) else {
+            erreur = "Apple n'a pas pu confirmer qui tu es. Réessaie."
+            return
+        }
+        do {
+            let etat: EtatApple? = try await session.client?.requete(
+                "PUT", "moi/apple", corps: ClientAPI.corps(JetonApple(jeton: jeton)))
+            apple = etat?.relie
+            annoncer("Tu peux te connecter avec Apple")
+        } catch {
+            erreur = motifDe(error)
+        }
+    }
+
+    private func delierApple() async {
+        erreur = nil
+        do {
+            let etat: EtatApple? = try await session.client?.requete("DELETE", "moi/apple")
+            apple = etat?.relie
+        } catch {
+            erreur = motifDe(error)
         }
     }
 

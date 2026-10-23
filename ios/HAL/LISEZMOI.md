@@ -15,7 +15,15 @@ xcodegen
 open HAL.xcodeproj
 ```
 
-Dans Xcode, onglet **Signing & Capabilities**, choisir son équipe, puis lancer sur l'iPhone. Le `.xcodeproj` n'entre pas dans le dépôt : il se régénère depuis `project.yml`. Un fichier ajouté ou retiré demande de relancer `xcodegen`.
+L'adresse du serveur s'intègre à l'appli : créer `ios/HAL/Serveur.local.xcconfig`, hors du dépôt, avec une seule ligne, sans `https://` :
+
+```
+HAL_SERVEUR = planif.<tailnet>.ts.net:8443
+```
+
+L'écran de connexion n'a alors plus de champ serveur (CNX-10) ; « Autre serveur » le fait réapparaître, pour la fausse base par exemple. Sans ce fichier, l'adresse se tape comme avant.
+
+L'équipe de signature est dans `project.yml` (`DEVELOPMENT_TEAM`) : celle du compte développeur payant, qui permet les notifications d'Apple et « Se connecter avec Apple ». Lancer sur l'iPhone. Le `.xcodeproj` n'entre pas dans le dépôt : il se régénère depuis `project.yml`. Un fichier ajouté ou retiré demande de relancer `xcodegen`.
 
 ## Essayer dans le simulateur, sur la fausse base
 
@@ -106,7 +114,7 @@ Changer d'exercice avant de lancer (3.4) se fait pendant la séance, par le menu
 - Réglages, Appareil : les notifications et mes heures, bilan, relance, récap et silence (5.11). L'iPhone s'enregistre auprès du serveur pour les notifications d'Apple, et s'en retire à la déconnexion (NOT-16, CNX-6).
 - Réglages, Foyer et compte : le foyer, ses membres, inviter, les droits sur les tâches, passer l'administration, retirer, quitter (5.15, 5.16) ; le serveur et l'état de la connexion (5.13).
 
-La capacité Push (`aps-environment`) est dans `project.yml` : elle demande le compte développeur payant. Réglages, Essais, « Revoir le premier lancement » le rejoue sans se déconnecter, et « Compte neuf » montre en démonstration ce que voit un compte qui arrive.
+La capacité Push (`aps-environment`) est dans `project.yml`. Réglages, Essais, « Revoir le premier lancement » le rejoue sans se déconnecter, et « Compte neuf » montre en démonstration ce que voit un compte qui arrive.
 
 ### Vérifier le lot 8
 
@@ -117,11 +125,18 @@ La capacité Push (`aps-environment`) est dans `project.yml` : elle demande le c
 
 ## Ce que fait le lot 9
 
-- Des widgets iOS (IOS-1) : Sport (l'anneau de la semaine et la prochaine séance), Forme (la nuit, la FC au repos, les pas), Ta journée (maintenant et ensuite). Ils lisent ce que l'appli a gardé dans le dossier partagé du groupe `group.fr.docxydre.hal`, sans appel au serveur, et l'appli leur demande de se redessiner à chaque chargement.
+- Des widgets iOS (IOS-1) : Sport (l'anneau de la semaine et la prochaine séance), Forme (la nuit, la FC au repos, les pas), Ta journée (maintenant et ensuite). Ils lisent ce que l'appli a gardé dans le dossier partagé du groupe `group.fr.docxydre.hal.partage`, sans appel au serveur, et l'appli leur demande de se redessiner à chaque chargement.
 - Sur l'écran verrouillé (IOS-2) : l'anneau Sport, le prochain événement, et l'orbe qui ouvre directement le panneau de HAL.
 - La Live Activity de la séance (IOS-3) : l'exercice, la série et le repos, sur l'écran verrouillé et dans la Dynamic Island, compacte, minimale ou déployée avec « Passer ».
 - L'envoi à la montre (MON-1) : une course ou une séance de cardio prévue part dans l'app Exercice, à son heure, avec ses étapes (les lignes prévues par HAL, ou échauffement, corps de séance et retour au calme) et ses alertes (l'allure si HAL en donne une, sinon la zone cardiaque de l'intensité). Faite, elle revient par Santé et valide la séance (MON-2).
 - Toucher un widget ouvre l'appli au bon endroit : `hal://aujourdhui`, `hal://sport`, `hal://hal`, `hal://seance`.
+
+## Se connecter avec Apple
+
+- « Se connecter avec Apple » en tête de l'écran de connexion (CNX-7). La première fois, le serveur ne connaît pas l'identifiant : l'appli demande le pseudo et le mot de passe une fois, et le relie (CNX-8). Ensuite, Apple suffit.
+- Une invitation se rejoint avec Apple, sans mot de passe : le code et le pseudo suffisent (CNX-9).
+- Réglages, Serveur et connexion : relier son identifiant Apple, ou le délier.
+- Le serveur vérifie le jeton d'Apple lui-même (signature, émetteur, identifiant de l'appli, expiration) : rien à configurer de son côté.
 
 ## Après les lots : la reprise sur la maquette
 
