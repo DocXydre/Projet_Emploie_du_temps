@@ -30,7 +30,7 @@ struct Module: Identifiable {
     let categorie: Categorie
     /// Les tailles acceptées, la première étant celle par défaut.
     let tailles: [TailleWidget]
-    /// Un module fixe ne se retire pas et ne se déplace pas (WID-7).
+    /// Un module fixe ne se retire pas et ne se déplace pas.
     var fixe = false
     /// MON-8 : un module qui ne vit que par la montre. Sans elle, il quitte
     /// l'accueil et la galerie, et revient avec elle.

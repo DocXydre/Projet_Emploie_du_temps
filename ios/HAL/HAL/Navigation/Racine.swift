@@ -17,6 +17,7 @@ struct Racine: View {
     @Environment(Foyer.self) private var foyer
     @Environment(Session.self) private var session
     @Environment(Aiguillage.self) private var aiguillage
+    @Environment(FileAttente.self) private var file
     @State private var annonce: Annonce?
     /// ORB-13 : clavier sorti, la barre d'onglets s'efface et laisse sa place.
     @State private var clavier = false
@@ -113,6 +114,7 @@ struct Racine: View {
         // IOS-2, IOS-3 : ce que les widgets et la Live Activity demandent d'ouvrir.
         .onChange(of: aiguillage.ouvrirHAL) { suivreLesLiens() }
         .onChange(of: aiguillage.ouvrirSeance) { suivreLesLiens() }
+        .onChange(of: aiguillage.lancerSeanceLibre) { suivreLesLiens() }
         .onAppear { suivreLesLiens() }
         // NOT-18 : le serveur dit que HAL a parlé, le « ! » s'allume.
         .onChange(of: foyer.orbeADire) { _, aDire in if aDire { conversation.signaler() } }
@@ -132,6 +134,11 @@ struct Racine: View {
         if aiguillage.ouvrirSeance {
             aiguillage.ouvrirSeance = false
             if seance.enCours { seance.affichee = true }
+        }
+        if aiguillage.lancerSeanceLibre {
+            aiguillage.lancerSeanceLibre = false
+            // Une séance déjà en cours se reprend, comme dans l'appli.
+            seance.lancerLibre(file: file)
         }
     }
 

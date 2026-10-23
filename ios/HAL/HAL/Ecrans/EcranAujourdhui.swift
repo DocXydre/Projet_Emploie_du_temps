@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Le tableau de bord (1.1). Les widgets prioritaires passent devant la
-/// disposition choisie (WID-6) ; la séance libre ferme la grille (WID-7).
+/// disposition choisie (WID-6).
 struct EcranAujourdhui: View {
     @Environment(Foyer.self) private var foyer
     @Environment(SeanceEnCours.self) private var seance

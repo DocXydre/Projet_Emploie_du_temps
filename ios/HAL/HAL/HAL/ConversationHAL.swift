@@ -20,7 +20,14 @@ final class ConversationHAL {
         id: "demo", auteur: .hal,
         texte: "Salut. Ta semaine est validée : trois séances, dont la course de jeudi.")
 
-    private(set) var messages: [MessageHAL] = [ConversationHAL.messageDeDemonstration]
+    private(set) var messages: [MessageHAL] = [ConversationHAL.messageDeDemonstration] {
+        // IOS-1 : le widget HAL de l'écran d'accueil montre son dernier mot.
+        didSet {
+            guard client != nil, let dernier = messages.last(where: { $0.auteur == .hal && !$0.texte.isEmpty })
+            else { return }
+            PourLesWidgets.publier(motDeHAL: dernier.texte)
+        }
+    }
     var ouvert = false
     /// ORB-12 : le panneau monte jusqu'en haut de l'écran.
     var etendu = false

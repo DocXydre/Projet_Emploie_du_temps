@@ -30,6 +30,8 @@ final class Aiguillage {
     var ouvrirHAL = false
     /// IOS-3 : toucher la Live Activity ramène sur la séance en cours.
     var ouvrirSeance = false
+    /// IOS-1 : le widget « Séance libre » de l'écran d'accueil la lance.
+    var lancerSeanceLibre = false
 
     /// IOS-1 : un widget ouvre l'appli au bon endroit (`hal://sport`, `hal://hal`…).
     /// Rend vrai si le lien est l'un d'eux.
@@ -43,6 +45,7 @@ final class Aiguillage {
         case "seance":
             onglet = .sport
             ouvrirSeance = true
+        case "seance-libre": lancerSeanceLibre = true
         default: return false
         }
         return true

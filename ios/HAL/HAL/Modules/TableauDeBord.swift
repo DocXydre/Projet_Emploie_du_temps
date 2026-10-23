@@ -1,29 +1,28 @@
 import SwiftUI
 
-/// Une rangée de l'accueil : un widget en pleine largeur, ou deux petits côte à côte.
+/// Une rangée de l'accueil : un widget en pleine largeur, ou deux petits côte à
+/// côte. Un petit seul en fin de grille a la case « Ajouter » à sa droite.
 private enum Rangee: Identifiable {
     case pleine(Place)
     case double(Place?, Place?)
+    case derniere(Place)
 
     var id: String {
         switch self {
         case .pleine(let place): place.id.uuidString
         case .double(let gauche, let droite): (gauche?.id.uuidString ?? "vide") + (droite?.id.uuidString ?? "vide")
+        case .derniere(let place): place.id.uuidString + "ajouter"
         }
     }
 }
 
-/// La grille de widgets d'Aujourd'hui, avec son mode édition (WID-3, WID-7).
+/// La grille de widgets d'Aujourd'hui, avec son mode édition (WID-3).
 struct TableauDeBord: View {
     @Binding var edition: Bool
     var ouvrir: (Module) -> Void
     var ajouter: () -> Void
     @Environment(Disposition.self) private var disposition
     @Environment(Foyer.self) private var foyer
-
-    /// La séance libre ferme toujours la grille, en bas à droite (WID-7).
-    private static let placeSeanceLibre = Place(id: UUID(uuidString: "00000000-0000-0000-0000-00000000501E")!,
-                                                module: Module.seanceLibre.id, taille: .petit)
 
     var body: some View {
         VStack(spacing: Espace.gouttiere) {
@@ -33,8 +32,13 @@ struct TableauDeBord: View {
                     cellule(place)
                 case .double(let gauche, let droite):
                     HStack(spacing: Espace.gouttiere) {
-                        if let gauche { cellule(gauche) } else { caseAjouter }
+                        if let gauche { cellule(gauche) } else { Color.clear.aspectRatio(1, contentMode: .fit) }
                         if let droite { cellule(droite) } else { Color.clear.aspectRatio(1, contentMode: .fit) }
+                    }
+                case .derniere(let place):
+                    HStack(spacing: Espace.gouttiere) {
+                        cellule(place)
+                        caseAjouter
                     }
                 }
             }
@@ -64,7 +68,9 @@ struct TableauDeBord: View {
                 resultat.append(.pleine(place))
             }
         }
-        resultat.append(.double(enAttente, Self.placeSeanceLibre))
+        if let seul = enAttente {
+            resultat.append(.derniere(seul))
+        }
         return resultat
     }
 
@@ -79,7 +85,7 @@ struct TableauDeBord: View {
         }
     }
 
-    /// La case libre à gauche de la séance libre : elle ouvre la galerie.
+    /// La case libre à droite du dernier petit widget : elle ouvre la galerie.
     private var caseAjouter: some View {
         Button(action: ajouter) {
             VStack(spacing: 8) {
