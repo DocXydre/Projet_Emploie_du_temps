@@ -14,7 +14,8 @@ def test_le_mot_de_passe_rend_la_cle_et_n_est_jamais_stocke(client, thomas):
     rendu = client.post("/connexion", json={"pseudo": "Thomas",
                                             "mot_de_passe": "une phrase assez longue"})
     assert rendu.status_code == 200
-    assert rendu.json()["cle_api"] == thomas["X-Cle-Api"]
+    # CNX-11 : une clé à cette connexion, pas celle du compte.
+    assert rendu.json()["cle_api"] != thomas["X-Cle-Api"]
     # La clé rendue ouvre l'API comme avant.
     assert client.get("/exercices", headers={"X-Cle-Api": rendu.json()["cle_api"]}
                       ).status_code == 200

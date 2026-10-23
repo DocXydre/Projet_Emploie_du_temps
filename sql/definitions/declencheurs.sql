@@ -30,6 +30,12 @@ CREATE OR REPLACE TRIGGER occupation_reverifier_propositions
     FOR EACH STATEMENT EXECUTE FUNCTION trg_occupation_reverifier();
 
 
+-- CNX-12 : la clé d'API du compte n'est gardée qu'en empreinte.
+CREATE OR REPLACE TRIGGER utilisateur_cle_api_en_empreinte
+    BEFORE INSERT OR UPDATE OF cle_api ON utilisateur
+    FOR EACH ROW EXECUTE FUNCTION trg_cle_api_en_empreinte();
+
+
 -- -----------------------------------------------------------------------------
 -- Le journal                                                     (JRN-1 à JRN-6)
 --

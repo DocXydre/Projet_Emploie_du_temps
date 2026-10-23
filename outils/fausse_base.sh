@@ -48,6 +48,13 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 
+# CNX-11 : les sessions ouvertes dans le simulateur survivent à la base refaite,
+# pour que l'appli y reste connectée. Rien à garder au tout premier passage.
+SESSIONS="$(docker exec planif-db psql -U "$UTILISATEUR" -d "$BASE" -tAq -c \
+    "SELECT string_agg(format('(%L, %L, %L)', u.pseudo, s.empreinte, s.nom), ',')
+       FROM session_appareil s JOIN utilisateur u USING (id_utilisateur)
+      WHERE s.revoquee_le IS NULL" 2>/dev/null || true)"
+
 # L'API lâche la base avant qu'on la refasse.
 "${COMPOSE[@]}" stop api > /dev/null 2>&1 || true
 docker exec -i planif-db psql -U "$UTILISATEUR" -d postgres -v ON_ERROR_STOP=1 -q \
@@ -60,6 +67,14 @@ migrer
 echo
 echo "Remplissage :"
 "${COMPOSE[@]}" run --rm --no-deps -T api python -m outils.fausse_base
+
+if [ -n "$SESSIONS" ]; then
+    docker exec -i planif-db psql -U "$UTILISATEUR" -d "$BASE" -v ON_ERROR_STOP=1 -q -c \
+        "INSERT INTO session_appareil (id_utilisateur, empreinte, nom)
+         SELECT u.id_utilisateur, v.empreinte, v.nom
+           FROM (VALUES $SESSIONS) AS v (pseudo, empreinte, nom)
+           JOIN utilisateur u ON u.pseudo = v.pseudo"
+fi
 
 "${COMPOSE[@]}" up -d --build api
 for _ in $(seq 1 40); do

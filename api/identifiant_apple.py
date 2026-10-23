@@ -114,8 +114,8 @@ def verifier(jeton: str, maintenant: float | None = None) -> str:
 
 
 def compte(identifiant: str) -> dict | None:
-    """CNX-7 : le compte actif relié à cet identifiant Apple, avec sa clé."""
-    return un_seul("""SELECT pseudo, cle_api FROM utilisateur
+    """CNX-7 : le compte actif relié à cet identifiant Apple."""
+    return un_seul("""SELECT id_utilisateur, pseudo FROM utilisateur
                        WHERE identifiant_apple = %(i)s AND actif""", {"i": identifiant})
 
 

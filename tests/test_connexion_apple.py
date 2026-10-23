@@ -55,12 +55,14 @@ def test_un_identifiant_apple_inconnu_demande_le_mot_de_passe_une_fois(client, t
     mot_de_passe.choisir(_id("thomas"), MOT_DE_PASSE)
     relie = client.post("/connexion", json={"pseudo": "thomas", "mot_de_passe": MOT_DE_PASSE,
                                             "jeton_apple": _jeton()})
-    assert relie.status_code == 200 and relie.json() == {
-        "pseudo": "thomas", "cle_api": thomas["X-Cle-Api"]}
+    assert relie.status_code == 200 and relie.json()["pseudo"] == "thomas"
 
-    # Ensuite, Apple suffit.
+    # Ensuite, Apple suffit. Chaque connexion a sa clé (CNX-11).
     apple = client.post("/connexion/apple", json={"jeton": _jeton()})
-    assert apple.status_code == 200 and apple.json()["cle_api"] == thomas["X-Cle-Api"]
+    assert apple.status_code == 200 and apple.json()["pseudo"] == "thomas"
+    assert apple.json()["cle_api"] not in (relie.json()["cle_api"], thomas["X-Cle-Api"])
+    assert client.get("/moi", headers={"X-Cle-Api": apple.json()["cle_api"]}
+                      ).json()["pseudo"] == "thomas"
     assert client.get("/moi/apple", headers=thomas).json() == {"relie": True}
 
 
@@ -107,8 +109,10 @@ def test_rejoindre_le_foyer_avec_apple_sans_mot_de_passe(client, thomas, lorette
                           json={"pseudo": "camille", "jeton_apple": _jeton("000999.camille")})
     assert rejoint.status_code == 201, rejoint.text
     assert un("SELECT mot_de_passe FROM utilisateur WHERE pseudo = 'camille'") is None
-    assert client.post("/connexion/apple", json={"jeton": _jeton("000999.camille")}
-                       ).json()["cle_api"] == rejoint.json()["cle_api"]
+    apple = client.post("/connexion/apple", json={"jeton": _jeton("000999.camille")})
+    assert apple.json()["pseudo"] == "camille"
+    assert client.get("/moi", headers={"X-Cle-Api": apple.json()["cle_api"]}
+                      ).json()["pseudo"] == "camille"
 
 
 def test_rejoindre_sans_apple_demande_toujours_un_mot_de_passe(client, thomas, lorette):

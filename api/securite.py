@@ -1,8 +1,9 @@
 """Authentification par clé d'API.
 
-Pour deux utilisateurs sur un réseau local, les jetons à durée de vie et les
-mécanismes de rafraîchissement sont du décor. Une clé longue par personne,
-transmise dans un en-tête, suffit et se révoque en une requête SQL.
+Pour un foyer, les jetons à durée de vie et les mécanismes de rafraîchissement
+sont du décor. Une clé longue, transmise dans un en-tête, suffit : celle d'une
+session, une par appareil et révocable seule, ou celle du compte (CNX-11). La
+base n'en garde que l'empreinte (api/sessions.py).
 """
 
 from typing import Annotated
@@ -10,7 +11,7 @@ from typing import Annotated
 from fastapi import Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
-from api import operation
+from api import operation, sessions
 from api.base import lister, un_seul
 from api.config import configuration
 
@@ -21,6 +22,8 @@ class Appelant(BaseModel):
     id_utilisateur: int
     pseudo: str
     role: str
+    # CNX-11 : la session de l'appel. Vide quand c'est la clé du compte.
+    id_session: int | None = None
 
     @property
     def est_admin(self) -> bool:
@@ -34,14 +37,7 @@ def _par_cle(cle: str | None) -> Appelant:
             detail={"code": "cle_absente", "message": f"En-tête {EN_TETE} requis"},
         )
 
-    ligne = un_seul(
-        """
-        SELECT id_utilisateur, pseudo, role
-          FROM utilisateur
-         WHERE cle_api = %(cle)s AND actif
-        """,
-        {"cle": cle},
-    )
+    ligne = sessions.appelant_de(cle)
     if ligne is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
