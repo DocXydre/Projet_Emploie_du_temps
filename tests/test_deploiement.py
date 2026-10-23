@@ -172,9 +172,10 @@ def test_le_premier_passage_deploie_et_retient_le_commit(scene):
     assert passage.returncode == 0, passage.stdout + passage.stderr
     assert "Déployé." in passage.stdout
     assert scene.deploye() == _git(scene.auteur, "rev-parse", "HEAD")
-    # Dans l'ordre : les migrations, puis l'API.
+    # Dans l'ordre : les migrations, puis l'API et le travailleur.
     appels = scene.lire("appels")
     assert appels.index("migrations") < appels.index("docker compose up")
+    assert "docker compose up -d --build api travailleur" in appels
 
 
 def test_rien_a_faire_ne_dit_rien(scene):

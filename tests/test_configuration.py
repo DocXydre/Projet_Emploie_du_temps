@@ -20,9 +20,11 @@ from api.config import Configuration
 
 COMPOSE = Path(__file__).resolve().parent.parent / "docker-compose.yml"
 
-# Ce qui n'a pas la même valeur dans le conteneur et sur la machine. Tout le
-# reste doit venir du .env, sans passer par une liste à tenir à jour.
-EXCEPTIONS = {"DB_HOTE", "DB_PORT", "TZ"}
+# Ce qui n'a pas la même valeur dans le conteneur et sur la machine, ou dans
+# l'API et dans le travailleur : l'ordonnanceur ne tourne que dans le second,
+# et la première sait où le joindre. Tout le reste doit venir du .env, sans
+# passer par une liste à tenir à jour.
+EXCEPTIONS = {"DB_HOTE", "DB_PORT", "TZ", "ORDONNANCEUR_ACTIF", "TRAVAILLEUR_ADRESSE"}
 
 
 @pytest.fixture(scope="module")
@@ -49,6 +51,17 @@ def test_aucun_reglage_n_est_recopie_a_la_main(service_api):
     # réglage ajouté à config.py sans y figurer serait de nouveau ignoré, ou
     # pire, un repli écrit ici contredirait le défaut du code.
     assert recopies == set(), f"à retirer de docker-compose.yml : {sorted(recopies)}"
+
+
+def test_le_travailleur_recoit_le_meme_env_et_garde_l_ordonnanceur():
+    travailleur = yaml.safe_load(COMPOSE.read_text())["services"]["travailleur"]
+    environnement = travailleur.get("environment") or {}
+
+    assert ".env" in (travailleur.get("env_file") or [])
+    assert set(environnement) - EXCEPTIONS == set()
+    # Coupé dans l'API, il ne doit pas l'être ici : plus rien ne partirait.
+    assert "ORDONNANCEUR_ACTIF" not in environnement
+    assert environnement["DB_HOTE"] == "db"
 
 
 def test_la_base_reste_jointe_par_son_nom_docker(service_api):

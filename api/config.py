@@ -215,9 +215,14 @@ class Configuration(BaseSettings):
     gemini_cli_commande: str = "gemini"
     gemini_cli_modele: str = "pro"
 
-    # L'ordonnanceur est désactivé pendant les tests : on déclenche les tâches
-    # à la main pour ne pas dépendre de l'heure qu'il est.
+    # L'ordonnanceur et le bot, dans le travailleur (api/travailleur.py). Coupés
+    # pendant les tests et dans la maquette : on déclenche les tâches à la main
+    # pour ne pas dépendre de l'heure qu'il est.
     ordonnanceur_actif: bool = True
+
+    # Où l'API joint la sonde du travailleur, pour la relayer dans /sante.
+    # Vide : pas de travailleur à attendre, comme pendant les tests.
+    travailleur_adresse: str = ""
 
     version: str = "0.1.0"
 

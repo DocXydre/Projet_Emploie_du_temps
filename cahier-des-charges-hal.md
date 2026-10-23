@@ -4105,7 +4105,7 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 |---|---|---|
 | ADM-1 | D | Le bot ne parle qu'à l'administrateur du serveur. Un message d'un autre compte Telegram reçoit une seule phrase : le bot sert à l'administration, tout le reste est dans l'appli |
 | ADM-2 | T | Il prévient l'administrateur : une source en panne (COL-9), un déploiement raté (A.2.3), HAL injoignable après ses essais (COA-11), des notifications qu'Apple refuse, des erreurs répétées de l'API, une base ou un disque qui sature |
-| ADM-3 | M | Il garde quelques commandes : `/etat` (le serveur, les sources, le dernier déploiement), `/erreurs` (les dernières erreurs), `/collecter`, `/placer`, `/billets` et `/billets relire` (BIL-19), `/hal` (l'état de HAL par compte et ce qu'il a consommé, l'ancienne `/coach`), `/aide` |
+| ADM-3 | M | Il garde quelques commandes : `/etat` (le serveur, les sources, le dernier déploiement), `/erreurs` (les dernières erreurs de l'API et du travailleur, gardées une journée en base), `/collecter`, `/placer`, `/billets` et `/billets relire` (BIL-19), `/hal` (l'état de HAL par compte et ce qu'il a consommé, l'ancienne `/coach`), `/aide` |
 | ADM-4 | T | Une alerte qui dure ne se répète pas plus d'une fois par heure. Une source en panne ne se redit qu'une fois par jour : elle n'empêche rien de tourner, et la répéter toutes les heures noyait le reste. Quand le problème est réglé, un message le dit |
 | ADM-5 | D | Le bot ne transporte plus aucune notification d'un membre du foyer. Les comptes Telegram déjà reliés sont déliés, sauf celui de l'administrateur |
 

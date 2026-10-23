@@ -173,7 +173,9 @@ deployer() {
     # encore.
     ./sql/appliquer.sh &&
 
-    docker compose up -d --build api &&
+    # Les deux de la même image : l'API et le travailleur. La sonde de l'API
+    # relaie celle du travailleur, et en_sante attend donc les deux.
+    docker compose up -d --build api travailleur &&
 
     en_sante
 }

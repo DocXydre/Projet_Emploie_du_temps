@@ -11,9 +11,10 @@ import html
 import logging
 import shutil
 import threading
-from collections import deque
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+import psycopg
 
 from api.base import executer, lister, un_seul
 from api.config import configuration
@@ -55,22 +56,46 @@ def _quand(instant: datetime | None) -> str:
 # ---------------------------------------------------------------------------
 # Les dernières erreurs                                                 (ADM-3)
 #
-# Gardées en mémoire, dans le processus de l'API : le bot y tourne aussi. Un
-# redémarrage les efface, ce qui est voulu : /erreurs dit ce qui casse
+# Écrites en base, dans erreur_recente : l'API et le travailleur sont deux
+# processus, et le bot, qui vit dans le second, doit voir aussi les erreurs du
+# premier. Elles ne restent qu'une journée : /erreurs dit ce qui casse
 # maintenant, pas l'histoire du serveur.
+#
+# Chaque erreur s'écrit par une connexion à part, hors du pool et en
+# autocommit : une erreur arrivée dans une transaction annulée reste notée, et
+# un pool épuisé n'empêche pas de la noter. Base injoignable : l'erreur n'est
+# pas notée, et la surveillance de la base le dira.
 # ---------------------------------------------------------------------------
 
-_erreurs: deque[dict] = deque(maxlen=50)
-_verrou = threading.Lock()
+# Après un échec d'écriture, on n'essaie plus pendant ce temps : sans cela,
+# chaque erreur d'une base tombée attendrait son délai de connexion.
+PAUSE_APRES_ECHEC = timedelta(seconds=30)
 
 
 class _Memoire(logging.Handler):
-    """Retient chaque erreur écrite au journal de l'API."""
+    """Note chaque erreur écrite au journal, avec le processus où elle arrive."""
 
     def __init__(self) -> None:
         super().__init__(level=logging.ERROR)
+        self.processus = "api"
+        self._connexion: psycopg.Connection | None = None
+        self._en_pause_jusqu_a: datetime | None = None
+        self._dedans = threading.local()
 
     def emit(self, record: logging.LogRecord) -> None:
+        # Une erreur levée en notant une erreur ne se note pas à son tour.
+        if getattr(self._dedans, "oui", False):
+            return
+        self._dedans.oui = True
+        try:
+            self._noter(record)
+        except Exception:  # noqa: BLE001 - noter une erreur ne doit rien casser
+            self._oublier_la_connexion()
+            self._en_pause_jusqu_a = _maintenant() + PAUSE_APRES_ECHEC
+        finally:
+            self._dedans.oui = False
+
+    def _noter(self, record: logging.LogRecord) -> None:
         try:
             message = record.getMessage().strip().splitlines()[0][:300]
         except Exception:  # noqa: BLE001 - un message illisible reste une erreur
@@ -79,34 +104,53 @@ class _Memoire(logging.Handler):
             erreur = record.exc_info[1]
             message += f" ({type(erreur).__name__} : {str(erreur).strip()[:200]})"
         with _verrou:
-            _erreurs.append({"quand": datetime.fromtimestamp(record.created, _fuseau()),
-                             "module": record.name, "message": message})
+            if self._en_pause_jusqu_a and _maintenant() < self._en_pause_jusqu_a:
+                return
+            if self._connexion is None or self._connexion.closed:
+                self._connexion = psycopg.connect(configuration().url_base, autocommit=True,
+                                                  connect_timeout=3)
+            self._connexion.execute(
+                """INSERT INTO erreur_recente (quand, processus, module, message)
+                   VALUES (to_timestamp(%s), %s, left(%s, 120), %s)""",
+                (record.created, self.processus, record.name, message))
+            self._connexion.execute(
+                "DELETE FROM erreur_recente WHERE quand < now() - INTERVAL '1 day'")
+            self._en_pause_jusqu_a = None
+
+    def _oublier_la_connexion(self) -> None:
+        if self._connexion is not None:
+            try:
+                self._connexion.close()
+            except Exception:  # noqa: BLE001
+                pass
+        self._connexion = None
 
 
+_verrou = threading.Lock()
 _memoire = _Memoire()
 
 
-def installer() -> None:
-    """Branche la mémoire des erreurs sur le journal de l'API. Une seule fois."""
+def installer(processus: str = "api") -> None:
+    """Branche la mémoire des erreurs sur le journal du processus. Une seule fois."""
+    _memoire.processus = processus
     racine = logging.getLogger()
     if _memoire not in racine.handlers:
         racine.addHandler(_memoire)
 
 
 def dernieres_erreurs(nombre: int = 10) -> list[dict]:
-    with _verrou:
-        return list(_erreurs)[-nombre:][::-1]
+    return lister("""SELECT quand, processus, module, message FROM erreur_recente
+                      ORDER BY id_erreur DESC LIMIT %(n)s""", {"n": nombre})
 
 
 def erreurs_recentes(fenetre: timedelta = FENETRE_DES_ERREURS) -> int:
-    limite = _maintenant() - fenetre
-    with _verrou:
-        return sum(1 for e in _erreurs if e["quand"] >= limite)
+    ligne = un_seul("SELECT count(*)::INTEGER AS n FROM erreur_recente "
+                    "WHERE quand >= now() - %(f)s", {"f": fenetre})
+    return (ligne or {}).get("n", 0)
 
 
 def oublier_les_erreurs() -> None:
-    with _verrou:
-        _erreurs.clear()
+    executer("DELETE FROM erreur_recente")
 
 
 # ---------------------------------------------------------------------------
@@ -279,10 +323,11 @@ def erreurs_en_clair(nombre: int = 10) -> str:
     """/erreurs : les dernières erreurs, de la plus récente à la plus ancienne."""
     erreurs = dernieres_erreurs(nombre)
     if not erreurs:
-        return "Aucune erreur depuis le dernier démarrage de l'API."
+        return "Aucune erreur dans les dernières vingt-quatre heures."
     lignes = ["<b>Dernières erreurs</b>"]
     for e in erreurs:
-        lignes.append(f"• {_quand(e['quand'])}, {h(e['module'])} : {h(e['message'])}")
+        ou = " (travailleur)" if e["processus"] == "travailleur" else ""
+        lignes.append(f"• {_quand(e['quand'])}, {h(e['module'])}{ou} : {h(e['message'])}")
     return "\n".join(lignes)
 
 
