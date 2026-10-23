@@ -16,9 +16,6 @@ __pycache__/
 # OS
 .DS_Store
 
-# Tests : conservés en local, hors du dépôt public.
-tests/
-
 # Spécification de la version Java, abandonnée après le changement de pile :
 # gardée en local dans archive/, hors du dépôt public.
 cahier-des-charges-planification.md
@@ -36,8 +33,9 @@ DerivedData/
 # L'adresse du serveur intégrée à l'appli : hors du dépôt public.
 ios/HAL/Serveur.local.xcconfig
 
-# Copies laissées par une fusion (git mergetool).
+# Copies laissées par une fusion (git mergetool), et morceaux refusés d'un patch.
 *.orig
+*.rej
 
 # Fichiers déposés par l'assistant pendant le travail : jamais dans le dépôt.
 Claude outputs/
