@@ -178,12 +178,12 @@ L'accès distant passe par **Tailscale**, et aucun port n'est ouvert sur la box.
 
 L'application iPhone, elle, n'a pas besoin du client Tailscale. `tailscale funnel` publie l'API sur le port 8443. Chaque route y exige la clé d'API, sauf `/connexion`, l'acceptation d'une invitation et la page de son lien, et les routes d'administration y répondent 403 : l'API reconnaît une requête venue d'Internet à l'en-tête `Tailscale-Funnel-Request` et au port publié (`PORT_FUNNEL`). Le pseudo et le mot de passe lui rendent la clé d'API, gardée ensuite dans le trousseau. Le mot de passe n'est stocké que sous forme d'empreinte scrypt, et cinq échecs bloquent le compte un quart d'heure.
 
-**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
+**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, copie la base avec `pg_dump` (les trente dernières copies restent, dans `~/.local/state/planif/sauvegardes/`, et sans copie rien n'est migré), applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
 
 ```
 git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
                                                   │
-                      migrations ─── définitions ─┴─ compose up --build ─── /sante
+          pg_dump ─── migrations ─── définitions ─┴─ compose up --build ─── /sante
 ```
 
 **Brancher Claude Code.** Dans l'appli, Réglages, Intelligence, « Créer sa clé » donne une clé MCP, montrée une seule fois, et la commande à coller dans le terminal :

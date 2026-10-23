@@ -33,6 +33,10 @@ TEMOIN="$ETAT/deploye"        # dernier commit déployé avec succès
 ECHEC="$ETAT/echec"           # commit dont le déploiement a échoué
 DESTINATAIRE="$ETAT/telegram" # à qui écrire, retenu tant que la base répond
 JOURNAL="$ETAT/dernier.log"
+SAUVEGARDES="${PLANIF_SAUVEGARDES:-$ETAT/sauvegardes}"
+# Une par déploiement : trente couvrent largement les semaines où l'on pousse
+# beaucoup, et la base tient en quelques mégaoctets.
+SAUVEGARDES_GARDEES="${PLANIF_SAUVEGARDES_GARDEES:-30}"
 
 # Lecture littérale d'une variable du .env, comme dans appliquer.sh : le fichier
 # contient des URL que le shell ne sait pas sourcer.
@@ -82,6 +86,37 @@ noter() {
           --quiet --set libelle="$1" --set detail="$2" > /dev/null 2>&1 || true
 }
 
+# Une copie de la base avant chaque migration. Une migration fautive poussée sur
+# main part en production deux minutes plus tard : sans copie, ce qu'elle efface
+# est perdu. Écrite à côté puis renommée, pour qu'une copie coupée en route ne
+# passe jamais pour bonne. Les données sont personnelles : lisibles du seul
+# compte du serveur.
+#
+# Pour revenir en arrière :
+#   docker exec -i planif-db pg_restore -U planif -d planif --clean --if-exists \
+#       < ~/.local/state/planif/sauvegardes/planif-….dump
+sauvegarder() {
+    ( umask 077 && mkdir -p "$SAUVEGARDES" ) || return 1
+    copie="$SAUVEGARDES/planif-$(date +%Y%m%d-%H%M%S)-$COURT.dump"
+    utilisateur="$(lire_env POSTGRES_USER)"
+    base="$(lire_env POSTGRES_DB)"
+    if ! ( umask 077 && docker exec "${PLANIF_CONTENEUR:-planif-db}" pg_dump \
+               --username="${utilisateur:-planif}" --dbname="${base:-planif}" \
+               --format=custom > "$copie.partielle" ) \
+       || [ ! -s "$copie.partielle" ]; then
+        rm -f "$copie.partielle"
+        echo "Sauvegarde de la base impossible : rien n'est migré."
+        return 1
+    fi
+    mv "$copie.partielle" "$copie"
+    echo "Base sauvegardée : $copie"
+
+    # Les plus anciennes s'en vont. Les noms ne contiennent pas d'espace.
+    ls -1t "$SAUVEGARDES"/planif-*.dump | tail -n "+$((SAUVEGARDES_GARDEES + 1))" \
+        | while read -r ancienne; do rm -f "$ancienne"; done
+    return 0
+}
+
 # L'API répond-elle, base comprise ? `docker compose up` rend la main dès que le
 # conteneur est lancé : une API qui tombe au démarrage, faute d'une fonction SQL
 # par exemple, passerait sinon pour un déploiement réussi.
@@ -122,7 +157,7 @@ COURT=$(git log -1 --format=%h "$DISTANT")
 SUJET=$(git log -1 --format=%s "$DISTANT")
 echo "Déploiement : $COURT, $SUJET"
 
-# Les trois étapes s'enchaînent par « && », et non par `set -e` : dans le test
+# Les étapes s'enchaînent par « && », et non par `set -e` : dans le test
 # d'un « if », le shell ignore `set -e` jusque dans les fonctions appelées, et
 # une migration ratée n'aurait pas empêché la reconstruction de l'API.
 deployer() {
@@ -130,6 +165,8 @@ deployer() {
     # fichier a été modifié sur place, le déploiement s'arrête au lieu de créer
     # une fusion.
     git merge --ff-only "$DISTANT" &&
+
+    sauvegarder &&
 
     # Les migrations avant le redémarrage : l'API appelle des fonctions SQL dès
     # son démarrage, et se relancerait en boucle si elles n'existaient pas
