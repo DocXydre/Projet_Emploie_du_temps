@@ -33,6 +33,7 @@ services:
       args:
         # FOU-17 : Gemini CLI dans l'image (Node.js compris). 0 pour s'en passer.
         GEMINI_CLI: ${GEMINI_CLI:-1}
+    image: planif-api
     container_name: planif-api
     restart: unless-stopped
     depends_on:
@@ -53,10 +54,38 @@ services:
       DB_HOTE: db
       DB_PORT: 5432
       TZ: UTC
+      # L'ordonnanceur et le bot tournent dans le travailleur, pas ici. L'API
+      # relaie sa sonde dans /sante.
+      ORDONNANCEUR_ACTIF: "false"
+      TRAVAILLEUR_ADRESSE: http://travailleur:8000
     ports:
       # Par défaut l'API n'écoute que sur la machine. Mettre API_BIND=0.0.0.0
       # dans .env pour l'atteindre depuis le téléphone, sur le réseau local.
       - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:8000"
+
+  # L'ordonnanceur, le bot d'administration et les appels planifiés de HAL :
+  # ce que personne n'attend. La même image que l'API, dans un processus à
+  # part, pour qu'un déploiement de l'API ou un appel de HAL de sept minutes
+  # ne bloquent pas l'autre. Aucun port publié : son /mcp ne sert qu'à Claude
+  # Code lancé dans ce conteneur, et sa sonde qu'à l'API.
+  travailleur:
+    build:
+      context: .
+      args:
+        GEMINI_CLI: ${GEMINI_CLI:-1}
+    image: planif-api
+    container_name: planif-travailleur
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOTE: db
+      DB_PORT: 5432
+      TZ: UTC
+    command: ["uvicorn", "api.travailleur:app", "--host", "0.0.0.0", "--port", "8000"]
 
 volumes:
   donnees:

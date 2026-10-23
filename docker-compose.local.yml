@@ -15,6 +15,9 @@
 #   - Le dépôt est monté dans le conteneur. Un fichier modifié dans api/ ou
 #     dans coach/ est pris en compte sans reconstruire l'image, et les
 #     scénarios y trouvent sql/ pour bâtir leur base.
+#
+# Le travailleur reçoit les mêmes réglages : c'est lui qui fait tourner le bot
+# de développement et les appels planifiés de HAL.
 
 services:
   api:
@@ -30,4 +33,18 @@ services:
       - .:/app
     command: >
       uvicorn api.main:app --host 0.0.0.0 --port 8000
+      --reload --reload-dir api --reload-dir coach --reload-include '*.md'
+
+  travailleur:
+    env_file:
+      - .env
+      - local/coach.env
+    environment:
+      IMAP_HOTE: ""
+      IMAP2_HOTE: ""
+      COACH_TRACE_DOSSIER: /app/local/appels
+    volumes:
+      - .:/app
+    command: >
+      uvicorn api.travailleur:app --host 0.0.0.0 --port 8000
       --reload --reload-dir api --reload-dir coach --reload-include '*.md'

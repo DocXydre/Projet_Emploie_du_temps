@@ -105,9 +105,9 @@ Calendriers perso ─┼──▶ Collecteurs ──▶ ┌───────
                                        (lecture seule)   (administration)
 ```
 
-**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`, SDK `mcp` pour le serveur MCP, `claude-agent-sdk` pour passer par l'abonnement. Docker Compose pour l'ensemble. L'application est en SwiftUI pour iOS 26, avec HealthKit, WidgetKit, ActivityKit et WorkoutKit, et son projet Xcode se génère par XcodeGen.
+**Pile** : Python 3.12, FastAPI, psycopg 3 sans ORM, PostgreSQL 16, APScheduler, python-telegram-bot, SDK `anthropic`, SDK `mcp` pour le serveur MCP, `claude-agent-sdk` pour passer par l'abonnement. Docker Compose pour l'ensemble, en deux processus de la même image : l'API, qui sert l'appli et les clients MCP, et le travailleur (`api/travailleur.py`), qui fait tourner l'ordonnanceur, le bot d'administration et les appels planifiés de HAL. Un déploiement de l'API ou un appel de HAL de plusieurs minutes ne bloque ainsi pas l'autre, et les erreurs des deux se lisent au même endroit, dans `/erreurs`. L'application est en SwiftUI pour iOS 26, avec HealthKit, WidgetKit, ActivityKit et WorkoutKit, et son projet Xcode se génère par XcodeGen.
 
-**HAL** est du Python dans le processus de l'API (`api/coach/` : les noms techniques ont gardé « coach »). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
+**HAL** est du Python dans le processus de l'API pour ce que l'appli lui demande, et dans celui du travailleur pour ce qui est planifié (`api/coach/` : les noms techniques ont gardé « coach »). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
 
 Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idée de mettre la logique dans la base.
 
@@ -178,7 +178,7 @@ L'accès distant passe par **Tailscale**, et aucun port n'est ouvert sur la box.
 
 L'application iPhone, elle, n'a pas besoin du client Tailscale. `tailscale funnel` publie l'API sur le port 8443. Chaque route y exige la clé d'API, sauf `/connexion`, l'acceptation d'une invitation et la page de son lien, et les routes d'administration y répondent 403 : l'API reconnaît une requête venue d'Internet à l'en-tête `Tailscale-Funnel-Request` et au port publié (`PORT_FUNNEL`). Le pseudo et le mot de passe, ou Apple, ouvrent une session : une clé par appareil, gardée ensuite dans le trousseau, que se déconnecter révoque sans toucher aux autres. La base ne garde que l'empreinte des clés, et celle du mot de passe en scrypt ; cinq échecs bloquent le compte un quart d'heure.
 
-**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, copie la base avec `pg_dump` (les trente dernières copies restent, dans `~/.local/state/planif/sauvegardes/`, et sans copie rien n'est migré), applique les migrations, recharge les définitions, relance `docker compose up -d --build`, puis attend que l'API réponde sur `/sante`. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
+**Un `git push` suffit à déployer.** Un minuteur systemd exécute `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, et s'il y a du nouveau, copie la base avec `pg_dump` (les trente dernières copies restent, dans `~/.local/state/planif/sauvegardes/`, et sans copie rien n'est migré), applique les migrations, recharge les définitions, relance l'API et le travailleur par `docker compose up -d --build api travailleur`, puis attend que l'API réponde sur `/sante`, qui relaie la sonde du travailleur. Un échec est annoncé une fois sur Telegram et réessayé tous les quarts d'heure ; un nouveau commit, lui, part tout de suite.
 
 ```
 git push  ──▶  GitHub  ◀── (toutes les 2 min)  serveur
@@ -219,7 +219,8 @@ sql/                        migrations numérotées : tables, contraintes, donn�
 sql/definitions/            fonctions, vues et déclencheurs, un fichier par fonction
 sql/apres/                  rattrapages de données qui appellent une fonction à jour
 sql/scenario_test.sql       une semaine type jouée à la main, pour voir les règles à l'œuvre
-api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion
+api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion ;
+                            main.py pour l'API, travailleur.py pour le travailleur
 api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle,
                             fournisseurs (Claude Code, API, Gemini CLI)
 api/serveur_mcp/            HAL en serveur MCP : clés des clients, outils, ressources du dossier

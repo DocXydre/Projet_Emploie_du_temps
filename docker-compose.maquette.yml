@@ -6,9 +6,10 @@
 # base « planif_maquette », remplie de données inventées, au lieu de la copie
 # de production. Le conteneur de la base reste le même.
 #
-# L'ordonnanceur et le bot sont coupés : rien ne part tout seul, ni
-# notification, ni récap du soir, ni appel payant au modèle. La fausse base
-# reste telle que le script l'a remplie.
+# L'ordonnanceur et le bot sont coupés : le travailleur ne tourne pas, et l'API
+# ne l'attend pas. Rien ne part tout seul, ni notification, ni récap du soir,
+# ni appel payant au modèle. La fausse base reste telle que le script l'a
+# remplie.
 #
 # Pour revenir à la vraie base locale : ./outils/local.sh demarrer
 
@@ -17,3 +18,4 @@ services:
     environment:
       POSTGRES_DB: planif_maquette
       ORDONNANCEUR_ACTIF: "false"
+      TRAVAILLEUR_ADRESSE: ""

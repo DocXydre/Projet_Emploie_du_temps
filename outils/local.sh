@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # La pile locale du coach, sur le Mac.
 #
-#   ./outils/local.sh demarrer      construit et lance la base et l'API
+#   ./outils/local.sh demarrer      construit et lance la base, l'API et le travailleur
 #   ./outils/local.sh restaurer     remplace la base locale par local/planif.dump
 #   ./outils/local.sh migrer        applique les migrations et recharge les définitions
 #   ./outils/local.sh compte        prépare le compte du coach avec local/demarrage.json
@@ -15,7 +15,7 @@
 #   ./outils/local.sh rouler        le roulement de la mémoire de la nuit, tout de suite
 #   ./outils/local.sh iphone        ouvre l'API au Wi-Fi pour l'appli HAL
 #   ./outils/local.sh sante         ce que l'appli a envoyé
-#   ./outils/local.sh journal       les 200 dernières lignes de l'API
+#   ./outils/local.sh journal       les dernières lignes de l'API et du travailleur
 #   ./outils/local.sh etat          ce qui tourne
 #   ./outils/local.sh arreter
 #
@@ -75,7 +75,7 @@ case "$commande" in
         [ -f local/planif.dump ] || { echo "local/planif.dump manque."; exit 1; }
         echo "La base locale « ${BASE} » va être remplacée par la copie de production."
         "${COMPOSE[@]}" up -d db || exit 1
-        "${COMPOSE[@]}" stop api
+        "${COMPOSE[@]}" stop api travailleur
         sleep 3
         docker exec -i planif-db psql -U "$UTILISATEUR" -d postgres -v ON_ERROR_STOP=1 \
             -c "DROP DATABASE IF EXISTS ${BASE} WITH (FORCE)" -c "CREATE DATABASE ${BASE}" \
@@ -90,7 +90,7 @@ case "$commande" in
             -c "UPDATE notification SET statut = 'envoyee', date_envoi = now() WHERE statut = 'a_envoyer'" \
             || exit 1
         ./sql/appliquer.sh || exit 1
-        "${COMPOSE[@]}" up -d --build api && attendre_l_api
+        "${COMPOSE[@]}" up -d --build api travailleur && attendre_l_api
         ;;
     migrer)
         ./sql/appliquer.sh
@@ -218,6 +218,8 @@ for c in lister('SELECT id_utilisateur, pseudo FROM utilisateur WHERE coach_acti
         ;;
     journal)
         docker logs --tail 200 planif-api 2>&1
+        echo "--- travailleur"
+        docker logs --tail 100 planif-travailleur 2>&1
         ;;
     etat)
         "${COMPOSE[@]}" ps

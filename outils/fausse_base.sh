@@ -55,8 +55,10 @@ SESSIONS="$(docker exec planif-db psql -U "$UTILISATEUR" -d "$BASE" -tAq -c \
        FROM session_appareil s JOIN utilisateur u USING (id_utilisateur)
       WHERE s.revoquee_le IS NULL" 2>/dev/null || true)"
 
-# L'API lâche la base avant qu'on la refasse.
-"${COMPOSE[@]}" stop api > /dev/null 2>&1 || true
+# L'API lâche la base avant qu'on la refasse. Le travailleur s'arrête aussi :
+# laissé par ./outils/local.sh, il enverrait des notifications depuis la base
+# locale pendant qu'on regarde la maquette.
+"${COMPOSE[@]}" stop api travailleur > /dev/null 2>&1 || true
 docker exec -i planif-db psql -U "$UTILISATEUR" -d postgres -v ON_ERROR_STOP=1 -q \
     -c "DROP DATABASE IF EXISTS ${BASE} WITH (FORCE)" -c "CREATE DATABASE ${BASE}"
 echo "Base ${BASE} neuve. Migrations :"

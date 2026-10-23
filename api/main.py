@@ -3,17 +3,22 @@
 L'API est volontairement mince : elle lit des vues et appelle des fonctions.
 Toute la logique — disponibilités, placement, récurrence, enchaînements —
 vit dans PostgreSQL.
+
+Elle ne sert que l'appli et ses clients. L'ordonnanceur, le bot et les appels
+planifiés de HAL tournent dans le travailleur (api/travailleur.py), un autre
+conteneur de la même image.
 """
 
 from contextlib import asynccontextmanager
 
+import httpx
 import psycopg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import administration, bot, conversation, journal, operation, ordonnanceur
+from api import administration, conversation, journal, operation
 from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
@@ -36,10 +41,10 @@ from api.routeurs.connexion import routeur as routeur_de_connexion
 from api.routeurs.demandes import routeur as routeur_des_demandes
 from api.routeurs.fournisseurs import routeur as routeur_des_fournisseurs
 from api.routeurs.foyer import routeur as routeur_du_foyer
+from api.routeurs.hal_foyer import routeur as routeur_du_hal_du_foyer
 from api.routeurs.journal import routeur as routeur_du_journal
 from api.routeurs.moi import routeur as routeur_de_moi
 from api.routeurs.types_taches import routeur as routeur_des_types_de_taches
-from api.routeurs.hal_foyer import routeur as routeur_du_hal_du_foyer
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
 from api.serveur_mcp import serveur as serveur_mcp
 
@@ -58,14 +63,9 @@ async def cycle_de_vie(app: FastAPI):
         amorcer_assignations()
         journal.noter("demarrage", f"API démarrée, version {conf.version}",
                       technique=True)
-    if conf.ordonnanceur_actif:
-        ordonnanceur.demarrer()
-        await bot.demarrer_bot()
     # MCP-1 : le serveur MCP vit le temps de l'API.
     async with serveur_mcp.en_service():
         yield
-    await bot.arreter_bot()
-    ordonnanceur.arreter()
     arreter_pool()
 
 
@@ -136,20 +136,36 @@ app.router.add_route("/mcp", serveur_mcp.Porte(), include_in_schema=False)
 
 @app.get("/sante", tags=["Système"], summary="Sonde d'infrastructure")
 def sante() -> dict:
+    """La base, et le travailleur s'il y en a un : sans lui, plus rien ne part
+    tout seul, et la sonde le dit. Le déploiement attend donc les deux."""
     try:
         un_seul("SELECT 1 AS ok")
         base = "ok"
     except psycopg.Error:
         base = "injoignable"
 
+    travailleur = _travailleur()
     return {
         "service": "planif-api",
         "version": conf.version,
-        "etat": "ok" if base == "ok" else "degrade",
+        "etat": "ok" if base == "ok" and travailleur["etat"] == "ok" else "degrade",
         "base": base,
-        "ordonnanceur": ordonnanceur.taches_programmees(),
-        "bot": bot.identite() or "non démarré",
+        "travailleur": travailleur["etat"],
+        "ordonnanceur": travailleur.get("ordonnanceur", []),
+        "bot": travailleur.get("bot", "non démarré"),
     }
+
+
+def _travailleur() -> dict:
+    """Ce que dit la sonde du travailleur. Sans adresse (les essais, la
+    maquette), il n'y en a pas, et l'API ne l'attend pas."""
+    if not conf.travailleur_adresse:
+        return {"etat": "ok" if not conf.ordonnanceur_actif else "absent"}
+    try:
+        reponse = httpx.get(f"{conf.travailleur_adresse.rstrip('/')}/sante", timeout=3)
+        return reponse.json()
+    except (httpx.HTTPError, ValueError):
+        return {"etat": "injoignable"}
 
 
 @app.get("/moi", tags=["Système"], summary="Profil de l'appelant")
