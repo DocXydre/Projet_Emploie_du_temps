@@ -68,7 +68,7 @@ class CompteBloque(Exception):
 
 
 def connecter(pseudo: str, mot_de_passe: str) -> dict | None:
-    """CNX-3 : rend le compte et sa clé, ou None. Un compte bloqué refuse tout,
+    """CNX-3 : rend le compte, son numéro et sa clé, ou None. Un compte bloqué refuse tout,
     même le bon mot de passe, jusqu'à la fin du blocage (CompteBloque). Un pseudo
     inconnu et un mauvais mot de passe ne se distinguent pas."""
     compte = un_seul(
@@ -92,4 +92,5 @@ def connecter(pseudo: str, mot_de_passe: str) -> dict | None:
         return None
     executer("UPDATE utilisateur SET echecs_connexion = 0, bloque_jusqu_a = NULL "
              "WHERE id_utilisateur = %(u)s", {"u": compte["id_utilisateur"]})
-    return {"pseudo": compte["pseudo"], "cle_api": compte["cle_api"]}
+    return {"id_utilisateur": compte["id_utilisateur"], "pseudo": compte["pseudo"],
+            "cle_api": compte["cle_api"]}

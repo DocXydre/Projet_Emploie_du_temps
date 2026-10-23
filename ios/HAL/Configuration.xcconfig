@@ -1,0 +1,13 @@
+// Réglages de compilation communs à l'appli et à ses widgets.
+//
+// HAL_SERVEUR : l'adresse du serveur du foyer, intégrée à l'appli, pour ne
+// jamais avoir à la taper. Elle n'entre pas dans le dépôt public : elle vit dans
+// Serveur.local.xcconfig, à côté de ce fichier, sur une ligne et sans « https:// »
+// (« // » commence un commentaire ici) :
+//
+//   HAL_SERVEUR = planif.<tailnet>.ts.net:8443
+//
+// Sans ce fichier, l'appli demande l'adresse à la connexion, comme avant.
+
+HAL_SERVEUR =
+#include? "Serveur.local.xcconfig"

@@ -11,6 +11,10 @@ options:
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
+# L'adresse du serveur du foyer, intégrée à l'appli (voir Configuration.xcconfig).
+configFiles:
+  Debug: Configuration.xcconfig
+  Release: Configuration.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -18,7 +22,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     # L'équipe de signature, pour l'appli et ses widgets : plus besoin de la
     # rechoisir dans Xcode après chaque xcodegen. Ce n'est pas un secret.
-    DEVELOPMENT_TEAM: HYZ7BT7P7B
+    DEVELOPMENT_TEAM: 587234DKU2
     CODE_SIGN_STYLE: Automatic
 targets:
   HAL:
@@ -43,6 +47,8 @@ targets:
       path: HAL/Info.plist
       properties:
         CFBundleDisplayName: HAL
+        # L'adresse du serveur, lue par Session.serveurIntegre : rien à taper.
+        HALServeur: $(HAL_SERVEUR)
         # L'appli n'existe qu'en français : les dates et les nombres suivent,
         # même sur un iPhone réglé dans une autre langue.
         CFBundleDevelopmentRegion: fr
@@ -80,12 +86,12 @@ targets:
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
         # IOS-1 : le dossier que l'appli partage avec ses widgets.
-        com.apple.security.application-groups: [group.fr.docxydre.hal]
+        com.apple.security.application-groups: [group.fr.docxydre.hal.partage]
         # NOT-16 : les notifications envoyées par le serveur, par le service
-        # d'Apple. Elles demandent le compte développeur payant : une équipe
-        # personnelle refuse de signer l'appli avec. Retirer le « # » de la
-        # ligne suivante, puis relancer xcodegen, une fois le compte pris.
-        # aps-environment: development
+        # d'Apple. Une appli distribuée par TestFlight passe seule en production.
+        aps-environment: development
+        # CNX-7 : se connecter avec Apple.
+        com.apple.developer.applesignin: [Default]
 
   # IOS-1 à IOS-3 : les widgets de l'écran d'accueil et de l'écran verrouillé, et
   # la Live Activity de la séance. Ils lisent ce que l'appli a gardé, sans appel
@@ -114,4 +120,4 @@ targets:
     entitlements:
       path: HALWidgets/HALWidgets.entitlements
       properties:
-        com.apple.security.application-groups: [group.fr.docxydre.hal]
+        com.apple.security.application-groups: [group.fr.docxydre.hal.partage]

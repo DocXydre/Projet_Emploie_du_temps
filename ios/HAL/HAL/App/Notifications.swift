@@ -146,7 +146,7 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
 
     func application(_ application: UIApplication,
                      didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // Sans le compte développeur payant ou sans réseau : rien à faire, le
+        // Sur le simulateur ou sans réseau : rien à faire, le
         // serveur garde ses notifications en attente (NOT-2).
     }
 
