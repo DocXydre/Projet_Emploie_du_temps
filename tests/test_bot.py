@@ -1,8 +1,8 @@
 """Le bot d'administration, testé sans Telegram.            (ADM-1 à ADM-5)
 
 Le bot ne parle plus qu'à l'administrateur du serveur. Ce qu'il dit vit dans
-`administration.py` ; la logique de `conversation.py` qui reste, servie par
-l'API, se teste ici aussi.
+`administration.py`, son appairage dans `appairage.py`. Ce que faisait le bot
+des membres (`bot_des_membres.py`) se teste ici aussi.
 """
 
 import asyncio
@@ -14,8 +14,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import administration
-from api import conversation as conv
+from api import administration, appairage, bot_des_membres
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -49,39 +48,39 @@ def id_de(pseudo: str) -> int:
 # ---------------------------------------------------------------------------
 
 def test_la_cle_de_l_administrateur_relie_le_bot(base):
-    compte = conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    compte = appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     assert compte is not None
     assert compte["pseudo"] == "thomas"
 
-    assert conv.compte_de(TELEGRAM_THOMAS)["pseudo"] == "thomas"
+    assert appairage.compte_de(TELEGRAM_THOMAS)["pseudo"] == "thomas"
 
 
 def test_la_cle_d_un_membre_ne_relie_rien(base):
-    assert conv.appairer(CLE_LORETTE, TELEGRAM_LORETTE) is None
-    assert conv.compte_de(TELEGRAM_LORETTE) is None
+    assert appairage.appairer(CLE_LORETTE, TELEGRAM_LORETTE) is None
+    assert appairage.compte_de(TELEGRAM_LORETTE) is None
 
 
 def test_une_cle_inconnue_n_appaire_rien(base):
-    assert conv.appairer("X" * 48, TELEGRAM_THOMAS) is None
-    assert conv.compte_de(TELEGRAM_THOMAS) is None
+    assert appairage.appairer("X" * 48, TELEGRAM_THOMAS) is None
+    assert appairage.compte_de(TELEGRAM_THOMAS) is None
 
 
 def test_un_inconnu_n_est_relie_a_aucun_compte(base):
-    assert conv.compte_de(999999) is None
+    assert appairage.compte_de(999999) is None
 
 
 def test_on_peut_changer_de_telephone(base):
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
-    conv.appairer(CLE_THOMAS, 444555666)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, 444555666)
 
-    assert conv.compte_de(TELEGRAM_THOMAS) is None
-    assert conv.compte_de(444555666)["pseudo"] == "thomas"
+    assert appairage.compte_de(TELEGRAM_THOMAS) is None
+    assert appairage.compte_de(444555666)["pseudo"] == "thomas"
 
 
 def test_delier_le_compte(base):
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
-    assert conv.desappairer(TELEGRAM_THOMAS) is True
-    assert conv.compte_de(TELEGRAM_THOMAS) is None
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    assert appairage.desappairer(TELEGRAM_THOMAS) is True
+    assert appairage.compte_de(TELEGRAM_THOMAS) is None
 
 
 def test_la_migration_delie_les_membres_et_garde_l_administrateur(base):
@@ -114,20 +113,20 @@ def test_la_migration_delie_les_membres_et_garde_l_administrateur(base):
 def test_pas_de_notification_la_nuit():
     # Faire vibrer un téléphone à 3h du matin pour une poussière est le meilleur
     # moyen de faire couper les notifications.
-    assert conv.en_silence(datetime(2026, 8, 20, 3, 0, tzinfo=PARIS))
-    assert conv.en_silence(datetime(2026, 8, 20, 23, 45, tzinfo=PARIS))
-    assert conv.en_silence(datetime(2026, 8, 20, 7, 0, tzinfo=PARIS))
+    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 3, 0, tzinfo=PARIS))
+    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 23, 45, tzinfo=PARIS))
+    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 7, 0, tzinfo=PARIS))
 
 
 def test_la_journee_n_est_pas_silencieuse():
-    assert not conv.en_silence(datetime(2026, 8, 20, 7, 30, tzinfo=PARIS))
-    assert not conv.en_silence(datetime(2026, 8, 20, 12, 0, tzinfo=PARIS))
-    assert not conv.en_silence(datetime(2026, 8, 20, 21, 0, tzinfo=PARIS))
-    assert not conv.en_silence(datetime(2026, 8, 20, 23, 29, tzinfo=PARIS))
+    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 7, 30, tzinfo=PARIS))
+    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 12, 0, tzinfo=PARIS))
+    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 21, 0, tzinfo=PARIS))
+    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 23, 29, tzinfo=PARIS))
 
 
 def test_le_silence_se_termine_le_lendemain_matin():
-    prochain = conv.prochain_rappel(1)
+    prochain = bot_des_membres.prochain_rappel(1)
     assert prochain > datetime.now(PARIS)
     assert prochain.astimezone(PARIS).hour == 7
 
@@ -146,7 +145,7 @@ def test_le_bouton_fait_valide_l_occurrence(client, thomas, base):
     aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
     compte = {"id_utilisateur": id_de("thomas")}
 
-    reponse = conv.executer_action("valider", aspirateur["id_occurrence"],
+    reponse = bot_des_membres.executer_action("valider", aspirateur["id_occurrence"],
                                    compte["id_utilisateur"])
     assert "noté" in reponse
 
@@ -159,7 +158,7 @@ def test_le_bouton_plus_tard_repousse(client, thomas, base):
     aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
     compte = {"id_utilisateur": id_de("thomas")}
 
-    reponse = conv.executer_action("reporter", aspirateur["id_occurrence"],
+    reponse = bot_des_membres.executer_action("reporter", aspirateur["id_occurrence"],
                                    compte["id_utilisateur"])
     assert "demain" in reponse
 
@@ -172,7 +171,7 @@ def test_une_tache_non_reportable_refuse_d_etre_repoussee(client, thomas, base):
     lessive = occurrence_de(client, thomas, "LITIERE_CROTTES")
     compte = {"id_utilisateur": id_de("thomas")}
 
-    reponse = conv.executer_action("reporter", lessive["id_occurrence"],
+    reponse = bot_des_membres.executer_action("reporter", lessive["id_occurrence"],
                                    compte["id_utilisateur"])
     assert "ne résoudrait rien" in reponse
 
@@ -185,7 +184,7 @@ def test_le_bouton_non_recree_la_tache_sans_assigne(client, thomas, base):
     aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
     compte = {"id_utilisateur": id_de("thomas")}
 
-    reponse = conv.executer_action("refuser", aspirateur["id_occurrence"],
+    reponse = bot_des_membres.executer_action("refuser", aspirateur["id_occurrence"],
                                    compte["id_utilisateur"])
     assert "sans assigné" in reponse
 
@@ -195,7 +194,7 @@ def test_le_bouton_non_recree_la_tache_sans_assigne(client, thomas, base):
 
 def test_une_action_inconnue_est_refusee(base):
     with pytest.raises(ValueError):
-        conv.executer_action("supprimer", 1, 1)
+        bot_des_membres.executer_action("supprimer", 1, 1)
 
 
 def test_valider_deux_fois_remonte_le_refus_de_la_base(client, thomas, base):
@@ -203,10 +202,11 @@ def test_valider_deux_fois_remonte_le_refus_de_la_base(client, thomas, base):
     aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
     compte = {"id_utilisateur": id_de("thomas")}
 
-    conv.executer_action("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
+    valider = bot_des_membres.executer_action
+    valider("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
 
     with pytest.raises(psycopg.Error) as erreur:
-        conv.executer_action("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
+        valider("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
     # Le message de la base est déjà rédigé en français : le bot le montrera tel quel.
     assert "close" in erreur.value.diag.message_primary
 
@@ -230,7 +230,7 @@ def test_le_planning_du_jour_separe_horaires_et_rappels(client, thomas, base):
     forcer_au_jour_meme("ASPIRATEUR")
 
     compte = {"id_utilisateur": id_de("thomas")}
-    texte = conv.planning_du_jour(compte["id_utilisateur"])
+    texte = bot_des_membres.planning_du_jour(compte["id_utilisateur"])
 
     assert "14h00–16h00  Cours IDMC — Salle 104" in texte
     # Les rappels sans heure sont listés à part, avec une puce. L'aspirateur
@@ -241,7 +241,8 @@ def test_le_planning_du_jour_separe_horaires_et_rappels(client, thomas, base):
 
 def test_un_planning_vide_le_dit(base):
     compte = {"id_utilisateur": id_de("thomas")}
-    assert conv.planning_du_jour(compte["id_utilisateur"], dans_jours=300) == "Rien de prévu."
+    assert bot_des_membres.planning_du_jour(compte["id_utilisateur"],
+                                            dans_jours=300) == "Rien de prévu."
 
 
 
@@ -407,7 +408,7 @@ def test_un_membre_ne_se_relie_pas_avec_sa_cle(base):
 
     journal = _jouer(bot.demarrer, TELEGRAM_LORETTE, args=[CLE_LORETTE])
     assert _textes(journal) == [administration.PHRASE_AUX_MEMBRES]
-    assert conv.compte_de(TELEGRAM_LORETTE) is None
+    assert appairage.compte_de(TELEGRAM_LORETTE) is None
 
 
 def test_l_administrateur_se_relie_et_lit_l_aide(base):
@@ -416,7 +417,7 @@ def test_l_administrateur_se_relie_et_lit_l_aide(base):
     journal = _jouer(bot.demarrer, TELEGRAM_THOMAS, args=[CLE_THOMAS])
     assert "Bonjour thomas" in _textes(journal)[0]
     assert "/etat" in _textes(journal)[0]
-    assert conv.compte_de(TELEGRAM_THOMAS)["pseudo"] == "thomas"
+    assert appairage.compte_de(TELEGRAM_THOMAS)["pseudo"] == "thomas"
 
 
 def test_un_bouton_d_un_membre_recoit_la_phrase(base):
@@ -430,7 +431,7 @@ def test_un_bouton_d_un_membre_recoit_la_phrase(base):
 def test_un_ancien_bouton_renvoie_a_l_appli(base):
     from api import bot
 
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     journal = _jouer(bot.bouton, TELEGRAM_THOMAS, rappel="sp:sem:20261012")
     assert "l'appli HAL" in _textes(journal)[0]
 
@@ -438,7 +439,7 @@ def test_un_ancien_bouton_renvoie_a_l_appli(base):
 def test_etat_dit_le_serveur_les_sources_et_les_alertes(base):
     from api import bot
 
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     administration.alerter("disque", "Le disque est plein à 95 %.")
     texte = _textes(_jouer(bot.etat, TELEGRAM_THOMAS))[0]
     assert "Base : répond" in texte
@@ -451,7 +452,7 @@ def test_erreurs_lit_ce_que_l_api_a_journalise(base):
 
     from api import bot
 
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     administration.installer()
     logging.getLogger("api.essai").error("Quelque chose a cassé <ici>")
     texte = _textes(_jouer(bot.erreurs, TELEGRAM_THOMAS))[0]
@@ -462,7 +463,7 @@ def test_erreurs_lit_ce_que_l_api_a_journalise(base):
 def test_hal_donne_chaque_compte_et_se_regle(base):
     from api import bot
 
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     texte = _textes(_jouer(bot.hal, TELEGRAM_THOMAS))[0]
     assert "<b>thomas</b>" in texte and "<b>lorette</b>" in texte
 
@@ -527,7 +528,7 @@ def test_le_bot_n_envoie_que_les_alertes_de_l_administration(client, thomas, bas
     """ADM-5 : le bilan du matin, les rappels, HAL passent par l'appli."""
     client.post("/planning/placer", headers=thomas)
     client.post("/notifications/bilan", headers=thomas)
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     sql("UPDATE utilisateur SET id_telegram = %s WHERE pseudo = 'lorette'", TELEGRAM_LORETTE)
 
     administration.alerter("disque", "Le disque est plein.")
@@ -544,12 +545,12 @@ def test_une_alerte_ne_part_jamais_par_apple(base):
 
 
 def test_un_echec_d_envoi_conserve_l_alerte(base):
-    conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
     administration.alerter("disque", "Le disque est plein.")
-    notification = conv.notifications_a_envoyer()[0]
-    conv.marquer_envoyee(notification["id_notification"], reussi=False)
+    notification = administration.notifications_a_envoyer()[0]
+    administration.marquer_envoyee(notification["id_notification"], reussi=False)
 
-    assert conv.notifications_a_envoyer() == []
+    assert administration.notifications_a_envoyer() == []
     assert sql("SELECT statut FROM notification WHERE id_notification = %s",
                notification["id_notification"]) == [("echec",)]
 

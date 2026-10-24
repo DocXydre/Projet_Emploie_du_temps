@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from api import conversation as conv
+from api import bot_des_membres
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -275,7 +275,7 @@ def test_une_tache_libre_revient_a_qui_reste(client, thomas, lorette):
 # ---------------------------------------------------------------------------
 
 def test_le_bot_lit_une_periode():
-    periode = conv.lire_periode(["22/08", "24/08"])
+    periode = bot_des_membres.lire_periode(["22/08", "24/08"])
     assert periode is not None
     debut, fin = periode
     assert debut.day == 22 and debut.month == 8
@@ -284,16 +284,16 @@ def test_le_bot_lit_une_periode():
 
 
 def test_le_bot_accepte_une_seule_date():
-    periode = conv.lire_periode(["22/08"])
+    periode = bot_des_membres.lire_periode(["22/08"])
     assert periode is not None
     debut, fin = periode
     assert (fin - debut).days == 1
 
 
 def test_le_bot_refuse_ce_qu_il_ne_comprend_pas():
-    assert conv.lire_periode(["ce", "week-end"]) is None
-    assert conv.lire_periode(["32/13"]) is None
-    assert conv.lire_periode([]) is None
+    assert bot_des_membres.lire_periode(["ce", "week-end"]) is None
+    assert bot_des_membres.lire_periode(["32/13"]) is None
+    assert bot_des_membres.lire_periode([]) is None
 
 
 def test_la_presence_est_lisible_jour_par_jour(client, thomas):

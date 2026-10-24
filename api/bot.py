@@ -29,8 +29,8 @@ from telegram.ext import (
     filters,
 )
 
-from api import administration, billets, operation, trajets
-from api import conversation as conv
+from api import administration, appairage, billets, operation, trajets
+from api.coach.clair import jour_et_mois
 from api.collecteurs.courriel import BoiteIndisponible
 from api.config import configuration
 
@@ -47,7 +47,7 @@ async def _appelant(update: Update) -> dict | None:
     """Compte associé à cette conversation, ou None si non appairé."""
     if update.effective_user is None:
         return None
-    compte = await asyncio.to_thread(conv.compte_de, update.effective_user.id)
+    compte = await asyncio.to_thread(appairage.compte_de, update.effective_user.id)
     if compte is not None:
         # JRN-4 : ce que cette commande changera sera noté à son nom.
         operation.signer(compte["pseudo"])
@@ -97,7 +97,7 @@ async def demarrer(update: Update, contexte: ContextTypes.DEFAULT_TYPE) -> None:
         await update.effective_message.reply_text(administration.PHRASE_AUX_MEMBRES)
         return
 
-    compte = await asyncio.to_thread(conv.appairer, contexte.args[0],
+    compte = await asyncio.to_thread(appairage.appairer, contexte.args[0],
                                      update.effective_user.id)
     if compte is None:
         # La même phrase pour une clé inconnue et pour un membre : inutile de
@@ -202,8 +202,8 @@ async def commande_billets(update: Update, contexte: ContextTypes.DEFAULT_TYPE,
         titre = "Billets" if "," in refs else "Billet"
         await update.effective_message.reply_text(
             f"{titre}{f' ({refs})' if refs else ''} "
-            f": absent du {conv._jour(voyage['debut'])} "
-            f"au {conv._jour(voyage['fin'])}"
+            f": absent du {jour_et_mois(voyage['debut'])} "
+            f"au {jour_et_mois(voyage['fin'])}"
             f"{' à ' + voyage['lieu'] if voyage['lieu'] else ''}"
             # TRJ-7 : sans billet de retour, la fin est une supposition.
             f"{'' if voyage.get('retour_connu') else ' (retour à confirmer)'}",
@@ -293,16 +293,18 @@ async def vider_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def _envoyer_la_file(contexte: ContextTypes.DEFAULT_TYPE) -> None:
-    for notification in await asyncio.to_thread(conv.notifications_a_envoyer, 20):
+    for notification in await asyncio.to_thread(administration.notifications_a_envoyer, 20):
         try:
             await contexte.bot.send_message(notification["id_telegram"],
                                             notification["contenu"][:4090])
-            await asyncio.to_thread(conv.marquer_envoyee, notification["id_notification"], True)
+            await asyncio.to_thread(administration.marquer_envoyee,
+                                    notification["id_notification"], True)
         except Exception:
             # NOT-2 : un échec d'envoi laisse la notification en attente.
             LOG.warning("Envoi impossible, alerte %s conservée",
                         notification["id_notification"])
-            await asyncio.to_thread(conv.marquer_envoyee, notification["id_notification"], False)
+            await asyncio.to_thread(administration.marquer_envoyee,
+                                    notification["id_notification"], False)
 
 
 # ---------------------------------------------------------------------------

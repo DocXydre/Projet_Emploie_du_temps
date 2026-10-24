@@ -16,8 +16,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import conversation as conv
-from api import sport
+from api import bot_des_membres, sport
 from tests.conftest import CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -437,7 +436,7 @@ def test_refuser_une_seance_ne_la_reassigne_pas(client, thomas):
     moi = identifiant(client)
     seance = sport.choisir(moi, lieu("COURSE"), a(lundi + timedelta(days=1), 18))
 
-    reponse = conv.executer_action("refuser", seance, moi)
+    reponse = bot_des_membres.executer_action("refuser", seance, moi)
 
     assert "pas faite" in reponse.lower()
     assert un("SELECT statut FROM occurrence WHERE id_occurrence = %s", seance) == "abandonnee"

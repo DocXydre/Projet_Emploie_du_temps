@@ -160,7 +160,7 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
         )
 
     if "url" in champs:
-        from api.conversation import url_collectable
+        from api.sources import url_collectable
 
         # Les applications de calendrier proposent des liens « webcal:// ».
         # Ce n'est pas un protocole, seulement du HTTPS déguisé.

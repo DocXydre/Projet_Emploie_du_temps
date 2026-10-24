@@ -139,6 +139,18 @@ def placer() -> int:
     return placees
 
 
+def replacer() -> None:
+    """Relance le placement, sans jamais faire échouer ce qui l'a déclenché.
+
+    EXE-15 : après une validation, la suivante naît et une tâche faite en avance
+    avance tout le reste. Un planning en retard vaut mieux qu'un refus.
+    """
+    try:
+        placer()
+    except Exception:  # noqa: BLE001
+        LOG.warning("Replacement après validation impossible", exc_info=True)
+
+
 def placement_du_matin() -> int:
     """7h, pour tout le foyer : le placement, et la semaine de sport à valider.
 

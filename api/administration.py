@@ -157,6 +157,41 @@ def oublier_les_erreurs() -> None:
 # Prévenir                                                       (ADM-2, ADM-4)
 # ---------------------------------------------------------------------------
 
+def notifications_a_envoyer(limite: int = 20) -> list[dict]:
+    """Les alertes de l'administration qui attendent le bot (ADM-2, ADM-5).
+
+    Le bot ne transporte plus rien d'autre : les notifications des membres,
+    celles de l'administrateur comprises, passent par l'appli. Une alerte part
+    à toute heure : un serveur en panne n'attend pas le matin.
+    """
+    return lister(
+        """
+        SELECT n.id_notification, n.id_utilisateur, u.id_telegram, n.type, n.contenu
+          FROM notification n
+          JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur
+         WHERE n.statut = 'a_envoyer'
+           AND n.type = 'administration'
+           AND u.role = 'admin' AND u.actif
+           AND u.id_telegram IS NOT NULL
+         ORDER BY n.date_creation
+         LIMIT %(limite)s
+        """,
+        {"limite": limite},
+    )
+
+
+def marquer_envoyee(id_notification: int, reussi: bool = True) -> None:
+    executer(
+        """
+        UPDATE notification
+           SET statut     = CASE WHEN %(ok)s THEN 'envoyee' ELSE 'echec' END,
+               date_envoi = CASE WHEN %(ok)s THEN now() ELSE date_envoi END
+         WHERE id_notification = %(id)s
+        """,
+        {"id": id_notification, "ok": reussi},
+    )
+
+
 def alerter(cle: str, texte: str) -> bool:
     """Un problème. La base décide s'il faut le redire : une fois par heure au plus.
 

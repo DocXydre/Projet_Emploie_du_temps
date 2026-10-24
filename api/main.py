@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api import administration, conversation, journal, operation
+from api import abonnements, administration, journal, operation
 from api.amorcage import amorcer_assignations, amorcer_sources
 from api.base import arreter_pool, demarrer_pool, un_seul
 from api.calendrier import flux_ics
@@ -183,7 +183,7 @@ def abonnement(qui: Authentifie, requete: Request) -> dict:
     dire pour le téléphone. HOTE_PUBLIC sert à donner une bonne fois le nom par
     lequel les autres appareils joignent la machine.
     """
-    lien = conversation.url_calendrier(qui.id_utilisateur, requete.url.netloc)
+    lien = abonnements.url_calendrier(qui.id_utilisateur, requete.url.netloc)
     assert lien is not None
     return {
         **lien,
@@ -203,8 +203,8 @@ def abonnement(qui: Authentifie, requete: Request) -> dict:
 )
 def renouveler_abonnement(qui: Authentifie, requete: Request) -> dict:
     """Révoque l'abonnement en place. Il faudra se réabonner avec la nouvelle URL."""
-    conversation.renouveler_calendrier(qui.id_utilisateur)
-    lien = conversation.url_calendrier(qui.id_utilisateur, requete.url.netloc)
+    abonnements.renouveler_calendrier(qui.id_utilisateur)
+    lien = abonnements.url_calendrier(qui.id_utilisateur, requete.url.netloc)
     assert lien is not None
     return lien
 
@@ -214,9 +214,9 @@ def mes_calendriers(qui: Authentifie, requete: Request) -> list[dict]:
     """Un calendrier composé par ligne, avec son adresse d'abonnement."""
     return [
         {**ligne,
-         "url": (conversation.url_abonnement(ligne["jeton"], requete.url.netloc) or {})
+         "url": (abonnements.url_abonnement(ligne["jeton"], requete.url.netloc) or {})
                 .get("url")}
-        for ligne in conversation.calendriers_de(qui.id_utilisateur)
+        for ligne in abonnements.calendriers_de(qui.id_utilisateur)
     ]
 
 
@@ -250,9 +250,9 @@ def composer_calendrier(qui: Authentifie, requete: Request,
                                f"Au choix : {', '.join(CONTENUS)}"},
         )
 
-    cree = conversation.creer_calendrier(qui.id_utilisateur, libelle, comptes, familles)
+    cree = abonnements.creer_calendrier(qui.id_utilisateur, libelle, comptes, familles)
     assert cree is not None
-    lien = conversation.url_abonnement(cree["jeton"], requete.url.netloc) or {}
+    lien = abonnements.url_abonnement(cree["jeton"], requete.url.netloc) or {}
     return {**cree, "url": lien.get("url")}
 
 
@@ -260,7 +260,7 @@ def composer_calendrier(qui: Authentifie, requete: Request,
             summary="Supprimer un calendrier composé")
 def retirer_calendrier(qui: Authentifie, id_calendrier: int) -> dict:
     """Son adresse cesse aussitôt de répondre. Les autres continuent (NOT-7)."""
-    if not conversation.supprimer_calendrier(qui.id_utilisateur, id_calendrier):
+    if not abonnements.supprimer_calendrier(qui.id_utilisateur, id_calendrier):
         raise HTTPException(
             status_code=404,
             detail={"code": "calendrier_inconnu",

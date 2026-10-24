@@ -1,202 +1,36 @@
-"""Ce que le bot sait faire, indépendamment de Telegram.
+"""Ce que faisait le bot des membres, retiré en octobre 2026
 
-Appairage, mise en forme des messages, exécution des actions, heures de
-silence. `bot.py` ne fait que brancher ces fonctions sur des commandes et des
-boutons.
+Le bot des membres est rangé dans anciennes_fonctionnalites/bot_des_membres/,
+avec de quoi le remettre en service. Tout ce qu'il faisait se fait maintenant
+dans l'appli, par ses routes. Ces fonctions restent pour lui, et parce que des
+tests s'en servent encore pour jouer une validation, un report ou une absence
+comme le bot le faisait.
 
-Cette séparation permet de tester les actions du bot sans appeler Telegram.
+L'API et le travailleur n'en appellent aucune. Une fonction qui redevient utile
+à l'appli part dans le module de son domaine (api/absences.py, api/sources.py…)
+plutôt que de rester ici.
 """
 
 from __future__ import annotations
 
-import logging
 import re
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from psycopg.types.json import Json
 
-from api import sessions
 from api.base import executer, lister, un_seul
 from api.config import configuration
-
-LOG = logging.getLogger(__name__)
+from api.ordonnanceur import replacer as _replacer
 
 # Aucune notification entre ces deux heures : faire vibrer un téléphone à 3h du
-# matin pour une poussière est le meilleur moyen de les faire couper.
+# matin pour une poussière est le meilleur moyen de les faire couper. L'appli,
+# elle, suit les heures de silence de chacun (NOT-15, fonction en_silence).
 SILENCE_DEBUT = time(23, 30)
 SILENCE_FIN = time(7, 30)
 
 ACTIONS = ("valider", "reporter", "refuser")
 
-
-# ---------------------------------------------------------------------------
-# Appairage
-# ---------------------------------------------------------------------------
-
-def appairer(cle_api: str, id_telegram: int) -> dict | None:
-    """Associe une conversation Telegram au compte de l'administrateur du
-    serveur, via sa clé d'API (ADM-5). Une clé d'un autre compte ne relie rien.
-
-    La clé fait office de mot de passe : celle du compte, ou celle d'une
-    session de l'appli (CNX-11). Un appairage existant est écrasé, ce qui
-    permet de changer de téléphone.
-    """
-    compte = sessions.appelant_de(cle_api.strip())
-    if compte is None or compte["role"] != "admin":
-        return None
-    return executer(
-        """
-        UPDATE utilisateur
-           SET id_telegram = %(tg)s
-         WHERE id_utilisateur = %(u)s
-        RETURNING id_utilisateur, pseudo, role
-        """,
-        {"u": compte["id_utilisateur"], "tg": id_telegram},
-    )
-
-
-def url_collectable(url: str) -> str:
-    """Ramène une URL d'abonnement à quelque chose qu'un client HTTP sait lire.
-
-    Apple, Google et Outlook donnent des liens en `webcal://`. Ce préfixe sert
-    seulement à ouvrir l'application Calendrier : derrière, c'est du HTTPS. On
-    le remplace donc avant de collecter.
-    """
-    url = url.strip()
-    if url.lower().startswith("webcal://"):
-        return "https://" + url[len("webcal://"):]
-    return url
-
-
-def compte_de(id_telegram: int) -> dict | None:
-    return un_seul(
-        """
-        SELECT id_utilisateur, pseudo, role FROM utilisateur
-         WHERE id_telegram = %(tg)s AND actif
-        """,
-        {"tg": id_telegram},
-    )
-
-
-def desappairer(id_telegram: int) -> bool:
-    resultat = executer(
-        "UPDATE utilisateur SET id_telegram = NULL WHERE id_telegram = %(tg)s RETURNING pseudo",
-        {"tg": id_telegram},
-    )
-    return resultat is not None
-
-
-# ---------------------------------------------------------------------------
-# Abonnement au calendrier
-# ---------------------------------------------------------------------------
-
-def url_calendrier(id_utilisateur: int, defaut: str | None = None) -> dict | None:
-    """URL d'abonnement au flux iCalendar, ou None si l'hôte est inconnu.
-
-    `HOTE_PUBLIC` l'emporte sur `defaut`, qui n'est qu'un repli tiré de la
-    requête : interrogée depuis le Mac, l'API renverrait sinon « localhost ».
-
-    Le lien `webcal://` n'accompagne l'adresse que sur un flux en clair : iOS
-    le traduit en `http://` et jamais en `https://`.
-
-    Le protocole se déduit de l'hôte. Sans port, ou sur l'un des ports que
-    Tailscale réserve à ses tunnels chiffrés, c'est du HTTPS ; sur tout autre
-    port, c'est un serveur local en clair.
-
-    Le lien était auparavant toujours en `http://`, ce qui marchait sur le Mac
-    — le navigateur corrigeait — et échouait sur le téléphone, l'application
-    Calendrier ne corrigeant rien.
-    """
-    ligne = un_seul(
-        "SELECT jeton_calendrier FROM utilisateur WHERE id_utilisateur = %(u)s AND actif",
-        {"u": id_utilisateur},
-    )
-    if ligne is None:
-        return None
-
-    return url_abonnement(ligne["jeton_calendrier"], defaut)
-
-
-def url_abonnement(jeton: str, defaut: str | None = None) -> dict | None:
-    """Même adresse pour un compte et pour un calendrier composé : seul le
-    jeton change (NOT-8)."""
-    hote = (configuration().hote_public or defaut or "").strip().rstrip("/")
-    if not hote:
-        return None
-    hote = hote.split("://", 1)[-1]
-
-    # 443, 8443 et 10000 sont les seuls ports que Tailscale accepte pour un
-    # tunnel public : sur ceux-là, la connexion est chiffrée de bout en bout.
-    PORTS_CHIFFRES = {"443", "8443", "10000"}
-    port = hote.rpartition(":")[2] if ":" in hote else ""
-    protocole = "http" if port.isdigit() and port not in PORTS_CHIFFRES else "https"
-
-    chemin = f"{hote}/planning.ics?cle={jeton}"
-
-    # iOS traduit « webcal:// » en « http:// » et jamais en « https:// ». Sur
-    # un flux chiffré, le téléphone part donc en clair, signale l'absence de
-    # SSL, et l'abonnement échoue ; la variante « webcals:// » n'est pas
-    # reconnue. Le lien webcal n'est proposé que sur un flux en clair.
-    webcal = f"webcal://{chemin}" if protocole == "http" else None
-
-    return {"url": f"{protocole}://{chemin}",
-            "webcal": webcal,
-            "hote": hote,
-            "protocole": protocole}
-
-
-def calendriers_de(id_utilisateur: int) -> list[dict]:
-    """Les calendriers composés qu'on a créés, avec de quoi les afficher."""
-    return lister(
-        """
-        SELECT c.id_calendrier, c.libelle, c.jeton, c.personnes, c.contenus,
-               (SELECT array_agg(u.nom ORDER BY u.nom)
-                  FROM utilisateur u
-                 WHERE u.id_utilisateur = ANY (c.personnes)) AS noms
-          FROM calendrier c
-         WHERE c.id_proprietaire = %(u)s
-         ORDER BY c.libelle
-        """,
-        {"u": id_utilisateur},
-    )
-
-
-def creer_calendrier(id_utilisateur: int, libelle: str,
-                     personnes: list[int], contenus: list[str]) -> dict | None:
-    return un_seul(
-        "SELECT * FROM creer_calendrier(%(u)s, %(libelle)s, %(personnes)s, %(contenus)s)",
-        {"u": id_utilisateur, "libelle": libelle,
-         "personnes": list(personnes), "contenus": list(contenus)},
-    )
-
-
-def supprimer_calendrier(id_utilisateur: int, id_calendrier: int) -> bool:
-    ligne = un_seul(
-        "SELECT supprimer_calendrier(%(u)s, %(c)s) AS parti",
-        {"u": id_utilisateur, "c": id_calendrier},
-    )
-    return bool(ligne and ligne["parti"])
-
-
-def comptes_actifs() -> list[dict]:
-    return lister(
-        "SELECT id_utilisateur, pseudo, nom FROM utilisateur "
-        " WHERE actif ORDER BY id_utilisateur"
-    )
-
-
-def renouveler_calendrier(id_utilisateur: int) -> str | None:
-    """Invalide l'abonnement en place et en rend un nouveau."""
-    ligne = un_seul(
-        "SELECT renouveler_jeton_calendrier(%(u)s) AS jeton", {"u": id_utilisateur}
-    )
-    return ligne["jeton"] if ligne else None
-
-
-# ---------------------------------------------------------------------------
-# Heures de silence
-# ---------------------------------------------------------------------------
 
 def en_silence(maintenant: datetime | None = None) -> bool:
     fuseau = ZoneInfo(configuration().fuseau)
@@ -204,10 +38,6 @@ def en_silence(maintenant: datetime | None = None) -> bool:
     # La plage traverse minuit : elle est vraie de 23h30 à 7h30.
     return heure >= SILENCE_DEBUT or heure < SILENCE_FIN
 
-
-# ---------------------------------------------------------------------------
-# Actions sur une occurrence
-# ---------------------------------------------------------------------------
 
 def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str:
     """Applique une action et renvoie ce qu'il y a à répondre.
@@ -296,10 +126,6 @@ def executer_action(action: str, id_occurrence: int, id_utilisateur: int) -> str
         return "Impossible de refuser celle-là."
     return "Refusée. Elle reste à faire, sans assigné."
 
-
-# ---------------------------------------------------------------------------
-# Mise en forme
-# ---------------------------------------------------------------------------
 
 def _heure(instant: datetime) -> str:
     return instant.astimezone(ZoneInfo(configuration().fuseau)).strftime("%Hh%M")
@@ -500,22 +326,6 @@ def sources_suivies() -> list[str]:
         "SELECT code FROM source WHERE active AND mode_collecte = 'ics' ORDER BY code")]
 
 
-def arreter_source(code: str) -> dict | None:
-    """Cesse de suivre un flux, et replace ce que ses créneaux bloquaient.
-
-    COL-21 : l'avenir de la source disparaît du planning, son passé reste.
-    """
-    ligne = executer("SELECT arreter_source(%(c)s) AS bilan", {"c": code})
-    bilan = (ligne or {}).get("bilan")
-    if bilan is None:
-        return None
-
-    # Les créneaux libérés sont aussitôt disponibles pour le reste.
-    from api.ordonnanceur import placer
-    bilan["occurrences_replacees"] = placer()
-    return bilan
-
-
 def decrire_arret(bilan: dict) -> str:
     retirees = bilan["occupations_retirees"]
     lignes = [
@@ -543,15 +353,6 @@ def taches_declarables(id_utilisateur: int | None = None) -> list[dict]:
          ORDER BY t.libelle
         """
     )
-
-
-def _replacer() -> None:
-    """Relance le placement, sans jamais faire échouer ce qui l'a déclenché."""
-    try:
-        from api.ordonnanceur import placer
-        placer()
-    except Exception:  # noqa: BLE001 - un planning en retard vaut mieux qu'un refus
-        LOG.warning("Replacement après validation impossible", exc_info=True)
 
 
 def declarer_faite(id_utilisateur: int, code_tache: str) -> str:
@@ -692,54 +493,6 @@ def lire_moment(mots: list[str], fuseau=None) -> tuple[datetime, str] | None:
     return instant, " ".join(restant)
 
 
-def declarer_absence(id_utilisateur: int, debut: datetime, fin: datetime,
-                     lieu: str | None = None) -> dict | None:
-    return executer(
-        """
-        INSERT INTO absence (id_utilisateur, periode, lieu, origine)
-        VALUES (%(u)s, tstzrange(%(debut)s, %(fin)s, '[)'), %(lieu)s, 'manuelle')
-        RETURNING id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu
-        """,
-        {"u": id_utilisateur, "debut": debut, "fin": fin, "lieu": lieu},
-    )
-
-
-def partir(id_utilisateur: int, lieu: str | None = None) -> dict | None:
-    """« Je pars maintenant », sans savoir quand je rentre.
-
-    Le cas le plus fréquent, et celui qu'aucune déduction ne couvre : on monte
-    en voiture, on décide sur place. L'absence court jusqu'à la prochaine
-    obligation connue, et se ferme au retour.
-    """
-    ligne = un_seul("SELECT partir_maintenant(%(u)s, %(l)s) AS id_absence",
-                    {"u": id_utilisateur, "l": lieu})
-    if ligne is None:
-        return None
-    return un_seul(
-        "SELECT id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu "
-        "  FROM absence WHERE id_absence = %(id)s",
-        {"id": ligne["id_absence"]},
-    )
-
-
-def rentrer(id_utilisateur: int) -> dict | None:
-    """« Je suis rentré ». Ferme l'absence en cours à l'instant présent.
-
-    Rend None si aucune absence n'était en cours : ce n'est pas une erreur,
-    seulement une nouvelle à annoncer autrement.
-    """
-    ligne = un_seul("SELECT terminer_absence(%(u)s) AS id_absence",
-                    {"u": id_utilisateur})
-    if ligne is None or ligne["id_absence"] is None:
-        return None
-
-    return un_seul(
-        "SELECT id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu "
-        "  FROM absence WHERE id_absence = %(id)s",
-        {"id": ligne["id_absence"]},
-    )
-
-
 def absences_a_venir(id_utilisateur: int) -> list[dict]:
     return lister(
         """
@@ -862,45 +615,6 @@ def trancher_conflit(id_conflit: int, garder: str, id_utilisateur: int) -> str:
         {"id": id_conflit, "choix": garder},
     )
     return "C'est enregistré." if garder == "existante" else "Remplacé."
-
-
-# ---------------------------------------------------------------------------
-# File d'attente
-# ---------------------------------------------------------------------------
-
-def notifications_a_envoyer(limite: int = 20) -> list[dict]:
-    """Les alertes de l'administration qui attendent le bot (ADM-2, ADM-5).
-
-    Le bot ne transporte plus rien d'autre : les notifications des membres,
-    celles de l'administrateur comprises, passent par l'appli. Une alerte part
-    à toute heure : un serveur en panne n'attend pas le matin.
-    """
-    return lister(
-        """
-        SELECT n.id_notification, n.id_utilisateur, u.id_telegram, n.type, n.contenu
-          FROM notification n
-          JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur
-         WHERE n.statut = 'a_envoyer'
-           AND n.type = 'administration'
-           AND u.role = 'admin' AND u.actif
-           AND u.id_telegram IS NOT NULL
-         ORDER BY n.date_creation
-         LIMIT %(limite)s
-        """,
-        {"limite": limite},
-    )
-
-
-def marquer_envoyee(id_notification: int, reussi: bool = True) -> None:
-    executer(
-        """
-        UPDATE notification
-           SET statut     = CASE WHEN %(ok)s THEN 'envoyee' ELSE 'echec' END,
-               date_envoi = CASE WHEN %(ok)s THEN now() ELSE date_envoi END
-         WHERE id_notification = %(id)s
-        """,
-        {"id": id_notification, "ok": reussi},
-    )
 
 
 def prochain_rappel(id_utilisateur: int) -> datetime:

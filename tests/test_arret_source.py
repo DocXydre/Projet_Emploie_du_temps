@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 from icalendar import Calendar
 
-from api import conversation as conv
+from api import bot_des_membres, sources
 from api.collecteurs.service import sources_a_collecter
 from tests.conftest import JETON_THOMAS, _url
 
@@ -47,7 +47,7 @@ def planning_mcdo() -> None:
 def test_l_avenir_disparait_le_passe_reste(client, thomas):
     planning_mcdo()
 
-    bilan = conv.arreter_source("MCDO")
+    bilan = sources.arreter_source("MCDO")
 
     assert bilan["occupations_retirees"] == 2
     with psycopg.connect(_url()) as conn:
@@ -58,7 +58,7 @@ def test_l_avenir_disparait_le_passe_reste(client, thomas):
 
 def test_le_passe_reste_dans_le_calendrier_du_telephone(client, thomas):
     planning_mcdo()
-    conv.arreter_source("MCDO")
+    sources.arreter_source("MCDO")
 
     flux = client.get("/planning.ics", params={"cle": JETON_THOMAS})
     resumes = {str(e["SUMMARY"]) for e in Calendar.from_ical(flux.content).walk("VEVENT")}
@@ -73,16 +73,16 @@ def test_la_source_arretee_n_est_plus_collectee(client, thomas):
                      " WHERE code = 'MCDO'")
     assert "MCDO" in sources_a_collecter()
 
-    conv.arreter_source("mcdo")   # la casse ne compte pas, comme pour /lien
+    sources.arreter_source("mcdo")   # la casse ne compte pas, comme pour /lien
 
     assert "MCDO" not in sources_a_collecter()
-    assert "MCDO" not in conv.sources_suivies()
+    assert "MCDO" not in bot_des_membres.sources_suivies()
 
 
 def test_une_source_arretee_n_est_pas_signalee_en_panne(client, thomas):
     # Une source jamais collectée paraît en panne. Arrêtée, elle ne doit plus
     # apparaître dans le bilan du matin comme quelque chose à réparer.
-    conv.arreter_source("MCDO")
+    sources.arreter_source("MCDO")
 
     with psycopg.connect(_url()) as conn:
         en_panne = {code for (code,) in conn.execute(
@@ -91,13 +91,13 @@ def test_une_source_arretee_n_est_pas_signalee_en_panne(client, thomas):
 
 
 def test_une_source_inconnue_le_dit(base):
-    assert conv.arreter_source("BURGER_KING") is None
+    assert sources.arreter_source("BURGER_KING") is None
 
 
 def test_le_message_dit_ce_qui_part_et_ce_qui_reste(client, thomas):
     planning_mcdo()
 
-    texte = conv.decrire_arret(conv.arreter_source("MCDO"))
+    texte = bot_des_membres.decrire_arret(sources.arreter_source("MCDO"))
 
     assert "2 créneau(x) à venir retiré(s)" in texte
     assert "Le passé reste" in texte

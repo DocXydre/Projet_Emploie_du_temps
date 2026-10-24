@@ -351,10 +351,10 @@ def test_le_journal_ne_se_raconte_qu_une_fois(client, thomas, place):
 
 
 def test_le_bot_ne_porte_pas_les_changements(client):
-    from api import conversation as conv
+    from api import administration
     sql("UPDATE utilisateur SET id_telegram = 42 WHERE pseudo = 'thomas'")
     _notifier(type_="changement", contenu="Aspirateur : déplacée")
-    assert conv.notifications_a_envoyer() == []
+    assert administration.notifications_a_envoyer() == []
 
 
 # ---------------------------------------------------------------------------

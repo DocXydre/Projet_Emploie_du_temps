@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import conversation as conv
+from api import bot_des_membres
 from api.ordonnanceur import placer
 from tests.conftest import _url
 
@@ -281,7 +281,7 @@ def test_le_bloc_se_lit_dans_l_ordre_au_planning(client, thomas):
     client.post("/planning/placer", headers=thomas)
     qui = prevues("RECURAGE")[0]
 
-    texte = conv.planning_du_jour(_id(qui["pseudo"]),
+    texte = bot_des_membres.planning_du_jour(_id(qui["pseudo"]),
                                   (qui["jour"] - minuit(0).date()).days)
 
     positions = [texte.index(f"Nettoyage {rang}/3") for rang in (1, 2, 3)]

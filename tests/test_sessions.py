@@ -5,7 +5,7 @@ import hashlib
 import psycopg
 import pytest
 
-from api import conversation, mot_de_passe
+from api import appairage, mot_de_passe
 from tests.conftest import CLE_LORETTE, CLE_THOMAS
 from tests.test_ensemble import _id, sql, un
 
@@ -112,8 +112,8 @@ def test_un_compte_en_pause_n_ouvre_plus_rien(client):
 
 def test_le_bot_d_administration_s_appaire_avec_une_session(client):
     session = _connecter(client)
-    assert conversation.appairer(session["X-Cle-Api"], 4242)["pseudo"] == "thomas"
-    assert conversation.appairer(CLE_THOMAS, 4242)["pseudo"] == "thomas"
+    assert appairage.appairer(session["X-Cle-Api"], 4242)["pseudo"] == "thomas"
+    assert appairage.appairer(CLE_THOMAS, 4242)["pseudo"] == "thomas"
     # Ni la clé d'un compte qui n'est pas administrateur, ni une clé inconnue.
-    assert conversation.appairer(_connecter(client, "lorette")["X-Cle-Api"], 4343) is None
-    assert conversation.appairer("X" * 48, 4343) is None
+    assert appairage.appairer(_connecter(client, "lorette")["X-Cle-Api"], 4343) is None
+    assert appairage.appairer("X" * 48, 4343) is None

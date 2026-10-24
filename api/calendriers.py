@@ -16,7 +16,7 @@ décocherait ce qu'un premier appui venait de cocher.
 
 from __future__ import annotations
 
-from api import conversation as conv
+from api import abonnements
 from api.ecran import Ecran
 
 # Les six familles de NOT-6, dans l'ordre d'affichage, avec la lettre qui les
@@ -55,7 +55,7 @@ def _basculer(valeurs: list, valeur) -> list:
 
 def _nom_propose(personnes: list[int], lettres: list[str]) -> str:
     """« Lorette : cours, sport ». Un nom qu'on reconnaît dans une liste."""
-    comptes = {c["id_utilisateur"]: c["nom"] for c in conv.comptes_actifs()}
+    comptes = {c["id_utilisateur"]: c["nom"] for c in abonnements.comptes_actifs()}
     qui = " et ".join(comptes.get(p, str(p)) for p in personnes) or "Personne"
     quoi = ", ".join(CONTENUS[lettre][1].lower() for lettre in CONTENUS if lettre in lettres)
     return f"{qui} : {quoi}"[:60]
@@ -76,7 +76,7 @@ def _resume(ligne: dict) -> str:
 
 def ecran_liste(id_utilisateur: int) -> Ecran:
     """L'entrée de /calendrier : ce qu'on a déjà, et de quoi en faire un autre."""
-    miens = conv.calendriers_de(id_utilisateur)
+    miens = abonnements.calendriers_de(id_utilisateur)
 
     lignes = ["<b>Tes calendriers</b>"]
     boutons = []
@@ -97,7 +97,7 @@ def ecran_liste(id_utilisateur: int) -> Ecran:
 def ecran_composition(id_utilisateur: int, etat: str) -> Ecran:
     """Les cases à cocher : qui, puis quoi."""
     personnes, lettres = _lire(etat)
-    comptes = conv.comptes_actifs()
+    comptes = abonnements.comptes_actifs()
 
     lignes = ["<b>Nouveau calendrier</b>", "",
               "Coche les personnes, puis ce que tu veux voir d'elles."]
@@ -137,14 +137,14 @@ def creer(id_utilisateur: int, etat: str) -> Ecran:
     libelle = _nom_propose(personnes, lettres)
     # Deux calendriers de même composition porteraient le même nom : on numérote
     # plutôt que de refuser, l'un peut servir au téléphone et l'autre au Mac.
-    existants = {ligne["libelle"] for ligne in conv.calendriers_de(id_utilisateur)}
+    existants = {ligne["libelle"] for ligne in abonnements.calendriers_de(id_utilisateur)}
     if libelle in existants:
         rang = 2
         while f"{libelle} ({rang})" in existants:
             rang += 1
         libelle = f"{libelle} ({rang})"
 
-    cree = conv.creer_calendrier(id_utilisateur, libelle,
+    cree = abonnements.creer_calendrier(id_utilisateur, libelle,
                                  personnes,
                                  [CONTENUS[lettre][0] for lettre in lettres])
     if cree is None:
@@ -155,12 +155,12 @@ def creer(id_utilisateur: int, etat: str) -> Ecran:
 
 def ecran_lien(id_utilisateur: int, id_calendrier: int) -> Ecran:
     """L'adresse, et rien d'autre à faire que la coller dans le téléphone."""
-    ligne = next((c for c in conv.calendriers_de(id_utilisateur)
+    ligne = next((c for c in abonnements.calendriers_de(id_utilisateur)
                   if c["id_calendrier"] == id_calendrier), None)
     if ligne is None:
         return Ecran("Ce calendrier n'existe plus.", [[("↩ Mes calendriers", "cal:menu:0")]])
 
-    lien = conv.url_abonnement(ligne["jeton"])
+    lien = abonnements.url_abonnement(ligne["jeton"])
     if lien is None:
         return Ecran(
             "Je ne sais pas sous quel nom cette machine est joignable depuis ton "
@@ -179,7 +179,7 @@ def ecran_lien(id_utilisateur: int, id_calendrier: int) -> Ecran:
 
 
 def ecran_suppression(id_utilisateur: int, id_calendrier: int) -> Ecran:
-    ligne = next((c for c in conv.calendriers_de(id_utilisateur)
+    ligne = next((c for c in abonnements.calendriers_de(id_utilisateur)
                   if c["id_calendrier"] == id_calendrier), None)
     if ligne is None:
         return ecran_liste(id_utilisateur)
@@ -191,14 +191,14 @@ def ecran_suppression(id_utilisateur: int, id_calendrier: int) -> Ecran:
 
 
 def supprimer(id_utilisateur: int, id_calendrier: int) -> Ecran:
-    conv.supprimer_calendrier(id_utilisateur, id_calendrier)
+    abonnements.supprimer_calendrier(id_utilisateur, id_calendrier)
     ecran = ecran_liste(id_utilisateur)
     return Ecran("Calendrier supprimé.\n\n" + ecran.texte, ecran.boutons)
 
 
 def ecran_personnel(id_utilisateur: int) -> Ecran:
     """Le lien historique : tout son planning, à soi seul."""
-    lien = conv.url_calendrier(id_utilisateur)
+    lien = abonnements.url_calendrier(id_utilisateur)
     if lien is None:
         return Ecran(
             "Je ne sais pas sous quel nom cette machine est joignable depuis ton "

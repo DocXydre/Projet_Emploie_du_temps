@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from api import conversation as conv
+from api import sources
 from api.collecteurs import ics
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
@@ -55,14 +55,14 @@ def identifiant(client, cle: str) -> int:
 def test_un_lien_webcal_devient_une_adresse_https(base):
     # Apple, Google et Outlook proposent tous « webcal:// ». Ce n'est pas un
     # protocole : c'est du HTTPS avec un préfixe pour l'application Calendrier.
-    assert conv.url_collectable("webcal://p12.icloud.com/x/abcd.ics") \
+    assert sources.url_collectable("webcal://p12.icloud.com/x/abcd.ics") \
         == "https://p12.icloud.com/x/abcd.ics"
-    assert conv.url_collectable("WEBCAL://exemple.fr/a.ics") \
+    assert sources.url_collectable("WEBCAL://exemple.fr/a.ics") \
         == "https://exemple.fr/a.ics"
 
 
 def test_une_adresse_https_n_est_pas_touchee(base):
-    assert conv.url_collectable(" https://exemple.fr/a.ics ") == "https://exemple.fr/a.ics"
+    assert sources.url_collectable(" https://exemple.fr/a.ics ") == "https://exemple.fr/a.ics"
 
 
 def test_donner_l_url_convertit_et_active(client, thomas):
