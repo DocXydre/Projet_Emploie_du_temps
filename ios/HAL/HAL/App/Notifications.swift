@@ -153,9 +153,9 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
     /// Appli ouverte : une notification du serveur s'affiche quand même en
     /// bandeau. Le minuteur de repos, lui, ne double pas l'écran de la séance.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                            willPresent notification: UNNotification)
-        async -> UNNotificationPresentationOptions {
-        notification.request.trigger is UNPushNotificationTrigger ? [.banner, .list, .sound] : []
+                                            willPresent notification: UNNotification,
+                                            withCompletionHandler fin: @escaping @Sendable (UNNotificationPresentationOptions) -> Void) {
+        fin(notification.request.trigger is UNPushNotificationTrigger ? [.banner, .list, .sound] : [])
     }
 
     nonisolated private static let accepter = "ACCEPTER"
@@ -163,17 +163,26 @@ final class DelegueApp: NSObject, UIApplicationDelegate, UNUserNotificationCente
 
     /// ACC-14 : Accepter ou Refuser, touché sur la notification d'une demande,
     /// part au serveur sans ouvrir l'appli.
+    ///
+    /// iOS doit être prévenu sur le fil principal : la version `async` le
+    /// prévenait depuis un fil de fond, et UIKit arrêtait l'appli dès qu'on
+    /// touchait une notification pour l'ouvrir.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                            didReceive reponse: UNNotificationResponse) async {
+                                            didReceive reponse: UNNotificationResponse,
+                                            withCompletionHandler fin: @escaping @Sendable () -> Void) {
         let geste: String
         switch reponse.actionIdentifier {
         case Self.accepter: geste = "accepter"
         case Self.refuser: geste = "refuser"
-        default: return
+        default: return fin()
         }
         let hal = reponse.notification.request.content.userInfo["hal"] as? [String: Any]
-        guard let id = (hal?["id_demande"] as? NSNumber)?.intValue else { return }
-        guard let client = await MainActor.run(body: { notifications.client }) else { return }
-        try? await client.envoyer("POST", "demandes/\(id)/\(geste)")
+        guard let id = (hal?["id_demande"] as? NSNumber)?.intValue else { return fin() }
+        Task { @MainActor in
+            if let client = notifications.client {
+                try? await client.envoyer("POST", "demandes/\(id)/\(geste)")
+            }
+            fin()
+        }
     }
 }
