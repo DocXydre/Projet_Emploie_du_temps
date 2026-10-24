@@ -33,6 +33,9 @@ DISQUE_ALERTE = 0.90
 DISQUE_RETOUR = 0.85
 # Les connexions à la base, en part du maximum permis.
 CONNEXIONS_ALERTE = 0.90
+# La copie hors du serveur part chaque jour du Mac (outils/copier_hors_serveur.sh).
+# Trois jours sans : un Mac en voyage peut manquer une copie, pas trois.
+COPIE_EXTERNE_RETARD = timedelta(days=3)
 
 
 def h(texte) -> str:
@@ -282,13 +285,28 @@ def _base() -> None:
         lever("base", "✅ La base a de nouveau des connexions libres.")
 
 
+def _copie_externe() -> None:
+    """La dernière copie de la base arrivée hors du serveur. Aucune encore : la
+    copie n'est pas installée, et il n'y a rien à surveiller."""
+    ligne = un_seul("""SELECT max(quand) AS quand FROM evenement
+                        WHERE objet = 'sauvegarde_externe'""")
+    if not ligne or ligne["quand"] is None:
+        return
+    if _maintenant() - ligne["quand"] > COPIE_EXTERNE_RETARD:
+        alerter("copie_externe",
+                f"⚠️ Aucune copie de la base hors du serveur depuis le "
+                f"{_quand(ligne['quand'])}. Le Mac est-il allumé, et Tailscale branché ?")
+    else:
+        lever("copie_externe", "✅ La base est de nouveau copiée hors du serveur.")
+
+
 def surveiller() -> list[str]:
     """Le passage de l'ordonnanceur : ce qui ne dépend d'aucun événement.
 
     Chaque vérification est indépendante : une qui casse laisse passer les autres.
     """
     ratees = []
-    for verification in (_sources, _erreurs_de_l_api, _disque, _base):
+    for verification in (_sources, _erreurs_de_l_api, _disque, _base, _copie_externe):
         try:
             verification()
         except Exception as erreur:  # noqa: BLE001
@@ -331,6 +349,11 @@ def etat(taches: list[dict] | None = None, bot: dict | None = None) -> str:
     if deploiement:
         lignes.append(f"Dernier déploiement : {_quand(deploiement['quand'])}, "
                       f"{h(deploiement['libelle'] or '')}")
+    copie = un_seul("""SELECT quand, libelle FROM evenement
+                        WHERE objet = 'sauvegarde_externe'
+                        ORDER BY id_evenement DESC LIMIT 1""")
+    lignes.append(f"Dernière copie hors du serveur : {_quand(copie['quand'])}"
+                  if copie else "Copie hors du serveur : <b>pas installée</b>")
 
     sources = lister("""SELECT code, etat_calcule, derniere_collecte
                           FROM v_source_sante

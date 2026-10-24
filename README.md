@@ -200,6 +200,23 @@ Pour Gemini CLI, la même clé avec `gemini mcp add --scope user --transport htt
 
 **Gemini CLI** se branche de la même façon, dans Réglages, Intelligence : on s'y connecte avec Google une fois sur son ordinateur, puis on colle dans l'appli le contenu de `~/.gemini/oauth_creds.json`, ou une clé de l'API Gemini. L'écran explique chaque étape. Il demande Node.js dans l'image, qui l'a par défaut ; `GEMINI_CLI=0` dans `.env` s'en passe. Ses réponses n'ont pas encore été comparées à celles de Claude sur les scénarios du coach.
 
+**Une copie hors du serveur.** Les copies de `deployer.sh` vivent sur le même disque que la base : elles servent à défaire une migration, pas à survivre à la perte du portable. Chaque jour à 13 h, le Mac demande donc au serveur, par SSH sur Tailscale, un `pg_dump` frais. Il le vérifie avec `pg_restore --list`, en garde trente dans `~/Sauvegardes/planif`, et quatorze dans iCloud, chiffrées par `age` : iCloud ne voit jamais la base en clair. Le serveur n'a accès ni au Mac ni à iCloud. Chaque copie s'inscrit au journal du serveur, et le bot prévient après trois jours sans copie. `/etat` dit la date de la dernière.
+
+```bash
+brew install age
+mkdir -p ~/.config/planif
+age-keygen -o ~/.config/planif/age.cle      # affiche la clé publique, age1…
+```
+
+La clé privée, `~/.config/planif/age.cle`, se recopie aussi dans un gestionnaire de mots de passe : sans elle, les copies d'iCloud ne se relisent pas, et elle ne doit jamais aller dans iCloud. Puis, dans `~/.config/planif/sauvegardes.env` :
+
+```
+PLANIF_SERVEUR=thomas@serveur
+PLANIF_AGE_DESTINATAIRE=age1…
+```
+
+`./outils/copier_hors_serveur.sh` fait une copie tout de suite, et `./outils/copier_hors_serveur.sh installer` la programme chaque jour. Pour relire une copie d'iCloud : `age -d -i ~/.config/planif/age.cle planif-….dump.age > planif.dump`, puis `pg_restore`.
+
 Le serveur va chercher les mises à jour au lieu d'attendre un webhook : rien à exposer, et un push fait pendant qu'il était éteint est rattrapé au démarrage suivant.
 
 Tout se fait sur `main`, et chaque push part en production. On vérifie donc en local avant :
