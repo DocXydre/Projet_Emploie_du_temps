@@ -23,7 +23,7 @@
 #
 #   POSTGRES_USER=planif  POSTGRES_DB=planif  PLANIF_CONTENEUR=planif-db
 #   PLANIF_COPIES=~/Sauvegardes/planif        PLANIF_COPIES_GARDEES=30
-#   PLANIF_ICLOUD=…/Sauvegardes planif        PLANIF_ICLOUD_GARDEES=14
+#   PLANIF_ICLOUD=…/Sauvegardes planif
 #
 # Une copie réussie est inscrite au journal du serveur : la surveillance du
 # travailleur prévient sur Telegram quand plus aucune n'arrive depuis trois jours.
@@ -42,7 +42,6 @@ CONTENEUR="${PLANIF_CONTENEUR:-planif-db}"
 COPIES="${PLANIF_COPIES:-$HOME/Sauvegardes/planif}"
 GARDEES="${PLANIF_COPIES_GARDEES:-30}"
 ICLOUD="${PLANIF_ICLOUD:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sauvegardes planif}"
-ICLOUD_GARDEES="${PLANIF_ICLOUD_GARDEES:-14}"
 ETIQUETTE="fr.docxydre.planif.sauvegardes"
 
 # launchd ne donne qu'un PATH réduit : age et pg_restore viennent de Homebrew.
@@ -118,16 +117,34 @@ echo "Sur le Mac : $copie ($taille)"
 
 # iCloud ne voit que la version chiffrée : sans la clé privée, gardée hors
 # d'iCloud, elle ne se lit pas.
-chiffree="$ICLOUD/$nom.dump.age"
-age --recipient "$DESTINATAIRE" --output "$chiffree.partielle" "$copie"
-mv "$chiffree.partielle" "$chiffree"
-echo "Dans iCloud, chiffrée : $chiffree"
+#
+# macOS laisse une tâche launchd écrire un fichier dans iCloud Drive, mais ni
+# l'y renommer, ni lister le dossier, donc ni trier ni effacer les anciennes.
+# D'où quatorze emplacements fixes, un par jour sur deux semaines : chaque
+# copie écrase celle d'il y a quatorze jours (« planif-lundi-a », semaine
+# paire, « planif-lundi-b », semaine impaire). Elle se chiffre à côté de la
+# copie du Mac, puis se recopie. Une copie coupée en route ne se déchiffrerait
+# pas : age vérifie chaque morceau.
+jour="$(LC_ALL=C date +%u)"
+set -- lundi mardi mercredi jeudi vendredi samedi dimanche
+eval "jour=\${$jour}"
+semaine="$(( $(date +%V | sed 's/^0*//') % 2 ))"
+[ "$semaine" -eq 0 ] && moitie=a || moitie=b
+chiffree="$ICLOUD/planif-$jour-$moitie.dump.age"
+temporaire="$COPIES/.$nom.dump.age"
+icloud=""
+if age --recipient "$DESTINATAIRE" --output "$temporaire" "$copie" \
+   && cp "$temporaire" "$chiffree"; then
+    echo "Dans iCloud, chiffrée : $chiffree"
+else
+    rm -f "$chiffree" || true
+    icloud=", sans iCloud"
+    echo "La copie chiffrée n'est pas allée dans iCloud : seule celle du Mac est faite."
+fi
+rm -f "$temporaire"
 
-# Les plus anciennes s'en vont. Les noms ne contiennent pas d'espace, le
-# dossier d'iCloud si : on y entre avant de lister.
+# Sur le Mac, les plus anciennes s'en vont. Les noms ne contiennent pas d'espace.
 ( cd "$COPIES" && ls -1t planif-*.dump | tail -n "+$((GARDEES + 1))" \
-    | while read -r ancienne; do rm -f "$ancienne"; done )
-( cd "$ICLOUD" && ls -1t planif-*.dump.age | tail -n "+$((ICLOUD_GARDEES + 1))" \
     | while read -r ancienne; do rm -f "$ancienne"; done )
 
 # Au journal du serveur : c'est ce que lit la surveillance (ADM-2). Le texte
@@ -136,7 +153,9 @@ printf '%s\n' \
     "SELECT set_config('planif.acteur', 'copie hors serveur', FALSE);" \
     "SELECT noter_evenement('sauvegarde_externe', :'libelle', NULL, TRUE);" \
   | ssh -o BatchMode=yes -o ConnectTimeout=20 "$SERVEUR" \
-        "docker exec -i $CONTENEUR psql --username=$UTILISATEUR --dbname=$BASE --quiet --set libelle='Copie hors serveur, $taille' > /dev/null" \
+        "docker exec -i $CONTENEUR psql --username=$UTILISATEUR --dbname=$BASE --quiet --set libelle='Copie hors serveur, $taille$icloud' > /dev/null" \
   || echo "Copie faite, mais le serveur n'a pas pu la noter."
 
+# Une copie sans iCloud se voit dans le journal de launchd.
+[ -z "$icloud" ] || exit 1
 echo "Fait."
