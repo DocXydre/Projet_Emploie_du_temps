@@ -196,6 +196,9 @@ def table_rase(base):
         # par défaut. Un membre retiré par un test redevient actif.
         conn.execute("DELETE FROM appareil")
         conn.execute("DELETE FROM session_appareil")
+        # Un abonnement branché par un test ferait passer les appels de HAL des
+        # suivants par un faux Claude Code.
+        conn.execute("DELETE FROM fournisseur_modele")
         conn.execute("DELETE FROM invitation")
         conn.execute("UPDATE utilisateur SET id_foyer = NULL")
         # HDF-4 : la mémoire du foyer part avec lui.

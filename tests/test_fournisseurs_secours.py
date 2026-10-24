@@ -8,6 +8,7 @@ from cryptography.fernet import Fernet
 
 from api.coach import fournisseurs
 from api.config import configuration
+from tests.conftest import RACINE
 from tests.test_coach import u  # noqa: F401
 from tests.test_ensemble import sql, un
 
@@ -70,8 +71,7 @@ def test_sans_cle_sur_le_serveur_rien_n_est_ajoute(monkeypatch, u):
 def test_la_migration_rend_le_secours_aux_comptes_deja_branches(serveur, u):
     sql("INSERT INTO fournisseur_modele (id_utilisateur, type, rang, secret, secret_fin) "
         "VALUES (%s, 'claude_code', 1, '\\x00', 'abcd')", u)
-    with open("/app/sql/075_cle_du_serveur_en_secours.sql", encoding="utf-8") as f:
-        migration = f.read()
+    migration = (RACINE / "sql" / "075_cle_du_serveur_en_secours.sql").read_text(encoding="utf-8")
     sql(migration)
     sql(migration)
     assert _types(u) == [("claude_code", False), ("api", True)]
