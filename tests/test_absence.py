@@ -226,10 +226,11 @@ def _assigne_pour(conn, code_tache: str, depuis_jours: int, jusqu_a_jours: int):
     tache = conn.execute(
         "SELECT id_tache, id_utilisateur_defaut FROM tache WHERE code = %s",
         (code_tache,)).fetchone()
+    # Bornes prises à minuit, comme les absences : la base compte en UTC, et
+    # « maintenant plus un jour » y tombe avant minuit la nuit du changement d'heure.
     qui = conn.execute(
-        "SELECT choisir_assigne(%s, tstzrange(now() + make_interval(days => %s), "
-        "                                     now() + make_interval(days => %s))) AS qui",
-        (tache["id_tache"], depuis_jours, jusqu_a_jours)).fetchone()["qui"]
+        "SELECT choisir_assigne(%s, tstzrange(%s, %s)) AS qui",
+        (tache["id_tache"], minuit(depuis_jours), minuit(jusqu_a_jours))).fetchone()["qui"]
     return tache, qui
 
 

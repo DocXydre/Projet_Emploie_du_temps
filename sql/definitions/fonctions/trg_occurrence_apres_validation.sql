@@ -28,14 +28,17 @@ BEGIN
        AND NOT epinglee;
 
     -- ---- EXE-1 : l'occurrence suivante part de la date réelle ------------------
+    --
+    -- En jours de Paris, comme generer_occurrences : le changement d'heure ne
+    -- doit pas avancer l'échéance d'un jour.
     IF t.active AND t.recurrente THEN
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
                                 id_occurrence_source)
         VALUES (t.id_tache,
                 t.id_utilisateur_defaut,
                 fenetre_pour(t.rappel_journee,
-                             NEW.date_faite + make_interval(days => t.periodicite_min_jours),
-                             NEW.date_faite + make_interval(days => t.periodicite_max_jours)),
+                             date_add(NEW.date_faite, make_interval(days => t.periodicite_min_jours), 'Europe/Paris'),
+                             date_add(NEW.date_faite, make_interval(days => t.periodicite_max_jours), 'Europe/Paris')),
                 'recurrence',
                 NEW.id_occurrence);
     END IF;
@@ -121,8 +124,8 @@ BEGIN
             VALUES (e.id_tache,
                     e.id_utilisateur_defaut,
                     fenetre_pour(e.rappel_journee,
-                                 NEW.date_faite + make_interval(days => e.periodicite_min_jours),
-                                 NEW.date_faite + make_interval(days => e.periodicite_max_jours)),
+                                 date_add(NEW.date_faite, make_interval(days => e.periodicite_min_jours), 'Europe/Paris'),
+                                 date_add(NEW.date_faite, make_interval(days => e.periodicite_max_jours), 'Europe/Paris')),
                     'recurrence',
                     NEW.id_occurrence);
         END IF;

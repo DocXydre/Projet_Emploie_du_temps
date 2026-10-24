@@ -41,7 +41,7 @@ BEGIN
                 -- Jamais faite : elle est due dès aujourd'hui.
                 v_fenetre := fenetre_pour(
                     t.rappel_journee, now(),
-                    now() + make_interval(days => t.periodicite_max_jours));
+                    date_add(now(), make_interval(days => t.periodicite_max_jours), 'Europe/Paris'));
 
                 INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine)
                 VALUES (t.id_tache, t.id_utilisateur_defaut, v_fenetre, 'recurrence');
@@ -54,12 +54,15 @@ BEGIN
         -- Prolonger la chaîne jusqu'à l'horizon. Ces occurrences sont des
         -- prévisions : elles seront effacées et refaites dès qu'une validation
         -- réelle donnera une meilleure référence.
+        --
+        -- Les jours se comptent à l'heure de Paris : en UTC, minuit plus deux
+        -- jours retombe à 23 h la veille quand on passe à l'heure d'hiver.
         v_tours := 0;
         WHILE v_curseur < v_limite AND v_tours < ITERATIONS_MAX LOOP
             v_fenetre := fenetre_pour(
                 t.rappel_journee,
-                v_curseur + make_interval(days => t.periodicite_min_jours),
-                v_curseur + make_interval(days => t.periodicite_max_jours));
+                date_add(v_curseur, make_interval(days => t.periodicite_min_jours), 'Europe/Paris'),
+                date_add(v_curseur, make_interval(days => t.periodicite_max_jours), 'Europe/Paris'));
 
             INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine)
             VALUES (t.id_tache, t.id_utilisateur_defaut, v_fenetre, 'recurrence');

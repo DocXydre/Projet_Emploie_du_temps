@@ -1687,6 +1687,8 @@ def test_le_bouton_faite_demande_la_note_d_effort(u, validee):
 def test_une_serie_se_saisit_depuis_le_bot(u, plan):
     seance = proposer(u)
     reculer(seance, 0.2)
+    if jour_de_paris(datetime.now(PARIS) - timedelta(hours=0.2)) != aujourd_hui():
+        pytest.skip("Trop tôt dans la journée pour ce scénario")
 
     ecran = coach_tg.commande("serie", u, ["presse_pectoraux", "42,5", "10"])
 
