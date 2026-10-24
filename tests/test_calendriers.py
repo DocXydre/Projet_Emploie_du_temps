@@ -17,8 +17,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import calendriers
-from api import conversation as conv
+from api import abonnements, calendriers
 from tests.conftest import CLE_THOMAS, JETON_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -276,7 +275,7 @@ def test_l_ecran_compose_ce_qu_on_coche(client, thomas):
     assert "Lorette : cours" in composition.texte
     lien = _appuyer(moi, next(r for r in _rappels(composition) if r.startswith("cal:ok:")))
 
-    mien = conv.calendriers_de(moi)
+    mien = abonnements.calendriers_de(moi)
     assert [c["libelle"] for c in mien] == ["Lorette : cours"]
     assert mien[0]["personnes"] == [elle]
     assert mien[0]["contenus"] == ["cours"]
@@ -299,19 +298,19 @@ def test_cocher_deux_fois_decoche(client, thomas):
 
 def test_supprimer_depuis_le_bot(client, thomas):
     moi = _id("thomas")
-    cree = conv.creer_calendrier(moi, "Mon sport", [moi], ["sport"])
+    cree = abonnements.creer_calendrier(moi, "Mon sport", [moi], ["sport"])
 
     confirmation = _appuyer(moi, f"cal:d:{cree['id_calendrier']}")
     assert "Supprimer" in confirmation.texte
     apres = _appuyer(moi, f"cal:sup:{cree['id_calendrier']}")
 
     assert "supprimé" in apres.texte
-    assert conv.calendriers_de(moi) == []
+    assert abonnements.calendriers_de(moi) == []
 
 
 def test_les_rappels_tiennent_dans_les_64_octets(client, thomas):
     moi = _id("thomas")
-    conv.creer_calendrier(moi, "Un calendrier au nom déraisonnablement long",
+    abonnements.creer_calendrier(moi, "Un calendrier au nom déraisonnablement long",
                           [moi, _id("lorette")], ["cours", "taches", "sport"])
 
     ecrans = [calendriers.ecran_liste(moi),

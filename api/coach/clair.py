@@ -60,3 +60,8 @@ def sans_vides(ligne: dict) -> dict:
 
 def jour_en_clair(jour: date) -> str:
     return f"{JOURS[jour.weekday()]} {jour.day:02d}/{jour.month:02d}"
+
+
+def jour_et_mois(instant: datetime) -> str:
+    """« 24/10 », le jour d'un instant à l'heure d'ici."""
+    return instant.astimezone(fuseau()).strftime("%d/%m")

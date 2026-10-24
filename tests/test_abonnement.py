@@ -14,7 +14,7 @@ change de réseau. D'où `HOTE_PUBLIC`, qui l'emporte sur ce que dit la requête
 import psycopg
 import pytest
 
-from api import conversation as conv
+from api import abonnements, appairage
 from api.config import configuration
 from tests.conftest import CLE_THOMAS, JETON_LORETTE, JETON_THOMAS, _url
 
@@ -161,21 +161,21 @@ def test_un_flux_chiffre_ne_propose_pas_de_lien_webcal(client, thomas, hote_chif
 def test_sans_hote_connu_le_bot_ne_fabrique_pas_d_url(base):
     # Le bot n'a pas de requête d'où déduire un hôte : il vaut mieux qu'il dise
     # ce qui manque plutôt qu'il envoie une adresse fausse.
-    compte = conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
-    assert conv.url_calendrier(compte["id_utilisateur"]) is None
+    compte = appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    assert abonnements.url_calendrier(compte["id_utilisateur"]) is None
 
 
 def test_le_bot_fabrique_l_url_des_que_l_hote_est_connu(base, hote_fixe):
-    compte = conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
-    lien = conv.url_calendrier(compte["id_utilisateur"])
+    compte = appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    lien = abonnements.url_calendrier(compte["id_utilisateur"])
 
     assert lien is not None
     assert lien["url"].startswith("http://mon-mac.local:8000/planning.ics?cle=")
 
 
 def test_un_hote_donne_avec_son_protocole_ne_le_double_pas(base):
-    compte = conv.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
-    lien = conv.url_calendrier(compte["id_utilisateur"], "http://mon-mac.local:8000")
+    compte = appairage.appairer(CLE_THOMAS, TELEGRAM_THOMAS)
+    lien = abonnements.url_calendrier(compte["id_utilisateur"], "http://mon-mac.local:8000")
 
     assert lien is not None
     assert lien["url"].count("http://") == 1

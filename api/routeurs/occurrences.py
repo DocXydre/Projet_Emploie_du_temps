@@ -141,8 +141,8 @@ def valider(id_occurrence: int, qui: Authentifie, demande: DemandeValidation | N
     )
     # EXE-15 : la suivante naît de la validation, et une tâche faite en avance
     # avance tout le reste. On replace dans la foulée plutôt qu'à la nuit.
-    from api.conversation import _replacer
-    _replacer()
+    from api.ordonnanceur import replacer
+    replacer()
     return detail(id_occurrence, qui)
 
 

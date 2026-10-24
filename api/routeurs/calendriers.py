@@ -25,7 +25,7 @@ from fastapi import APIRouter, HTTPException, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field
 
-from api import conversation as conv
+from api import sources
 from api.base import executer, lister, un_seul
 from api.collecteurs import ics
 from api.collecteurs.service import CollecteImpossible, collecter_source
@@ -135,7 +135,7 @@ def essayer(lien: Lien, qui: Authentifie) -> dict:
 
     Rien n'est écrit, ni en base ni au journal : l'URL peut porter un jeton.
     """
-    url = conv.url_collectable(lien.url)
+    url = sources.url_collectable(lien.url)
     if not url.lower().startswith(("https://", "http://")):
         raise _refus_du_lien("Le lien doit commencer par https:// ou webcal://")
     try:
@@ -176,7 +176,7 @@ def ajouter(nouveau: NouveauCalendrier, qui: Authentifie) -> dict:
         "SELECT suivre_calendrier(%(moi)s, %(pour)s, %(nature)s, %(libelle)s, %(url)s) AS id",
         {"moi": qui.id_utilisateur, "pour": nouveau.pour or qui.id_utilisateur,
          "nature": nouveau.nature, "libelle": nouveau.libelle,
-         "url": conv.url_collectable(nouveau.url)},
+         "url": sources.url_collectable(nouveau.url)},
     )
     assert cree is not None
     calendrier = _un(qui.id_utilisateur, cree["id"])
@@ -192,7 +192,7 @@ class NouveauLien(BaseModel):
 def changer_lien(id_source: int, lien: NouveauLien, qui: Authentifie) -> dict:
     ligne = executer(
         "SELECT changer_lien_calendrier(%(moi)s, %(id)s, %(url)s) AS code",
-        {"moi": qui.id_utilisateur, "id": id_source, "url": conv.url_collectable(lien.url)},
+        {"moi": qui.id_utilisateur, "id": id_source, "url": sources.url_collectable(lien.url)},
     )
     assert ligne is not None
     collecte = _recollecter(ligne["code"])
@@ -248,7 +248,7 @@ def regler(id_source: int, reglage: Reglage, qui: Authentifie) -> dict:
 def arreter(id_source: int, qui: Authentifie) -> dict:
     """COL-21 : il n'est plus collecté, son avenir quitte le planning, son passé
     reste. Le lien est gardé : le reprendre ne demande que de le redonner."""
-    bilan = conv.arreter_source(_code(qui.id_utilisateur, id_source))
+    bilan = sources.arreter_source(_code(qui.id_utilisateur, id_source))
     assert bilan is not None
     return {"calendrier": _un(qui.id_utilisateur, id_source),
             "retirees": bilan["occupations_retirees"]}

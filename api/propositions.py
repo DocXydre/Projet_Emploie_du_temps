@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 
 from api.base import executer, lister, un_seul
+from api.coach.clair import jour_et_mois
 from api.config import configuration
 
 LOG = logging.getLogger(__name__)
@@ -149,13 +150,11 @@ def _annoncer(proposition: dict, texte: str, colonne: str) -> None:
 
 
 def resumer(proposition: dict, relance: bool = False) -> str:
-    from api.conversation import _jour
-
     lieu = f" à {proposition['lieu']}" if proposition.get("lieu") else ""
     entete = ("Ça approche : week-end libre" if relance
               else "Week-end libre repéré")
     return (f"{entete}{lieu}\n"
-            f"{_jour(proposition['debut'])} → {_jour(proposition['fin'])}\n\n"
+            f"{jour_et_mois(proposition['debut'])} → {jour_et_mois(proposition['fin'])}\n\n"
             f"Rien de prévu sur cette période. On regarde les trains ?")
 
 

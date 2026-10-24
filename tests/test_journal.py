@@ -18,8 +18,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import billets, journal, operation
-from api import conversation as conv
+from api import absences, administration, appairage, billets, bot_des_membres, journal, operation
 from api.ordonnanceur import placer, report_de_minuit
 from tests.conftest import CLE_THOMAS, _url
 
@@ -83,7 +82,7 @@ def test_la_cause_et_l_effet_portent_le_meme_numero(client, thomas, place):
     c'est ce qui répond à « pourquoi l'aspirateur a changé de jour ».
     """
     with operation.ouvrir("bot : /absent", acteur="thomas"):
-        conv.declarer_absence(_id("thomas"), minuit(1), minuit(5), "Lusse")
+        absences.declarer_absence(_id("thomas"), minuit(1), minuit(5), "Lusse")
         placer()
 
     operations = {e["operation"] for e in evenements()}
@@ -143,7 +142,7 @@ def test_une_tache_placee_se_lit_avec_son_jour_et_sa_personne(client, thomas):
 def test_une_ligne_par_objet_quel_que_soit_le_nombre_de_retouches(base):
     moi = _id("thomas")
     with operation.ouvrir("essai", acteur="thomas"):
-        absence = conv.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
+        absence = absences.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
         identifiant = absence["id_absence"]
         sql_dans_l_action("UPDATE absence SET lieu = 'Metz' WHERE id_absence = %s",
                           identifiant)
@@ -165,7 +164,7 @@ def sql_dans_l_action(requete: str, *parametres) -> None:
 
 def test_revenir_au_point_de_depart_efface_l_evenement(base):
     moi = _id("thomas")
-    absence = conv.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
+    absence = absences.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
     sql("DELETE FROM evenement")
 
     with operation.ouvrir("essai", acteur="thomas"):
@@ -180,7 +179,7 @@ def test_revenir_au_point_de_depart_efface_l_evenement(base):
 
 def test_une_retouche_hors_des_colonnes_suivies_ne_compte_pas(base):
     moi = _id("thomas")
-    absence = conv.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
+    absence = absences.declarer_absence(moi, minuit(2), minuit(4), "Lusse")
     sql("DELETE FROM evenement")
 
     # Le commentaire n'est pas suivi : c'est ce qui permet à la collecte de
@@ -225,7 +224,7 @@ def test_un_journal_en_panne_n_empeche_pas_de_declarer_une_absence(base):
     sql("ALTER TABLE evenement ADD CONSTRAINT essai_panne "
         "CHECK (objet <> 'absence') NOT VALID")
     try:
-        creee = conv.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Lusse")
+        creee = absences.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Lusse")
     finally:
         sql("ALTER TABLE evenement DROP CONSTRAINT essai_panne")
 
@@ -263,7 +262,7 @@ def test_le_journal_demande_une_cle(client):
 
 def test_pourquoi_raconte_l_action_avec_son_auteur(base):
     with operation.ouvrir("bot : /absent", acteur="thomas"):
-        conv.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Lusse")
+        absences.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Lusse")
 
     texte = journal.raconter()
 
@@ -274,7 +273,7 @@ def test_pourquoi_raconte_l_action_avec_son_auteur(base):
 
 def test_pourquoi_avec_un_mot_montre_aussi_ce_qui_l_a_provoque(client, thomas, place):
     with operation.ouvrir("bot : /absent", acteur="thomas"):
-        conv.declarer_absence(_id("thomas"), minuit(1), minuit(5), "Lusse")
+        absences.declarer_absence(_id("thomas"), minuit(1), minuit(5), "Lusse")
         placer()
     deplacee = next(e for e in evenements("occurrence"))
 
@@ -288,7 +287,7 @@ def test_pourquoi_avec_un_mot_montre_aussi_ce_qui_l_a_provoque(client, thomas, p
 
 def test_la_recherche_ignore_les_accents_et_la_casse(base):
     with operation.ouvrir("essai", acteur="lorette"):
-        conv.declarer_absence(_id("lorette"), minuit(2), minuit(4), "Saint-Dié")
+        absences.declarer_absence(_id("lorette"), minuit(2), minuit(4), "Saint-Dié")
 
     assert "Saint-Dié" in journal.raconter("saint-die")
     assert "Saint-Dié" in journal.raconter("LORETTE")
@@ -305,7 +304,7 @@ def test_un_journal_vide_le_dit(base):
 def test_ce_qui_vient_des_donnees_est_echappe(base):
     # Le texte part en HTML : un lieu saisi avec un chevron casserait l'envoi.
     with operation.ouvrir("essai", acteur="thomas"):
-        conv.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Chez <Mamie>")
+        absences.declarer_absence(_id("thomas"), minuit(2), minuit(4), "Chez <Mamie>")
 
     texte = journal.raconter()
 
@@ -320,7 +319,7 @@ def test_un_message_parti_normalement_n_encombre_pas(base):
                           "VALUES (%s, 'bilan', 'Bonjour, <b>trois</b> tâches')", lui)
     numero = un("SELECT max(id_notification) FROM notification")
     with operation.ouvrir("envoi des messages", acteur="bot"):
-        conv.marquer_envoyee(numero, True)
+        administration.marquer_envoyee(numero, True)
 
     texte = journal.raconter()
 
@@ -337,7 +336,7 @@ def test_un_envoi_rate_se_voit(base):
         "VALUES (%s, 'rappel', 'Sortir les poubelles')", _id("lorette"))
     sql("DELETE FROM evenement")
     with operation.ouvrir("envoi des messages", acteur="bot"):
-        conv.marquer_envoyee(un("SELECT max(id_notification) FROM notification"), False)
+        administration.marquer_envoyee(un("SELECT max(id_notification) FROM notification"), False)
 
     assert "Envoi raté pour Lorette : « Sortir les poubelles »" in journal.raconter()
 
@@ -350,7 +349,7 @@ def test_faire_la_tache_de_l_autre_se_lit_en_une_ligne(client, thomas, place):
          ORDER BY lower(o.creneau) LIMIT 1""", _id("lorette"))[0]
 
     with operation.ouvrir("bot : bouton Fait", acteur="thomas"):
-        conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+        bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     texte = journal.raconter()
     assert f"{sienne['libelle']} : faite par Thomas, c'était à Lorette" in texte
@@ -401,7 +400,7 @@ def test_le_journal_ne_garde_que_trois_mois(base):
 def test_une_commande_du_bot_ouvre_une_action_a_son_nom(base):
     from api import bot
 
-    conv.appairer(CLE_THOMAS, 424242)
+    appairage.appairer(CLE_THOMAS, 424242)
     vu = {}
 
     async def commande(update, contexte):

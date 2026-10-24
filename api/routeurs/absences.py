@@ -95,18 +95,18 @@ def annuler(id_absence: int, qui: Authentifie, replacer: bool = False) -> None:
 @routeur.post("/depart", status_code=status.HTTP_201_CREATED,
               summary="Je pars maintenant")
 def partir(qui: Authentifie, lieu: str | None = None) -> dict:
-    from api import conversation, ordonnanceur
+    from api import absences, ordonnanceur
 
-    creee = conversation.partir(qui.id_utilisateur, lieu)
+    creee = absences.partir(qui.id_utilisateur, lieu)
     assert creee is not None
     return {**creee, "occurrences_replacees": ordonnanceur.placer()}
 
 
 @routeur.post("/retour", summary="Je suis rentré")
 def rentrer(qui: Authentifie) -> dict:
-    from api import conversation, ordonnanceur
+    from api import absences, ordonnanceur
 
-    ferme = conversation.rentrer(qui.id_utilisateur)
+    ferme = absences.rentrer(qui.id_utilisateur)
     if ferme is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

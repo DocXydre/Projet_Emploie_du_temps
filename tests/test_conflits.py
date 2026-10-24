@@ -274,7 +274,7 @@ def test_un_conflit_toujours_publie_reste_a_arbitrer(client, thomas):
 
 
 def test_le_bouton_d_un_conflit_caduc_ne_ment_pas(client, thomas):
-    from api import conversation as conv
+    from api import bot_des_membres
 
     debut, fin = dans(3, 10), dans(3, 12)
     poser_occupation(client, thomas, debut, fin, "Cours déjà prévu")
@@ -285,7 +285,7 @@ def test_le_bouton_d_un_conflit_caduc_ne_ment_pas(client, thomas):
 
     # Le message du bot est plus ancien que la collecte : dire « déjà tranché »
     # laisserait croire à un choix qu'on n'a pas fait.
-    reponse = conv.trancher_conflit(id_conflit, "nouvelle", 1)
+    reponse = bot_des_membres.trancher_conflit(id_conflit, "nouvelle", 1)
     assert "n'existe plus" in reponse
     assert [o["libelle"] for o in client.get("/occupations", headers=thomas).json()] \
         == ["Cours déjà prévu"]

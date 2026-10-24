@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 import pytest
 
-from api import conversation as conv
+from api import bot_des_membres
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
 
@@ -132,7 +132,7 @@ def test_declarer_une_tache_prevue_pour_l_autre(client, thomas, place):
          ORDER BY upper(o.fenetre) LIMIT 1
         """, _id("lorette"))[0]
 
-    conv.declarer_faite(moi, sienne["code"])
+    bot_des_membres.declarer_faite(moi, sienne["code"])
 
     apres = _sql("SELECT statut, id_utilisateur FROM occurrence WHERE id_occurrence = %s",
                  sienne["id_occurrence"])[0]
@@ -146,7 +146,7 @@ def test_declarer_ne_laisse_pas_l_ancienne_ouverte(client, thomas, place):
     code = "LAVE_VAISSELLE"
     ouvertes = len(_suite(code))
 
-    conv.declarer_faite(_id("thomas"), code)
+    bot_des_membres.declarer_faite(_id("thomas"), code)
 
     assert ouvertes, "il faut une occurrence ouverte pour que le test ait un sens"
     assert _un("SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache) "
@@ -163,7 +163,7 @@ def test_chacun_peut_cocher_la_tache_de_l_autre(client, thomas, lorette, place):
         " WHERE o.id_utilisateur = %s AND o.statut IN ('planifiee', 'notifiee') "
         "   AND t.categorie <> 'sport' ORDER BY upper(o.fenetre) LIMIT 1", _id("thomas"))[0]
 
-    reponse = conv.executer_action("valider", a_moi["id_occurrence"], _id("lorette"))
+    reponse = bot_des_membres.executer_action("valider", a_moi["id_occurrence"], _id("lorette"))
 
     assert "noté" in reponse
     assert _un("SELECT id_utilisateur FROM occurrence WHERE id_occurrence = %s",
@@ -173,7 +173,7 @@ def test_chacun_peut_cocher_la_tache_de_l_autre(client, thomas, lorette, place):
 def test_toutes_les_taches_sont_declarables(client, thomas):
     # Y compris le pliage du linge, qui revient à Lorette : on déclare ce qu'on
     # a fait, pas ce qu'on devait faire.
-    codes = {t["code"] for t in conv.taches_declarables(_id("thomas"))}
+    codes = {t["code"] for t in bot_des_membres.taches_declarables(_id("thomas"))}
 
     assert "PLIER_LINGE" in codes
     assert "SPORT" not in codes
@@ -191,7 +191,7 @@ def test_faite_en_avance_la_suivante_repart_d_aujourd_hui(client, thomas, place)
         "SELECT min(lower(o.fenetre)) FROM occurrence o JOIN tache t USING (id_tache) "
         " WHERE t.code = %s AND o.statut IN ('planifiee', 'notifiee')", code)
 
-    conv.declarer_faite(_id("thomas"), code)
+    bot_des_membres.declarer_faite(_id("thomas"), code)
 
     debut_apres = _un(
         "SELECT min(lower(o.fenetre)) FROM occurrence o JOIN tache t USING (id_tache) "
@@ -209,7 +209,7 @@ def _prochaine(code: str) -> dict:
 
 
 def test_le_planning_se_refait_dans_la_foulee(client, thomas, place):
-    conv.declarer_faite(_id("thomas"), "LITIERE_CROTTES")
+    bot_des_membres.declarer_faite(_id("thomas"), "LITIERE_CROTTES")
 
     # Sans replacement, la suivante resterait « à placer » jusqu'à la nuit.
     assert _prochaine("LITIERE_CROTTES")["creneau"] is not None
@@ -271,7 +271,7 @@ def _sienne(pseudo: str) -> dict:
 def test_faire_la_tache_de_l_autre_le_lui_dit(client, thomas, place):
     sienne = _sienne("lorette")
 
-    conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     alertes = _alertes("lorette")
     assert len(alertes) == 1
@@ -283,7 +283,7 @@ def test_faire_la_tache_de_l_autre_le_lui_dit(client, thomas, place):
 def test_faire_sa_propre_tache_ne_previent_personne(client, thomas, place):
     mienne = _sienne("thomas")
 
-    conv.executer_action("valider", mienne["id_occurrence"], _id("thomas"))
+    bot_des_membres.executer_action("valider", mienne["id_occurrence"], _id("thomas"))
 
     assert _alertes("lorette") == []
 
@@ -291,7 +291,7 @@ def test_faire_sa_propre_tache_ne_previent_personne(client, thomas, place):
 def test_celui_qui_coche_sait_qu_il_a_depanne(client, thomas, place):
     sienne = _sienne("lorette")
 
-    reponse = conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    reponse = bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     assert "Lorette" in reponse
     assert "rééquilibre" in reponse
@@ -303,7 +303,7 @@ def test_le_rappel_en_attente_part_avec_la_tache(client, thomas, place):
          "VALUES (%s, %s, 'rappel', 'À faire aujourd''hui')",
          _id("lorette"), sienne["id_occurrence"])
 
-    conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     # Demander de faire ce qui est fait est le genre de message qui fait couper
     # les notifications.
@@ -315,7 +315,7 @@ def test_la_semaine_se_reequilibre_apres_une_reprise(client, thomas, place):
     avant = _un("SELECT charge_domestique(%s)", _id("lorette"))
     sienne = _sienne("lorette")
 
-    conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     apres = _un("SELECT charge_domestique(%s)", _id("lorette"))
     # Elle n'a pas simplement perdu une tâche : la suite a été redistribuée,
@@ -341,7 +341,7 @@ def test_une_tache_deja_annoncee_ne_bouge_pas(client, thomas, place):
            AND t.categorie <> 'sport' ORDER BY upper(o.fenetre) LIMIT 1
         """)[0]
 
-    conv.executer_action("valider", autre["id_occurrence"], _id("lorette"))
+    bot_des_membres.executer_action("valider", autre["id_occurrence"], _id("lorette"))
 
     # Ce qu'on a lu le matin ne disparaît pas de la liste l'après-midi.
     assert _un("SELECT id_utilisateur FROM occurrence WHERE id_occurrence = %s",
@@ -351,7 +351,7 @@ def test_une_tache_deja_annoncee_ne_bouge_pas(client, thomas, place):
 def test_le_pliage_reste_a_lorette_meme_apres_un_reequilibrage(client, thomas, place):
     sienne = _sienne("lorette")
 
-    conv.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
 
     # ABS-2 : la redistribution ne touche pas à une assignation fixée.
     assignes = {ligne["pseudo"] for ligne in _sql(
