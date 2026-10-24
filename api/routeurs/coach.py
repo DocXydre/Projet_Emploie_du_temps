@@ -181,6 +181,27 @@ def _aux_deux(moment: str, id_occurrence: int | None, cle_client: UUID,
             "parties": parties}
 
 
+# Les tâches de fond lancées par ces routes : la construction d'un plan, la
+# reprise après une pause. Les essais les attendent avant de défaire leurs faux
+# (tests/conftest.py) : sinon un plan finissait pendant le test suivant, sur une
+# base déjà fermée.
+_taches_de_fond: list[threading.Thread] = []
+
+
+def _en_fond(cible, *arguments, nom: str) -> None:
+    fil = threading.Thread(target=cible, args=arguments, name=nom, daemon=True)
+    _taches_de_fond[:] = [f for f in _taches_de_fond if f.is_alive()]
+    _taches_de_fond.append(fil)
+    fil.start()
+
+
+def attendre_les_taches_de_fond(delai: float = 30) -> list[str]:
+    """Attend la fin des tâches de fond. Rend le nom de celles encore en cours."""
+    for fil in list(_taches_de_fond):
+        fil.join(delai)
+    return [f.name for f in _taches_de_fond if f.is_alive()]
+
+
 def lancer_le_plan(id_utilisateur: int, precision: str | None = None) -> bool:
     """Opération C3 : la construction du plan, sans faire attendre l'appelant.
 
@@ -205,7 +226,7 @@ def lancer_le_plan(id_utilisateur: int, precision: str | None = None) -> bool:
                  "c": "Je n'ai pas réussi à construire ton plan : le coach est resté "
                       "injoignable. Relance avec /plan nouveau."})
 
-    threading.Thread(target=construire, name="coach-plan", daemon=True).start()
+    _en_fond(construire, nom="coach-plan")
     return True
 
 
@@ -1209,8 +1230,7 @@ def lever_pause(qui: Authentifie) -> dict:
     if not ligne["levee"]:
         raise _refuser("introuvable", "Le coach n'est pas en pause", 404)
     motif = en_cours["motif"] if en_cours else None
-    threading.Thread(target=planifie.reprise, args=(qui.id_utilisateur, motif),
-                     name="coach-reprise", daemon=True).start()
+    _en_fond(planifie.reprise, qui.id_utilisateur, motif, nom="coach-reprise")
     return {"levee": True, "message": "Pause levée. Le coach prépare la reprise et te "
                                       "l'envoie par message."}
 

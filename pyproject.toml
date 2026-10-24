@@ -57,3 +57,6 @@ extend-immutable-calls = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Une exception dans un fil de fond est un échec, pas un avertissement qu'on lit
+# en passant : c'est ainsi qu'un plan construit hors de son test s'est vu.
+filterwarnings = ["error::pytest.PytestUnhandledThreadExceptionWarning"]

@@ -5,6 +5,7 @@ le code Python, alors que c'est la base qui porte les règles.
 """
 
 import os
+import sys
 from pathlib import Path
 
 # L'ordonnanceur ne doit pas tourner pendant les tests : on déclenche les tâches
@@ -101,6 +102,26 @@ def base():
                 "SELECT code, configuration FROM source").fetchall():
             _CONFIGURATIONS_INITIALES[code] = configuration
     yield
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item):
+    """Une tâche de fond lancée par un test finit avec lui.
+
+    La construction d'un plan part dans un fil à elle. Personne ne l'attendait :
+    elle finissait pendant le test suivant, après que ses faux étaient défaits,
+    parfois sur une base déjà fermée. Elle est attendue ici, juste après le test
+    et avant que ses fixtures ne se démontent ; une qui ne finit pas fait échouer
+    le test qui l'a lancée.
+    """
+    try:
+        return (yield)
+    finally:
+        coach = sys.modules.get("api.routeurs.coach")
+        restantes = coach.attendre_les_taches_de_fond() if coach else []
+        if restantes:
+            pytest.fail(f"Tâche de fond toujours en cours après le test : "
+                        f"{', '.join(restantes)}")
 
 
 @pytest.fixture

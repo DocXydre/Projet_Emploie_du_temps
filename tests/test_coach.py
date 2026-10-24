@@ -1546,6 +1546,12 @@ def test_le_demarrage_d_un_compte_par_l_api(client, thomas, faux):
     assert rendu["coach"]["plan_en_construction"] is True
     assert joue.appels[0]["outils"].count("rendre_avis") == 1
 
+    # Le plan part en tâche de fond, et se construit pour de bon : le troisième
+    # tour du faux modèle lui est destiné.
+    from api.routeurs import coach
+    assert coach.attendre_les_taches_de_fond() == []
+    assert len(joue.appels) == 3
+
 
 def test_la_saisie_groupee_dit_le_sort_de_chaque_cle(client, thomas, u, validee, limitation):
     cles = [str(uuid.uuid4()) for _ in range(3)]
