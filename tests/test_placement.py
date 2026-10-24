@@ -277,6 +277,9 @@ def test_une_occurrence_notifiee_ne_bouge_jamais(client, thomas):
             (moi,),
         ).fetchall()
 
+    # Sans tâche annoncée, la boucle ne vérifierait rien et le test passerait.
+    assert notifiees, "le bilan du matin n'a rien annoncé"
+
     client.post("/planning/placer", headers=thomas, params={"stabilite_jours": 0})
 
     apres = creneaux(client, thomas)

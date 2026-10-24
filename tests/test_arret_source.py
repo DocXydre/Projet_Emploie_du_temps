@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 from icalendar import Calendar
 
-from api import bot_des_membres, sources
+from api import sources
 from api.collecteurs.service import sources_a_collecter
 from tests.conftest import JETON_THOMAS, _url
 
@@ -76,7 +76,9 @@ def test_la_source_arretee_n_est_plus_collectee(client, thomas):
     sources.arreter_source("mcdo")   # la casse ne compte pas, comme pour /lien
 
     assert "MCDO" not in sources_a_collecter()
-    assert "MCDO" not in bot_des_membres.sources_suivies()
+    with psycopg.connect(_url()) as conn:
+        assert conn.execute("SELECT active FROM source WHERE code = 'MCDO'").fetchone() \
+            == (False,)
 
 
 def test_une_source_arretee_n_est_pas_signalee_en_panne(client, thomas):
@@ -93,12 +95,3 @@ def test_une_source_arretee_n_est_pas_signalee_en_panne(client, thomas):
 def test_une_source_inconnue_le_dit(base):
     assert sources.arreter_source("BURGER_KING") is None
 
-
-def test_le_message_dit_ce_qui_part_et_ce_qui_reste(client, thomas):
-    planning_mcdo()
-
-    texte = bot_des_membres.decrire_arret(sources.arreter_source("MCDO"))
-
-    assert "2 créneau(x) à venir retiré(s)" in texte
-    assert "Le passé reste" in texte
-    assert "/lien MCDO" in texte

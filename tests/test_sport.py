@@ -6,8 +6,8 @@ acceptée à deux : un lieu a ses heures, le trajet occupe l'agenda, la nuit
 laisse dormir, un jour porte au plus deux séances.
 
 L'ancienne organisation, réservations « à déterminer », habitudes et alerte
-du lundi, est retirée (lot 2) ; ses tests sont rangés avec son code dans
-anciennes_fonctionnalites/reservations_sport/.
+du lundi, est retirée (lot 2) ; ses tests sont partis avec son code, sous le
+tag git « avant-nettoyage ».
 """
 
 from datetime import date, datetime, time, timedelta
@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import bot_des_membres, sport
+from api import sport
 from tests.conftest import CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -436,9 +436,9 @@ def test_refuser_une_seance_ne_la_reassigne_pas(client, thomas):
     moi = identifiant(client)
     seance = sport.choisir(moi, lieu("COURSE"), a(lundi + timedelta(days=1), 18))
 
-    reponse = bot_des_membres.executer_action("refuser", seance, moi)
+    # « Pas faite », dans l'appli.
+    assert client.post(f"/seances/{seance}/pas-faite", headers=thomas).status_code == 200
 
-    assert "pas faite" in reponse.lower()
     assert un("SELECT statut FROM occurrence WHERE id_occurrence = %s", seance) == "abandonnee"
     # Aucune remplaçante sans assigné : ce n'est pas du ménage.
     assert un("SELECT count(*) FROM occurrence WHERE id_occurrence_source = %s", seance) == 0

@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import absences, administration, appairage, billets, bot_des_membres, journal, operation
+from api import absences, administration, appairage, billets, journal, operation
 from api.ordonnanceur import placer, report_de_minuit
 from tests.conftest import CLE_THOMAS, _url
 
@@ -348,12 +348,12 @@ def test_faire_la_tache_de_l_autre_se_lit_en_une_ligne(client, thomas, place):
            AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
          ORDER BY lower(o.creneau) LIMIT 1""", _id("lorette"))[0]
 
-    with operation.ouvrir("bot : bouton Fait", acteur="thomas"):
-        bot_des_membres.executer_action("valider", sienne["id_occurrence"], _id("thomas"))
+    client.post(f"/occurrences/{sienne['id_occurrence']}/valider", headers=thomas, json={})
 
     texte = journal.raconter()
     assert f"{sienne['libelle']} : faite par Thomas, c'était à Lorette" in texte
-    assert "bouton Fait" in texte
+    # L'action porte le geste qui l'a causée : la route de l'appli.
+    assert f"/occurrences/{sienne['id_occurrence']}/valider" in texte
 
 
 # ---------------------------------------------------------------------------

@@ -126,6 +126,10 @@ def faite(demande: DemandeSpontanee, qui: Authentifie) -> dict:
         {"u": qui.id_utilisateur, "c": demande.code_tache.upper(), "q": demande.quand},
     )
     assert resultat is not None
+    # EXE-15 : comme pour une validation, la suite se replace dans la foulée.
+    # Sans cela, la prochaine occurrence restait « à placer » jusqu'au matin.
+    from api.ordonnanceur import replacer
+    replacer()
     return detail(resultat["id_occurrence"], qui)
 
 

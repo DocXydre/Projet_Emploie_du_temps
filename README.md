@@ -1,10 +1,12 @@
 # Planificateur personnel
 
+[![Tests](https://github.com/DocXydre/Projet_Emploie_du_temps/actions/workflows/tests.yml/badge.svg)](https://github.com/DocXydre/Projet_Emploie_du_temps/actions/workflows/tests.yml)
+
 Un serveur et une application iPhone, HAL, pour un foyer de deux personnes. Le serveur croise les emplois du temps de chacun (cours, calendriers personnels, saisies à la main), en déduit les moments libres, et y place seul les tâches de la maison en les répartissant entre les deux. HAL, un coach sportif construit sur un modèle de langage, écrit le contenu des séances de sport.
 
 Projet personnel, M1 MIAGE (Université de Lorraine).
 
-La spécification complète est dans [`cahier-des-charges-hal.md`](cahier-des-charges-hal.md) : le planning du foyer (partie A), HAL (partie B), l'application (partie C), le foyer et l'administration (partie D), le plan de réalisation (partie E), HAL par MCP et par abonnement (partie F). Il remplace les deux anciens cahiers, rangés dans [`archive/`](archive/).
+La spécification complète est dans [`cahier-des-charges-hal.md`](cahier-des-charges-hal.md) : le planning du foyer (partie A), HAL (partie B), l'application (partie C), le foyer et l'administration (partie D), le plan de réalisation (partie E), HAL par MCP et par abonnement (partie F). Il remplace les deux anciens cahiers, que l'historique git garde sous le tag `avant-nettoyage`.
 
 ---
 
@@ -42,7 +44,7 @@ Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui n
 | **Abonnement plutôt qu'API** | Chacun branche son abonnement Claude dans Réglages : HAL y fait tourner Claude Code sur le serveur, avec la même consigne et ses seuls outils, servis par son propre serveur MCP. Abonnement épuisé, l'API prend le relais avec la clé du compte, jusqu'au plafond du mois, et l'appli dit sous la réponse qui a répondu. Gemini CLI, avec un compte Google, peut entrer dans la même chaîne |
 | **Sorties** | Notifications par Apple, aux heures que chacun règle, silencieuses la nuit ; flux iCalendar en lecture seule ; bot Telegram pour l'administrateur du serveur |
 
-Ce qui a été retiré est rangé dans `anciennes_fonctionnalites/`, avec de quoi le remettre en service : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
+Ce qui a été retiré ne vit plus dans le dépôt, mais l'historique git le garde sous le tag `avant-nettoyage` : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
 
 ---
 
@@ -109,7 +111,7 @@ Calendriers perso ─┼──▶ Collecteurs ──▶ ┌───────
 
 **HAL** est du Python dans le processus de l'API pour ce que l'appli lui demande, et dans celui du travailleur pour ce qui est planifié (`api/coach/` : les noms techniques ont gardé « coach »). À chaque appel, il assemble une consigne : un socle du dossier sportif, les paquets utiles au sujet, le contexte et la mémoire du compte, les derniers échanges. Il envoie le tout au modèle avec les outils permis pour ce moment, exécute ceux que le modèle demande, et recommence jusqu'à la réponse. Le dossier sportif est en Markdown dans `coach/dossier/`, un fichier par chapitre : changer une règle sportive, c'est changer du code. Il ne contient rien de personnel, puisque le dépôt est public.
 
-Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idée de mettre la logique dans la base.
+Pas d'ORM : les requêtes sont écrites en SQL, ce qui est cohérent avec l'idée de mettre la logique dans la base. Le schéma, soixante-dix tables rangées par domaine, est dessiné dans [`sql/SCHEMA.md`](sql/SCHEMA.md), généré depuis la base elle-même.
 
 ---
 
@@ -223,7 +225,7 @@ Tout se fait sur `main`, et chaque push part en production. On vérifie donc en 
 
 | Outil | Ce qu'il fait |
 |---|---|
-| `./outils/tests.sh` | Les tests du serveur, sur une base `planif_test` à part : ils vident la base qu'on leur donne |
+| `./outils/tests.sh` | Les tests du serveur, sur une base `planif_test` à part : ils vident la base qu'on leur donne. Ils tournent aussi sur GitHub à chaque push, avec ruff |
 | `./outils/fausse_base.sh` | Une base `planif_maquette` toute inventée, aux dates d'aujourd'hui, et l'API dessus : l'application tourne dans le simulateur d'iOS sans aucune donnée réelle, sans notification et sans appel payant à HAL |
 | `./outils/local.sh` | Une pile Docker sur une copie de la base, les scénarios de HAL avec le vrai modèle, l'API ouverte au Wi-Fi pour l'iPhone |
 
@@ -236,6 +238,7 @@ sql/                        migrations numérotées : tables, contraintes, donn�
 sql/definitions/            fonctions, vues et déclencheurs, un fichier par fonction
 sql/apres/                  rattrapages de données qui appellent une fonction à jour
 sql/scenario_test.sql       une semaine type jouée à la main, pour voir les règles à l'œuvre
+sql/SCHEMA.md               le schéma de la base, par domaine, généré par outils/schema.py
 api/                        FastAPI : routeurs, collecteurs, bot, ordonnanceur, connexion ;
                             main.py pour l'API, travailleur.py pour le travailleur
 api/coach/                  HAL : consigne, outils, mémoire, boucle d'appel au modèle,
@@ -245,10 +248,11 @@ coach/                      le dossier de HAL (un fichier par chapitre), ses paq
                             catalogue d'exercices, sa consigne, ses scénarios
 ios/HAL/                    l'application iPhone HAL : planning, maison, sport, santé, HAL,
                             ses widgets et sa Live Activity
-outils/                     déploiement, tests, fausse base, pile locale, démarrage d'un
-                            compte de HAL, scénarios, diagnostics d'un flux et de la boîte mail
-anciennes_fonctionnalites/  ce qui a été retiré, avec de quoi le remettre
-archive/                    les anciens cahiers des charges
+outils/                     déploiement, tests, copie hors du serveur, fausse base, pile
+                            locale, démarrage d'un compte de HAL, scénarios, schéma de la
+                            base, diagnostics d'un flux et de la boîte mail
+tests/                      la suite du serveur, sur une vraie base PostgreSQL
+.github/workflows/          ruff et les tests à chaque push
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent et si aucune migration plus récente n'a repris ce qu'il définit ; sinon le script le signale et demande une migration nouvelle. `./sql/appliquer.sh --adopter FICHIER` prend acte d'une retouche sans SQL, un commentaire corrigé par exemple, sans rien rejouer.

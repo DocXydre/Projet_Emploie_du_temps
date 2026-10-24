@@ -227,11 +227,18 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
                     "message": "garder doit valoir 'existante' ou 'nouvelle'"},
         )
 
-    conflit = un_seul(
-        "SELECT * FROM conflit WHERE id_conflit = %(id)s AND statut = 'en_attente'",
-        {"id": id_conflit},
-    )
-    if conflit is None:
+    conflit = un_seul("SELECT * FROM conflit WHERE id_conflit = %(id)s", {"id": id_conflit})
+    if conflit is not None and conflit["statut"] == "caduc":
+        # L'écran est plus ancien que la dernière collecte : dire « déjà
+        # tranché » laisserait croire à un choix qu'on n'a pas fait.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "conflit_caduc",
+                    "message": "Ce conflit n'existe plus : "
+                               + ("le cours a eu lieu." if conflit["motif_caducite"] == "passe"
+                                  else "l'emploi du temps ne propose plus les deux versions.")},
+        )
+    if conflit is None or conflit["statut"] != "en_attente":
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "introuvable",

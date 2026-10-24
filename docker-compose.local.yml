@@ -48,3 +48,23 @@ services:
     command: >
       uvicorn api.travailleur:app --host 0.0.0.0 --port 8000
       --reload --reload-dir api --reload-dir coach --reload-include '*.md'
+
+  # Les tests : ./outils/tests.sh. L'image a git et psql, que demandent les
+  # tests du déploiement et des migrations.
+  essais:
+    build:
+      context: .
+      target: essais
+    image: planif-essais
+    profiles: ["essais"]
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOTE: db
+      DB_PORT: 5432
+      TZ: UTC
+    volumes:
+      - .:/app

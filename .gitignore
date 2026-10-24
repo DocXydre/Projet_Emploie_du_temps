@@ -16,10 +16,6 @@ __pycache__/
 # OS
 .DS_Store
 
-# Spécification de la version Java, abandonnée après le changement de pile :
-# gardée en local dans archive/, hors du dépôt public.
-cahier-des-charges-planification.md
-
 # Mémo d'installation du serveur : conservé en local, hors du dépôt public.
 docs/
 

@@ -199,6 +199,20 @@ def test_lorette_valide_une_tache_de_thomas_et_se_la_voit_crediter(
     assert apres["assigne_a"] == "lorette"
 
 
+def test_reporter_remet_la_tache_a_placer(client, thomas):
+    client.post("/planning/placer", headers=thomas)
+    occurrences = client.get("/occurrences", headers=thomas).json()
+    aspirateur = next(o for o in occurrences if o["tache_code"] == "ASPIRATEUR")
+
+    reponse = client.post(f"/occurrences/{aspirateur['id_occurrence']}/reporter",
+                          headers=thomas, json={})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["statut"] == "a_placer"
+    # Repoussée d'un jour au moins : la nouvelle échéance passe l'ancienne.
+    assert reponse.json()["echeance_max"] > aspirateur["echeance_max"]
+
+
 def test_une_tache_non_reportable_refuse_le_report(client, thomas):
     client.post("/planning/placer", headers=thomas)
     occurrences = client.get("/occurrences", headers=thomas).json()

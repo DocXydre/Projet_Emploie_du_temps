@@ -1,12 +1,10 @@
 """Le bot d'administration, testé sans Telegram.            (ADM-1 à ADM-5)
 
 Le bot ne parle plus qu'à l'administrateur du serveur. Ce qu'il dit vit dans
-`administration.py`, son appairage dans `appairage.py`. Ce que faisait le bot
-des membres (`bot_des_membres.py`) se teste ici aussi.
+`administration.py`, son appairage dans `appairage.py`.
 """
 
 import asyncio
-from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -14,7 +12,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import administration, appairage, bot_des_membres
+from api import administration, appairage
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -110,26 +108,6 @@ def test_la_migration_delie_les_membres_et_garde_l_administrateur(base):
 # Heures de silence
 # ---------------------------------------------------------------------------
 
-def test_pas_de_notification_la_nuit():
-    # Faire vibrer un téléphone à 3h du matin pour une poussière est le meilleur
-    # moyen de faire couper les notifications.
-    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 3, 0, tzinfo=PARIS))
-    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 23, 45, tzinfo=PARIS))
-    assert bot_des_membres.en_silence(datetime(2026, 8, 20, 7, 0, tzinfo=PARIS))
-
-
-def test_la_journee_n_est_pas_silencieuse():
-    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 7, 30, tzinfo=PARIS))
-    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 12, 0, tzinfo=PARIS))
-    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 21, 0, tzinfo=PARIS))
-    assert not bot_des_membres.en_silence(datetime(2026, 8, 20, 23, 29, tzinfo=PARIS))
-
-
-def test_le_silence_se_termine_le_lendemain_matin():
-    prochain = bot_des_membres.prochain_rappel(1)
-    assert prochain > datetime.now(PARIS)
-    assert prochain.astimezone(PARIS).hour == 7
-
 
 # ---------------------------------------------------------------------------
 # Actions
@@ -140,110 +118,9 @@ def occurrence_de(client, thomas, code: str) -> dict:
     return next(o for o in toutes if o["tache_code"] == code)
 
 
-def test_le_bouton_fait_valide_l_occurrence(client, thomas, base):
-    client.post("/planning/placer", headers=thomas)
-    aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
-    compte = {"id_utilisateur": id_de("thomas")}
-
-    reponse = bot_des_membres.executer_action("valider", aspirateur["id_occurrence"],
-                                   compte["id_utilisateur"])
-    assert "noté" in reponse
-
-    apres = client.get(f"/occurrences/{aspirateur['id_occurrence']}", headers=thomas).json()
-    assert apres["statut"] == "faite"
-
-
-def test_le_bouton_plus_tard_repousse(client, thomas, base):
-    client.post("/planning/placer", headers=thomas)
-    aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
-    compte = {"id_utilisateur": id_de("thomas")}
-
-    reponse = bot_des_membres.executer_action("reporter", aspirateur["id_occurrence"],
-                                   compte["id_utilisateur"])
-    assert "demain" in reponse
-
-    apres = client.get(f"/occurrences/{aspirateur['id_occurrence']}", headers=thomas).json()
-    assert apres["statut"] == "a_placer"
-
-
-def test_une_tache_non_reportable_refuse_d_etre_repoussee(client, thomas, base):
-    client.post("/planning/placer", headers=thomas)
-    lessive = occurrence_de(client, thomas, "LITIERE_CROTTES")
-    compte = {"id_utilisateur": id_de("thomas")}
-
-    reponse = bot_des_membres.executer_action("reporter", lessive["id_occurrence"],
-                                   compte["id_utilisateur"])
-    assert "ne résoudrait rien" in reponse
-
-    apres = client.get(f"/occurrences/{lessive['id_occurrence']}", headers=thomas).json()
-    assert apres["statut"] != "a_placer"
-
-
-def test_le_bouton_non_recree_la_tache_sans_assigne(client, thomas, base):
-    client.post("/planning/placer", headers=thomas)
-    aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
-    compte = {"id_utilisateur": id_de("thomas")}
-
-    reponse = bot_des_membres.executer_action("refuser", aspirateur["id_occurrence"],
-                                   compte["id_utilisateur"])
-    assert "sans assigné" in reponse
-
-    apres = client.get(f"/occurrences/{aspirateur['id_occurrence']}", headers=thomas).json()
-    assert apres["statut"] == "abandonnee"
-
-
-def test_une_action_inconnue_est_refusee(base):
-    with pytest.raises(ValueError):
-        bot_des_membres.executer_action("supprimer", 1, 1)
-
-
-def test_valider_deux_fois_remonte_le_refus_de_la_base(client, thomas, base):
-    client.post("/planning/placer", headers=thomas)
-    aspirateur = occurrence_de(client, thomas, "ASPIRATEUR")
-    compte = {"id_utilisateur": id_de("thomas")}
-
-    valider = bot_des_membres.executer_action
-    valider("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
-
-    with pytest.raises(psycopg.Error) as erreur:
-        valider("valider", aspirateur["id_occurrence"], compte["id_utilisateur"])
-    # Le message de la base est déjà rédigé en français : le bot le montrera tel quel.
-    assert "close" in erreur.value.diag.message_primary
-
-
 # ---------------------------------------------------------------------------
 # Mise en forme
 # ---------------------------------------------------------------------------
-
-def test_le_planning_du_jour_separe_horaires_et_rappels(client, thomas, base):
-    debut = datetime.now(PARIS).replace(hour=14, minute=0, second=0, microsecond=0)
-    client.post("/occupations", headers=thomas, json={
-        "type": "cours", "libelle": "Cours IDMC",
-        "debut": debut.isoformat(), "fin": (debut + timedelta(hours=2)).isoformat(),
-        "lieu": "Salle 104",
-    })
-    client.post("/planning/placer", headers=thomas)
-
-    # Le moteur étale les tâches : rien ne garantit qu'un rappel tombe
-    # aujourd'hui. On en force un, sinon le test dépendrait du calendrier.
-    from tests.test_boucle_quotidienne import forcer_au_jour_meme
-    forcer_au_jour_meme("ASPIRATEUR")
-
-    compte = {"id_utilisateur": id_de("thomas")}
-    texte = bot_des_membres.planning_du_jour(compte["id_utilisateur"])
-
-    assert "14h00–16h00  Cours IDMC — Salle 104" in texte
-    # Les rappels sans heure sont listés à part, avec une puce. L'aspirateur
-    # peut y porter le titre de son bloc, « Nettoyage 2/3 : … » (TAC-16).
-    assert any(ligne.startswith("○ ") and ligne.endswith("Passer l'aspirateur")
-               for ligne in texte.splitlines()), texte
-
-
-def test_un_planning_vide_le_dit(base):
-    compte = {"id_utilisateur": id_de("thomas")}
-    assert bot_des_membres.planning_du_jour(compte["id_utilisateur"],
-                                            dans_jours=300) == "Rien de prévu."
-
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +205,6 @@ def test_l_aide_groupe_et_n_oublie_personne():
     groupes = {groupe for groupe, _, _, _, _ in bot.catalogue()}
     for groupe in groupes:
         assert f"<b>{groupe}</b>" in texte
-
 
 
 def test_seules_les_commandes_de_l_administration_restent():

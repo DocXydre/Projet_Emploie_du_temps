@@ -274,8 +274,6 @@ def test_un_conflit_toujours_publie_reste_a_arbitrer(client, thomas):
 
 
 def test_le_bouton_d_un_conflit_caduc_ne_ment_pas(client, thomas):
-    from api import bot_des_membres
-
     debut, fin = dans(3, 10), dans(3, 12)
     poser_occupation(client, thomas, debut, fin, "Cours déjà prévu")
     collecter(client, thomas, flux("PROCHE", debut, fin, "CM EC Autre chose"))
@@ -283,10 +281,12 @@ def test_le_bouton_d_un_conflit_caduc_ne_ment_pas(client, thomas):
 
     collecter(client, thomas, FLUX_VIDE)
 
-    # Le message du bot est plus ancien que la collecte : dire « déjà tranché »
+    # L'écran de l'appli est plus ancien que la collecte : dire « déjà tranché »
     # laisserait croire à un choix qu'on n'a pas fait.
-    reponse = bot_des_membres.trancher_conflit(id_conflit, "nouvelle", 1)
-    assert "n'existe plus" in reponse
+    reponse = client.post(f"/conflits/{id_conflit}/resoudre", headers=thomas,
+                          json={"garder": "nouvelle"})
+    assert reponse.status_code == 409 and reponse.json()["code"] == "conflit_caduc"
+    assert "n'existe plus" in reponse.json()["message"]
     assert [o["libelle"] for o in client.get("/occupations", headers=thomas).json()] \
         == ["Cours déjà prévu"]
 

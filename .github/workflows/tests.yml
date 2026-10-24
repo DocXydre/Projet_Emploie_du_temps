@@ -1,0 +1,54 @@
+# À chaque push : ruff, puis toute la suite de tests, sur PostgreSQL 16 comme
+# en production. Les tests du déploiement et des migrations y tournent aussi :
+# la machine de GitHub a git, bash et psql.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: planif
+          POSTGRES_PASSWORD: planif
+          POSTGRES_DB: planif_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U planif"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_USER: planif
+      POSTGRES_PASSWORD: planif
+      POSTGRES_DB: planif_test
+      DB_HOTE: localhost
+      DB_PORT: 5432
+      ORDONNANCEUR_ACTIF: "false"
+      TZ: UTC
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dépendances
+        run: pip install ".[dev]"
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Tests
+        run: python -m pytest -q -rs -p no:cacheprovider
