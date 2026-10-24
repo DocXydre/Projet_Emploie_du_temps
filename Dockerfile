@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS api
 
 WORKDIR /app
 
@@ -42,3 +42,15 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
     CMD curl -fsS http://localhost:8000/sante || exit 1
 
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+
+# Les essais : la même image, plus ce que demandent les tests du déploiement
+# (git) et des migrations (psql), qui se sautaient sinon sans rien dire.
+# Construite par ./outils/tests.sh seulement ; le serveur s'arrête à « api ».
+FROM api AS essais
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git postgresql-client \
+ && rm -rf /var/lib/apt/lists/* \
+ && pip install --no-cache-dir ".[dev]"
+USER planif

@@ -5,10 +5,9 @@ sans ses tâches, ses tâches sans son sport, et donner l'adresse à qui la
 demande sans ouvrir le reste. D'où un calendrier composé : des personnes, des
 familles de contenu, et un jeton à lui.
 
-Ce qui est vérifié ici tient en trois questions. Le filtre montre-t-il
+Ce qui est vérifié ici tient en deux questions. Le filtre montre-t-il
 exactement ce qu'on a coché ? Un jeton composé reste-t-il borné à ce qu'il
-déclare, même si on bricole l'URL ? Et les écrans du bot composent-ils
-réellement ce qu'on croit cocher ?
+déclare, même si on bricole l'URL ?
 """
 
 from datetime import datetime, timedelta
@@ -17,7 +16,7 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import abonnements, calendriers
+from api import abonnements
 from tests.conftest import CLE_THOMAS, JETON_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -250,81 +249,15 @@ def _rappels(ecran) -> list[str]:
     return [rappel for rangee in ecran.boutons for _, rappel in rangee]
 
 
-def _appuyer(id_utilisateur: int, rappel: str):
-    _, action, arguments = rappel.split(":", 2)
-    return calendriers.repondre(id_utilisateur, action, arguments)
-
-
-def _bouton(ecran, morceau: str) -> str:
-    """Le rappel du bouton dont le libellé contient ce morceau."""
-    return next(rappel for rangee in ecran.boutons for libelle, rappel in rangee
-                if morceau in libelle)
-
-
-def test_l_ecran_compose_ce_qu_on_coche(client, thomas):
-    moi = _id("thomas")
-    elle = _id("lorette")
-
-    ecran = calendriers.ecran_liste(moi)
-    composition = _appuyer(moi, _bouton(ecran, "Nouveau calendrier"))
-    # Lorette, puis les cours.
-    composition = _appuyer(moi, _bouton(composition, "Lorette"))
-    composition = _appuyer(moi, _bouton(composition, "Cours"))
-    assert elle
-
-    assert "Lorette : cours" in composition.texte
-    lien = _appuyer(moi, next(r for r in _rappels(composition) if r.startswith("cal:ok:")))
-
-    mien = abonnements.calendriers_de(moi)
-    assert [c["libelle"] for c in mien] == ["Lorette : cours"]
-    assert mien[0]["personnes"] == [elle]
-    assert mien[0]["contenus"] == ["cours"]
-    assert "planning.ics" in lien.texte
-
-
-def test_cocher_deux_fois_decoche(client, thomas):
-    moi = _id("thomas")
-
-    ecran = calendriers.ecran_composition(moi, f"{moi}_c")
-    assert "☑ Cours" in [libelle for rangee in ecran.boutons for libelle, _ in rangee]
-
-    decoche = _appuyer(moi, _bouton(ecran, "Cours"))
-
-    assert "Il faut au moins une personne et un contenu" in decoche.texte
-    assert not [r for r in _rappels(decoche) if r.startswith("cal:ok:")]
-    # Rejouer le même bouton ne recoche rien : il porte l'état, pas la bascule.
-    assert _appuyer(moi, _bouton(ecran, "Cours")).texte == decoche.texte
-
-
-def test_supprimer_depuis_le_bot(client, thomas):
+def test_supprimer_un_calendrier(client, thomas):
     moi = _id("thomas")
     cree = abonnements.creer_calendrier(moi, "Mon sport", [moi], ["sport"])
 
-    confirmation = _appuyer(moi, f"cal:d:{cree['id_calendrier']}")
-    assert "Supprimer" in confirmation.texte
-    apres = _appuyer(moi, f"cal:sup:{cree['id_calendrier']}")
+    reponse = client.delete(f"/moi/calendriers/{cree['id_calendrier']}", headers=thomas)
 
-    assert "supprimé" in apres.texte
+    assert reponse.status_code == 200
     assert abonnements.calendriers_de(moi) == []
+    # Son adresse cesse aussitôt de répondre.
+    assert client.get("/planning.ics", params={"cle": cree["jeton"]}).status_code == 401
 
 
-def test_les_rappels_tiennent_dans_les_64_octets(client, thomas):
-    moi = _id("thomas")
-    abonnements.creer_calendrier(moi, "Un calendrier au nom déraisonnablement long",
-                          [moi, _id("lorette")], ["cours", "taches", "sport"])
-
-    ecrans = [calendriers.ecran_liste(moi),
-              calendriers.ecran_composition(moi, f"{moi}-{_id('lorette')}_ctpasw"),
-              calendriers.ecran_personnel(moi)]
-    rappels = [r for ecran in ecrans for r in _rappels(ecran)]
-
-    assert rappels
-    assert max(len(r.encode()) for r in rappels) <= 64
-
-
-def test_le_lien_personnel_reste_accessible(client, thomas):
-    ecran = calendriers.ecran_liste(_id("thomas"))
-    assert "cal:perso:0" in _rappels(ecran)
-
-    perso = _appuyer(_id("thomas"), "cal:perso:0")
-    assert "planning complet" in perso.texte

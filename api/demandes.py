@@ -811,7 +811,7 @@ GESTES_SPORT = {
 
 def _description_du_geste(action: Action) -> str:
     texte = action.description
-    for avant, apres in (("Demande d'", ""), ("Demande de ", "")):
+    for avant in ("Demande d'", "Demande de "):
         if texte.startswith(avant):
             texte = texte[len(avant):]
             break

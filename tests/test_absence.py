@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from api import bot_des_membres
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -95,6 +94,8 @@ def test_aucune_tache_pendant_l_absence(client, thomas):
     client.post("/planning/placer", headers=thomas)
 
     par_jour = jours_charges(client, thomas, CLE_THOMAS)
+    # Un placement qui ne pose plus rien passerait sinon pour une absence respectée.
+    assert par_jour, "le placement n'a rien posé"
     for decalage in (3, 4, 5):
         jour = minuit(decalage).date().isoformat()
         assert par_jour.get(jour, 0) == 0, f"une tâche est prévue le {jour}"
@@ -273,27 +274,6 @@ def test_une_tache_libre_revient_a_qui_reste(client, thomas, lorette):
 # ---------------------------------------------------------------------------
 # Lecture des dates par le bot
 # ---------------------------------------------------------------------------
-
-def test_le_bot_lit_une_periode():
-    periode = bot_des_membres.lire_periode(["22/08", "24/08"])
-    assert periode is not None
-    debut, fin = periode
-    assert debut.day == 22 and debut.month == 8
-    # La fin est exclusive : le 24 est inclus dans l'absence.
-    assert fin.day == 25
-
-
-def test_le_bot_accepte_une_seule_date():
-    periode = bot_des_membres.lire_periode(["22/08"])
-    assert periode is not None
-    debut, fin = periode
-    assert (fin - debut).days == 1
-
-
-def test_le_bot_refuse_ce_qu_il_ne_comprend_pas():
-    assert bot_des_membres.lire_periode(["ce", "week-end"]) is None
-    assert bot_des_membres.lire_periode(["32/13"]) is None
-    assert bot_des_membres.lire_periode([]) is None
 
 
 def test_la_presence_est_lisible_jour_par_jour(client, thomas):

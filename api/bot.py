@@ -6,10 +6,10 @@ phrase, toujours la même.
 
 Ce module ne contient que du branchement. Ce que le bot dit vit dans
 `administration.py`, qui se teste sans parler à Telegram. Le bot des membres,
-tel qu'il était, est rangé dans `anciennes_fonctionnalites/bot_des_membres/`.
+retiré en octobre 2026, se retrouve sous le tag git « avant-nettoyage ».
 
-Le bot tourne dans le processus de l'API. Sans jeton, il ne démarre pas et le
-reste fonctionne, les alertes restant en file.
+Le bot tourne dans le travailleur (api/travailleur.py). Sans jeton, il ne
+démarre pas et le reste fonctionne, les alertes restant en file.
 """
 
 from __future__ import annotations

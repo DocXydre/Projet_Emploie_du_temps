@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 import psycopg
 import pytest
 
-from api import bot_des_membres
 from api.ordonnanceur import placer
 from tests.conftest import _url
 
@@ -281,11 +280,15 @@ def test_le_bloc_se_lit_dans_l_ordre_au_planning(client, thomas):
     client.post("/planning/placer", headers=thomas)
     qui = prevues("RECURAGE")[0]
 
-    texte = bot_des_membres.planning_du_jour(_id(qui["pseudo"]),
-                                  (qui["jour"] - minuit(0).date()).days)
+    # Le planning de ce jour-là, tel que l'appli le lit.
+    jour = datetime.combine(qui["jour"], datetime.min.time(), PARIS)
+    lignes = client.get("/planning", headers=thomas, params={
+        "debut": jour.isoformat(), "fin": (jour + timedelta(days=1)).isoformat(),
+        "utilisateur": _id(qui["pseudo"])}).json()
 
-    positions = [texte.index(f"Nettoyage {rang}/3") for rang in (1, 2, 3)]
-    assert positions == sorted(positions)
+    bloc = [ligne["libelle"].split(" :")[0] for ligne in lignes
+            if ligne["libelle"].startswith("Nettoyage")]
+    assert bloc == ["Nettoyage 1/3", "Nettoyage 2/3", "Nettoyage 3/3"]
 
 
 def test_un_jour_de_cours_ne_forme_pas_de_bloc(base):

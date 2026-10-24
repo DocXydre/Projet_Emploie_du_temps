@@ -1,6 +1,6 @@
 """Le stock d'uniforme est retiré, le linge ordinaire continue.     (migration 031)
 
-Le code retiré vit dans anciennes_fonctionnalites/stock_uniforme/. Ces tests
+Le code retiré se retrouve sous le tag git « avant-nettoyage ». Ces tests
 vérifient surtout ce qui devait rester debout : le placement ne consultait plus
 le stock qu'en passant, et le trigger de validation portait le séchage de
 l'uniforme au milieu des enchaînements.

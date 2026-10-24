@@ -40,7 +40,7 @@ def sans_minuteur(monkeypatch):
 
 @pytest.fixture
 def joue(monkeypatch):
-    monkeypatch.setattr(appel, "controle_du_plan", lambda u: [])
+    monkeypatch.setattr(appel, "controle_du_plan", lambda _: [])
 
     def installer(*tours) -> FauxModele:
         faux = FauxModele(*tours)
@@ -54,7 +54,7 @@ def sans_petit_modele(monkeypatch):
     """AIG-4 : le petit modèle ne doit pas être appelé ; s'il l'est, le test le dit."""
     appels = []
     monkeypatch.setattr(aiguillage, "par_modele",
-                        lambda texte, u: appels.append(texte) or None)
+                        lambda texte, _: appels.append(texte) or None)
     return appels
 
 
@@ -88,7 +88,7 @@ def test_les_mots(texte, attendu):
 
 
 def test_le_contexte_tranche_d_abord(monkeypatch):
-    monkeypatch.setattr(aiguillage, "par_modele", lambda texte, u: None)
+    monkeypatch.setattr(aiguillage, "par_modele", lambda texte, _: None)
     # Une séance jointe : le sport, quoi qu'en disent les mots.
     assert aiguillage.choisir("et la litière ?", 1, "Maison", id_occurrence=4).hal == "sport"
     # L'onglet : sans mot de l'autre côté, il tranche.
@@ -268,7 +268,7 @@ def test_un_appel_en_cours_par_hal(client, thomas, joue, u):  # noqa: F811
 
 def test_sans_aiguillage_on_demande(client, thomas, monkeypatch, joue, u):  # noqa: F811
     """AIG-4 : rien ne tranche ; l'appli demande, puis renvoie avec le choix."""
-    monkeypatch.setattr(aiguillage, "par_modele", lambda texte, u: None)
+    monkeypatch.setattr(aiguillage, "par_modele", lambda texte, _: None)
     rendu = ecrire(client, thomas, "Bonjour", ecran="Aujourd'hui")
     assert rendu["message"] == "C'est pour la maison ou pour le sport ?"
     assert rendu["aiguiller"] == {"texte": "Bonjour"}

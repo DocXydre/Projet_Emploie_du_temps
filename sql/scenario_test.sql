@@ -141,7 +141,7 @@ END $$;
 
 
 \echo ''
-\echo '=== 4. (retiré : le stock d''uniforme est dans anciennes_fonctionnalites/) ==='
+\echo '=== 4. (retiré : le stock d''uniforme, voir le tag git avant-nettoyage) ==='
 
 
 \echo ''

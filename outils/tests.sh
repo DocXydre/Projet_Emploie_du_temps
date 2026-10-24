@@ -7,7 +7,8 @@
 # Les tests vident la base qu'on leur donne : ils tournent ici sur
 # « planif_test », jamais sur la base locale ni sur la fausse base.
 #
-# Ils tournent dans le conteneur de l'API, avec un environnement vide et hors du
+# Ils tournent dans l'image « essais » (l'API, plus git et psql pour les tests du
+# déploiement et des migrations), avec un environnement vide et hors du
 # dossier du dépôt. Sinon la configuration lit .env et local/coach.env (hôte
 # public, boîte de courriels, jeton SNCF, modèle du coach), et une dizaine de
 # tests échouent sans rien de cassé : ils vérifient justement ce qui se passe
@@ -32,10 +33,12 @@ for a in "${ARGUMENTS[@]}"; do
     case "$a" in tests*) CIBLES+=("/app/$a") ;; *) CIBLES+=("$a") ;; esac
 done
 
-"${COMPOSE[@]}" run --rm --no-deps api sh -c '
-    pip install -q pytest >/dev/null 2>&1
+# -rs : un test sauté dit pourquoi. Trente-trois l'étaient sans un mot, faute
+# de git et de psql dans l'image de l'API.
+"${COMPOSE[@]}" --profile essais run --rm --no-deps --build essais sh -c '
     cd /tmp && env -i PATH="$PATH" HOME="$HOME" PYTHONPATH=/app PLANIF_RACINE=/app \
         POSTGRES_USER="$POSTGRES_USER" POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-        POSTGRES_DB=planif_test DB_HOTE="$DB_HOTE" ORDONNANCEUR_ACTIF=false \
-        python -m pytest -q -p no:cacheprovider --rootdir=/app "$@"
+        POSTGRES_DB=planif_test DB_HOTE="$DB_HOTE" DB_PORT="$DB_PORT" \
+        ORDONNANCEUR_ACTIF=false \
+        python -m pytest -q -rs -p no:cacheprovider --rootdir=/app "$@"
 ' pytest "${CIBLES[@]}"

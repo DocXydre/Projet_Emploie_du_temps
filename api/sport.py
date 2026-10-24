@@ -5,8 +5,8 @@ les valide. Ce module ne garde que ce qui ne dépend pas de lui : les horaires
 publiés des lieux (SPT-15), et les séances à deux (SPT-31, SPT-32).
 
 L'organisation d'avant, réservations « à déterminer », habitudes,
-propositions du moteur, minimum et alerte du lundi, est rangée dans
-`anciennes_fonctionnalites/reservations_sport/`.
+propositions du moteur, minimum et alerte du lundi, est retirée : l'historique
+git la garde sous le tag « avant-nettoyage ».
 """
 
 from __future__ import annotations

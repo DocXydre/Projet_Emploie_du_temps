@@ -30,6 +30,7 @@ services:
   api:
     build:
       context: .
+      target: api
       args:
         # FOU-17 : Gemini CLI dans l'image (Node.js compris). 0 pour s'en passer.
         GEMINI_CLI: ${GEMINI_CLI:-1}
@@ -71,6 +72,7 @@ services:
   travailleur:
     build:
       context: .
+      target: api
       args:
         GEMINI_CLI: ${GEMINI_CLI:-1}
     image: planif-api

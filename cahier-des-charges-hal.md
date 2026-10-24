@@ -6,7 +6,7 @@ Auteur : Thomas Mathis
 
 Version du 22 octobre 2026 (migration 079 ; partie G : lots 16 et 17 construits)
 
-Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace [`cahier-des-charges.md`](archive/cahier-des-charges.md) et [`cahier-des-charges-coach.md`](archive/cahier-des-charges-coach.md), dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers sont rangés dans [`archive/`](archive/), pour l'historique.
+Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
 ## Comment lire ce document
 
@@ -94,7 +94,7 @@ Ces choix sont fixés pour la première version de l'application et se revoient 
 | Membre retiré | Ses tâches repassent aux autres ; son compte est mis en pause, avec son planning et son HAL | FOY-5 |
 | Annulation d'une action de HAL | Cinq secondes | ORB-6 |
 | Couleurs tirées de la photo | Disponibles en option | THM-4 |
-| Bêta Coach Santé | Rangée dans `anciennes_fonctionnalites/coach_sante/` à la bascule | Partie E, lot 10 |
+| Bêta Coach Santé | Retirée à la bascule | Partie E, lot 10 |
 
 ---
 
@@ -442,7 +442,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 #### A.3.11 Machine à laver : `UNI`
 
-Le stock d'uniforme a été retiré en septembre 2026, avec le planning de travail qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) sont conservées dans `anciennes_fonctionnalites/stock_uniforme/`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
+Le stock d'uniforme a été retiré en septembre 2026, avec le planning de travail qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) se retrouvent dans l'historique git, sous le tag `avant-nettoyage`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
 
 | Code | Type | Règle |
 |---|---|---|
@@ -1477,7 +1477,7 @@ SPT-5, SPT-18, SPT-21 et SPT-30 sont retirées (annexe 2). Leurs contraintes res
 
 #### Opération 3 : Projection du stock de vêtements de travail
 
-Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérations suivantes est conservée : le code s'y réfère. Le texte d'origine est dans `anciennes_fonctionnalites/stock_uniforme/`.
+Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérations suivantes est conservée : le code s'y réfère. Le texte d'origine se retrouve sous le tag git `avant-nettoyage`.
 
 #### Opération 4 : Placement des tâches
 
@@ -1748,7 +1748,7 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 | HAL par MCP et par abonnement | Partie F | 070 à 072 | HAL en serveur MCP pour Claude Code et Gemini CLI, l'abonnement de chacun avant l'API, les demandes qui attendent l'accord. Tables `cle_mcp`, `session_mcp`, `fournisseur_modele`, `tarif_modele`, `demande` |
 | Exercices à soi | EXO-11 | 073 | Un exercice que le catalogue ne connaît pas s'ajoute par son nom ; HAL le reconnaît, et il rejoint le catalogue de ce compte seul |
 
-Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests sont rangés dans `anciennes_fonctionnalites/stock_uniforme/`, avec de quoi le remettre en service.
+Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests se retrouvent sous le tag git `avant-nettoyage`.
 
 Depuis la migration 048, les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations mais dans `sql/definitions/`, un fichier par fonction. Les migrations ne portent plus que les tables, les contraintes et les données.
 
@@ -3542,7 +3542,7 @@ Un texte libre n'est plus envoyé au bot mais écrit dans le panneau de HAL, ave
 
 #### B.9.5 L'application iPhone
 
-La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la partie E) ; elle est rangée dans `anciennes_fonctionnalites/coach_sante/`. L'application qui la remplace, HAL, est décrite en partie C : elle fait tout ce que faisait la bêta, et ce qui lui manquait, la file sans réseau, les réponses avec leurs boutons, la séance libre, la mesure et le signalement.
+La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la partie E) ; elle est retirée depuis. L'application qui la remplace, HAL, est décrite en partie C : elle fait tout ce que faisait la bêta, et ce qui lui manquait, la file sans réseau, les réponses avec leurs boutons, la séance libre, la mesure et le signalement.
 
 ---
 
@@ -3584,7 +3584,7 @@ La bêta Coach Santé est restée en service jusqu'à la bascule (lot 10 de la p
 
 Retirés : le minimum hebdomadaire, les réservations « à déterminer », les habitudes, les propositions du moteur et l'alerte du lundi. Le détail est en annexe 2.
 
-**Ce retrait vaut pour tous les comptes depuis le 14 octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré est dans `anciennes_fonctionnalites/reservations_sport/`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
+**Ce retrait vaut pour tous les comptes depuis le 14 octobre 2026** : chaque membre a HAL, il n'y a plus de compte sans HAL à servir. Le retrait, la fusion de ces fonctions et le passage de tout le sport à quatre semaines (SPT-33) sont faits au lot 2 de la partie E (migration 065) : il ne reste que `obstacle_seance()` et `bloc_de_seance()`, qui portent la durée et la discipline de la séance. Le code retiré se retrouve sous le tag git `avant-nettoyage`, comme le stock d'uniforme ; les choix et les minimums sont dans le schéma `archive`.
 
 #### B.10.4 Ordre de construction
 
@@ -3681,7 +3681,7 @@ Les codes sont nouveaux et suivent les mêmes conventions : **D** pour une règl
 
 ### C.1 Rappel et choix effectués
 
-- **Une seule application, HAL**, pour tout : le planning, la maison, le sport, la santé et l'IA. Elle remplace la bêta Coach Santé, rangée dans `anciennes_fonctionnalites/coach_sante/` à la bascule (lot 10 de la partie E).
+- **Une seule application, HAL**, pour tout : le planning, la maison, le sport, la santé et l'IA. Elle remplace la bêta Coach Santé, retirée à la bascule (lot 10 de la partie E).
 - **Le bot Telegram ne sert plus qu'à l'administration** (partie D, `ADM`). Tout ce qu'un membre du foyer faisait par le bot se fait dans l'appli. L'annexe 5 donne, commande par commande, l'écran qui la remplace.
 - **iOS 26 au minimum, SwiftUI, et le vrai Liquid Glass** d'Apple (`glassEffect`). Pas d'imitation pour les versions plus anciennes.
 - **Le compte développeur Apple payant est un prérequis.** Il permet les notifications envoyées par le serveur, les widgets iOS qui partagent les données de l'appli, « Se connecter avec Apple » (CNX-7), la distribution par TestFlight, et met fin à la réinstallation tous les sept jours.
@@ -4159,7 +4159,7 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 8. Réglages et premier lancement | Réglages, Historique, foyer, premier lancement, états vides et erreurs | Un compte neuf invité arrive sur un Aujourd'hui qui lui dit quoi faire |
 | 9. iOS | Widgets iOS, écran verrouillé, Live Activity, envoi à la montre | Une course envoyée à la montre, courue, et validée toute seule dans le planning |
 | 2. Retraits | Les réservations « à déterminer », habitudes et alerte du lundi pour tous (annexe 2), fusion des fonctions de séance, passage de tout le sport à quatre semaines ; les commandes du bot réservées à l'administrateur (ADM) | Les tests du sport passent, moins ceux des règles retirées ; un message d'un autre compte au bot reçoit la phrase d'ADM-1 |
-| 10. Bascule | Tous les membres sur HAL, `ios/CoachSante/` rangée dans `anciennes_fonctionnalites/`, les comptes Telegram des membres déliés | Deux semaines d'usage réel à deux, sans le bot |
+| 10. Bascule | Tous les membres sur HAL, `ios/CoachSante/` retirée, les comptes Telegram des membres déliés | Deux semaines d'usage réel à deux, sans le bot |
 | 11. Tâches datées, types et liens | Migration 067, `creer_tache`, `lier_taches`, types ; formulaire 4.3, détail 4.2, écrans 4.9 à 4.12 | Une tâche « aujourd'hui à 18h30, l'oublier » disparaît à minuit sans retard ; « Lancer le lave-vaisselle » relié à « Vider le lave-vaisselle » depuis l'appli refait le lien de la migration 049 ; un type « Sassy » recolore les lignes du chat |
 | 12. Serveur MCP, en lecture | `/mcp` dans la FastAPI, clés MCP et sessions (migration 070), profil externe : lecture, mémoire, mesure dite, `noter_conversation`, consigne courte, dossier en ressources ; Réglages, clients MCP | Depuis Claude Code sur le Mac, « qu'est-ce que j'ai demain ? » répond d'après la base ; une clé révoquée est refusée ; aucun outil ne rend la mémoire, la santé ou les échanges de l'autre membre ; un résumé déposé se lit dans les échanges de l'appli |
 | 13. Fournisseurs | Table des fournisseurs et des tarifs, chiffrement, Claude Code dans l'image `api`, course avec jeton et outils du moment, chaîne et mise de côté, plafond de l'API ; Réglages, Intelligence | La synthèse du soir passe par l'abonnement ; avec un jeton faux, elle passe par l'API et le dit sous le message ; un plafond d'un centime coupe l'API et laisse le message de COA-12 ; les scénarios de sécurité passent avec Claude Code |
@@ -5099,7 +5099,7 @@ Un code n'est jamais réattribué. Ceux qui ne figurent plus dans la section A.3
 |---|---|---|
 | SPT-13 | Remplacée par SPT-18 à SPT-27 (migration 033) | Le lundi, les créneaux praticables étaient proposés jour par jour, et ce qui n'était pas choisi restait placé d'office |
 | SPT-16 | Remplacée par SPT-18 | L'organisation portait sur deux semaines, trois à partir du jeudi |
-| UNI-1 à UNI-11, UNI-13 à UNI-15 | Retirées avec le stock d'uniforme (migration 031) | Le suivi des vêtements de travail et les lessives qu'il déclenchait. Texte conservé dans `anciennes_fonctionnalites/stock_uniforme/` |
+| UNI-1 à UNI-11, UNI-13 à UNI-15 | Retirées avec le stock d'uniforme (migration 031) | Le suivi des vêtements de travail et les lessives qu'il déclenchait. Texte conservé sous le tag git `avant-nettoyage` |
 | Opération 3 | Retirée avec le stock d'uniforme | La projection du stock de vêtements de travail. Texte conservé au même endroit |
 
 ### Annexe 2 : règles `SPT` retirées avec les réservations
@@ -5364,7 +5364,7 @@ Le document a été relu en entier, pour qu'il dise ce qui tourne. Aucune règle
 | B.7, B.10, B.11, B.12 | Les renvois à SAI-14, SPT-21, SPT-26 et LIB-14, retirées, et ce que la partie F a changé au coût |
 | Renvois | « section A.2.2 » pour la partie B devient B.2.2, « son cahier, section A.5 » devient B.5, « section 3 » devient A.3, « 11.5 » devient B.11.5 |
 
-Les anciens cahiers, `cahier-des-charges.md` et `cahier-des-charges-coach.md`, sont rangés dans [`archive/`](archive/).
+Les anciens cahiers, `cahier-des-charges.md` et `cahier-des-charges-coach.md`, se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
 ### Annexe 10 : ce que change le sport sans montre
 

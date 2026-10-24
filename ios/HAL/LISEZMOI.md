@@ -201,7 +201,7 @@ Le module apparaît alors dans la galerie, sans rien changer d'autre. Les widget
 
 ## La suite
 
-Tous les lots sont faits. Le bot ne sert plus qu'à l'administrateur du serveur, l'ancien sport est retiré (lot 2), et la bêta Coach Santé est rangée dans `anciennes_fonctionnalites/coach_sante/` (lot 10). Restent :
+Tous les lots sont faits. Le bot ne sert plus qu'à l'administrateur du serveur, l'ancien sport est retiré (lot 2), et la bêta Coach Santé est retirée (lot 10). Restent :
 
 - les trois manques côté API de la section C.13 du cahier : « Voir plus tard » sur un conflit, une tâche faite en plus qui n'existe pas encore, « Je m'en charge » sur une tâche en retard ;
 - sur un vrai iPhone : les widgets iOS, l'écran verrouillé, la Live Activity, l'envoi d'une course à la montre (6.1 à 6.4) ;

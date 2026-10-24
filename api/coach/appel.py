@@ -31,8 +31,8 @@ from api.coach import (
     course,
     course_gemini,
     dossier,
-    foyer,
     fournisseurs,
+    foyer,
     modele,
     office,
     outils,
@@ -187,7 +187,8 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
             "`requalifier_en_signalement` s'il faut changer le plan lui-même (ajouter une "
             "séance, en changer le contenu, remplacer une séance par une autre), s'il "
             "signale une douleur, une fatigue ou un contretemps, ou s'il répond à une "
-            "question que tu as posée : tu auras alors les outils pour agir. Une mesure qu'il te donne (poids, tour de bras, temps) "
+            "question que tu as posée : tu auras alors les outils pour agir. Une mesure "
+            "qu'il te donne (poids, tour de bras, temps) "
             "s'enregistre avec `noter_mesure`. N'écris jamais « c'est noté », « je vais "
             "proposer » ou « je déplace » sans l'avoir fait par un outil dans cet appel.")
 
