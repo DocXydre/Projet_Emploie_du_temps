@@ -26,6 +26,7 @@ machine, et sont sautés sinon.
 """
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -125,9 +126,12 @@ def test_retoucher_une_vieille_migration_ne_casse_pas_le_placement(depot):
         passage = _lancer(depot)
 
         assert passage.returncode == 0
-        # Il refuse, et il dit pourquoi, avec le nom de ce qui a été repris.
+        # Il refuse, et il dit pourquoi, avec le nom de ce qui a été repris. Le
+        # script n'en montre que six, par ordre alphabétique : placer_taches,
+        # cité ici d'abord, est passé derrière les points de suspension quand
+        # la migration 077 a repris chercher_creneau et chercher_jour.
         assert "003_fonctions.sql a changé" in passage.stdout
-        assert "placer_taches (repris par" in passage.stdout
+        assert re.search(r"^ +[a-z_0-9]+ \(repris par \d{3}\)$", passage.stdout, re.M)
         assert "↻ 003_fonctions.sql" not in passage.stdout
 
         # La preuve qui compte : le placement tourne encore.

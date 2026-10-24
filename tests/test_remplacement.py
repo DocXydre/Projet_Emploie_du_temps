@@ -8,6 +8,8 @@ fois le même geste.
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from tests.test_ensemble import sql
+
 PARIS = ZoneInfo("Europe/Paris")
 
 
@@ -30,11 +32,27 @@ def en_cours(client, thomas, code: str) -> dict:
     return min(ouvertes, key=lambda o: o["echeance_min"])
 
 
+def pour_aujourd_hui(occurrence: dict) -> None:
+    """Pose l'occurrence aujourd'hui, sur la journée.
+
+    Seule une occurrence couverte due le jour de la validation, ou avant, est
+    soldée ; une plus lointaine est retirée et repart du jour de la validation.
+    Or le placement sépare parfois les deux tâches d'un jour : un samedi, il met
+    le ramassage au dimanche. Sans cela, le test dépendrait du jour où il tourne.
+    """
+    sql("""UPDATE occurrence
+              SET fenetre = tstzrange(debut_jour(jour_de(now())), upper(fenetre), '[)'),
+                  creneau = tstzrange(debut_jour(jour_de(now())),
+                                      debut_jour(jour_de(now()) + 1), '[)')
+            WHERE id_occurrence = %s""", occurrence["id_occurrence"])
+
+
 def test_vider_la_litiere_solde_aussi_le_ramassage(client, thomas):
     client.post("/planning/placer", headers=thomas)
 
     vidage = en_cours(client, thomas, "LITIERE_VIDAGE")
     ramassage_avant = en_cours(client, thomas, "LITIERE_CROTTES")
+    pour_aujourd_hui(ramassage_avant)
 
     client.post(f"/occurrences/{vidage['id_occurrence']}/valider",
                 headers=thomas, json={})
@@ -128,6 +146,7 @@ def test_laver_la_fontaine_vaut_changer_l_eau(client, thomas):
 
     fontaine = en_cours(client, thomas, "FONTAINE_SASSY")
     eau_avant = en_cours(client, thomas, "EAU_SASSY")
+    pour_aujourd_hui(eau_avant)
 
     client.post(f"/occurrences/{fontaine['id_occurrence']}/valider",
                 headers=thomas, json={})
