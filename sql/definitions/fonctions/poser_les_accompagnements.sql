@@ -18,7 +18,8 @@
 -- après l'avoir faite n'est pas un coup de ménage en plus, c'est du zèle.
 --
 -- Une tâche déjà annoncée ou épinglée ne se déplace pas. Elle peut en revanche
--- mener : son jour est connu, et l'autre la rejoint.
+-- mener : son jour est connu, et l'autre la rejoint. Un jour où la personne est
+-- en mode allégé, pas de bloc (PLA-16).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION poser_les_accompagnements() RETURNS INTEGER
 LANGUAGE plpgsql AS $$
@@ -63,8 +64,12 @@ BEGIN
                AND jour_de(lower(creneau)) >= jour_de(now())
              ORDER BY lower(creneau), id_occurrence
         LOOP
+            -- PLA-16 : le bloc est un bonus, et l'allégé n'en reçoit pas. Formé
+            -- un jour où il s'allège, il lui ramenait aspirateur et poussière en
+            -- plus de sa part, bien au-delà du quart promis.
             CONTINUE WHEN a.journee_libre
-                      AND NOT journee_libre(o.id_utilisateur, o.jour);
+                      AND (NOT journee_libre(o.id_utilisateur, o.jour)
+                           OR est_allege(o.id_utilisateur, o.jour));
 
             -- Déjà là, ou déjà faite ce jour-là : rien à rapprocher.
             SELECT j.id_occurrence INTO v_jointe
