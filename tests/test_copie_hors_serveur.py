@@ -10,7 +10,7 @@ import os
 import shutil
 import subprocess
 import time
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -94,6 +94,13 @@ def scene(tmp_path) -> Scene:
     return Scene(tmp_path)
 
 
+def _emplacement_du_jour() -> str:
+    jour = ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+            "dimanche")[date.today().isoweekday() - 1]
+    moitie = "a" if date.today().isocalendar().week % 2 == 0 else "b"
+    return f"planif-{jour}-{moitie}.dump.age"
+
+
 def test_une_copie_arrive_sur_le_mac_et_chiffree_dans_icloud(scene):
     passage = scene.passage()
 
@@ -101,7 +108,7 @@ def test_une_copie_arrive_sur_le_mac_et_chiffree_dans_icloud(scene):
     [copie] = scene.sur_le_mac()
     assert copie.read_text() == "PGDMP copie de la base\n"
     [chiffree] = scene.dans_icloud()
-    assert chiffree.name == copie.name + ".age"
+    assert chiffree.name == _emplacement_du_jour()
     assert chiffree.read_text().startswith("age-encryption.org/v1 pour age1cledetest")
     # Données de santé : lisibles du seul compte du Mac.
     assert copie.stat().st_mode & 0o077 == 0
@@ -136,24 +143,56 @@ def test_une_copie_illisible_n_est_pas_gardee(scene):
     assert scene.lire("journal") == "", "une copie ratée ne se note pas comme faite"
 
 
-def test_seules_les_dernieres_copies_restent(scene):
-    scene.copies.mkdir(parents=True)
+def test_icloud_qui_refuse_garde_la_copie_du_mac(scene):
+    # macOS refuse parfois à une tâche launchd d'écrire dans iCloud Drive.
     scene.icloud.mkdir(parents=True)
+    scene.icloud.chmod(0o500)
+    try:
+        passage = scene.passage()
+    finally:
+        scene.icloud.chmod(0o700)
+
+    # Un échec qui se voit dans le journal de launchd...
+    assert passage.returncode != 0
+    assert "seule celle du Mac est faite" in passage.stdout
+    # ... mais la copie du Mac est gardée, sans reste du chiffrement à côté, et
+    # notée au serveur pour ce qu'elle est.
+    [copie] = scene.sur_le_mac()
+    assert [f.name for f in scene.copies.iterdir()] == [copie.name]
+    assert scene.dans_icloud() == []
+    assert "sans iCloud" in scene.lire("appels")
+
+
+def test_seules_les_dernieres_copies_restent_sur_le_mac(scene):
+    scene.copies.mkdir(parents=True)
     for rang in range(3):
         ancienne = time.time() - 86400 * (rang + 1)
-        for fichier in (scene.copies / f"planif-2026010{rang}-120000.dump",
-                        scene.icloud / f"planif-2026010{rang}-120000.dump.age"):
-            fichier.write_text("ancienne")
-            os.utime(fichier, (ancienne, ancienne))
+        fichier = scene.copies / f"planif-2026010{rang}-120000.dump"
+        fichier.write_text("ancienne")
+        os.utime(fichier, (ancienne, ancienne))
 
-    passage = scene.passage(PLANIF_COPIES_GARDEES="2", PLANIF_ICLOUD_GARDEES="1")
+    passage = scene.passage(PLANIF_COPIES_GARDEES="2")
 
     assert passage.returncode == 0, passage.stdout + passage.stderr
     assert [f.name for f in scene.sur_le_mac()][0] == "planif-20260100-120000.dump"
     assert len(scene.sur_le_mac()) == 2
-    # La seule copie gardée dans iCloud est celle du jour.
-    [chiffree] = scene.dans_icloud()
-    assert "ancienne" not in chiffree.read_text()
+
+
+def test_dans_icloud_la_copie_ecrase_celle_d_il_y_a_deux_semaines(scene):
+    # La tâche de fond ne peut ni lister ni effacer dans iCloud Drive : elle
+    # écrit dans l'un de quatorze emplacements fixes, sans rien trier.
+    scene.icloud.mkdir(parents=True)
+    emplacement = scene.icloud / _emplacement_du_jour()
+    emplacement.write_text("la copie d'il y a deux semaines")
+    voisin = scene.icloud / "planif-lundi-z.dump.age"
+    voisin.write_text("une autre")
+
+    passage = scene.passage()
+
+    assert passage.returncode == 0, passage.stdout + passage.stderr
+    assert emplacement.read_text().startswith("age-encryption.org/v1")
+    assert voisin.read_text() == "une autre"
+    assert len(scene.dans_icloud()) == 2
 
 
 def test_sans_reglages_rien_ne_part(scene):
