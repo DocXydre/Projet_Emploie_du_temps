@@ -26,7 +26,6 @@ struct EtatDuJour: Codable {
     struct TacheAPI: Codable {
         let id: Int
         let idTache: Int
-        let code: String
         let titre: String
         let pour: Int?
         let categorie: String
@@ -72,10 +71,11 @@ struct EtatDuJour: Codable {
         let fin: Date
     }
 
-    struct ChatAPI: Codable {
-        let litiere: Date?
-        let eau: Date?
-        let fontaine: Date?
+    /// Une tâche du type de base Chat, et sa prochaine fois (TAC-25, TAC-29).
+    struct SoinAPI: Codable {
+        let idTache: Int
+        let libelle: String
+        let prochaine: Date?
     }
 
     struct EquilibreAPI: Codable {
@@ -110,7 +110,7 @@ struct EtatDuJour: Codable {
     let conflit: ConflitAPI?
     let absences: [AbsenceAPI]
     let allegements: [AllegementAPI]
-    let chat: ChatAPI?
+    let chat: [SoinAPI]?
     let equilibre: [EquilibreAPI]
     let propositions: [PropositionAPI]
     let orbe: Bool
@@ -148,10 +148,15 @@ struct TacheRecurrente: Codable, Identifiable, Hashable {
         let fin: Date
     }
 
+    /// Ce que HAL retient d'une tâche, et qui l'a dit (MTA-7).
+    struct Description: Codable, Hashable {
+        let texte: String
+        let ditePar: String?
+    }
+
     let idTache: Int
-    let code: String
     let libelle: String
-    let categorie: String
+    /// TAC-25 : vide pour la tâche du sport, la seule sans type.
     var type: TypeTache? = nil
     var dureeMinutes: Int? = nil
     var periodiciteMinJours: Int? = nil
@@ -161,7 +166,13 @@ struct TacheRecurrente: Codable, Identifiable, Hashable {
     var heureMin: String? = nil
     var heureMax: String? = nil
     var recurrente: Bool? = nil
+    /// TAC-1 : « rythme », « dates », « apres » ou « description ».
+    var revient: String? = nil
     var active: Bool? = nil
+    /// TAC-30 : la date de l'arrêt, et combien de fois elle a été faite.
+    var arreteeLe: Date? = nil
+    var faiteFois: Int? = nil
+    var description: Description? = nil
     var idUtilisateurDefaut: Int? = nil
     var siPasFaite: String? = nil
     /// La fenêtre de la prochaine fois, pour une tâche ponctuelle.
@@ -180,6 +191,8 @@ struct TacheRecurrente: Codable, Identifiable, Hashable {
     /// « tous les 2 à 3 j », « le 23/10 », « après une autre », sans rien calculer
     /// d'autre que la mise en mots.
     var rythme: String {
+        // MTA-8 : ni rythme ni dates, c'est HAL qui la pose.
+        if revient == "description" { return "selon HAL" }
         if recurrente == false {
             if naitDUneAutre == true { return "après une autre" }
             guard let dates else { return "une fois" }
@@ -244,6 +257,8 @@ struct TypeTache: Codable, Identifiable, Hashable {
     var dureeMinutes: Int? = nil
     var priorite: Int? = nil
     var categorie: String? = nil
+    /// TAC-25 : l'un des cinq types de base, qui ne se suppriment pas.
+    var deBase: Bool? = nil
     /// Ses tâches actives : un type n'est supprimable qu'à zéro (TAC-26).
     var taches: Int? = nil
 }

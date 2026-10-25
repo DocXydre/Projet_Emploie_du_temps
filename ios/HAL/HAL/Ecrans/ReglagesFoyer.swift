@@ -187,6 +187,23 @@ struct EcranFoyer: View {
                 Task { await reglerHAL(actif) }
             })
             .disabled(!lu.jeSuisAdmin)
+            // VER-8 : quand HAL relit les tâches décrites, chaque semaine.
+            Picker("Relecture des tâches", selection: Binding {
+                lu.verificationJour ?? 1
+            } set: { jour in
+                Task { await regler(["verification_jour": "\(jour)"], annonce: "Relecture réglée") }
+            }) {
+                ForEach(1...7, id: \.self) { Text(Self.jours[$0 - 1]).tag($0) }
+            }
+            .disabled(!lu.jeSuisAdmin)
+            Picker("À", selection: Binding {
+                String((lu.verificationHeure ?? "06:30").prefix(5))
+            } set: { heure in
+                Task { await regler(["verification_heure": heure], annonce: "Relecture réglée") }
+            }) {
+                ForEach(Self.heures, id: \.self) { Text($0.replacingOccurrences(of: ":", with: "h")).tag($0) }
+            }
+            .disabled(!lu.jeSuisAdmin)
             NavigationLink {
                 EcranMemoireFoyer()
             } label: {
@@ -200,6 +217,11 @@ struct EcranFoyer: View {
             Button("Quitter le foyer", role: .destructive) { quitter = true }
         }
     }
+
+    private static let jours = ["Le lundi", "Le mardi", "Le mercredi", "Le jeudi", "Le vendredi",
+                                "Le samedi", "Le dimanche"]
+    /// De 5h à 22h30, à la demi-heure.
+    private static let heures = (10...45).map { String(format: "%02d:%02d", $0 / 2, $0 % 2 * 30) }
 
     /// Un réglage de droit : affiché tel que lu, envoyé dès qu'il change.
     private func droit(_ lu: FoyerLu, _ chemin: KeyPath<FoyerLu, String>, cle: String) -> Binding<String> {

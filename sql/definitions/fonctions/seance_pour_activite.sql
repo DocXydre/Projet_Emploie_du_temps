@@ -12,7 +12,7 @@ CREATE OR REPLACE FUNCTION seance_pour_activite(p_utilisateur INTEGER, p_discipl
 RETURNS INTEGER LANGUAGE sql STABLE AS $$
     SELECT o.id_occurrence
       FROM occurrence o
-      JOIN tache t ON t.id_tache = o.id_tache AND t.categorie = 'sport'
+      JOIN tache t ON t.id_tache = o.id_tache AND t.id_type_tache IS NULL
       LEFT JOIN seance se ON se.id_occurrence = o.id_occurrence
      WHERE o.id_utilisateur = p_utilisateur
        AND o.origine <> 'quota'

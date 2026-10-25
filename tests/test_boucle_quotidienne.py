@@ -49,7 +49,8 @@ def forcer_au_jour_meme(code_tache: str) -> int:
              WHERE o.id_occurrence = (
                    SELECT o2.id_occurrence FROM occurrence o2
                      JOIN tache t ON t.id_tache = o2.id_tache
-                    WHERE t.code = %s AND o2.statut IN ('a_placer', 'planifiee')
+                    WHERE t.id_tache = essais.tache_de(%s)
+                      AND o2.statut IN ('a_placer', 'planifiee')
                     ORDER BY lower(o2.fenetre), o2.id_occurrence LIMIT 1)
             RETURNING o.id_occurrence
             """,
@@ -291,26 +292,24 @@ def _vieillir(identifiant: int, jours: int) -> None:
         )
 
 
-def _delai(code_tache: str) -> int:
-    with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row) as conn:
-        return conn.execute(
-            "SELECT abandon_apres_jours FROM tache WHERE code = %s", (code_tache,)
-        ).fetchone()["abandon_apres_jours"]
+def _a_oublier(code_tache: str) -> None:
+    """TAC-24 : « si pas faite : l'oublier », réglé comme dans le détail."""
+    with psycopg.connect(_url(), autocommit=True) as conn:
+        conn.execute("UPDATE tache SET si_pas_faite = 'oublier' "
+                     "WHERE id_tache = essais.tache_de(%s)", (code_tache,))
 
 
-def test_une_tache_ordinaire_s_oublie_au_bout_de_cinq_jours(client, thomas):
-    assert _delai("ASPIRATEUR") == 5
-
+def test_une_tache_a_reporter_ne_s_abandonne_jamais(client, thomas):
+    """TAC-24 : « la reporter », elle revient jusqu'à être faite, même après cinq jours."""
     client.post("/planning/placer", headers=thomas)
     identifiant = forcer_au_jour_meme("ASPIRATEUR")
-    _vieillir(identifiant, 5)
+    _vieillir(identifiant, 6)
 
     bilan = client.post("/notifications/report", headers=thomas).json()
-    assert bilan["abandonnees"] >= 1
+    assert bilan["reportees"] >= 1
 
     detail = client.get(f"/occurrences/{identifiant}", headers=thomas).json()
-    assert detail["statut"] == "abandonnee"
-    assert "5" in detail["motif"]
+    assert detail["statut"] == "a_placer"
 
 
 def test_quatre_jours_de_retard_se_reportent_encore(client, thomas):
@@ -341,8 +340,6 @@ def _seance_choisie(client, thomas) -> int:
 
 def test_une_seance_de_sport_s_oublie_plus_vite(client, thomas):
     # Une séance manquée ne se rattrape pas, elle se remplace par la suivante.
-    assert _delai("SPORT") == 3
-
     identifiant = _seance_choisie(client, thomas)
     _vieillir(identifiant, 3)
 
@@ -363,16 +360,17 @@ def test_une_seance_de_sport_de_deux_jours_tient_encore(client, thomas):
     assert detail["statut"] != "abandonnee"
 
 
-def test_l_abandon_previent_plutot_que_de_disparaitre(client, thomas):
+def test_l_oubli_previent_plutot_que_de_disparaitre(client, thomas):
+    _a_oublier("ASPIRATEUR")
     client.post("/planning/placer", headers=thomas)
     identifiant = forcer_au_jour_meme("ASPIRATEUR")
-    _vieillir(identifiant, 6)
+    _vieillir(identifiant, 2)
     client.post("/notifications/report", headers=thomas)
 
     contenus = [n["contenu"] for n in
                 client.get("/notifications", headers=thomas,
                            params={"toutes": True}).json()]
-    assert any("abandonnée" in c for c in contenus), contenus
+    assert any("oubliée" in c for c in contenus), contenus
 
 
 def test_solder_les_retards_vide_l_ardoise(client, thomas):
@@ -430,7 +428,8 @@ def _sans_creneau(code_tache: str, echeance_dans_jours: int) -> int:
              WHERE o.id_occurrence = (
                    SELECT o2.id_occurrence FROM occurrence o2
                      JOIN tache t ON t.id_tache = o2.id_tache
-                    WHERE t.code = %(c)s AND o2.statut IN ('a_placer', 'planifiee')
+                    WHERE t.id_tache = essais.tache_de(%(c)s)
+                      AND o2.statut IN ('a_placer', 'planifiee')
                     ORDER BY o2.id_occurrence LIMIT 1)
             RETURNING o.id_occurrence
             """,
@@ -444,11 +443,12 @@ def test_une_occurrence_jamais_placee_finit_par_etre_oubliee(client, thomas):
     # Le report ne regardait que les tâches posées. Une occurrence sans créneau
     # n'était donc jamais vue, jamais abandonnée, et s'empilait : sept lessives
     # de travail au même jour de retard, une douzaine de séances de sport.
+    _a_oublier("ASPIRATEUR")
     client.post("/planning/placer", headers=thomas)
     identifiant = _sans_creneau("ASPIRATEUR", -6)   # échéance dépassée de 6 jours
 
     bilan = client.post("/notifications/report", headers=thomas).json()
-    assert bilan["abandonnees"] >= 1
+    assert bilan["oubliees"] >= 1
 
     detail = client.get(f"/occurrences/{identifiant}", headers=thomas).json()
     assert detail["statut"] == "abandonnee"

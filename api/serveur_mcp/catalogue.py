@@ -105,7 +105,7 @@ def lire_aujourdhui(u: int, a: dict) -> object:
     for t in ecran["taches"]:
         t = pour(t)
         t["type"] = (t.get("type") or {}).get("libelle")
-        for cle in ("id_tache", "code", "categorie", "actions_possibles"):
+        for cle in ("id_tache", "categorie", "actions_possibles"):
             t.pop(cle, None)
         taches.append(sans_vides(t))
     absences = []
@@ -130,13 +130,22 @@ def lire_aujourdhui(u: int, a: dict) -> object:
 
 
 def lire_taches(u: int, a: dict) -> object:
-    """Les tâches actives du foyer, leur rythme, pour qui, et leurs liens."""
+    """Les tâches du foyer, leur rythme, pour qui, leurs liens et leur description.
+
+    Les tâches arrêtées seulement si on les demande (TAC-30).
+    """
     taches = lister(
-        """SELECT t.id_tache, t.code, t.libelle, y.libelle AS type, t.duree_minutes,
-                  CASE WHEN t.recurrente
-                       THEN format('tous les %%s à %%s jours', t.periodicite_min_jours,
-                                   t.periodicite_max_jours)
+        """SELECT t.id_tache, t.libelle, y.libelle AS type, t.duree_minutes,
+                  CASE t.revient
+                       WHEN 'rythme' THEN format('tous les %%s à %%s jours',
+                                                 t.periodicite_min_jours, t.periodicite_max_jours)
+                       WHEN 'apres' THEN 'après une autre tâche'
+                       WHEN 'description' THEN 'selon sa description : tu en poses les occurrences'
                        ELSE 'une fois' END AS rythme,
+                  d.texte AS description,
+                  CASE WHEN NOT t.active
+                       THEN format('arrêtée le %%s', to_char(t.arretee_le, 'DD/MM/YYYY'))
+                       END AS arret,
                   COALESCE(p.pseudo, 'à tour de rôle') AS pour,
                   t.heure_min, t.heure_max, t.si_pas_faite,
                   (SELECT array_agg(CASE WHEN l.id_de = t.id_tache THEN l.phrase_depuis
@@ -147,8 +156,10 @@ def lire_taches(u: int, a: dict) -> object:
              FROM tache t
              LEFT JOIN type_tache y ON y.id_type_tache = t.id_type_tache
              LEFT JOIN utilisateur p ON p.id_utilisateur = t.id_utilisateur_defaut
-            WHERE t.active AND t.categorie <> 'sport'
-            ORDER BY y.ordre NULLS LAST, t.priorite, t.libelle""")
+             LEFT JOIN v_description_tache d ON d.id_tache = t.id_tache
+            WHERE (t.active OR %(arretees)s::BOOLEAN) AND t.id_type_tache IS NOT NULL
+            ORDER BY t.active DESC, y.ordre NULLS LAST, t.priorite, t.libelle""",
+        {"arretees": bool(a.get("arretees"))})
     return {"taches": [sans_vides(t) for t in taches]}
 
 
@@ -156,9 +167,10 @@ def lire_occurrences(u: int, a: dict) -> object:
     """Les tâches de la maison posées sur une période, faites ou non, et leur retard."""
     du, au = _periode(a, avant=7, apres=7, maximum=35)
     lignes = lister(
-        """SELECT o.id_occurrence, o.tache_libelle AS tache, u.pseudo AS pour, o.statut,
-                  o.debut, o.fin, o.rappel_journee AS journee_entiere, o.date_faite,
-                  o.en_retard, o.jours_de_retard, o.nb_relances AS reports, o.motif
+        """SELECT o.id_occurrence, o.id_tache, o.tache_libelle AS tache, u.pseudo AS pour,
+                  o.statut, o.debut, o.fin, o.rappel_journee AS journee_entiere, o.date_faite,
+                  o.en_retard, o.jours_de_retard, o.nb_relances AS reports, o.motif,
+                  o.epinglee_par AS epinglee_par
              FROM v_occurrence o JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
             WHERE o.categorie <> 'sport' AND u.id_foyer = foyer_de(%(u)s)
               AND (%(moi)s::BOOLEAN IS NOT TRUE OR o.id_utilisateur = %(u)s)
@@ -265,8 +277,9 @@ AJOUTES: tuple[Outil, ...] = (
           _objet({}), lire_aujourdhui),
     Outil("lire_taches", "lecture",
           "Les tâches de la maison : leur type, leur durée, leur rythme, pour qui, "
-          "leur heure, et leurs liens avec les autres tâches.",
-          _objet({}), lire_taches),
+          "leur heure, leurs liens avec les autres tâches, et leur description, ce que "
+          "le formulaire ne dit pas. « arretees » à vrai : aussi les tâches arrêtées.",
+          _objet({"arretees": {"type": "boolean"}}), lire_taches),
     Outil("lire_occurrences", "lecture",
           "Les tâches de la maison posées sur une période (35 jours au plus) : pour "
           "qui, quand, faites ou non, en retard. Sans dates, sept jours de part et "

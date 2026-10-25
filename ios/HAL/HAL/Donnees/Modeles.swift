@@ -43,8 +43,6 @@ struct Tache: Identifiable, Hashable {
     /// Son heure prévue, sauf si elle tient la journée.
     var debut: Date?
     var journeeEntiere = false
-    /// Le code de la tâche récurrente, « ASPIRATEUR ».
-    var code: String = ""
     var reportable: Bool = true
     /// La tâche dont elle est une fois, pour ouvrir son détail (4.2).
     var idTache: Int? = nil
@@ -148,9 +146,12 @@ struct Objectif: Hashable {
     let avancee: Double
 }
 
+/// Les tâches du type Chat, quels que soient leurs noms : la prochaine fois de chacune.
 struct EtatChat: Hashable {
-    let litiere: String
-    let eau: String
-    let fontaine: String
+    struct Soin: Hashable {
+        let titre: String
+        let quand: String
+    }
+    var soins: [Soin] = []
 }
 

@@ -35,7 +35,7 @@ BEGIN
     IF v_duree IS NULL AND p_lieu IS NOT NULL THEN
         SELECT COALESCE(l.duree_minutes, t.duree_minutes) INTO v_duree
           FROM lieu_sport l
-          LEFT JOIN tache t ON t.code = 'SPORT'
+          LEFT JOIN tache t ON t.id_type_tache IS NULL
          WHERE l.id_lieu = p_lieu;
     END IF;
     v_fin  := p_debut + make_interval(mins => v_duree);
@@ -59,7 +59,7 @@ BEGIN
       JOIN tache t ON t.id_tache = o.id_tache
       LEFT JOIN seance s ON s.id_occurrence = o.id_occurrence
      WHERE o.id_utilisateur = p_utilisateur
-       AND t.categorie = 'sport'
+       AND t.id_type_tache IS NULL
        AND o.statut IN ('planifiee', 'notifiee', 'faite')
        AND o.id_occurrence IS DISTINCT FROM p_ignorer
        AND jour_de(COALESCE(o.debut_seance, lower(o.creneau), lower(o.fenetre))) = v_jour;
@@ -91,7 +91,7 @@ BEGIN
        AND o.creneau IS NOT NULL
        AND NOT o.rappel_journee
        AND o.statut IN ('planifiee', 'notifiee')
-       AND (o.epinglee OR o.statut = 'notifiee' OR t.categorie = 'sport')
+       AND (o.epinglee OR o.statut = 'notifiee' OR t.id_type_tache IS NULL)
        AND o.id_occurrence IS DISTINCT FROM p_ignorer
        AND o.creneau && v_bloc
      LIMIT 1;

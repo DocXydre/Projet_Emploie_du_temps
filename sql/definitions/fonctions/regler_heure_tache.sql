@@ -24,12 +24,8 @@ BEGIN
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Tâche % inconnue', p_tache USING ERRCODE = 'no_data_found';
     END IF;
-    IF t.categorie = 'sport' THEN
+    IF t.id_type_tache IS NULL THEN
         RAISE EXCEPTION 'L''heure d''une séance se règle dans Sport'
-              USING ERRCODE = 'check_violation';
-    END IF;
-    IF t.requiert_les_deux AND v_rappel THEN
-        RAISE EXCEPTION 'Une tâche à deux a une heure : sans elle, rien ne dit que vous serez là ensemble'
               USING ERRCODE = 'check_violation';
     END IF;
 
@@ -48,7 +44,7 @@ BEGIN
     END IF;
 
     UPDATE tache
-       SET rappel_journee = v_rappel, heure_min = p_heure_min, heure_max = p_heure_max,
+       SET heure_min = p_heure_min, heure_max = p_heure_max,
            duree_minutes = v_duree
      WHERE id_tache = p_tache;
 

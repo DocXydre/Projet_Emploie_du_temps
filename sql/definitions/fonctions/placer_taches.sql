@@ -1,9 +1,10 @@
 -- -----------------------------------------------------------------------------
--- Le placement enchaîne les trois                               (TAC-12, WKD-3)
+-- Le placement enchaîne les trois                         (opération 4, WKD-3)
 --
--- Le placement prépare, pose, puis rapproche. Avant la boucle : ce qu'on fait
--- en rentrant, les occurrences manquantes, les propositions, ce qu'on fait en
--- partant. Après elle : ce qu'une autre tâche couvre, et ce qui va ensemble.
+-- Le placement prépare, pose, puis rapproche. Avant la boucle : les
+-- occurrences manquantes et les propositions. Après elle : ce qu'une autre
+-- tâche couvre, et ce qui va ensemble. Ce que les descriptions demandent de
+-- plus (avant un départ, au retour), c'est HAL qui le pose (VER-10).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION placer_taches(p_horizon_jours integer DEFAULT 35, p_stabilite_jours integer DEFAULT 7)
  RETURNS integer
@@ -17,12 +18,9 @@ DECLARE
     v_gele    TIMESTAMPTZ;
     v_assigne INTEGER;
     v_lieu    INTEGER;
+    -- VER-3 : où étaient les occurrences des tâches décrites avant ce placement.
+    v_avant   JSONB;
 BEGIN
-    -- ABS-8 : ce qu'on refait en rentrant. Avant la génération, pour que la
-    -- chaîne de la tâche reparte du retour et non d'une prévision tombée
-    -- pendant l'absence.
-    PERFORM taches_au_retour(p_horizon_jours);
-
     PERFORM generer_occurrences(p_horizon_jours);
 
     -- WKD-3 : une absence vaut réponse à une proposition de week-end. Sans cet
@@ -30,15 +28,27 @@ BEGIN
     -- acheté et l'absence déclarée.
     PERFORM entretenir_propositions();
 
-    -- TAC-12 : ce qui ne peut pas attendre qu'on rentre. L'appel vient avant le
-    -- placement, pour que les occurrences créées ici soient placées dans la
-    -- foulée.
-    PERFORM taches_avant_depart(p_horizon_jours);
-
     -- PLA-5, PLA-6 : un créneau notifié, épinglé, ou prévu dans les prochains jours
     -- ne bouge plus. Un planning qui change tous les matins ne sert à rien :
     -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
     v_gele := now() + make_interval(days => p_stabilite_jours);
+
+    SELECT COALESCE(jsonb_object_agg(av.id_occurrence, COALESCE(av.creneau::TEXT, '')), '{}')
+      INTO v_avant
+      FROM occurrence av
+     WHERE av.statut IN ('a_placer', 'planifiee', 'notifiee')
+       AND EXISTS (SELECT 1 FROM description_tache d WHERE d.id_tache = av.id_tache)
+       AND tache_decrite(av.id_tache);
+
+    -- VER-2 : ce que HAL a épinglé un jour où la personne n'est pas là redevient
+    -- au moteur, qui le replace ; HAL le relira.
+    UPDATE occurrence
+       SET epinglee = FALSE
+     WHERE epinglee_par = 'hal'
+       AND statut = 'planifiee'
+       AND creneau IS NOT NULL
+       AND id_utilisateur IS NOT NULL
+       AND est_absent(id_utilisateur, jour_de(lower(creneau)));
 
     -- ABS-5 : exception au gel, quand la personne est absente ce jour-là.
     -- Sans elle, un départ déclaré pour le week-end prochain ne déplacerait
@@ -61,15 +71,14 @@ BEGIN
 
     FOR o IN
         SELECT oc.id_occurrence, oc.id_tache, oc.id_utilisateur, oc.fenetre,
-               oc.rappel_journee, oc.utilise_machine,
-               t.duree_minutes, t.heure_min, t.heure_max,
-               t.requiert_les_deux, t.libelle, t.categorie
+               oc.rappel_journee,
+               t.duree_minutes, t.heure_min, t.heure_max, t.libelle
           FROM occurrence oc
           JOIN tache t ON t.id_tache = oc.id_tache
          WHERE oc.statut = 'a_placer'
            -- Le sport ne passe pas par ici : HAL propose les séances, ou
            -- l'utilisateur les pose (SPT-33).
-           AND t.categorie <> 'sport'
+           AND t.id_type_tache IS NOT NULL
            AND upper(oc.fenetre) > now()
            AND lower(oc.fenetre) < now() + make_interval(days => p_horizon_jours)
          ORDER BY t.priorite, upper(oc.fenetre), t.duree_minutes DESC
@@ -99,39 +108,17 @@ BEGIN
             v_creneau := chercher_jour(v_assigne, o.fenetre, v_duree);
         ELSE
             v_creneau := chercher_creneau(v_assigne, o.fenetre, v_duree,
-                                          o.heure_min, o.heure_max, o.utilise_machine,
-                                          o.requiert_les_deux);
+                                          o.heure_min, o.heure_max);
         END IF;
 
         -- PLA-8 : une occurrence non plaçable n'est jamais supprimée. Elle garde
         -- son statut et reçoit un motif lisible.
         IF v_creneau IS NULL THEN
             UPDATE occurrence
-               SET motif = CASE
-                               WHEN o.requiert_les_deux THEN
-                                   format('Aucun moment où vous êtes libres tous les deux avant le %s',
-                                          to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
-                               ELSE
-                                   format('Aucune place de %s min avant le %s',
-                                          o.duree_minutes,
-                                          to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
-                           END
+               SET motif = format('Aucune place de %s min avant le %s',
+                                  o.duree_minutes,
+                                  to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
              WHERE id_occurrence = o.id_occurrence;
-
-            -- PLA-9 : aucun créneau commun aux deux personnes. On envoie une
-            -- alerte au lieu de placer la tâche à un moment impossible.
-            IF o.requiert_les_deux THEN
-                INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
-                SELECT o.id_utilisateur, o.id_occurrence, 'alerte',
-                       format('%s : aucun créneau commun trouvé avant le %s.',
-                              o.libelle,
-                              to_char(upper(o.fenetre) AT TIME ZONE 'Europe/Paris', 'DD/MM'))
-                 WHERE o.id_utilisateur IS NOT NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM notification n
-                        WHERE n.id_occurrence = o.id_occurrence
-                          AND n.statut = 'a_envoyer');
-            END IF;
         ELSE
             UPDATE occurrence
                SET creneau = v_creneau,
@@ -160,9 +147,27 @@ BEGIN
     -- tâche prévue le même jour n'a rien à faire au planning.
     PERFORM absorber_les_couvertes();
 
-    -- TAC-15 à TAC-17 : ce qui va ensemble se fait le même jour. Après le
+    -- TAC-15, TAC-16 : ce qui va ensemble se fait le même jour. Après le
     -- placement, puisqu'il faut savoir où tombe la tâche qui mène.
     PERFORM poser_les_accompagnements();
+
+    -- VER-3 : ce que ce placement a créé, déplacé ou laissé à placer, pour une
+    -- tâche décrite, entre dans la file. Ce qui n'a pas bougé n'y entre pas, ni
+    -- ce qui tombe au-delà des sept jours qui viennent : le moteur repose ces
+    -- prévisions chaque matin, et la vérification de la semaine les relit
+    -- toutes (VER-5). Sans cette borne, chaque placement ferait appeler HAL.
+    PERFORM noter_verification(o2.id_occurrence, NULL,
+                               CASE WHEN COALESCE(v_avant ->> o2.id_occurrence::TEXT, '') = ''
+                                         AND o2.creneau IS NOT NULL THEN 'creee'
+                                    WHEN o2.creneau IS NULL THEN 'a_placer'
+                                    ELSE 'deplacee' END)
+       FROM occurrence o2
+      WHERE o2.statut IN ('a_placer', 'planifiee', 'notifiee')
+        AND upper(o2.fenetre) > now()
+        AND lower(COALESCE(o2.creneau, o2.fenetre)) < v_gele
+        AND tache_decrite(o2.id_tache)
+        AND (NOT (v_avant ? o2.id_occurrence::TEXT)
+             OR (v_avant ->> o2.id_occurrence::TEXT) IS DISTINCT FROM COALESCE(o2.creneau::TEXT, ''));
 
     RETURN v_places;
 END $$;

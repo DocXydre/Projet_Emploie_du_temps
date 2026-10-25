@@ -147,7 +147,8 @@ def test_le_hal_du_foyer_sans_hal_sport(client, lorette, joue):
 
 def _aspirateur(client, thomas) -> int:
     requete = """SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
-                   WHERE t.code = 'ASPIRATEUR' AND o.statut IN ('a_placer', 'planifiee')
+                   WHERE t.id_tache = essais.tache_de('ASPIRATEUR')
+                     AND o.statut IN ('a_placer', 'planifiee')
                    ORDER BY upper(o.fenetre) LIMIT 1"""
     if un(requete) is None:
         client.post("/planning/placer", headers=thomas)

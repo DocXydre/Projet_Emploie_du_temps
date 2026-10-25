@@ -1,12 +1,14 @@
-"""Les tâches qui vont ensemble            (TAC-14 à TAC-19, PLA-14, PLA-15, ABS-8)
+"""Les tâches qui vont ensemble                    (TAC-14 à TAC-16, TAC-19, PLA-15)
 
 Jusqu'ici chaque tâche se plaçait seule. Le planning proposait le même jour un
 ramassage de litière et son vidage complet, un récurage sans aspirateur avant,
 et il fallait cocher la poussière pour qu'un aspirateur apparaisse le lendemain.
 
 Ces tests décrivent les liens : ce qui en couvre une autre, ce qui en accompagne
-une autre, ce qui suit, ce qu'on fait en partant et en rentrant. Et ce que
-l'absence de l'un ne doit pas coûter à l'autre.
+une autre, ce qui suit. Et ce que l'absence de l'un ne doit pas coûter à
+l'autre. Le bloc « Nettoyage » et ce qu'on fait en partant ou en rentrant ne
+sont plus des règles du moteur : ils sont dans les descriptions, que HAL
+applique (TAC-29, test_taches_decrites.py).
 """
 
 from datetime import datetime, timedelta
@@ -51,7 +53,7 @@ def prevues(code: str) -> list[dict]:
           FROM occurrence o
           JOIN tache t USING (id_tache)
           LEFT JOIN utilisateur u USING (id_utilisateur)
-         WHERE t.code = %s AND o.creneau IS NOT NULL AND o.statut IN {OUVERTS}
+         WHERE t.id_tache = essais.tache_de(%s) AND o.creneau IS NOT NULL AND o.statut IN {OUVERTS}
          ORDER BY lower(o.creneau), o.id_occurrence""", code)
 
 
@@ -79,7 +81,7 @@ def absent(pseudo: str, debut: datetime, fin: datetime) -> None:
 def valider(code: str, pseudo: str = "thomas") -> int:
     numero = un(f"""
         SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
-         WHERE t.code = %s AND o.statut IN {OUVERTS}
+         WHERE t.id_tache = essais.tache_de(%s) AND o.statut IN {OUVERTS}
          ORDER BY lower(COALESCE(o.creneau, o.fenetre)) LIMIT 1""", code)
     sql("SELECT valider_occurrence(%s, %s, NULL)", numero, _id(pseudo))
     return numero
@@ -109,7 +111,7 @@ def _vidage_aujourd_hui() -> None:
                                   creneau = tstzrange(%s, %s, '[)')
              WHERE id_occurrence = (
                    SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
-                    WHERE t.code = 'LITIERE_VIDAGE' AND o.statut IN {OUVERTS}
+                    WHERE t.id_tache = essais.tache_de('LITIERE_VIDAGE') AND o.statut IN {OUVERTS}
                     ORDER BY lower(o.fenetre) LIMIT 1)""",
         minuit(0), minuit(1), minuit(0), minuit(1))
 
@@ -121,7 +123,7 @@ def test_un_ramassage_oublie_s_efface_quand_le_vidage_arrive(base):
     oublie = un("""
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, nb_relances)
         SELECT id_tache, %s, tstzrange(%s, %s, '[)'), 'notifiee', 'recurrence', 1
-          FROM tache WHERE code = 'LITIERE_CROTTES'
+          FROM tache WHERE id_tache = essais.tache_de('LITIERE_CROTTES')
         RETURNING id_occurrence""", _id("lorette"), minuit(-1), minuit(0))
     placer()
 
@@ -139,7 +141,7 @@ def test_un_ramassage_en_retard_reste_si_le_vidage_est_loin(base):
     en_retard = un("""
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, nb_relances)
         SELECT id_tache, %s, tstzrange(%s, %s, '[)'), 'notifiee', 'recurrence', 1
-          FROM tache WHERE code = 'LITIERE_CROTTES'
+          FROM tache WHERE id_tache = essais.tache_de('LITIERE_CROTTES')
         RETURNING id_occurrence""", _id("lorette"), minuit(-1), minuit(0))
 
     placer()
@@ -160,12 +162,13 @@ def test_cocher_le_vidage_ne_coche_pas_les_ramassages_du_mois(base):
     valider("LITIERE_VIDAGE")
 
     faits = un("""SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache)
-                   WHERE t.code = 'LITIERE_CROTTES' AND o.statut = 'faite'""")
+                   WHERE t.id_tache = essais.tache_de('LITIERE_CROTTES') AND o.statut = 'faite'""")
     assert faits <= 1
     # Et le prochain ramassage repart du jour du vidage : dans deux jours.
     suivant = un(f"""SELECT min(jour_de(lower(o.fenetre))) FROM occurrence o
                       JOIN tache t USING (id_tache)
-                     WHERE t.code = 'LITIERE_CROTTES' AND o.statut IN {OUVERTS}""")
+                     WHERE t.id_tache = essais.tache_de('LITIERE_CROTTES')
+                       AND o.statut IN {OUVERTS}""")
     assert suivant == minuit(2).date()
 
 
@@ -244,82 +247,13 @@ def test_cocher_la_poussiere_ne_cree_plus_d_aspirateur_apres_coup(base):
     placer()
     avant = len(prevues("ASPIRATEUR")) + un(
         "SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache) "
-        " WHERE t.code = 'ASPIRATEUR' AND o.statut = 'a_placer'")
+        " WHERE t.id_tache = essais.tache_de('ASPIRATEUR') AND o.statut = 'a_placer'")
 
     valider("POUSSIERE")
 
     apres = un(f"SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache) "
-               f" WHERE t.code = 'ASPIRATEUR' AND o.statut IN {OUVERTS}")
+               f" WHERE t.id_tache = essais.tache_de('ASPIRATEUR') AND o.statut IN {OUVERTS}")
     assert apres == avant
-
-
-# ---------------------------------------------------------------------------
-# Le bloc « Nettoyage », un jour sans cours ni travail                  TAC-17
-# ---------------------------------------------------------------------------
-
-def test_un_jour_libre_reunit_poussiere_aspirateur_et_recurage(base):
-    # Aucun cours : toutes les journées sont libres.
-    placer()
-
-    recurage = prevues("RECURAGE")[0]
-    du_jour = sql("""
-        SELECT o.titre FROM occurrence o JOIN tache t USING (id_tache)
-          JOIN utilisateur u USING (id_utilisateur)
-         WHERE jour_de(lower(o.creneau)) = %s AND u.pseudo = %s
-           AND t.code IN ('POUSSIERE', 'ASPIRATEUR', 'RECURAGE')
-         ORDER BY o.titre""", recurage["jour"], recurage["pseudo"])
-
-    assert [o["titre"] for o in du_jour] == [
-        "Nettoyage 1/3 : Faire la poussière",
-        "Nettoyage 2/3 : Passer l'aspirateur",
-        "Nettoyage 3/3 : Récurer",
-    ]
-
-
-def test_le_bloc_se_lit_dans_l_ordre_au_planning(client, thomas):
-    client.post("/planning/placer", headers=thomas)
-    qui = prevues("RECURAGE")[0]
-
-    # Le planning de ce jour-là, tel que l'appli le lit.
-    jour = datetime.combine(qui["jour"], datetime.min.time(), PARIS)
-    lignes = client.get("/planning", headers=thomas, params={
-        "debut": jour.isoformat(), "fin": (jour + timedelta(days=1)).isoformat(),
-        "utilisateur": _id(qui["pseudo"])}).json()
-
-    bloc = [ligne["libelle"].split(" :")[0] for ligne in lignes
-            if ligne["libelle"].startswith("Nettoyage")]
-    assert bloc == ["Nettoyage 1/3", "Nettoyage 2/3", "Nettoyage 3/3"]
-
-
-def test_un_jour_de_cours_ne_forme_pas_de_bloc(base):
-    cours_tous_les_jours()
-
-    placer()
-
-    assert un("SELECT count(*) FROM occurrence WHERE titre LIKE 'Nettoyage%'") == 0
-
-
-def test_un_cours_ajoute_defait_le_bloc(base):
-    placer()
-    assert un("SELECT count(*) FROM occurrence WHERE titre LIKE 'Nettoyage%'") > 0
-
-    cours_tous_les_jours()
-    placer()
-
-    # Les titres se refont à chaque placement : plus de bloc, mais l'aspirateur
-    # dit toujours ce qu'il accompagne.
-    assert un("SELECT count(*) FROM occurrence WHERE titre LIKE 'Nettoyage%'") == 0
-    assert un("SELECT count(*) FROM occurrence WHERE titre LIKE 'Passer l''aspirateur (%'") > 0
-
-
-def test_on_n_avance_pas_une_tache_qui_vient_d_etre_faite(base):
-    placer()
-    valider("POUSSIERE")
-    placer()
-
-    # Faite aujourd'hui, la poussière ne revient pas dans trois jours au motif
-    # qu'un récurage tombe un jour libre.
-    assert jours("POUSSIERE")[0] >= minuit(5).date()
 
 
 # ---------------------------------------------------------------------------
@@ -353,7 +287,7 @@ def test_le_lave_vaisselle_lance_se_vide_le_lendemain(base):
 
     sql("SELECT valider_occurrence(%s, %s, %s)",
         un(f"""SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
-                WHERE t.code = 'LAVE_VAISSELLE' AND o.statut IN {OUVERTS}
+                WHERE t.id_tache = essais.tache_de('LAVE_VAISSELLE') AND o.statut IN {OUVERTS}
                 ORDER BY lower(o.fenetre) LIMIT 1"""),
         _id("thomas"),
         # Lancé hier à 22 heures.
@@ -367,153 +301,6 @@ def test_le_lave_vaisselle_lance_se_vide_le_lendemain(base):
 
 
 # ---------------------------------------------------------------------------
-# En partant                                                            TAC-18
-# ---------------------------------------------------------------------------
-
-def _de_depart() -> dict[str, dict]:
-    return {ligne["code"]: ligne for ligne in sql("""
-        SELECT t.code, u.pseudo, o.statut FROM occurrence o
-          JOIN tache t USING (id_tache) LEFT JOIN utilisateur u USING (id_utilisateur)
-         WHERE o.origine = 'depart'""")}
-
-
-def test_le_dernier_a_partir_ferme_l_appartement(base):
-    # Lorette part jeudi soir, Thomas vendredi midi : c'est lui le dernier.
-    vendredi = minuit(9).replace(hour=12)
-    absent("lorette", vendredi - timedelta(hours=18), vendredi + timedelta(days=3))
-    absent("thomas", vendredi, vendredi + timedelta(days=3))
-
-    placer()
-
-    taches = _de_depart()
-    assert set(taches) == {"POUBELLES", "LAVE_VAISSELLE", "LITIERE_VIDAGE"}
-    assert {t["pseudo"] for t in taches.values()} == {"thomas"}
-
-
-def test_partis_ensemble_les_taches_se_repartissent(base):
-    depart = minuit(9).replace(hour=12)
-    absent("lorette", depart, depart + timedelta(days=3))
-    absent("thomas", depart, depart + timedelta(days=3))
-
-    placer()
-
-    assert all(t["pseudo"] is not None for t in _de_depart().values())
-
-
-def test_c_est_une_tache_en_plus_meme_faite_deux_jours_avant(base):
-    placer()
-    depart = minuit(9).replace(hour=12)
-    absent("lorette", depart, depart + timedelta(days=3))
-    absent("thomas", depart, depart + timedelta(days=3))
-    # La caisse a été changée deux jours avant le départ.
-    sql("""INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, date_faite)
-           SELECT id_tache, %s, tstzrange(%s, %s, '[)'), 'faite', 'manuelle', now()
-             FROM tache WHERE code = 'LITIERE_VIDAGE'""",
-        _id("thomas"), minuit(-1), minuit(0))
-
-    placer()
-
-    # On la refait quand même en partant, pour être tranquille au retour.
-    assert "LITIERE_VIDAGE" in _de_depart()
-
-
-def test_ce_qu_on_fait_en_partant_ne_compte_pas_dans_la_balance(base):
-    vendredi = minuit(9).replace(hour=12)
-    absent("lorette", vendredi - timedelta(hours=18), vendredi + timedelta(days=3))
-    absent("thomas", vendredi, vendredi + timedelta(days=3))
-    placer()
-    avec = un("SELECT charge_domestique(%s)", _id("thomas"))
-
-    sql("DELETE FROM occurrence WHERE origine = 'depart'")
-
-    # Retirer les trois tâches de départ ne change pas sa charge : elles
-    # venaient en plus du roulement.
-    assert un("SELECT charge_domestique(%s)", _id("thomas")) == avec
-
-
-# ---------------------------------------------------------------------------
-# En rentrant                                                            ABS-8
-# ---------------------------------------------------------------------------
-
-def _au_retour() -> list[dict]:
-    return sql("""
-        SELECT t.code, u.pseudo, jour_de(lower(o.fenetre)) AS jour
-          FROM occurrence o JOIN tache t USING (id_tache)
-          LEFT JOIN utilisateur u USING (id_utilisateur)
-         WHERE o.origine = 'retour'""")
-
-
-def test_apres_plus_de_deux_jours_on_change_l_eau_en_rentrant(base):
-    depart = minuit(9).replace(hour=12)
-    # Thomas rentre le premier, Lorette le lendemain.
-    absent("thomas", depart, depart + timedelta(days=3))
-    absent("lorette", depart, depart + timedelta(days=4))
-
-    placer()
-
-    (eau,) = _au_retour()
-    assert eau["code"] == "EAU_SASSY"
-    assert eau["jour"] == (depart + timedelta(days=3)).astimezone(PARIS).date()
-    assert eau["pseudo"] == "thomas"
-
-
-def test_une_absence_courte_ne_demande_rien_au_retour(base):
-    depart = minuit(9).replace(hour=12)
-    absent("thomas", depart, depart + timedelta(days=1, hours=12))
-    absent("lorette", depart, depart + timedelta(days=1, hours=12))
-
-    placer()
-
-    assert _au_retour() == []
-
-
-def test_un_seul_absent_ne_demande_rien_au_retour(base):
-    # Lorette est restée : l'eau a été changée comme d'habitude.
-    depart = minuit(9).replace(hour=12)
-    absent("thomas", depart, depart + timedelta(days=5))
-
-    placer()
-
-    assert _au_retour() == []
-
-
-def test_un_retour_tard_le_soir_attend_le_lendemain(base):
-    depart = minuit(9).replace(hour=12)
-    retour = minuit(12).replace(hour=22, minute=30)
-    absent("thomas", depart, retour)
-    absent("lorette", depart, retour)
-
-    placer()
-
-    assert _au_retour()[0]["jour"] == minuit(13).date()
-
-
-def test_replacer_ne_double_pas_l_eau_du_retour(base):
-    depart = minuit(9).replace(hour=12)
-    absent("thomas", depart, depart + timedelta(days=3))
-    absent("lorette", depart, depart + timedelta(days=3))
-
-    placer()
-    placer()
-    placer()
-
-    assert len(_au_retour()) == 1
-
-
-def test_un_retour_annule_reprend_sa_tache(base):
-    depart = minuit(9).replace(hour=12)
-    absent("thomas", depart, depart + timedelta(days=3))
-    absent("lorette", depart, depart + timedelta(days=3))
-    placer()
-    assert len(_au_retour()) == 1
-
-    sql("DELETE FROM absence")
-    placer()
-
-    assert _au_retour() == []
-
-
-# ---------------------------------------------------------------------------
 # Celui qui reste ne prend pas d'avance, celui qui rentre ne rattrape rien
 #                                                                      PLA-15
 # ---------------------------------------------------------------------------
@@ -524,7 +311,7 @@ def _minutes_par_personne(du: datetime, au: datetime) -> dict[str, int]:
           FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u USING (id_utilisateur)
          WHERE o.statut IN {OUVERTS} AND o.creneau IS NOT NULL
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
            AND t.id_utilisateur_defaut IS NULL
            AND lower(o.creneau) >= %s AND lower(o.creneau) < %s
          GROUP BY u.pseudo""", du, au)
@@ -538,7 +325,7 @@ def test_les_taches_faites_seule_ne_comptent_pas_dans_la_balance(base):
     seule = un(f"""
         SELECT COALESCE(sum(t.duree_minutes), 0) FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut IN {OUVERTS}
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
            AND lower(o.creneau) >= %s AND lower(o.creneau) < %s""",
                _id("lorette"), minuit(8), minuit(14))
     assert seule > 0, "Lorette a bien des tâches pendant l'absence de Thomas"
@@ -546,7 +333,7 @@ def test_les_taches_faites_seule_ne_comptent_pas_dans_la_balance(base):
     sans = un(f"""
         SELECT COALESCE(sum(t.duree_minutes), 0) FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut IN {OUVERTS}
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
            AND NOT (lower(COALESCE(o.creneau, o.fenetre)) >= %s
                     AND lower(COALESCE(o.creneau, o.fenetre)) < %s)""",
               _id("lorette"), minuit(8), minuit(14))
@@ -574,16 +361,16 @@ def test_celui_qui_rentre_ne_rattrape_pas_le_menage(base):
 def test_le_tour_reprend_la_ou_il_s_etait_arrete(base):
     sql("""INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, date_faite)
            SELECT id_tache, %s, tstzrange(%s, %s, '[)'), 'faite', 'manuelle', %s
-             FROM tache WHERE code = 'DRAPS'""",
+             FROM tache WHERE id_tache = essais.tache_de('DRAPS')""",
         _id("thomas"), minuit(-20), minuit(-19), minuit(-20) + timedelta(hours=10))
     # Thomas absent : Lorette refait les draps, seule.
     absent("thomas", minuit(-10), minuit(-2))
     sql("""INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, date_faite)
            SELECT id_tache, %s, tstzrange(%s, %s, '[)'), 'faite', 'manuelle', %s
-             FROM tache WHERE code = 'DRAPS'""",
+             FROM tache WHERE id_tache = essais.tache_de('DRAPS')""",
         _id("lorette"), minuit(-5), minuit(-4), minuit(-5) + timedelta(hours=10))
 
-    dernier = un("SELECT dernier_a_faire(id_tache) FROM tache WHERE code = 'DRAPS'")
+    dernier = un("SELECT dernier_a_faire(essais.tache_de('DRAPS'))")
 
     # Le dernier vrai tour est celui de Thomas, avant son départ. Les draps
     # reviennent donc à Lorette, et non à lui parce qu'il rentre.
@@ -595,7 +382,8 @@ def test_le_tour_reprend_la_ou_il_s_etait_arrete(base):
 # ---------------------------------------------------------------------------
 
 def test_les_priorites_revues(base):
-    priorites = {x["code"]: x["priorite"] for x in sql("SELECT code, priorite FROM tache")}
+    priorites = {x["code"]: x["priorite"] for x in sql(
+        "SELECT c.code, t.priorite FROM tache t JOIN essais.code_tache c USING (id_tache)")}
 
     assert priorites["ETENDRE_LINGE"] == 1, "du linge mouillé n'attend pas"
     assert priorites["VIDER_LAVE_VAISSELLE"] == 2

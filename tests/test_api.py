@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from icalendar import Calendar
 
-from tests.conftest import JETON_THOMAS
+from tests.conftest import JETON_THOMAS, id_de
 
 
 def demain(heure: int, minute: int = 0) -> datetime:
@@ -42,33 +42,34 @@ def test_moi_renvoie_le_bon_profil(client, lorette):
 
 def test_les_taches_de_reference_sont_la(client, thomas):
     taches = client.get("/taches", headers=thomas).json()
-    codes = {t["code"] for t in taches}
+    ids = {t["id_tache"] for t in taches}
 
-    assert {"ASPIRATEUR", "POUSSIERE", "LITIERE_CROTTES", "LESSIVE_BLANC",
-            "GRAND_NETTOYAGE"} <= codes
+    assert {id_de(c) for c in ("ASPIRATEUR", "POUSSIERE", "LITIERE_CROTTES", "LESSIVE_BLANC",
+                               "GRAND_NETTOYAGE")} <= ids
     # Retirée avec le stock d'uniforme : elle ne sert plus à rien.
-    assert "LESSIVE_TRAVAIL" not in codes
+    assert id_de("LESSIVE_TRAVAIL") not in ids
 
-    poussiere = next(t for t in taches if t["code"] == "POUSSIERE")
+    poussiere = next(t for t in taches if t["id_tache"] == id_de("POUSSIERE"))
     assert poussiere["duree_minutes"] == 5
     assert poussiere["rappel_journee"] is True
     # Lancer le lave-vaisselle déclenche son vidage, le lendemain (TAC-14).
-    lancer = next(t for t in taches if t["code"] == "LAVE_VAISSELLE")
-    assert any(d["code"] == "VIDER_LAVE_VAISSELLE" for d in lancer["declenche"])
+    lancer = next(t for t in taches if t["id_tache"] == id_de("LAVE_VAISSELLE"))
+    assert any(d["id_tache_suivante"] == id_de("VIDER_LAVE_VAISSELLE") for d in lancer["declenche"])
     # L'aspirateur, lui, ne suit plus la poussière après coup : il est prévu le
     # même jour, dès le planning (TAC-15).
     assert not poussiere["declenche"]
 
-    lessive = next(t for t in taches if t["code"] == "LESSIVE_BLANC")
+    lessive = next(t for t in taches if t["id_tache"] == id_de("LESSIVE_BLANC"))
     assert lessive["rappel_journee"] is False
 
-    litiere = next(t for t in taches if t["code"] == "LITIERE_CROTTES")
-    assert litiere["reportable"] is False
+    # TAC-29 : ce qu'elle avait de plus est dans sa description.
+    litiere = next(t for t in taches if t["id_tache"] == id_de("LITIERE_CROTTES"))
+    assert "Ne se décale pas" in litiere["description"]["texte"]
 
 
 def test_le_pliage_revient_a_lorette(client, thomas):
     taches = client.get("/taches", headers=thomas).json()
-    plier = next(t for t in taches if t["code"] == "PLIER_LINGE")
+    plier = next(t for t in taches if t["id_tache"] == id_de("PLIER_LINGE"))
     profil = client.get("/moi", headers={"X-Cle-Api": "L" * 48}).json()
     assert plier["id_utilisateur_defaut"] == profil["id_utilisateur"]
 
@@ -77,9 +78,8 @@ def test_l_admin_du_foyer_peut_garder_les_taches(client, thomas, lorette):
     # FOY-6 : tout le monde ajoute par défaut ; l'administrateur peut le réserver.
     assert client.patch("/foyer", headers=thomas,
                         json={"ajout_taches": "admin"}).status_code == 200
-    reponse = client.post("/taches", headers=lorette, json={
-        "code": "TEST_REFUS", "libelle": "Interdit", "categorie": "menage",
-        "duree_minutes": 10, "periodicite_min_jours": 1, "periodicite_max_jours": 2,
+    reponse = client.post("/taches/nouvelle", headers=lorette, json={
+        "libelle": "Interdit", "duree_minutes": 10, "tous_les_jours": 1,
     })
     assert reponse.status_code == 403
 
@@ -126,7 +126,7 @@ def test_placement_puis_validation_et_recurrence(client, thomas):
 
     occurrences = client.get("/occurrences", headers=thomas,
                              params={"statut": ["planifiee"]}).json()
-    poussiere = next(o for o in occurrences if o["tache_code"] == "POUSSIERE")
+    poussiere = next(o for o in occurrences if o["id_tache"] == id_de("POUSSIERE"))
 
     # Les rappels sortent sur une journée entière.
     assert poussiere["rappel_journee"] is True
@@ -142,7 +142,7 @@ def test_placement_puis_validation_et_recurrence(client, thomas):
 
     # EXE-1 : la suivante repart de la date réelle.
     suivante = next(o for o in toutes
-                    if o["tache_code"] == "POUSSIERE" and o["statut"] != "faite")
+                    if o["id_tache"] == id_de("POUSSIERE") and o["statut"] != "faite")
     debut_suivante = datetime.fromisoformat(suivante["echeance_min"])
     assert debut_suivante > datetime.now(UTC) + timedelta(days=6)
 
@@ -202,7 +202,7 @@ def test_lorette_valide_une_tache_de_thomas_et_se_la_voit_crediter(
 def test_reporter_remet_la_tache_a_placer(client, thomas):
     client.post("/planning/placer", headers=thomas)
     occurrences = client.get("/occurrences", headers=thomas).json()
-    aspirateur = next(o for o in occurrences if o["tache_code"] == "ASPIRATEUR")
+    aspirateur = next(o for o in occurrences if o["id_tache"] == id_de("ASPIRATEUR"))
 
     reponse = client.post(f"/occurrences/{aspirateur['id_occurrence']}/reporter",
                           headers=thomas, json={})
@@ -213,21 +213,22 @@ def test_reporter_remet_la_tache_a_placer(client, thomas):
     assert reponse.json()["echeance_max"] > aspirateur["echeance_max"]
 
 
-def test_une_tache_non_reportable_refuse_le_report(client, thomas):
+def test_toute_tache_se_reporte_meme_la_litiere(client, thomas):
+    """TAC-29 : « ne se décale pas » est une description pour HAL, pas un refus."""
     client.post("/planning/placer", headers=thomas)
     occurrences = client.get("/occurrences", headers=thomas).json()
-    litiere = next(o for o in occurrences if o["tache_code"] == "LITIERE_CROTTES")
+    litiere = next(o for o in occurrences if o["id_tache"] == id_de("LITIERE_CROTTES"))
 
     reponse = client.post(f"/occurrences/{litiere['id_occurrence']}/reporter",
                           headers=thomas, json={})
-    assert reponse.status_code == 409
-    assert reponse.json()["code"] == "non_reportable"
+    assert reponse.status_code == 200
+    assert reponse.json()["statut"] == "a_placer"
 
 
 def test_le_refus_recree_une_tache_non_assignee(client, thomas):
     client.post("/planning/placer", headers=thomas)
     occurrences = client.get("/occurrences", headers=thomas).json()
-    cible = next(o for o in occurrences if o["tache_code"] == "ASPIRATEUR")
+    cible = next(o for o in occurrences if o["id_tache"] == id_de("ASPIRATEUR"))
 
     reprise = client.post(f"/occurrences/{cible['id_occurrence']}/refuser",
                           headers=thomas, json={"motif": "pas envie"}).json()

@@ -88,7 +88,7 @@ def aujourdhui(qui: Authentifie) -> dict:
     # Le sport a son onglet : il n'est pas ici.
     taches = lister(
         f"""
-        SELECT o.id_occurrence AS id, o.id_tache, o.tache_code AS code,
+        SELECT o.id_occurrence AS id, o.id_tache,
                o.tache_libelle AS titre, o.id_utilisateur AS pour,
                {_categorie('o.categorie')} AS categorie, o.statut,
                o.statut = 'faite' AS faite, o.nb_relances AS reports,
@@ -152,15 +152,19 @@ def aujourdhui(qui: Authentifie) -> dict:
         params,
     )
 
-    # Le chat : la prochaine fois pour chaque soin (4.1).
-    chat = un_seul(
+    # Le chat : la prochaine fois pour chaque tâche du type de base Chat (4.1),
+    # quels que soient son nom et celui du type (TAC-25, TAC-29).
+    chat = lister(
         """
-        SELECT min(o.debut) FILTER (WHERE o.tache_code LIKE 'LITIERE%%') AS litiere,
-               min(o.debut) FILTER (WHERE o.tache_code = 'EAU_SASSY') AS eau,
-               min(o.debut) FILTER (WHERE o.tache_code = 'FONTAINE_SASSY') AS fontaine
-          FROM v_occurrence o
-         WHERE o.categorie = 'animal'
-           AND o.statut IN ('planifiee', 'notifiee')
+        SELECT t.id_tache, t.libelle,
+               (SELECT min(o.debut) FROM occurrence oc
+                  JOIN v_occurrence o ON o.id_occurrence = oc.id_occurrence
+                 WHERE oc.id_tache = t.id_tache
+                   AND oc.statut IN ('planifiee', 'notifiee')) AS prochaine
+          FROM tache t
+          JOIN type_tache y ON y.id_type_tache = t.id_type_tache AND y.base = 'animal'
+         WHERE t.active
+         ORDER BY prochaine NULLS LAST, t.libelle
         """,
     )
 
@@ -217,7 +221,7 @@ def aujourdhui(qui: Authentifie) -> dict:
                  WHERE s.id_utilisateur = %(moi)s AND s.mode_collecte = 'ics'
                    AND s.active AND s.url IS NOT NULL)::INTEGER AS calendriers,
                (SELECT count(*) FROM tache t
-                 WHERE t.active AND t.categorie <> 'sport')::INTEGER AS taches
+                 WHERE t.active AND t.id_type_tache IS NOT NULL)::INTEGER AS taches
         """,
         params,
     )

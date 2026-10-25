@@ -272,6 +272,22 @@ def presence_et_meteo() -> dict:
     return bilan
 
 
+def verifications_de_hal() -> dict:
+    """VER-4, VER-5 : la semaine à son jour et son heure, puis la file, au plus une
+    fois par quart d'heure. Sans tâche décrite, aucun appel."""
+    from api.coach import verification
+    bilan: dict = {}
+    try:
+        bilan.update(verification.verifier_la_semaine())
+    except Exception:
+        LOG.exception("Échec de la vérification de la semaine")
+    try:
+        bilan.update(verification.verifier_la_file())
+    except Exception:
+        LOG.exception("Échec de la file des vérifications")
+    return bilan
+
+
 def soirees_de_minuit() -> int:
     """SOI-1 : qui n'est ni au foyer ni là où il dort, à minuit."""
     from api import position
@@ -279,11 +295,8 @@ def soirees_de_minuit() -> int:
 
 
 def report_de_minuit() -> dict:
-    """Reporte, abandonne ou alerte, selon le retard de chaque occurrence.
-
-    EXE-12 : au-delà du délai propre à la tâche, l'occurrence est oubliée plutôt
-    que reportée une fois de plus.
-    """
+    """Reporte ou oublie, selon ce que dit chaque tâche (TAC-24) ; abandonne une
+    séance restée sans nouvelle trois jours (EXE-12)."""
     resultat = executer("SELECT reporter_taches_du_jour() AS bilan")
     bilan = (resultat or {}).get("bilan") or {}
     LOG.info("Report d'office : %s reportée(s), %s abandonnée(s), %s alerte(s)",
@@ -484,6 +497,10 @@ def demarrer() -> BackgroundScheduler:
     # l'heure près pour la météo.
     ordonnanceur.add_job(presence_et_meteo, CronTrigger(minute="*/5", timezone=conf.fuseau),
                          id="presence", name="Présence et météo",
+                         max_instances=1, coalesce=True)
+    ordonnanceur.add_job(verifications_de_hal,
+                         CronTrigger(minute="*/15", timezone=conf.fuseau),
+                         id="verifications", name="Vérifications de HAL",
                          max_instances=1, coalesce=True)
     ordonnanceur.add_job(soirees_de_minuit, a(0, 0),
                          id="soirees", name="Soirées de minuit", coalesce=True)

@@ -233,16 +233,21 @@ struct WidgetEnRetard: View {
     }
 }
 
-/// Litière, eau, fontaine : la prochaine fois pour chaque soin du chat (4.1).
+/// La prochaine fois de chaque tâche du type Chat (4.1). Ce sont des tâches
+/// comme les autres : on en ajoute, on en arrête, le widget suit (TAC-29).
 struct WidgetChat: View {
     @Environment(Foyer.self) private var foyer
 
     var body: some View {
         CoquilleWidget(.chat) {
             VStack(alignment: .leading, spacing: 4) {
-                ligne("Litière", foyer.chat.litiere)
-                ligne("Eau", foyer.chat.eau)
-                ligne("Fontaine", foyer.chat.fontaine)
+                if foyer.chat.soins.isEmpty {
+                    Text("Aucune tâche du type Chat").texte(.legende)
+                        .foregroundStyle(Palette.texteSecondaire)
+                }
+                ForEach(foyer.chat.soins.prefix(3), id: \.self) { soin in
+                    ligne(soin.titre, soin.quand)
+                }
             }
         }
     }

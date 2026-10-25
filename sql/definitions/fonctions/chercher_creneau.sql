@@ -6,9 +6,7 @@ CREATE OR REPLACE FUNCTION chercher_creneau(
     p_fenetre     TSTZRANGE,
     p_duree       INTERVAL,
     p_heure_min   TIME,
-    p_heure_max   TIME,
-    p_machine     BOOLEAN,
-    p_commun      BOOLEAN DEFAULT FALSE
+    p_heure_max   TIME
 ) RETURNS TSTZRANGE LANGUAGE plpgsql STABLE AS $$
 DECLARE
     v_jour    DATE;
@@ -20,9 +18,8 @@ BEGIN
     v_dernier := jour_de(upper(p_fenetre) - INTERVAL '1 second');
 
     WHILE v_jour <= v_dernier LOOP
-        -- ABS-1 : ni machine ni ménage un jour où l'on n'est pas là.
-        IF NOT est_absent(p_utilisateur, v_jour)
-           AND NOT (p_machine AND machine_occupee(v_jour)) THEN
+        -- ABS-2 : pas de ménage un jour où l'on n'est pas là.
+        IF NOT est_absent(p_utilisateur, v_jour) THEN
 
             -- Plage autorisée ce jour-là, ramenée à la fenêtre d'échéance et
             -- à ce qui reste à venir : on ne propose pas 14h quand il est 16h.
@@ -35,7 +32,7 @@ BEGIN
 
             IF NOT isempty(v_plage) THEN
                 FOR v_dispo IN
-                    SELECT d FROM disponibilites_pour(p_utilisateur, p_commun,
+                    SELECT d FROM disponibilites_pour(p_utilisateur, FALSE,
                                                       lower(v_plage), upper(v_plage)) d
                      ORDER BY lower(d)
                 LOOP

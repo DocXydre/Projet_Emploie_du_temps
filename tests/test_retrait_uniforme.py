@@ -8,13 +8,13 @@ l'uniforme au milieu des enchaînements.
 
 import psycopg
 
-from tests.conftest import _url
+from tests.conftest import _url, id_de
 
 
 def occurrences(client, thomas, code: str, statuts=("a_placer", "planifiee", "notifiee")):
     toutes = client.get("/occurrences", headers=thomas,
                         params={"statut": list(statuts)}).json()
-    return [o for o in toutes if o["tache_code"] == code]
+    return [o for o in toutes if o["id_tache"] == id_de(code)]
 
 
 def test_plus_de_lessive_de_travail(client, thomas):
@@ -40,7 +40,8 @@ def test_le_stock_a_quitte_le_schema_vivant(base):
     # Les données ne sont pas perdues, seulement rangées.
     assert {"article_travail", "mouvement_stock"} <= archivees
     assert "lave_uniforme" not in colonnes
-    assert "utilise_machine" in colonnes
+    # La machine a suivi en octobre 2026 : elle est dans la description des lessives.
+    assert "utilise_machine" not in colonnes
 
 
 def test_la_lessive_de_blanc_s_enchaine_toujours(client, thomas):

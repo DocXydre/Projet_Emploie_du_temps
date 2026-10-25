@@ -69,7 +69,7 @@ BEGIN
                SET fenetre = fenetre_pour(v_cible.rappel_journee, v_depart, v_limite),
                    creneau = NULL,
                    statut  = 'a_placer',
-                   motif   = format('Repositionnée après %s', t.code)
+                   motif   = format('Repositionnée après %s', t.libelle)
              WHERE id_occurrence = v_existante;
         ELSE
             INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine,
@@ -79,7 +79,7 @@ BEGIN
                     fenetre_pour(v_cible.rappel_journee, v_depart, v_limite),
                     'enchainement',
                     NEW.id_occurrence,
-                    format('Déclenchée par %s', t.code));
+                    format('Déclenchée par %s', t.libelle));
         END IF;
     END LOOP;
 
@@ -102,7 +102,7 @@ BEGIN
            SET statut         = 'faite',
                date_faite     = NEW.date_faite,
                id_utilisateur = COALESCE(NEW.id_utilisateur, id_utilisateur),
-               motif          = format('Couverte par %s', t.code)
+               motif          = format('Couverte par %s', t.libelle)
          WHERE id_tache = e.id_tache
            AND statut IN ('a_placer', 'planifiee', 'notifiee')
            AND (statut = 'notifiee'

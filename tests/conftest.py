@@ -32,6 +32,7 @@ JETON_LORETTE = "l" * 32
 # Configuration de chaque source telle que les données de référence la posent,
 # relevée une fois pour pouvoir la restaurer entre deux tests.
 _CONFIGURATIONS_INITIALES: dict[str, dict] = {}
+_ETAT_INITIAL: dict = {}
 
 
 def _url() -> str:
@@ -42,6 +43,12 @@ def _url() -> str:
         f"{os.environ.get('DB_PORT', '5432')}/"
         f"{os.environ.get('POSTGRES_DB', 'planif')}"
     )
+
+
+def id_de(code: str) -> int:
+    """Le numéro d'une tâche d'origine, par son ancien code (TAC-29)."""
+    with psycopg.connect(_url()) as conn:
+        return conn.execute("SELECT essais.tache_de(%s)", (code,)).fetchone()[0]
 
 
 def flux_definitions() -> str:
@@ -74,11 +81,22 @@ def base():
         # survivrait sinon d'une session à l'autre, et la migration qui la
         # remplit la trouverait déjà pleine.
         conn.execute("DROP SCHEMA IF EXISTS archive CASCADE;"
+                     "DROP SCHEMA IF EXISTS essais CASCADE;"
                      "DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
         # Le même ordre que `sql/appliquer.sh` : les migrations, les définitions,
         # puis les rattrapages.
         for fichier in sorted(RACINE.glob("sql/0[0-9][0-9]_*.sql")):
+            # TAC-29 : les tâches n'ont plus de code depuis la 086. Les tests les
+            # désignent encore ainsi, par commodité : la correspondance est
+            # relevée juste avant, dans un schéma à eux, hors de public, que lit
+            # `essais.tache_de()`.
+            if fichier.name.startswith("086_"):
+                conn.execute("CREATE SCHEMA essais;"
+                             "CREATE TABLE essais.code_tache AS SELECT code, id_tache FROM tache")
             conn.execute(fichier.read_text())
+        conn.execute("""CREATE FUNCTION essais.tache_de(p_code TEXT) RETURNS INTEGER
+                        LANGUAGE sql STABLE AS $$
+                            SELECT id_tache FROM essais.code_tache WHERE code = p_code $$""")
         charger_definitions(conn)
         for fichier in sorted(RACINE.glob("sql/apres/[0-9][0-9][0-9]_*.sql")):
             conn.execute(fichier.read_text())
@@ -96,6 +114,14 @@ def base():
         conn.execute("SELECT amorcer_foyer()")
         conn.execute("SELECT appliquer_assignations()")
         conn.execute("SELECT assigner_calendriers_perso()")
+
+        # TAC-29 : les tâches d'origine et leurs descriptions, telles que la
+        # migration 086 les laisse. Un test qui arrête une tâche, ou en change la
+        # description, ne le fait pas pour les suivants.
+        _ETAT_INITIAL["description"] = conn.execute(
+            "SELECT COALESCE(max(id_description_tache), 0) FROM description_tache").fetchone()[0]
+        _ETAT_INITIAL["arretees"] = [x for (x,) in conn.execute(
+            "SELECT id_tache FROM tache WHERE NOT active").fetchall()]
 
         _CONFIGURATIONS_INITIALES.clear()
         for code, configuration in conn.execute(
@@ -190,6 +216,14 @@ def table_rase(base):
         # autres.
         conn.execute("DELETE FROM allegement")
         conn.execute("DELETE FROM tache WHERE ajoutee_par IS NOT NULL")
+        conn.execute("DELETE FROM verification_tache")
+        conn.execute("UPDATE tache SET si_pas_faite = 'reporter' WHERE ajoutee_par IS NULL")
+        conn.execute("DELETE FROM description_tache WHERE id_description_tache > %s",
+                     (_ETAT_INITIAL["description"],))
+        conn.execute("UPDATE tache SET active = NOT (id_tache = ANY (%s)), "
+                     "arretee_le = CASE WHEN id_tache = ANY (%s) "
+                     "THEN COALESCE(arretee_le, now()) END",
+                     (_ETAT_INITIAL["arretees"], _ETAT_INITIAL["arretees"]))
         # Les calendriers personnels naissent inactifs, faute d'URL : les
         # rallumer ici les ferait passer pour des sources en panne dans tous
         # les tests qui vérifient le bilan du matin.
@@ -240,6 +274,12 @@ def table_rase(base):
         conn.execute("UPDATE utilisateur SET actif = TRUE")
         conn.execute("SELECT amorcer_foyer()")
         conn.execute("SELECT appliquer_assignations()")
+        # Le pliage revient à Lorette : un « pour qui » réglé dans l'appli, que
+        # les tests de l'assignation fixe supposent. Ce n'est plus la base qui
+        # le décide (TAC-29).
+        conn.execute("UPDATE tache SET id_utilisateur_defaut = CASE WHEN id_tache = "
+                     "essais.tache_de('PLIER_LINGE') THEN (SELECT id_utilisateur FROM "
+                     "utilisateur WHERE pseudo = 'lorette') END WHERE id_type_tache IS NOT NULL")
         # Les heures de chacun reprennent leurs valeurs par défaut, et aucun
         # rendez-vous n'est compté comme servi.
         conn.execute("DELETE FROM passage")

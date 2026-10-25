@@ -1,19 +1,16 @@
 -- -----------------------------------------------------------------------------
--- Arrêter une tâche qu'on avait ajoutée                                (TAC-20)
+-- Arrêter une tâche                                            (TAC-21, TAC-30)
 --
--- Seules les tâches ajoutées depuis le bot s'arrêtent ainsi. Les tâches de
--- référence font marcher l'appartement : les retirer reste une décision qu'on
--- prend en base, en connaissance de cause.
---
--- La tâche est désactivée, pas supprimée : ce qui a été fait reste dans
--- l'historique. Ses prévisions s'effacent, et ce qui était déjà annoncé est
--- clos avec sa raison.
+-- Toute tâche de la maison s'arrête, celles d'origine comprises (TAC-29). Elle
+-- est désactivée, pas supprimée : elle rejoint les tâches arrêtées, d'où elle
+-- se reprend ou s'efface (TAC-31). Ses prévisions s'effacent, et ce qui était
+-- déjà annoncé est clos avec sa raison.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION arreter_tache(p_tache INTEGER)
 RETURNS BOOLEAN LANGUAGE plpgsql AS $$
 BEGIN
-    UPDATE tache SET active = FALSE
-     WHERE id_tache = p_tache AND ajoutee_par IS NOT NULL AND active;
+    UPDATE tache SET active = FALSE, arretee_le = now()
+     WHERE id_tache = p_tache AND id_type_tache IS NOT NULL AND active;
     IF NOT FOUND THEN
         RETURN FALSE;
     END IF;
@@ -39,5 +36,5 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION arreter_tache(INTEGER) IS
-    'TAC-20 : désactive une tâche ajoutée depuis le bot et retire ses
-     occurrences ouvertes. Rend faux pour une tâche de référence.';
+    'TAC-21 : arrête une tâche de la maison et retire ses occurrences
+     ouvertes. Rend faux pour une tâche déjà arrêtée ou pour le sport.';

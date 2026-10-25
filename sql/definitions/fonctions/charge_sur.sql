@@ -11,8 +11,7 @@ RETURNS INTEGER LANGUAGE sql STABLE AS $$
       FROM occurrence o
       JOIN tache t ON t.id_tache = o.id_tache
      WHERE o.id_utilisateur = p_utilisateur
-       AND t.categorie <> 'sport'
-       AND NOT t.requiert_les_deux
+       AND t.id_type_tache IS NOT NULL
        AND t.id_utilisateur_defaut IS NULL
        AND o.origine NOT IN ('depart', 'retour')
        AND o.statut IN ('a_placer', 'planifiee', 'notifiee', 'faite')

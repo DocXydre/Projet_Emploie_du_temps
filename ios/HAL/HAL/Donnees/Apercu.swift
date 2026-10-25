@@ -55,7 +55,9 @@ struct Apercu {
     let ajustement = Ajustement(id: 1, titre: "Alléger la course de samedi : 8 km", motif: "Ta VFC baisse depuis mardi.")
     let mesure = MesureDemandee(titre: "Pèse-toi ce matin", consigne: "À jeun, deux matins de suite.", jusquA: "jusqu'à jeudi")
     let objectif = Objectif(titre: "Semi-marathon", joursRestants: 47, avancee: 0.38)
-    let chat = EtatChat(litiere: "aujourd'hui", eau: "demain", fontaine: "dans 4 jours")
+    let chat = EtatChat(soins: [.init(titre: "Litière", quand: "aujourd'hui"),
+                                .init(titre: "Eau", quand: "demain"),
+                                .init(titre: "Fontaine", quand: "dans 4 jours")])
     let dernierMotDeHAL = "Jambes ce soir ? Tu as bien dormi et ta dernière séance date de jeudi."
 
     private func heure(_ h: Int, _ m: Int) -> Date {

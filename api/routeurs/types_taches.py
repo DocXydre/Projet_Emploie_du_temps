@@ -2,7 +2,8 @@
 
 Un nom, une couleur, une icône, et ce qu'une tâche nouvelle de ce type prend par
 défaut. Les créer, les modifier et les supprimer suivent le droit de modifier
-les tâches (FOY-6) ; la base refuse un nom déjà pris et un type encore porté.
+les tâches (FOY-6) ; la base refuse un nom déjà pris, un type encore porté, et
+la suppression d'un des cinq types de base (TAC-25, TAC-26).
 """
 
 from fastapi import APIRouter, HTTPException, status
@@ -16,7 +17,8 @@ routeur = APIRouter(prefix="/types-taches", tags=["Types de tâches"])
 
 LIRE_TYPES = """
     SELECT y.id_type_tache AS id, y.libelle, y.couleur, y.icone, y.duree_minutes,
-           y.priorite, y.categorie, y.ordre,
+           y.priorite, COALESCE(y.base, 'menage') AS categorie, y.base,
+           y.base IS NOT NULL AS de_base, y.ordre,
            (SELECT count(*) FROM tache t
              WHERE t.id_type_tache = y.id_type_tache AND t.active)::INTEGER AS taches
       FROM type_tache y

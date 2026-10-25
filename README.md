@@ -27,9 +27,9 @@ Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui n
 | **Collecte** | Flux iCalendar de l'université et calendriers personnels publiés depuis l'app Calendrier ; un planning de travail se collecte de la même façon. Réconciliation par clé externe, arbitrage des conflits horaires |
 | **Placement** | Tâches récurrentes posées dans les creux, un mois d'avance, la semaine en cours figée |
 | **Répartition** | Les tâches alternent entre nous deux, et la balance reprend la main quand l'écart se creuse. N'importe qui coche n'importe quoi, l'autre est prévenu. Une tâche cochée attend trente secondes avant de partir : un geste raté se défait |
-| **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne ; un jour sans cours, les trois forment un bloc |
-| **Tâches ajoutées** | Une tâche pour aujourd'hui, entre deux dates, à une heure ou dans une plage, oubliée ou reportée si elle n'est pas faite ; régulière ; ou née d'une autre, comme vider le lave-vaisselle. Des types que le foyer nomme et colore, et des liens posés depuis l'application |
-| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Avant un départ à deux : poubelles, lave-vaisselle, litière |
+| **Tâches liées** | Le vidage de la litière vaut ramassage dès le planning ; l'aspirateur se place le jour du récurage ou de la poussière, pour la même personne. Des liens posés depuis l'appli, les mêmes pour toutes les tâches |
+| **Tâches** | Toutes se créent avec le même formulaire, celles d'origine comprises : une fois, entre deux dates, à une heure ou dans une plage ; régulière ; ou née d'une autre, comme vider le lave-vaisselle ; reportée ou oubliée si elle n'est pas faite. Ce que le formulaire ne dit pas, « les 19 et 23 du mois, un mois sur deux », « avant un départ », se dit à HAL : il l'écrit dans la description de la tâche, la place en conséquence, et relit chaque semaine et après chaque changement. Une tâche arrêtée se reprend ou s'efface. Cinq types de base, et ceux que le foyer nomme et colore |
+| **Absences** | Partir gèle le ménage ; la charge revient à qui reste, sans rattrapage au retour. Ce qu'une tâche demande avant un départ ou au retour, HAL le pose d'après sa description |
 | **Mode allégé** | Pour quelques jours, l'un fait un quart des tâches partagées et l'autre trois quarts. Activé par les deux, il s'annule |
 | **Trajets** | Repère les week-ends libres, interroge l'API SNCF, propose des horaires réellement attrapables |
 | **Billets** | Lit les confirmations d'achat SNCF en IMAP et déclare l'absence correspondante |
@@ -45,7 +45,7 @@ Les tâches et le planning se règlent à la main, ou se demandent à HAL, qui n
 | **Lieux, position et météo** | Chaque lieu a une adresse, dite à HAL, et une mémoire : « à Lusse, je suis chez mes parents ». Les trajets se calculent sur OpenStreetMap depuis là où l'on sera. L'iPhone surveille un cercle de 50 m autour de chaque lieu, sans garder de tracé : HAL demande si l'on reste quand on arrive chez ses parents, si l'on va à sa séance quand on n'est pas à la salle, et comment s'est passée la soirée quand on n'était pas rentré à minuit. Une heure avant une course, des seuils de pluie, de gel, de vent et de chaleur font appeler HAL, qui propose autre chose ; après, la course se lit avec sa météo et la part du parcours face au vent |
 | **Sorties** | Notifications par Apple, aux heures que chacun règle, silencieuses la nuit ; flux iCalendar en lecture seule ; bot Telegram pour l'administrateur du serveur |
 
-Ce qui a été retiré ne vit plus dans le dépôt, mais l'historique git le garde sous le tag `avant-nettoyage` : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL.
+Ce qui a été retiré ne vit plus dans le dépôt, mais l'historique git le garde sous le tag `avant-nettoyage` : le stock d'uniforme, parti avec la fin du contrat McDonald's ; le bot des membres et la bêta Coach Santé, remplacés par l'application ; les réservations de sport « à déterminer », remplacées par HAL ; les réglages que seules certaines tâches d'origine avaient (avant un départ, au retour, une machine par jour, à deux, le bloc « Nettoyage »), devenus des descriptions que HAL applique.
 
 ---
 
@@ -60,10 +60,10 @@ L'API est une couche mince : elle appelle des fonctions et expose des vues. Elle
 | Deux cours ne peuvent pas se chevaucher | `EXCLUDE USING gist` |
 | Une occurrence faite ne peut plus être modifiée | Trigger sur colonnes |
 | La récurrence repart de la date réelle, pas théorique | Trigger après validation |
-| Deux lessives ne tournent pas le même jour | Trigger |
 | Deux modes allégés d'une même personne ne se chevauchent pas | `EXCLUDE USING gist` |
-| Le grand nettoyage exige que nous soyons libres tous les deux | Intersection de multirange |
 | Une tâche est en retard | Vue `v_occurrence` |
+| Aucune tâche n'a de réglage à part : la tâche n'a que les colonnes du formulaire | Le schéma, depuis la migration 086 |
+| HAL ne déplace pas ce qu'on a placé à la main | Fonction `placer_par_hal` |
 | Un exercice interdit par une limitation n'entre dans aucune séance | Fonction `obstacle_sportif` et trigger à la saisie |
 | Une différence de charge entre les deux bras est impossible à écrire | Le schéma : une seule colonne de charge |
 | Deux séances dures d'un même groupe ne se collent pas | Fonction `obstacle_sportif` |

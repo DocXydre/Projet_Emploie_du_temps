@@ -179,17 +179,8 @@ struct FormulaireTache: View {
             } header: {
                 Text("Quand")
             }
-            if maniere == .uneFois {
-                Section {
-                    Picker("Si elle n'est pas faite", selection: $oublier) {
-                        Text("La reporter").tag(false)
-                        Text("L'oublier").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                } header: {
-                    Text("Si elle n'est pas faite")
-                }
-            }
+            // TAC-24 : pour toute tâche, régulière comprise.
+            SectionSiPasFaite(oublier: $oublier)
             SectionHeure(heure: $heure, duree: duree)
             Section("Pour qui") {
                 Picker("Pour qui", selection: $pourQui) {
@@ -210,7 +201,7 @@ struct FormulaireTache: View {
                 duree = premier.dureeMinutes ?? duree
             }
             if foyer.connecte, let toutes: [TacheRecurrente] = try? await foyer.demander("GET", "taches") {
-                taches = toutes.filter { $0.categorie != "sport" }
+                taches = toutes.filter { $0.type != nil && $0.active != false }
             }
         }
     }
@@ -276,7 +267,6 @@ struct FormulaireTache: View {
             let aujourdhui = Date.now
             demande.du = jourAPI(moment == .aujourdhui ? aujourdhui : du)
             demande.au = jourAPI(moment == .aujourdhui ? aujourdhui : au)
-            demande.siPasFaite = oublier ? "oublier" : "reporter"
         case .reguliere:
             demande.tousLesJours = tousLes
         case .apres:
@@ -287,6 +277,7 @@ struct FormulaireTache: View {
             case .heures: (demande.delaiMinHeures, demande.delaiMaxHeures) = (delaiMin, delaiMax)
             }
         }
+        demande.siPasFaite = oublier ? "oublier" : "reporter"
         if let plage = heure.plage(duree: duree) {
             demande.heureMin = plage.debut.api
             demande.heureMax = plage.fin.api
@@ -297,6 +288,25 @@ struct FormulaireTache: View {
             (fermerFeuille?.fermer ?? { fermer() })()
         } catch {
             erreur = refus(error)
+        }
+    }
+}
+
+// MARK: - Si elle n'est pas faite                                          (TAC-24)
+
+/// La reporter, jusqu'à ce qu'elle soit faite, ou l'oublier quand sa fenêtre passe.
+struct SectionSiPasFaite: View {
+    @Binding var oublier: Bool
+
+    var body: some View {
+        Section {
+            Picker("Si elle n'est pas faite", selection: $oublier) {
+                Text("La reporter").tag(false)
+                Text("L'oublier").tag(true)
+            }
+            .pickerStyle(.segmented)
+        } header: {
+            Text("Si elle n'est pas faite")
         }
     }
 }
@@ -412,6 +422,14 @@ struct EcranToutesLesTaches: View {
                         Button { ajout = true } label: { Label("Ajouter une tâche", systemImage: "plus") }
                     }
                 }
+                // TAC-30 : ce qu'on a arrêté se reprend, ou s'efface.
+                Section {
+                    NavigationLink {
+                        EcranTachesArretees()
+                    } label: {
+                        Label("Tâches arrêtées", systemImage: "archivebox")
+                    }
+                }
             } else if let erreur {
                 LigneErreur(texte: erreur)
             } else {
@@ -435,7 +453,7 @@ struct EcranToutesLesTaches: View {
 
     /// Rangées par type, dans l'ordre des types du foyer ; le sport a son onglet.
     private func groupes(_ liste: [TacheRecurrente]) -> [Groupe] {
-        let menage = liste.filter { $0.categorie != "sport" }
+        let menage = liste.filter { $0.type != nil }
         var vus = Set<Int>()
         var resultat: [Groupe] = []
         for type in foyer.types {
@@ -475,8 +493,9 @@ struct EcranDetailTache: View {
     @State private var duree = 15
     @State private var tousLes = 7
     /// Le rythme lu : on ne renvoie la périodicité que s'il a changé, pour ne
-    /// pas élargir une tâche sans jeu comme les poubelles (TAC-11).
+    /// pas élargir le jeu d'une tâche réglée « tous les 3 à 4 jours ».
     @State private var tousLesLu = 7
+    @State private var oublier = false
     @State private var heure = ChoixHeure()
     @State private var pourQui: Int?
     @State private var ajoutLien = false
@@ -505,6 +524,7 @@ struct EcranDetailTache: View {
                 Section("Type") {
                     ChoixDuType(choisi: $idType).disabled(!modifiable)
                 }
+                SectionSiPasFaite(oublier: $oublier).disabled(!modifiable)
                 SectionHeure(heure: $heure, duree: duree).disabled(!modifiable)
                 Section("Pour qui") {
                     Picker("Pour qui", selection: $pourQui) {
@@ -531,6 +551,7 @@ struct EcranDetailTache: View {
                 } header: {
                     Text("Liens")
                 }
+                SectionDescription(tache: tache)
                 LigneErreur(texte: erreur)
                 if modifiable {
                     BoutonEnvoi(titre: "Enregistrer", actif: !libelle.trimmingCharacters(in: .whitespaces).isEmpty,
@@ -547,7 +568,8 @@ struct EcranDetailTache: View {
         }
         .navigationTitle(tache?.libelle ?? "Tâche")
         .navigationBarTitleDisplayMode(.inline)
-        .vuParHAL("Maison, détail d'une tâche")
+        .vuParHAL(tache.map { "Maison, détail de la tâche « \($0.libelle) » (id_tache \($0.idTache))" }
+                  ?? "Maison, détail d'une tâche")
         .task { await charger() }
         .sheet(isPresented: $ajoutLien) {
             NavigationStack {
@@ -576,6 +598,7 @@ struct EcranDetailTache: View {
             tousLesLu = tousLes
             heure = ChoixHeure(tache: lue)
             pourQui = lue.idUtilisateurDefaut
+            oublier = lue.siPasFaite == "oublier"
             await chargerLiens()
         } catch {
             erreur = refus(error)
@@ -595,6 +618,7 @@ struct EcranDetailTache: View {
         var periodiciteMaxJours: Int? = nil
         let idUtilisateurDefaut: Int?
         let idTypeTache: Int?
+        var siPasFaite: String? = nil
         var sansHeure = false
         var heureMin: String? = nil
         var heureMax: String? = nil
@@ -602,7 +626,7 @@ struct EcranDetailTache: View {
         // « pour qui » vide veut dire « à tour de rôle » : il part, même nul.
         enum CodingKeys: String, CodingKey {
             case libelle, dureeMinutes, periodiciteMinJours, periodiciteMaxJours
-            case idUtilisateurDefaut, idTypeTache, sansHeure, heureMin, heureMax
+            case idUtilisateurDefaut, idTypeTache, siPasFaite, sansHeure, heureMin, heureMax
         }
 
         func encode(to encoder: Encoder) throws {
@@ -613,6 +637,7 @@ struct EcranDetailTache: View {
             try c.encodeIfPresent(periodiciteMaxJours, forKey: .periodiciteMaxJours)
             try c.encode(idUtilisateurDefaut, forKey: .idUtilisateurDefaut)
             try c.encodeIfPresent(idTypeTache, forKey: .idTypeTache)
+            try c.encodeIfPresent(siPasFaite, forKey: .siPasFaite)
             try c.encode(sansHeure, forKey: .sansHeure)
             try c.encodeIfPresent(heureMin, forKey: .heureMin)
             try c.encodeIfPresent(heureMax, forKey: .heureMax)
@@ -630,6 +655,9 @@ struct EcranDetailTache: View {
         if tache.recurrente != false && tousLes != tousLesLu {
             demande.periodiciteMinJours = tousLes
             demande.periodiciteMaxJours = tousLes + max(1, tousLes / 7)
+        }
+        if oublier != (tache.siPasFaite == "oublier") {
+            demande.siPasFaite = oublier ? "oublier" : "reporter"
         }
         if let plage = heure.plage(duree: duree) {
             demande.heureMin = plage.debut.api
@@ -658,10 +686,42 @@ struct EcranDetailTache: View {
     private func arreter() async {
         do {
             try await foyer.agir("DELETE", "taches/\(idTache)")
-            annoncer("« \(tache?.libelle ?? "") » arrêtée")
+            annoncer("« \(tache?.libelle ?? "") » arrêtée : elle est dans les tâches arrêtées")
             fermer()
         } catch {
             erreur = refus(error)
+        }
+    }
+}
+
+/// MTA-7 : ce que HAL retient de la tâche, ce que le formulaire ne dit pas. On ne
+/// le change pas ici : on le dit à HAL, qu'un toucher ouvre sur cette tâche.
+private struct SectionDescription: View {
+    let tache: TacheRecurrente
+    @Environment(ConversationHAL.self) private var conversation
+
+    var body: some View {
+        Section {
+            Button {
+                conversation.ouvrir()
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    if let description = tache.description {
+                        Text("HAL retient : \(description.texte)")
+                            .foregroundStyle(Palette.textePrincipal)
+                        if let qui = description.ditePar {
+                            Text("Dit par \(qui)").texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                        }
+                    } else {
+                        Text("Rien de plus. Ce que le formulaire ne dit pas, dis-le à HAL.")
+                            .foregroundStyle(Palette.texteSecondaire)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Text("Description")
         }
     }
 }
@@ -769,7 +829,7 @@ struct FormulaireLien: View {
         }
         .task {
             if let toutes: [TacheRecurrente] = try? await foyer.demander("GET", "taches") {
-                taches = toutes.filter { $0.categorie != "sport" }
+                taches = toutes.filter { $0.type != nil && $0.active != false }
             }
         }
     }
@@ -815,6 +875,110 @@ struct FormulaireLien: View {
                 place: avant ? "avant" : "apres")))
             await apres()
             fermer()
+        } catch {
+            erreur = refus(error)
+        }
+    }
+}
+
+// MARK: - Tâches arrêtées                                   (4.13, TAC-30, TAC-31)
+
+/// Ce qu'on a arrêté : on le reprend tel qu'il était, ou on l'efface pour de bon,
+/// historique compris. Effacer ne se fait qu'ici, jamais par HAL (ACT-5).
+struct EcranTachesArretees: View {
+    @Environment(Foyer.self) private var foyer
+    @Environment(\.annoncer) private var annoncer
+    @State private var taches: [TacheRecurrente]?
+    @State private var aEffacer: TacheRecurrente?
+    @State private var enCours: Int?
+    @State private var erreur: String?
+
+    var body: some View {
+        FormulaireVerre {
+            if let taches {
+                if taches.isEmpty {
+                    Section { Text("Aucune tâche arrêtée.").foregroundStyle(Palette.texteSecondaire) }
+                }
+                ForEach(taches) { tache in
+                    Section {
+                        HStack(spacing: 12) {
+                            PastilleType(type: tache.type)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(tache.libelle).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
+                                Text(detail(tache)).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                            }
+                        }
+                        if foyer.droits.modifier {
+                            Button {
+                                Task { await reprendre(tache) }
+                            } label: {
+                                Label("Reprendre", systemImage: "arrow.uturn.backward")
+                            }
+                            .disabled(enCours != nil)
+                            Button("Effacer définitivement", role: .destructive) { aEffacer = tache }
+                                .disabled(enCours != nil)
+                        }
+                    }
+                }
+                LigneErreur(texte: erreur)
+            } else if let erreur {
+                LigneErreur(texte: erreur)
+            } else {
+                Section { ProgressView().frame(maxWidth: .infinity) }
+            }
+        }
+        .navigationTitle("Tâches arrêtées")
+        .navigationBarTitleDisplayMode(.inline)
+        .vuParHAL("Maison, tâches arrêtées")
+        .task { await charger() }
+        .refreshable { await charger() }
+        .confirmationDialog("Effacer « \(aEffacer?.libelle ?? "") » ?", isPresented: Binding(
+            get: { aEffacer != nil }, set: { if !$0 { aEffacer = nil } }), titleVisibility: .visible) {
+            Button("Effacer, historique compris", role: .destructive) {
+                if let tache = aEffacer { Task { await effacer(tache) } }
+            }
+        } message: {
+            Text("Ses occurrences passées, ses liens et sa description partent avec elle. Ça ne se défait pas.")
+        }
+    }
+
+    private func detail(_ tache: TacheRecurrente) -> String {
+        let quand = tache.arreteeLe.map {
+            "arrêtée le " + $0.formatted(.dateTime.day().month(.abbreviated).year().locale(Locale(identifier: "fr_FR")))
+        }
+        let fois = tache.faiteFois.map { $0 == 0 ? "jamais faite" : "faite \($0) fois" }
+        return [quand, fois].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private func charger() async {
+        do {
+            let toutes: [TacheRecurrente] = try await foyer.demander("GET", "taches?seulement_actives=false")
+            taches = toutes.filter { $0.type != nil && $0.active == false }
+            erreur = nil
+        } catch {
+            erreur = refus(error)
+        }
+    }
+
+    private func reprendre(_ tache: TacheRecurrente) async {
+        enCours = tache.id
+        defer { enCours = nil }
+        do {
+            try await foyer.agir("POST", "taches/\(tache.idTache)/reprendre")
+            annoncer("« \(tache.libelle) » reprise")
+            await charger()
+        } catch {
+            erreur = refus(error)
+        }
+    }
+
+    private func effacer(_ tache: TacheRecurrente) async {
+        enCours = tache.id
+        defer { enCours = nil }
+        do {
+            try await foyer.agir("DELETE", "taches/\(tache.idTache)/definitivement")
+            annoncer("« \(tache.libelle) » effacée")
+            await charger()
         } catch {
             erreur = refus(error)
         }
@@ -944,12 +1108,20 @@ struct FormulaireType: View {
                 Task { await envoyer() }
             }
             if let type {
-                Section {
-                    Button("Supprimer le type", role: .destructive) { confirmerSuppression = true }
-                        .disabled((type.taches ?? 0) > 0)
-                } footer: {
-                    if (type.taches ?? 0) > 0 {
-                        Text("Il porte encore \(type.taches ?? 0) tâche(s) : change-les de type pour pouvoir le supprimer.")
+                // TAC-25 : les cinq types de base se renomment, mais restent.
+                if type.deBase == true {
+                    Section {
+                        Text("Un type de base : il se renomme et se recolore, mais ne se supprime pas.")
+                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    }
+                } else {
+                    Section {
+                        Button("Supprimer le type", role: .destructive) { confirmerSuppression = true }
+                            .disabled((type.taches ?? 0) > 0)
+                    } footer: {
+                        if (type.taches ?? 0) > 0 {
+                            Text("Il porte encore \(type.taches ?? 0) tâche(s) : change-les de type pour pouvoir le supprimer.")
+                        }
                     }
                 }
             }

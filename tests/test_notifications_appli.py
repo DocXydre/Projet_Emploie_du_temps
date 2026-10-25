@@ -265,9 +265,9 @@ def test_sans_cle_rien_ne_part_et_rien_ne_se_perd(client, thomas):
 
 def test_le_lien_ouvre_le_bon_ecran():
     base = {"type": "rappel", "contenu": "x", "id_notification": 1}
-    assert apple.lien({**base, "id_occurrence": 4, "tache_code": "ASPI"}) == {
+    assert apple.lien({**base, "id_occurrence": 4, "categorie": "menage"}) == {
         "ecran": "tache", "id": 4}
-    assert apple.lien({**base, "id_occurrence": 4, "tache_code": "SPORT"}) == {
+    assert apple.lien({**base, "id_occurrence": 4, "categorie": "sport"}) == {
         "ecran": "seance", "id": 4}
     assert apple.lien({**base, "type": "coach"}) == {"ecran": "hal"}
     assert apple.lien({**base, "type": "changement", "operation": "op"}) == {
@@ -301,7 +301,7 @@ def test_une_tache_faite_par_l_autre_s_annonce_avec_son_nom(client, thomas, plac
     occurrence = un(
         """SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
             WHERE o.id_utilisateur = %s AND o.statut IN ('planifiee', 'notifiee')
-              AND t.categorie <> 'sport'
+              AND t.id_type_tache IS NOT NULL
             ORDER BY lower(o.creneau) LIMIT 1""", _id("lorette"))
     if occurrence is None:
         pytest.skip("aucune tâche placée pour Lorette")
@@ -319,7 +319,7 @@ def test_une_tache_faite_par_l_autre_s_annonce_avec_son_nom(client, thomas, plac
 def test_un_changement_part_avec_sa_raison_en_une_seule_notification(client, lorette, place):
     a_elle = un("""SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache)
                     WHERE o.id_utilisateur = %s AND o.statut IN ('planifiee', 'notifiee')
-                      AND t.categorie <> 'sport' AND lower(o.creneau) < %s""",
+                      AND t.id_type_tache IS NOT NULL AND lower(o.creneau) < %s""",
                 _id("lorette"), minuit(5))
     if not a_elle:
         pytest.skip("aucune tâche de Lorette dans les jours qui viennent")

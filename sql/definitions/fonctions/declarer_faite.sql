@@ -13,7 +13,7 @@
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION declarer_faite(
     p_utilisateur INTEGER,
-    p_code_tache  VARCHAR,
+    p_tache       INTEGER,
     p_quand       TIMESTAMPTZ DEFAULT NULL
 ) RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
@@ -21,9 +21,9 @@ DECLARE
     v_occurrence INTEGER;
     v_quand      TIMESTAMPTZ := COALESCE(p_quand, now());
 BEGIN
-    SELECT * INTO t FROM tache WHERE code = p_code_tache AND active;
+    SELECT * INTO t FROM tache WHERE id_tache = p_tache AND active;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Tâche % inconnue ou inactive', p_code_tache
+        RAISE EXCEPTION 'Tâche % inconnue ou arrêtée', p_tache
               USING ERRCODE = 'no_data_found';
     END IF;
 
@@ -48,7 +48,7 @@ BEGIN
         INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, statut, origine, motif)
         VALUES (t.id_tache, p_utilisateur,
                 fenetre_pour(t.rappel_journee, v_quand,
-                             v_quand + make_interval(days => t.periodicite_max_jours)),
+                             v_quand + make_interval(days => COALESCE(t.periodicite_max_jours, 1))),
                 'a_placer', 'manuelle', 'Déclarée faite hors planning')
         RETURNING id_occurrence INTO v_occurrence;
     END IF;
@@ -60,4 +60,5 @@ END $$;
 COMMENT ON FUNCTION declarer_faite IS
     'Valide une tâche faite spontanément, même prévue pour quelqu''un d''autre.
      Reprend l''occurrence ouverte la plus proche, en crée une sinon, et la
-     récurrence repart de la date déclarée (EXE-11, EXE-15).';
+     récurrence repart de la date déclarée (EXE-11, EXE-15). La tâche se
+     désigne par son numéro.';

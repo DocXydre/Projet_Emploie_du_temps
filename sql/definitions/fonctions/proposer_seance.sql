@@ -46,7 +46,7 @@ BEGIN
             'Le coach est en pause ce jour-là : aucune séance ne se propose');
     END IF;
 
-    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.code = 'SPORT' AND t.active;
+    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.id_type_tache IS NULL AND t.active;
     IF v_tache IS NULL THEN
         PERFORM refus_coach('introuvable', 'Le sport est désactivé');
     END IF;
@@ -103,7 +103,7 @@ BEGIN
         SELECT count(*) INTO v_nombre
           FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache
          WHERE o.id_utilisateur = p_utilisateur
-           AND t.categorie = 'sport' AND o.origine <> 'quota'
+           AND t.id_type_tache IS NULL AND o.origine <> 'quota'
            AND o.statut IN ('planifiee', 'notifiee', 'faite')
            AND lundi_de(jour_de(COALESCE(o.debut_seance, lower(o.creneau),
                                          lower(o.fenetre)))) = lundi_de(p_jour);

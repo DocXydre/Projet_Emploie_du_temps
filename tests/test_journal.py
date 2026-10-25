@@ -345,7 +345,7 @@ def test_faire_la_tache_de_l_autre_se_lit_en_une_ligne(client, thomas, place):
     sienne = sql("""
         SELECT o.id_occurrence, t.libelle FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut = 'planifiee'
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
          ORDER BY lower(o.creneau) LIMIT 1""", _id("lorette"))[0]
 
     client.post(f"/occurrences/{sienne['id_occurrence']}/valider", headers=thomas, json={})

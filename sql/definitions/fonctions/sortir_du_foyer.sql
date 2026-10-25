@@ -25,7 +25,7 @@ BEGIN
            motif = NULL
       FROM tache t
      WHERE t.id_tache = o.id_tache
-       AND t.categorie <> 'sport'
+       AND t.id_type_tache IS NOT NULL
        AND o.id_utilisateur = p_membre
        AND o.statut IN ('a_placer', 'planifiee');
 

@@ -124,7 +124,18 @@ class PTache(BaseModel):
     delai_max_heures: int | None = Field(default=None, gt=0)
     heure_min: time | None = None
     heure_max: time | None = None
-    si_pas_faite: str = Field(default="reporter", pattern="^(reporter|oublier)$")
+    si_pas_faite: str = Field(default="reporter", pattern="^(reporter|oublier)$",
+                              description="Si elle n'est pas faite à temps : la reporter au "
+                                          "lendemain, ou l'oublier (TAC-24)")
+    selon_description: bool = Field(
+        default=False, description="Vrai : ni rythme ni dates, elle revient selon sa "
+                                   "description, et c'est toi qui en poses les occurrences "
+                                   "(MTA-8)")
+    description: str | None = Field(
+        default=None, max_length=1000,
+        description="Ce que le formulaire ne sait pas dire, écrit avec la tâche (MTA-2). "
+                    "La tâche n'existe qu'une fois le geste fait : tu en poseras les "
+                    "occurrences à la vérification qui suit")
 
 
 class PModification(BaseModel):
@@ -136,12 +147,17 @@ class PModification(BaseModel):
     id_utilisateur_defaut: int | None = Field(default=None,
                                               description="Pour qui ; vide : à tour de rôle")
     id_type_tache: int | None = None
+    si_pas_faite: str | None = Field(default=None, pattern="^(reporter|oublier)$")
     sans_heure: bool = False
     heure_min: time | None = None
     heure_max: time | None = None
 
 
 class PArret(BaseModel):
+    id_tache: int
+
+
+class PReprise(BaseModel):
     id_tache: int
 
 
@@ -171,7 +187,7 @@ class PReport(BaseModel):
 
 
 class PFaite(BaseModel):
-    code_tache: str = Field(description="Le code de la tâche, rendu par lire_taches")
+    id_tache: int = Field(description="Le numéro de la tâche, rendu par lire_taches")
     quand: datetime | None = None
 
 
@@ -247,7 +263,15 @@ class PSeanceSeule(BaseModel):
 
 def _faire_tache(qui: Appelant, p: PTache, essai: bool):
     from api.routeurs.taches import NouvelleTache, creer_depuis_l_appli
-    return creer_depuis_l_appli(NouvelleTache(**p.model_dump()), qui)
+    creee = creer_depuis_l_appli(NouvelleTache(**p.model_dump(exclude={"description"})), qui)
+    if (p.description or "").strip():
+        # MTA-2 : la description part avec la tâche ; la vérification qui suit
+        # la place selon elle (VER-3).
+        executer("SELECT ecrire_description_tache(%(t)s, %(x)s, %(u)s)",
+                 {"t": creee["id_tache"], "x": p.description, "u": qui.id_utilisateur})
+        executer("SELECT noter_verification(NULL, %(t)s, 'description')",
+                 {"t": creee["id_tache"]})
+    return creee
 
 
 def _faire_modification(qui: Appelant, p: PModification, essai: bool):
@@ -257,8 +281,13 @@ def _faire_modification(qui: Appelant, p: PModification, essai: bool):
 
 
 def _faire_arret(qui: Appelant, p: PArret, essai: bool):
-    from api.routeurs.taches import desactiver
-    return desactiver(p.id_tache, qui)
+    from api.routeurs.taches import arreter
+    return arreter(p.id_tache, qui)
+
+
+def _faire_reprise(qui: Appelant, p: PReprise, essai: bool):
+    from api.routeurs.taches import reprendre
+    return reprendre(p.id_tache, qui)
 
 
 def _faire_lien(qui: Appelant, p: PLien, essai: bool):
@@ -279,7 +308,7 @@ def _faire_report(qui: Appelant, p: PReport, essai: bool):
 
 def _faire_faite(qui: Appelant, p: PFaite, essai: bool):
     from api.routeurs.occurrences import DemandeSpontanee, faite
-    return faite(DemandeSpontanee(code_tache=p.code_tache, quand=p.quand), qui)
+    return faite(DemandeSpontanee(id_tache=p.id_tache, quand=p.quand), qui)
 
 
 def _faire_absence(qui: Appelant, p: PAbsence, essai: bool):
@@ -377,6 +406,8 @@ def _resumer_tache(u: int, p: PTache) -> str:
                         else "tous les jours")
     elif p.apres:
         morceaux.append(f"après {_libelle_tache(p.apres)}")
+    elif p.selon_description:
+        morceaux.append("selon sa description")
     elif p.au:
         morceaux.append(f"une fois, d'ici {_jour(p.au)}" if p.du is None
                         else f"une fois, entre {_jour(p.du)} et {_jour(p.au)}")
@@ -401,6 +432,9 @@ def _resumer_modification(u: int, p: PModification) -> str:
                        f"{p.periodicite_max_jours or '?'} jours")
     if "id_utilisateur_defaut" in champs:
         changes.append(f"pour {_pseudo(p.id_utilisateur_defaut) or 'chacun à tour de rôle'}")
+    if p.si_pas_faite:
+        changes.append("reportée si pas faite" if p.si_pas_faite == "reporter"
+                       else "oubliée si pas faite")
     if p.sans_heure:
         changes.append("sans heure")
     elif p.heure_min:
@@ -415,6 +449,10 @@ def _resumer_modification(u: int, p: PModification) -> str:
 
 def _resumer_arret(u: int, p: PArret) -> str:
     return f"Arrêter la tâche {_libelle_tache(p.id_tache)}"
+
+
+def _resumer_reprise(u: int, p: PReprise) -> str:
+    return f"Reprendre la tâche {_libelle_tache(p.id_tache)}"
 
 
 def _resumer_lien(u: int, p: PLien) -> str:
@@ -442,9 +480,7 @@ def _resumer_report(u: int, p: PReport) -> str:
 
 
 def _resumer_faite(u: int, p: PFaite) -> str:
-    ligne = un_seul("SELECT libelle FROM tache WHERE code = %(c)s", {"c": p.code_tache})
-    nom = f"« {ligne['libelle']} »" if ligne else p.code_tache
-    return f"Déclarer {nom} faite, {_instant(p.quand)}"
+    return f"Déclarer {_libelle_tache(p.id_tache)} faite, {_instant(p.quand)}"
 
 
 def _resumer_absence(u: int, p: PAbsence) -> str:
@@ -540,17 +576,24 @@ class Action:
 ACTIONS: dict[str, Action] = {a.nom: a for a in (
     Action("tache", "demander_tache",
            "Demande d'ajouter une tâche de la maison : une fois (au, et du), régulière "
-           "(tous_les_jours), ou après une autre (apres) ; à une heure (heure_min, "
-           "heure_max) ou dans la journée ; pour un membre (pour) ou à tour de rôle.",
+           "(tous_les_jours), après une autre (apres), ou selon sa description "
+           "(selon_description) ; à une heure (heure_min, heure_max) ou dans la journée ; "
+           "pour un membre (pour) ou à tour de rôle ; reportée ou oubliée si elle n'est pas "
+           "faite (si_pas_faite).",
            PTache, _faire_tache, _resumer_tache,
            lambda p: _fin_du_jour(p.au) if p.au else None),
     Action("modification_tache", "demander_modification_tache",
            "Demande de modifier une tâche : nom, durée, rythme (periodicite_min_jours, "
-           "periodicite_max_jours), pour qui, type, heure. Ne donner que ce qui change.",
+           "periodicite_max_jours), pour qui, type, heure, si pas faite. Ne donner que ce "
+           "qui change.",
            PModification, _faire_modification, _resumer_modification),
     Action("arret_tache", "demander_arret_tache",
-           "Demande d'arrêter une tâche : elle ne sera plus posée, son historique reste.",
+           "Demande d'arrêter une tâche : elle ne sera plus posée, elle rejoint les tâches "
+           "arrêtées avec son historique.",
            PArret, _faire_arret, _resumer_arret),
+    Action("reprise_tache", "demander_reprise_tache",
+           "Demande de reprendre une tâche arrêtée : elle revient telle qu'elle était.",
+           PReprise, _faire_reprise, _resumer_reprise),
     Action("lien", "demander_lien",
            "Demande de relier deux tâches (sorte : ensuite, meme_jour, vaut_aussi), ou de "
            "retirer un lien (sorte et id_lien).",
@@ -561,7 +604,7 @@ ACTIONS: dict[str, Action] = {a.nom: a for a in (
            PReport, _faire_report, _resumer_report,
            lambda p: None),
     Action("faite", "demander_faite",
-           "Demande de déclarer une tâche faite, prévue ou non (code_tache, quand).",
+           "Demande de déclarer une tâche faite, prévue ou non (id_tache, quand).",
            PFaite, _faire_faite, _resumer_faite),
     Action("absence", "demander_absence",
            "Demande de déclarer une absence de l'utilisateur (debut, fin, lieu, "
@@ -818,7 +861,8 @@ PAR_NOM = {o.nom: o for o in OUTILS}
 # que fait le bouton : la même route, les mêmes droits, les mêmes refus.
 GESTES_MAISON = {
     "tache": "creer_tache", "modification_tache": "modifier_tache",
-    "arret_tache": "arreter_tache", "lien": "lier_taches", "report": "reporter_tache",
+    "arret_tache": "arreter_tache", "reprise_tache": "reprendre_tache",
+    "lien": "lier_taches", "report": "reporter_tache",
     "faite": "declarer_faite", "absence": "declarer_absence",
     "occupation": "poser_creneau", "allegement": "regler_mode_allege",
     "conflit": "trancher_conflit",

@@ -370,7 +370,7 @@ private struct FaiteEnPlus: View {
         .task {
             do {
                 let toutes: [TacheRecurrente] = try await foyer.demander("GET", "taches")
-                taches = toutes.filter { $0.categorie != "sport" }
+                taches = toutes.filter { $0.type != nil }
             } catch {
                 erreur = motif(error)
             }
@@ -378,7 +378,7 @@ private struct FaiteEnPlus: View {
     }
 
     private struct Demande: Encodable {
-        let codeTache: String
+        let idTache: Int
         let quand: Date
     }
 
@@ -388,7 +388,7 @@ private struct FaiteEnPlus: View {
         defer { enCours = nil }
         do {
             try await foyer.agir("POST", "occurrences/faite",
-                                 corps: ClientAPI.corps(Demande(codeTache: tache.code, quand: min(quand, .now))))
+                                 corps: ClientAPI.corps(Demande(idTache: tache.idTache, quand: min(quand, .now))))
             annoncer("« \(tache.libelle) » faite")
             (fermerFeuille?.fermer ?? { fermer() })()
         } catch {

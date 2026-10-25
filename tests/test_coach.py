@@ -828,7 +828,7 @@ def test_une_seance_posee_a_la_main_recoit_la_montre(u):
                                 origine, debut_seance)
         SELECT t.id_tache, %s, tstzrange(%s, %s + INTERVAL '1 hour'),
                tstzrange(%s, %s + INTERVAL '1 hour'), 'planifiee', 'manuelle', %s
-          FROM tache t WHERE t.code = 'SPORT'
+          FROM tache t WHERE t.id_tache = essais.tache_de('SPORT')
         RETURNING id_occurrence""", u, debut, debut, debut, debut, debut)
     if jour_de_paris(debut) != aujourd_hui():
         pytest.skip("Trop tôt dans la journée pour ce scénario")

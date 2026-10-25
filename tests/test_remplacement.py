@@ -8,6 +8,7 @@ fois le même geste.
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from tests.conftest import id_de
 from tests.test_ensemble import sql
 
 PARIS = ZoneInfo("Europe/Paris")
@@ -17,7 +18,7 @@ def occurrences(client, thomas, code: str) -> list[dict]:
     toutes = client.get("/occurrences", headers=thomas,
                         params={"statut": ["a_placer", "planifiee", "notifiee",
                                            "faite", "reportee", "abandonnee"]}).json()
-    return [o for o in toutes if o["tache_code"] == code]
+    return [o for o in toutes if o["id_tache"] == id_de(code)]
 
 
 def en_cours(client, thomas, code: str) -> dict:
@@ -61,7 +62,7 @@ def test_vider_la_litiere_solde_aussi_le_ramassage(client, thomas):
     ancienne = next(o for o in occurrences(client, thomas, "LITIERE_CROTTES")
                     if o["id_occurrence"] == ramassage_avant["id_occurrence"])
     assert ancienne["statut"] == "faite"
-    assert "LITIERE_VIDAGE" in ancienne["motif"]
+    assert "Litière : vidage complet" in ancienne["motif"]
 
 
 def test_le_prochain_ramassage_repart_du_jour_du_vidage(client, thomas):
@@ -154,7 +155,7 @@ def test_laver_la_fontaine_vaut_changer_l_eau(client, thomas):
     ancienne = next(o for o in occurrences(client, thomas, "EAU_SASSY")
                     if o["id_occurrence"] == eau_avant["id_occurrence"])
     assert ancienne["statut"] == "faite"
-    assert "FONTAINE_SASSY" in ancienne["motif"]
+    assert "Sassy : laver la fontaine" in ancienne["motif"]
 
     # Et le prochain changement d'eau repart du jour du lavage.
     suivant = en_cours(client, thomas, "EAU_SASSY")

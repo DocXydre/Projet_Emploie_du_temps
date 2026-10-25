@@ -19,7 +19,7 @@ DECLARE
     v_jour       DATE := jour_de(p_debut);
     v_occurrence INTEGER;
 BEGIN
-    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.code = 'SPORT' AND t.active;
+    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.id_type_tache IS NULL AND t.active;
     IF v_tache IS NULL THEN
         RAISE EXCEPTION 'Le sport est désactivé' USING ERRCODE = 'no_data_found';
     END IF;

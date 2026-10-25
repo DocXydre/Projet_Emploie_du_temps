@@ -135,7 +135,7 @@ def lien(notification: dict) -> dict:
     if notification.get("id_proposition"):
         return {"ecran": "proposition", "id": notification["id_proposition"]}
     if notification.get("id_occurrence"):
-        ecran = "seance" if notification.get("tache_code") == "SPORT" else "tache"
+        ecran = "seance" if notification.get("categorie") == "sport" else "tache"
         return {"ecran": ecran, "id": notification["id_occurrence"]}
     if notification["type"] == "changement" and notification.get("operation"):
         return {"ecran": "historique", "operation": notification["operation"]}
@@ -194,7 +194,7 @@ def a_envoyer(limite: int = 50) -> list[dict]:
         SELECT n.id_notification, n.id_utilisateur, n.type, n.contenu, n.id_occurrence,
                n.id_proposition, n.id_invitation, n.id_echange, n.operation, n.apple_essais,
                n.id_demande,
-               o.tache_code,
+               o.categorie,
                (SELECT json_agg(json_build_object('id_appareil', a.id_appareil,
                                                   'jeton', a.jeton_notification,
                                                   'environnement', a.environnement)

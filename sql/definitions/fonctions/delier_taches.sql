@@ -18,7 +18,7 @@ BEGIN
         IF NOT FOUND THEN
             RAISE EXCEPTION 'Ce lien n''existe plus' USING ERRCODE = 'no_data_found';
         END IF;
-        IF EXISTS (SELECT 1 FROM tache WHERE id_tache = v_suivante AND active AND NOT recurrente)
+        IF EXISTS (SELECT 1 FROM tache WHERE id_tache = v_suivante AND active AND revient = 'apres')
            AND (SELECT count(*) FROM enchainement WHERE id_tache_suivante = v_suivante) = 1 THEN
             RAISE EXCEPTION '« % » ne vient qu''après cette tâche : sans ce lien, elle ne reviendrait plus. Donne-lui un rythme ou arrête-la',
                             v_libelle

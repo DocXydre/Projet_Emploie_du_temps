@@ -86,12 +86,11 @@ def test_le_reglage_du_foyer_est_au_journal(client, thomas):
 # Les droits sur les tâches                                             (FOY-6)
 # ---------------------------------------------------------------------------
 
-TACHE = {"code": "TEST_FOYER", "libelle": "Arroser", "categorie": "menage",
-         "duree_minutes": 10, "periodicite_min_jours": 3, "periodicite_max_jours": 5}
+TACHE = {"libelle": "Arroser", "duree_minutes": 10, "tous_les_jours": 3}
 
 
 def test_par_defaut_chacun_ajoute_et_modifie(client, lorette):
-    creee = client.post("/taches", headers=lorette, json=TACHE)
+    creee = client.post("/taches/nouvelle", headers=lorette, json=TACHE)
     assert creee.status_code == 201, creee.text
     id_tache = creee.json()["id_tache"]
     assert creee.json()["ajoutee_par"] == _id("lorette")
@@ -101,15 +100,15 @@ def test_par_defaut_chacun_ajoute_et_modifie(client, lorette):
 
 
 def test_l_admin_peut_reserver_la_modification(client, thomas, lorette):
-    id_tache = client.post("/taches", headers=lorette, json=TACHE).json()["id_tache"]
+    id_tache = client.post("/taches/nouvelle", headers=lorette, json=TACHE).json()["id_tache"]
     client.patch("/foyer", headers=thomas, json={"modif_taches": "admin"})
 
     assert client.patch(f"/taches/{id_tache}", headers=lorette,
                         json={"duree_minutes": 15}).status_code == 403
     assert client.delete(f"/taches/{id_tache}", headers=lorette).status_code == 403
     # L'ajout reste ouvert : les deux réglages sont séparés.
-    assert client.post("/taches", headers=lorette,
-                       json={**TACHE, "code": "TEST_FOYER_2"}).status_code == 201
+    assert client.post("/taches/nouvelle", headers=lorette,
+                       json={**TACHE, "libelle": "Arroser encore"}).status_code == 201
     assert client.patch(f"/taches/{id_tache}", headers=thomas,
                         json={"duree_minutes": 15}).status_code == 200
 
@@ -208,7 +207,7 @@ def test_accepter_une_invitation_ne_demande_pas_de_cle(client):
 
 def test_retirer_un_membre_rend_ses_taches_aux_autres(client, thomas, lorette):
     lorette_id = _id("lorette")
-    plier = _sql("SELECT id_tache FROM tache WHERE code = 'PLIER_LINGE'")[0][0]
+    plier = _sql("SELECT id_tache FROM tache WHERE id_tache = essais.tache_de('PLIER_LINGE')")[0][0]
     assert _sql("SELECT id_utilisateur_defaut FROM tache WHERE id_tache = %s",
                 (plier,))[0][0] == lorette_id
 
@@ -221,7 +220,7 @@ def test_retirer_un_membre_rend_ses_taches_aux_autres(client, thomas, lorette):
     assert _sql("SELECT id_utilisateur_defaut FROM tache WHERE id_tache = %s",
                 (plier,))[0][0] is None
     assert _sql("""SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache)
-                    WHERE o.id_utilisateur = %s AND t.categorie <> 'sport'
+                    WHERE o.id_utilisateur = %s AND t.id_type_tache IS NOT NULL
                       AND o.statut IN ('a_placer', 'planifiee')""", (lorette_id,))[0][0] == 0
     # Le compte est mis en pause : sa clé ne répond plus.
     assert client.get("/foyer", headers=lorette).status_code == 401

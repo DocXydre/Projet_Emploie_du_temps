@@ -37,7 +37,9 @@ extension Foyer {
             objectif: objectifEnCours.map {
                 Instantane.Objectif(titre: $0.titre, joursRestants: $0.joursRestants, avancee: $0.avancee)
             },
-            chat: Instantane.Chat(litiere: chat.litiere, eau: chat.eau, fontaine: chat.fontaine),
+            chat: Instantane.Chat(soins: chat.soins.prefix(3).map {
+                Instantane.Chat.Soin(titre: $0.titre, quand: $0.quand)
+            }),
             equilibre: Instantane.Equilibre(
                 partDeMoi: partDeMoi, autre: autre?.nom,
                 dureeMoi: EnFrancais.duree(minutes: minutesFaites[moi.id] ?? 0),

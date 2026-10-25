@@ -19,7 +19,7 @@ BEGIN
       JOIN tache t ON t.id_tache = oc.id_tache
       LEFT JOIN seance s ON s.id_occurrence = oc.id_occurrence
      WHERE oc.id_occurrence = p_occurrence
-       AND t.code = 'SPORT'
+       AND t.id_type_tache IS NULL
        AND oc.statut IN ('planifiee', 'notifiee');
     IF NOT FOUND OR o.debut_seance IS NULL THEN
         RETURN 0;

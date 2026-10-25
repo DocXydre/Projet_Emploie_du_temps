@@ -212,7 +212,8 @@ def test_le_pliage_reste_a_lorette_meme_absente(client, thomas, lorette):
 
     with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row) as conn:
         tache = conn.execute(
-            "SELECT id_tache, id_utilisateur_defaut FROM tache WHERE code = 'PLIER_LINGE'"
+            "SELECT id_tache, id_utilisateur_defaut FROM tache "
+            "WHERE id_tache = essais.tache_de('PLIER_LINGE')"
         ).fetchone()
         assigne = conn.execute(
             "SELECT choisir_assigne(%s, tstzrange(now(), now() + INTERVAL '7 days')) AS qui",
@@ -224,7 +225,7 @@ def test_le_pliage_reste_a_lorette_meme_absente(client, thomas, lorette):
 
 def _assigne_pour(conn, code_tache: str, depuis_jours: int, jusqu_a_jours: int):
     tache = conn.execute(
-        "SELECT id_tache, id_utilisateur_defaut FROM tache WHERE code = %s",
+        "SELECT id_tache, id_utilisateur_defaut FROM tache WHERE id_tache = essais.tache_de(%s)",
         (code_tache,)).fetchone()
     # Bornes prises à minuit, comme les absences : la base compte en UTC, et
     # « maintenant plus un jour » y tombe avant minuit la nuit du changement d'heure.

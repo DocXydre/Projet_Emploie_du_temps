@@ -14,6 +14,7 @@ import hashlib
 import re
 import secrets
 import string
+from datetime import time
 from html import escape
 from typing import Literal
 
@@ -59,13 +60,16 @@ class ReglageFoyer(BaseModel):
     modif_taches: Literal["tous", "admin"] | None = None
     # HDF-1 : le HAL du foyer.
     hal_actif: bool | None = None
+    # VER-8 : le jour (1, lundi, à 7) et l'heure de la vérification de la semaine.
+    verification_jour: int | None = Field(default=None, ge=1, le=7)
+    verification_heure: time | None = None
 
 
 def _foyer(qui_id: int) -> dict:
     foyer = un_seul(
         """
         SELECT f.id_foyer, f.nom, f.id_administrateur, f.ajout_taches, f.modif_taches,
-               f.hal_actif,
+               f.hal_actif, f.verification_jour, f.verification_heure,
                f.cree_le, places_libres(f.id_foyer) AS places_libres,
                f.id_administrateur = %(moi)s AS je_suis_admin,
                droit_sur_les_taches(%(moi)s, 'ajouter') AS je_peux_ajouter,
@@ -123,6 +127,10 @@ def regler_foyer(qui: Authentifie, reglage: ReglageFoyer) -> dict:
         if reglage.hal_actif is not None:
             conn.execute("SELECT regler_hal_du_foyer(%(moi)s, %(actif)s)",
                          {"moi": qui.id_utilisateur, "actif": reglage.hal_actif})
+        if reglage.verification_jour is not None or reglage.verification_heure is not None:
+            conn.execute("SELECT regler_verification_du_foyer(%(moi)s, %(j)s, %(h)s)",
+                         {"moi": qui.id_utilisateur, "j": reglage.verification_jour,
+                          "h": reglage.verification_heure})
     return _foyer(qui.id_utilisateur)
 
 

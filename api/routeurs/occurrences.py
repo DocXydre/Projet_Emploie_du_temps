@@ -15,9 +15,9 @@ from api.securite import Authentifie
 routeur = APIRouter(prefix="/occurrences", tags=["Tâches"])
 
 COLONNES = """
-    id_occurrence, id_tache, tache_code, tache_libelle, categorie, priorite,
+    id_occurrence, id_tache, tache_libelle, categorie, priorite,
     duree_minutes, id_utilisateur, assigne_a, echeance_min, echeance_max,
-    debut, fin, statut, origine, epinglee, rappel_journee, utilise_machine,
+    debut, fin, statut, origine, epinglee, epinglee_par, rappel_journee,
     nb_relances, motif, date_faite, en_retard, jours_de_retard, actions_possibles
 """
 
@@ -39,7 +39,7 @@ class DemandeValidation(BaseModel):
 
 
 class DemandeSpontanee(BaseModel):
-    code_tache: str = Field(description="Code de la tâche, par exemple ASPIRATEUR")
+    id_tache: int = Field(description="Le numéro de la tâche, rendu par GET /taches")
     quand: datetime | None = Field(
         default=None, description="Quand elle a été faite. Maintenant par défaut."
     )
@@ -123,7 +123,7 @@ def faite(demande: DemandeSpontanee, qui: Authentifie) -> dict:
     """
     resultat = un_seul(
         "SELECT declarer_faite(%(u)s, %(c)s, %(q)s) AS id_occurrence",
-        {"u": qui.id_utilisateur, "c": demande.code_tache.upper(), "q": demande.quand},
+        {"u": qui.id_utilisateur, "c": demande.id_tache, "q": demande.quand},
     )
     assert resultat is not None
     # EXE-15 : comme pour une validation, la suite se replace dans la foulée.
@@ -165,7 +165,8 @@ def reporter(id_occurrence: int, qui: Authentifie, demande: DemandeReport | None
           FROM tache t
          WHERE t.id_tache = o.id_tache
            AND o.id_occurrence = %(id)s
-           AND t.reportable
+           -- SPT-25 : une séance ne se reporte pas ; une tâche, toujours.
+           AND t.id_type_tache IS NOT NULL
         """,
         {"id": id_occurrence, "nouvelle": nouvelle, "motif": demande.motif if demande else None},
     )
@@ -176,8 +177,7 @@ def reporter(id_occurrence: int, qui: Authentifie, demande: DemandeReport | None
             status_code=status.HTTP_409_CONFLICT,
             detail={
                 "code": "non_reportable",
-                "message": "Cette tâche ne peut pas être repoussée : la repousser "
-                "ne résoudrait rien.",
+                "message": "Une séance ne se reporte pas : elle se dit faite ou pas faite.",
             },
         )
     return ligne
@@ -188,11 +188,11 @@ def refuser(id_occurrence: int, qui: Authentifie, demande: DemandeReport | None 
     # SPT-25 : une séance de sport ne se réassigne pas. Refusée, elle n'est pas
     # faite, et la semaine se complète sur un autre jour.
     seance = un_seul(
-        "SELECT t.code FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache "
-        " WHERE o.id_occurrence = %(o)s",
+        "SELECT t.id_type_tache IS NULL AS sport FROM occurrence o "
+        "  JOIN tache t ON t.id_tache = o.id_tache WHERE o.id_occurrence = %(o)s",
         {"o": id_occurrence},
     )
-    if seance and seance["code"] == "SPORT":
+    if seance and seance["sport"]:
         un_seul("SELECT seance_sport_pas_faite(%(u)s, %(o)s) AS jour",
                 {"u": qui.id_utilisateur, "o": id_occurrence})
         return detail(id_occurrence, qui)

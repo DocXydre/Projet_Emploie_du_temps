@@ -9,7 +9,9 @@ le HAL du foyer a en propre :
     ses outils               la lecture de la maison, les demandes, sa mémoire,
                              les lieux et les cours annulés (partie H)
     ses moments              « maison », la conversation ; « presence », les
-                             questions qu'il pose de lui-même (POS-7, POS-8, POS-10)
+                             questions qu'il pose de lui-même (POS-7, POS-8, POS-10) ;
+                             « verification » et « semaine », la relecture des
+                             tâches décrites (VER-4, VER-5)
 
 HDF-3 : de l'autre membre, il ne lit que ce qu'il faut pour la maison. Les
 outils de lecture qu'il reprend le font déjà (COA-15, MCP-11).
@@ -23,7 +25,7 @@ from api.base import executer, lister, un_seul
 from api.coach.clair import aujourd_hui, jour_en_clair, lundi_de, maintenant
 from api.coach.outils import Outil, RefusOutil, _objet
 
-MOMENTS = ("maison", "presence")
+MOMENTS = ("maison", "presence", "verification", "semaine")
 
 CONSIGNE = Path(__file__).resolve().parent.parent.parent / "coach" / "consigne_foyer.md"
 
@@ -150,13 +152,37 @@ def moment(id_utilisateur: int, moment_: str = "maison") -> str:
             "demande sa confirmation. Pose la question qui suit, en une ou deux phrases, "
             "avec des réponses prêtes. Tu ne changes rien maintenant : sa réponse, dans la "
             "conversation, fera le geste."])
+    if moment_ in ("verification", "semaine"):
+        quoi = ("Des tâches décrites ont bougé, ou quelque chose est tombé sur leur jour : "
+                "un cours, une absence, un départ. Elles sont listées plus bas, avec ce qui "
+                "les a fait entrer dans la file." if moment_ == "verification" else
+                "C'est la vérification de la semaine. Les tâches décrites et leurs "
+                "occurrences des quatre semaines à venir sont listées plus bas.")
+        return "\n\n".join([
+            f"# Moment : {moment_}",
+            f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
+            quoi,
+            "Personne ne t'écrit : tu relis chaque tâche selon sa description, et tu fais "
+            "respecter la description. Ce qui la respecte, tu le laisses. Ce qui ne la "
+            "respecte pas, tu le déplaces avec `placer_occurrence`, avec le motif en une "
+            "phrase : il part à la personne concernée. Ce que la description demande en "
+            "plus du rythme (avant un départ, au retour), tu le poses avec "
+            "`placer_occurrence` sans id_occurrence. Une prévision que la description "
+            "exclut, tu la retires avec `retirer_prevision`. Une tâche « selon sa "
+            "description » n'a que ce que tu poses : place ses occurrences des quatre "
+            "semaines à venir. Si aucun jour ne respecte la description, laisse "
+            "l'occurrence où elle est et propose un compromis dans le motif d'un "
+            "placement au jour le plus proche, ou dis-le dans ton message. Lis l'agenda "
+            "avec `lire_planning` avant de choisir un jour. Termine par un message court "
+            "qui dit ce que tu as changé, ou « rien à changer »."])
     return "\n\n".join([
         "# Moment : maison",
         f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
         "Un membre du foyer t'écrit. Une question : réponds-y, après avoir lu ce qu'il "
         "faut. Une demande de changement : fais le geste qui correspond, avec son motif "
-        "en une phrase, puis dis ce qui a changé. Ce qui dure et sert la maison va dans "
-        "la mémoire du foyer."])
+        "en une phrase, puis dis ce qui a changé. Une consigne sur une tâche que le "
+        "formulaire ne sait pas dire va dans sa description, et tu places la tâche selon "
+        "elle. Ce qui dure et sert la maison en général va dans la mémoire du foyer."])
 
 
 # ---------------------------------------------------------------------------
@@ -183,6 +209,93 @@ def ajouter_memoire_foyer(u: int, a: dict) -> object:
     version = ecrire(id_foyer, "semaine", nouveau, "hal")
     return {"fait": "ligne ajoutée à la mémoire du foyer", "version": version,
             "longueur": len(nouveau)}
+
+
+def ecrire_description_tache(u: int, a: dict) -> object:
+    """MTA-2 : la consigne d'une tâche, telle que HAL la comprend, en entier."""
+    id_tache = a.get("id_tache")
+    if not isinstance(id_tache, int):
+        raise RefusOutil("requete_invalide", "« id_tache » est le numéro rendu par lire_taches")
+    version = executer(
+        "SELECT ecrire_description_tache(%(t)s, %(x)s, %(u)s) AS id",
+        {"t": id_tache, "x": a.get("texte") or "", "u": u})["id"]
+    texte = (a.get("texte") or "").strip()
+    return {"fait": "description écrite" if texte else "description effacée",
+            "version": version,
+            "suite": "Place maintenant les occurrences à venir selon elle (MTA-3)."
+                     if texte else None}
+
+
+def placer_occurrence(u: int, a: dict) -> object:
+    """VER-1, VER-10 : déplacer une occurrence, ou en poser une de plus, épinglée."""
+    from datetime import date as _date
+    from datetime import time as _time
+
+    from api import ordonnanceur
+    try:
+        jour = _date.fromisoformat(a.get("jour") or "")
+        heure = _time.fromisoformat(a["heure"]) if a.get("heure") else None
+    except ValueError:
+        raise RefusOutil("requete_invalide", "« jour » au format AAAA-MM-JJ, « heure » HH:MM") \
+            from None
+    if a.get("id_occurrence") is None and a.get("id_tache") is None:
+        raise RefusOutil("requete_invalide",
+                         "Donne l'occurrence à déplacer, ou la tâche dont poser une occurrence")
+    id_occurrence = executer(
+        "SELECT placer_par_hal(%(o)s, %(t)s, %(j)s, %(h)s, %(p)s, %(m)s) AS id",
+        {"o": a.get("id_occurrence"), "t": a.get("id_tache"), "j": jour, "h": heure,
+         "p": a.get("pour"), "m": a.get("motif")})["id"]
+    ordonnanceur.replacer()
+    return {"fait": "occurrence placée et épinglée", "id_occurrence": id_occurrence,
+            "jour": jour.isoformat()}
+
+
+def retirer_prevision(u: int, a: dict) -> object:
+    """VER-10 : une prévision que la description exclut."""
+    from api import ordonnanceur
+    executer("SELECT retirer_par_hal(%(o)s, %(m)s)",
+             {"o": a.get("id_occurrence"), "m": a.get("motif")})
+    ordonnanceur.replacer()
+    return {"fait": "prévision retirée", "id_occurrence": a.get("id_occurrence")}
+
+
+# MTA, VER : la description des tâches, et ce que HAL place selon elle.
+OUTIL_DESCRIPTION = Outil(
+    "ecrire_description_tache", "description_tache",
+    "Écrit en entier la description d'une tâche (id_tache), 1 000 caractères au plus : ce "
+    "que le formulaire ne sait pas dire, telle que tu la comprends, en une ou deux "
+    "phrases. « les 19 et 23 du mois, un mois sur deux », « jamais le mardi », « avant un "
+    "départ qui vide l'appartement ». Repars de la description actuelle (lire_taches) : "
+    "une nouvelle consigne la complète ou la remplace. Ce que le formulaire sait dire "
+    "(rythme, heure, pour qui, si pas faite) se règle par le geste, pas ici. Texte vide : "
+    "l'efface. À n'utiliser que si on te dit une consigne sur cette tâche.",
+    _objet({"id_tache": {"type": "integer"}, "texte": {"type": "string"}},
+           ["id_tache", "texte"]),
+    ecrire_description_tache)
+
+OUTILS_PLACEMENT: tuple[Outil, ...] = (
+    Outil("placer_occurrence", "placement_hal",
+          "Place une occurrence selon la description de sa tâche, et l'épingle : le "
+          "moteur ne la déplace plus. Avec id_occurrence, la déplace ; avec id_tache seul, "
+          "en pose une de plus que le rythme (avant un départ, au retour, ou une tâche "
+          "selon sa description). « jour » AAAA-MM-JJ ; « heure » HH:MM pour une tâche à "
+          "heure imposée ; « pour » le membre qui la fera, sinon le roulement ; « motif » "
+          "en une phrase, sans le nom de la tâche, que le message ajoute : « samedi 24 : ta "
+          "seule journée vide du mois ». Refusé pour ce qu'on a placé à la main, ce qui "
+          "est fait, un jour d'absence, ou un créneau déjà pris.",
+          _objet({"id_occurrence": {"type": "integer"}, "id_tache": {"type": "integer"},
+                  "jour": {"type": "string"}, "heure": {"type": "string"},
+                  "pour": {"type": "integer"}, "motif": {"type": "string"}},
+                 ["jour", "motif"]),
+          placer_occurrence),
+    Outil("retirer_prevision", "placement_hal",
+          "Retire une prévision (id_occurrence) que la description de sa tâche exclut, avec "
+          "le motif. Seulement une prévision : pas ce qui est annoncé, fait, ou posé à la "
+          "main.",
+          _objet({"id_occurrence": {"type": "integer"}, "motif": {"type": "string"}},
+                 ["id_occurrence", "motif"]),
+          retirer_prevision),
+)
 
 
 OUTILS_PROPRES: tuple[Outil, ...] = (
@@ -234,9 +347,14 @@ def outils_du_moment(moment_: str) -> list[Outil]:
     if moment_ == "presence":
         # Il demande ; la réponse, au moment « maison », fera le geste.
         return [*lectures, *lieux]
+    if moment_ == "verification":
+        # ACT-4 : personne n'a rien demandé ; il ne fait que suivre les descriptions.
+        return [*lectures, *OUTILS_PLACEMENT]
+    if moment_ == "semaine":
+        return [*lectures, *OUTILS_PLACEMENT, *OUTILS_PROPRES]
     # ACT-1 : les gestes de la maison, faits à la demande de celui qui écrit.
     return [*lectures, *demandes.OUTILS_GESTES_MAISON, OUTIL_ANNULER_COURS,
-            *OUTILS_PROPRES, *lieux]
+            OUTIL_DESCRIPTION, *OUTILS_PLACEMENT, *OUTILS_PROPRES, *lieux]
 
 
 def office(id_utilisateur: int) -> str:

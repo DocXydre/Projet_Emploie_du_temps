@@ -14,6 +14,7 @@ import pytest
 
 from api import administration, appairage
 from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
+from tests.conftest import id_de as tache_de
 
 PARIS = ZoneInfo("Europe/Paris")
 TELEGRAM_THOMAS = 111222333
@@ -115,7 +116,7 @@ def test_la_migration_delie_les_membres_et_garde_l_administrateur(base):
 
 def occurrence_de(client, thomas, code: str) -> dict:
     toutes = client.get("/occurrences", headers=thomas).json()
-    return next(o for o in toutes if o["tache_code"] == code)
+    return next(o for o in toutes if o["id_tache"] == tache_de(code))
 
 
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'INSERT' AND NOT EXISTS (
             SELECT 1 FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache
-             WHERE o.id_occurrence = NEW.id_occurrence AND t.categorie = 'sport') THEN
+             WHERE o.id_occurrence = NEW.id_occurrence AND t.id_type_tache IS NULL) THEN
         RAISE EXCEPTION 'Une séance ne détaille qu''une occurrence de sport'
               USING ERRCODE = 'check_violation';
     END IF;

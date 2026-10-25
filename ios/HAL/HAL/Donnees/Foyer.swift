@@ -320,7 +320,6 @@ final class Foyer {
                   fin: lue.fin,
                   debut: lue.debut,
                   journeeEntiere: lue.journeeEntiere ?? false,
-                  code: lue.code,
                   reportable: lue.actionsPossibles?.contains("reportee") ?? false,
                   idTache: lue.idTache,
                   type: lue.type)
@@ -350,9 +349,9 @@ final class Foyer {
         orbeADire = etat.orbe
         calendriersSuivis = etat.depart?.calendriers
         tachesDuFoyer = etat.depart?.taches
-        chat = EtatChat(litiere: Dates.relatif(etat.chat?.litiere),
-                        eau: Dates.relatif(etat.chat?.eau),
-                        fontaine: Dates.relatif(etat.chat?.fontaine))
+        chat = EtatChat(soins: (etat.chat ?? []).map {
+            EtatChat.Soin(titre: $0.libelle, quand: Dates.relatif($0.prochaine))
+        })
         charge = true
     }
 

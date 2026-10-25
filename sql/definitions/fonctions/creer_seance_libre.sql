@@ -43,7 +43,7 @@ BEGIN
             'Une séance libre se fait en musculation, en course ou sur les machines cardio');
     END IF;
 
-    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.code = 'SPORT' AND t.active;
+    SELECT t.id_tache INTO v_tache FROM tache t WHERE t.id_type_tache IS NULL AND t.active;
     IF v_tache IS NULL THEN
         PERFORM refus_coach('introuvable', 'Le sport est désactivé');
     END IF;

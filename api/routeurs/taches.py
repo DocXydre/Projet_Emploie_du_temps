@@ -1,8 +1,12 @@
-"""Définitions de tâches : récurrentes, ponctuelles ou nées d'une autre.
+"""Définitions de tâches : régulières, ponctuelles, nées d'une autre, ou selon
+leur description.
 
 Depuis la migration 067, l'appli crée une tâche datée ou à une heure, la range
-dans un type du foyer, et la relie à d'autres (TAC-20 à TAC-28). Chaque geste
-appelle une fonction de la base, qui refuse avec son motif ce qui ne tient pas.
+dans un type du foyer, et la relie à d'autres (TAC-20 à TAC-28). Depuis la 086,
+aucune n'a de réglage à part : ce que le formulaire ne dit pas est dans sa
+description, que HAL tient (TAC-29, MTA). Une tâche arrêtée se reprend ou
+s'efface (TAC-30, TAC-31). Chaque geste appelle une fonction de la base, qui
+refuse avec son motif ce qui ne tient pas.
 """
 
 from datetime import date, time
@@ -26,41 +30,27 @@ LIRE_TACHES = """
            END AS type,
            (SELECT json_agg(json_build_object(
                        'id_tache_suivante', e.id_tache_suivante,
-                       'code', c.code,
                        'delai_min_heures', e.delai_min_heures,
                        'delai_max_heures', e.delai_max_heures))
               FROM enchainement e
-              JOIN tache c ON c.id_tache = e.id_tache_suivante
              WHERE e.id_tache_source = t.id_tache) AS declenche,
            (SELECT json_build_object('debut', lower(o.fenetre), 'fin', upper(o.fenetre))
               FROM occurrence o
-             WHERE o.id_tache = t.id_tache AND NOT t.recurrente
+             WHERE o.id_tache = t.id_tache AND t.revient = 'dates'
                AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
              ORDER BY lower(o.fenetre) LIMIT 1) AS dates,
            EXISTS (SELECT 1 FROM enchainement e
-                    WHERE e.id_tache_suivante = t.id_tache) AS nait_d_une_autre
+                    WHERE e.id_tache_suivante = t.id_tache) AS nait_d_une_autre,
+           -- MTA-7 : ce que HAL retient, et qui l'a dit.
+           (SELECT json_build_object('texte', d.texte, 'dite_par', d.dite_par_nom,
+                                     'quand', d.quand)
+              FROM v_description_tache d WHERE d.id_tache = t.id_tache) AS description,
+           -- TAC-30 : ce que montre la liste des tâches arrêtées.
+           (SELECT count(*) FROM occurrence o
+             WHERE o.id_tache = t.id_tache AND o.statut = 'faite')::INTEGER AS faite_fois
       FROM tache t
       LEFT JOIN type_tache y ON y.id_type_tache = t.id_type_tache
 """
-
-
-class DemandeTache(BaseModel):
-    code: str = Field(pattern=r"^[A-Z0-9_]{3,30}$")
-    libelle: str
-    categorie: str
-    priorite: int = Field(default=3, ge=1, le=5)
-    duree_minutes: int = Field(gt=0)
-    periodicite_min_jours: int = Field(gt=0)
-    periodicite_max_jours: int = Field(gt=0)
-    rappel_journee: bool = True
-    heure_min: time | None = None
-    heure_max: time | None = None
-    utilise_machine: bool = False
-    requiert_les_deux: bool = False
-    reportable: bool = True
-    id_utilisateur_defaut: int | None = None
-    # TAC-25 : sans type, le premier type de sa famille. Un sport n'en a pas.
-    id_type_tache: int | None = None
 
 
 class ModificationTache(BaseModel):
@@ -70,8 +60,9 @@ class ModificationTache(BaseModel):
     periodicite_min_jours: int | None = Field(default=None, gt=0)
     periodicite_max_jours: int | None = Field(default=None, gt=0)
     id_utilisateur_defaut: int | None = None
-    active: bool | None = None
-    # TAC-25 : le type, dont la famille technique suit.
+    # TAC-24 : pour toute tâche, régulière comprise.
+    si_pas_faite: Literal["reporter", "oublier"] | None = None
+    # TAC-25 : le type.
     id_type_tache: int | None = None
     # TAC-23 : « sans_heure » rend la tâche à la journée ; sinon les deux bornes.
     sans_heure: bool = False
@@ -83,7 +74,8 @@ class NouvelleTache(BaseModel):
     """TAC-20 à TAC-24 : une seule façon de revenir, et l'une de trois heures.
 
     Régulière : `tous_les_jours`. Une fois : `au`, et `du` s'il n'est pas
-    aujourd'hui. Après une autre : `apres`, et le délai en heures.
+    aujourd'hui. Après une autre : `apres`, et le délai en heures. Selon sa
+    description : `selon_description`, que seul HAL demande (MTA-8).
     """
 
     libelle: str
@@ -99,6 +91,7 @@ class NouvelleTache(BaseModel):
     heure_min: time | None = None
     heure_max: time | None = None
     si_pas_faite: Literal["reporter", "oublier"] = "reporter"
+    selon_description: bool = False
 
 
 class NouveauLien(BaseModel):
@@ -146,7 +139,7 @@ def lister_taches(qui: Authentifie, seulement_actives: bool = True) -> list[dict
     return lister(
         LIRE_TACHES + """
          WHERE (NOT %(actives)s::BOOLEAN OR t.active)
-         ORDER BY y.ordre NULLS LAST, t.priorite, t.libelle
+         ORDER BY t.active DESC, y.ordre NULLS LAST, t.priorite, t.libelle
         """,
         {"actives": seulement_actives},
     )
@@ -165,7 +158,8 @@ def creer_depuis_l_appli(demande: NouvelleTache, qui: Authentifie) -> dict:
             p_tous_les_jours => %(rythme)s, p_du => %(du)s, p_au => %(au)s,
             p_apres => %(apres)s, p_delai_min_heures => %(dmin)s,
             p_delai_max_heures => %(dmax)s, p_heure_min => %(hmin)s,
-            p_heure_max => %(hmax)s, p_si_pas_faite => %(oubli)s) AS id_tache
+            p_heure_max => %(hmax)s, p_si_pas_faite => %(oubli)s,
+            p_selon_description => %(selon)s) AS id_tache
         """,
         {
             "libelle": demande.libelle,
@@ -182,62 +176,12 @@ def creer_depuis_l_appli(demande: NouvelleTache, qui: Authentifie) -> dict:
             "hmin": demande.heure_min,
             "hmax": demande.heure_max,
             "oubli": demande.si_pas_faite,
+            "selon": demande.selon_description,
         },
     )
     assert cree is not None
     _replacer()
     return _une_tache(cree["id_tache"])
-
-
-@routeur.post("", status_code=status.HTTP_201_CREATED, summary="Créer une tâche")
-def creer(demande: DemandeTache, qui: Authentifie, replacer: bool = False) -> dict:
-    _exiger_droit(qui, "ajouter")
-    cree = executer(
-        """
-        INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
-                           periodicite_min_jours, periodicite_max_jours,
-                           rappel_journee, heure_min, heure_max, utilise_machine,
-                           requiert_les_deux, reportable, id_utilisateur_defaut,
-                           ajoutee_par, id_type_tache)
-        VALUES (%(code)s, %(libelle)s, %(categorie)s::VARCHAR, %(priorite)s, %(duree)s,
-                %(min)s, %(max)s, %(rappel)s, %(hmin)s, %(hmax)s, %(machine)s,
-                %(duo)s, %(reportable)s, %(defaut)s, %(moi)s,
-                -- Le même paramètre sert de colonne et de comparaison : sans
-                -- type écrit, PostgreSQL en déduit deux et refuse (42P08).
-                CASE WHEN %(categorie)s::VARCHAR = 'sport' THEN NULL
-                     ELSE COALESCE(%(type)s::INTEGER,
-                                   (SELECT y.id_type_tache FROM type_tache y
-                                     WHERE y.categorie = %(categorie)s::VARCHAR
-                                     ORDER BY y.ordre, y.id_type_tache LIMIT 1)) END)
-        RETURNING *
-        """,
-        {
-            "code": demande.code,
-            "libelle": demande.libelle,
-            "categorie": demande.categorie,
-            "priorite": demande.priorite,
-            "duree": demande.duree_minutes,
-            "min": demande.periodicite_min_jours,
-            "max": demande.periodicite_max_jours,
-            "rappel": demande.rappel_journee,
-            "hmin": demande.heure_min,
-            "hmax": demande.heure_max,
-            "machine": demande.utilise_machine,
-            "duo": demande.requiert_les_deux,
-            "reportable": demande.reportable,
-            "defaut": demande.id_utilisateur_defaut,
-            # TAC-20 : une tâche créée depuis l'appli s'arrête comme une tâche ajoutée.
-            "moi": qui.id_utilisateur,
-            "type": demande.id_type_tache,
-        },
-    )
-    assert cree is not None
-    # Lot 5 : l'appli demande le replacement dans la même requête. Le
-    # déclencher à part est réservé au réseau privé (CNX-5).
-    if replacer:
-        from api import ordonnanceur
-        ordonnanceur.placer()
-    return cree
 
 
 @routeur.patch("/{id_tache}", summary="Modifier une tâche")
@@ -261,6 +205,13 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
     # moitié en base.
     # La durée part avec l'heure : « à 18h30 » dure exactement la tâche (TAC-23).
     duree = champs.pop("duree_minutes", None) if change_l_heure else None
+    # MTA-8, TAC-28 : un rythme donné à une tâche qui n'en avait pas la fait
+    # revenir par lui. Sans borne haute, un septième de jeu, comme à la création.
+    if "periodicite_min_jours" in champs:
+        champs["revient"] = "rythme"
+        champs.setdefault("periodicite_max_jours",
+                          champs["periodicite_min_jours"]
+                          + max(1, champs["periodicite_min_jours"] // 7))
     with connexion() as conn:
         if champs:
             affectations = ", ".join(f"{nom} = %({nom})s" for nom in champs)
@@ -280,29 +231,36 @@ def modifier(id_tache: int, demande: ModificationTache, qui: Authentifie) -> dic
     return _une_tache(id_tache)
 
 
-@routeur.delete("/{id_tache}", summary="Désactiver une tâche")
-def desactiver(id_tache: int, qui: Authentifie) -> dict:
+@routeur.delete("/{id_tache}", summary="Arrêter une tâche")
+def arreter(id_tache: int, qui: Authentifie) -> dict:
+    """TAC-21 : elle rejoint les tâches arrêtées, avec son historique."""
     _exiger_droit(qui, "modifier")
-    # On ne supprime pas : l'historique des occurrences garde son sens.
-    executer(
-        """
-        WITH stop AS (
-            UPDATE tache SET active = FALSE WHERE id_tache = %(id)s RETURNING id_tache
-        )
-        UPDATE occurrence
-           SET statut = 'abandonnee', motif = 'Tâche désactivée'
-         WHERE id_tache IN (SELECT id_tache FROM stop)
-           AND statut IN ('a_placer', 'planifiee', 'notifiee')
-        """,
-        {"id": id_tache},
-    )
-    detail = un_seul("SELECT * FROM tache WHERE id_tache = %(id)s", {"id": id_tache})
-    if detail is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "introuvable", "message": f"Tâche {id_tache} inconnue"},
-        )
-    return detail
+    _une_tache(id_tache)
+    executer("SELECT arreter_tache(%(id)s)", {"id": id_tache})
+    _replacer()
+    return _une_tache(id_tache)
+
+
+@routeur.post("/{id_tache}/reprendre", summary="Reprendre une tâche arrêtée")
+def reprendre(id_tache: int, qui: Authentifie) -> dict:
+    """TAC-30 : elle revient telle qu'elle était."""
+    _exiger_droit(qui, "modifier")
+    _une_tache(id_tache)
+    executer("SELECT reprendre_tache(%(id)s)", {"id": id_tache})
+    _replacer()
+    return _une_tache(id_tache)
+
+
+@routeur.delete("/{id_tache}/definitivement", summary="Effacer une tâche arrêtée")
+def effacer(id_tache: int, qui: Authentifie) -> dict:
+    """TAC-31 : la tâche, ses occurrences, ses liens et sa description partent.
+
+    Seulement par ce bouton : HAL n'a pas d'outil pour le faire (ACT-5).
+    """
+    _exiger_droit(qui, "modifier")
+    _une_tache(id_tache)
+    ligne = executer("SELECT effacer_tache(%(id)s) AS libelle", {"id": id_tache})
+    return {"efface": True, "libelle": ligne["libelle"]}
 
 
 # -----------------------------------------------------------------------------
@@ -318,8 +276,7 @@ def liens(id_tache: int, qui: Authentifie) -> list[dict]:
     return lister(
         """
         SELECT l.sorte, l.id_lien, l.id_de, l.libelle_de, l.id_vers, l.libelle_vers,
-               l.delai_min_heures, l.delai_max_heures, l.place, l.mention,
-               l.journee_libre, l.bloc, l.delai,
+               l.delai_min_heures, l.delai_max_heures, l.place, l.mention, l.delai,
                l.id_de = %(t)s AS depuis,
                CASE WHEN l.id_de = %(t)s THEN l.phrase_depuis ELSE l.phrase_vers END AS phrase,
                CASE WHEN l.id_de = %(t)s THEN l.id_vers ELSE l.id_de END AS id_autre

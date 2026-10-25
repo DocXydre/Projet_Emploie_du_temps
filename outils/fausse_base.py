@@ -156,35 +156,50 @@ def planning(t: int, lo: int) -> None:
     dire("cours et stage sur six semaines, un conflit de cours à trancher")
 
 
+def tache(libelle: str) -> int:
+    """Une tâche se désigne par son numéro ; on la trouve par son nom (TAC-29)."""
+    return un("SELECT id_tache FROM tache WHERE libelle = %(l)s", l=libelle)
+
+
 def maison(t: int, lo: int) -> None:
     # Ce qui a été fait la semaine passée, pour l'équilibre et l'historique.
-    for qui, code, jours in ((t, "ASPIRATEUR", 3), (t, "LITIERE_CROTTES", 1),
-                             (t, "LITIERE_CROTTES", 3), (t, "LAVE_VAISSELLE", 2),
-                             (lo, "PLIER_LINGE", 2), (lo, "POUSSIERE", 4),
-                             (lo, "LESSIVE_BLANC", 5), (lo, "EAU_SASSY", 2)):
-        sql("SELECT declarer_faite(%(u)s, %(c)s, %(q)s)", u=qui, c=code,
+    for qui, libelle, jours in ((t, "Passer l'aspirateur", 3), (t, "Litière : ramassage", 1),
+                                (t, "Litière : ramassage", 3), (t, "Lancer le lave-vaisselle", 2),
+                                (lo, "Plier et ranger le linge", 2), (lo, "Faire la poussière", 4),
+                                (lo, "Lessive de blanc", 5), (lo, "Sassy : changer l'eau", 2)):
+        sql("SELECT declarer_faite(%(u)s, %(c)s, %(q)s)", u=qui, c=tache(libelle),
             q=a(J - timedelta(days=jours), 19, 0))
+
+    # MTA-8 : une tâche que le formulaire ne sait pas dire, tenue par HAL, et la
+    # prochaine fois qu'il a posée, épinglée.
+    hotte = un("""SELECT creer_tache(p_libelle => 'Nettoyer la hotte', p_acteur => %(u)s,
+                                     p_duree_minutes => 20, p_selon_description => TRUE)""", u=t)
+    sql("SELECT ecrire_description_tache(%(t)s, %(x)s, %(u)s)", t=hotte, u=t,
+        x="Les 19 et 23 du mois, un mois sur deux, à partir de novembre.")
+    sql("""SELECT placer_par_hal(NULL, %(t)s, %(j)s, NULL, %(u)s,
+                                 'le 23 : un mois sur deux, à partir de novembre')""",
+        t=hotte, j=J + timedelta(days=4), u=t)
 
     sql("SELECT generer_occurrences(35)")
     sql("SELECT placer_taches(35, 7)")
 
     # Deux tâches en retard : leur fenêtre recule comme si les jours avaient
     # passé, comme dans les tests. La base les dit alors en retard d'elle-même.
-    for code, jours in (("RECURAGE", 2), ("DRAPS", 1)):
+    for libelle, jours in (("Récurer", 2), ("Changer les draps", 1)):
         sql("""UPDATE occurrence o
                   SET fenetre = tstzrange(%(d)s, %(f)s, '[)'),
                       creneau = tstzrange(%(d)s, %(d)s + INTERVAL '30 minutes', '[)')
                 WHERE o.id_occurrence = (
                       SELECT o2.id_occurrence FROM occurrence o2 JOIN tache ta USING (id_tache)
-                       WHERE ta.code = %(c)s AND o2.statut IN ('planifiee', 'notifiee')
+                       WHERE ta.libelle = %(c)s AND o2.statut IN ('planifiee', 'notifiee')
                        ORDER BY lower(COALESCE(o2.creneau, o2.fenetre)) LIMIT 1)""",
-            c=code, d=a(J - timedelta(days=jours + 2), 10), f=a(J - timedelta(days=jours), 22))
+            c=libelle, d=a(J - timedelta(days=jours + 2), 10), f=a(J - timedelta(days=jours), 22))
 
     # Deux tâches du jour déjà faites, une par personne.
-    for qui, code in ((t, "LAVE_VAISSELLE"), (lo, "EAU_SASSY")):
+    for qui, libelle in ((t, "Lancer le lave-vaisselle"), (lo, "Sassy : changer l'eau")):
         o = un("""SELECT o.id_occurrence FROM occurrence o JOIN tache ta USING (id_tache)
-                   WHERE ta.code = %(c)s AND o.statut IN ('planifiee', 'notifiee')
-                   ORDER BY lower(COALESCE(o.creneau, o.fenetre)) LIMIT 1""", c=code)
+                   WHERE ta.libelle = %(c)s AND o.statut IN ('planifiee', 'notifiee')
+                   ORDER BY lower(COALESCE(o.creneau, o.fenetre)) LIMIT 1""", c=libelle)
         if o:
             sql("SELECT valider_occurrence(%(o)s, %(u)s, now())", o=o, u=qui)
 

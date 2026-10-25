@@ -2,7 +2,7 @@
 
 Généré par `python -m outils.schema` depuis le catalogue de PostgreSQL, après les migrations : ne pas le modifier à la main. Chaque table montre sa clé primaire (PK) et ses clés étrangères (FK) ; une table d'un autre domaine n'apparaît que par son nom. Les liens vers `utilisateur`, que presque toutes les tables portent, ne sont dessinés que dans le premier diagramme.
 
-80 tables, 125 clés étrangères.
+82 tables, 131 clés étrangères.
 
 ## Le foyer, les comptes et leurs accès
 
@@ -138,6 +138,8 @@ erDiagram
 erDiagram
     tache ||--o{ accompagnement : "id_tache"
     tache ||--o{ accompagnement : "id_tache_jointe"
+    appel_coach ||--o{ description_tache : "id_appel"
+    tache ||--o{ description_tache : "id_tache"
     tache ||--o{ enchainement : "id_tache_source"
     tache ||--o{ enchainement : "id_tache_suivante"
     demande ||--o{ notification : "id_demande"
@@ -151,6 +153,9 @@ erDiagram
     tache ||--o{ remplacement : "id_tache_couverte"
     tache ||--o{ remplacement : "id_tache_faite"
     type_tache ||--o{ tache : "id_type_tache"
+    appel_coach ||--o{ verification_tache : "id_appel"
+    occurrence ||--o{ verification_tache : "id_occurrence"
+    tache ||--o{ verification_tache : "id_tache"
     tache {
         integer id_tache PK
         integer id_utilisateur_defaut FK
@@ -196,6 +201,18 @@ erDiagram
         character_varying moment PK
         date jour PK
     }
+    description_tache {
+        bigint id_description_tache PK
+        integer id_tache FK
+        integer dite_par FK
+        bigint id_appel FK
+    }
+    verification_tache {
+        bigint id_verification PK
+        integer id_occurrence FK
+        integer id_tache FK
+        bigint id_appel FK
+    }
 ```
 
 - `tache`
@@ -206,6 +223,8 @@ erDiagram
 - `accompagnement` : TAC-15, TAC-17 : une tâche en entraîne une autre le même jour, pour la même
 - `notification` : Enregistrée d'abord, envoyée ensuite. Un échec d'envoi laisse la ligne
 - `passage` : NOT-15 : le bilan, la relance ou le récap d'un compte, déjà servi pour ce jour.
+- `description_tache` : MTA-1 : la description d'une tâche, ce que le formulaire ne sait pas dire. HAL la tient et l'applique ; le moteur ne la lit pas. Une ligne par version ; la dernière est en vigueur.
+- `verification_tache` : VER-3 : ce que HAL doit relire au prochain quart d'heure : une occurrence d'une tâche décrite, ou la tâche entière après une absence.
 
 ## Le sport : lieux, plan, séances, exercices
 

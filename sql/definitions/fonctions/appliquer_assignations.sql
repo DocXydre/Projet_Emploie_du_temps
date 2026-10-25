@@ -4,19 +4,9 @@ DECLARE
     v_touchees INTEGER := 0;
     v_lot      INTEGER;
 BEGIN
-    -- Le pliage du linge revient à Lorette.
-    UPDATE tache
-       SET id_utilisateur_defaut = u.id_utilisateur
-      FROM utilisateur u
-     WHERE u.pseudo = 'lorette'
-       AND tache.code = 'PLIER_LINGE'
-       AND tache.id_utilisateur_defaut IS DISTINCT FROM u.id_utilisateur;
-    GET DIAGNOSTICS v_lot = ROW_COUNT;
-    v_touchees := v_touchees + v_lot;
-
-    -- Tout le reste reste sans assigné : c'est le placement qui décide, selon
-    -- qui est présent et qui en a déjà le plus. Figer l'assignation ici
-    -- bloquerait la réattribution pendant les absences (ABS-2, ABS-3).
+    -- Aucune tâche n'est donnée à quelqu'un ici : « pour qui » se règle dans
+    -- l'appli (TAC-29). Le pliage du linge revenait d'office à Lorette à chaque
+    -- démarrage, par-dessus ce qu'on avait choisi.
 
     -- Les emplois du temps collectés sont ceux de Thomas.
     UPDATE source

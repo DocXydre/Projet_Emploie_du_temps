@@ -1,20 +1,23 @@
 -- -----------------------------------------------------------------------------
 -- Créer une tâche, de l'appli                               (TAC-20 à TAC-24)
 --
--- Une tâche revient d'une seule des trois façons :
+-- Une tâche revient d'une seule des quatre façons (TAC-1) :
 --
 --   régulière          tous les N jours, avec un septième de jeu
 --   une fois           du … au … : pas avant le premier jour, au plus tard le
 --                      second. Aujourd'hui, c'est du jour au jour même
 --   après une autre    sans rythme propre : elle naît d'un lien « Ensuite »,
 --                      comme vider le lave-vaisselle (TAC-8, TAC-27)
+--   selon sa description  sans rythme ni dates : HAL en pose les occurrences
+--                      (MTA-8). Seul HAL la crée ainsi, l'appli ne l'offre pas
 --
 -- Et elle a l'une de trois heures : sans heure (un rappel dans la journée),
 -- « à 18h30 » (une plage de la longueur exacte de la tâche), ou « entre 18h
 -- et 21h ». Le type donne la famille, la durée et la priorité par défaut.
 --
--- Une tâche ponctuelle ne s'abandonne pas au nom du retard (EXE-12) ; elle
--- peut en revanche demander à être oubliée si sa dernière date passe (TAC-24).
+-- C'est la seule fonction qui crée une tâche de la maison (TAC-20) : la route,
+-- l'appli et HAL l'appellent. Toute tâche dit ce qu'elle devient si elle n'est
+-- pas faite à temps : reportée, ou oubliée (TAC-24).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION creer_tache(p_libelle          TEXT,
                                        p_acteur           INTEGER,
@@ -30,7 +33,8 @@ CREATE OR REPLACE FUNCTION creer_tache(p_libelle          TEXT,
                                        p_heure_min        TIME    DEFAULT NULL,
                                        p_heure_max        TIME    DEFAULT NULL,
                                        p_si_pas_faite     TEXT    DEFAULT 'reporter',
-                                       p_priorite         INTEGER DEFAULT NULL)
+                                       p_priorite         INTEGER DEFAULT NULL,
+                                       p_selon_description BOOLEAN DEFAULT FALSE)
 RETURNS INTEGER LANGUAGE plpgsql AS $$
 DECLARE
     v_libelle    TEXT := btrim(regexp_replace(COALESCE(p_libelle, ''), '\s+', ' ', 'g'));
@@ -48,8 +52,8 @@ BEGIN
     END IF;
 
     IF (p_tous_les_jours IS NOT NULL)::INTEGER + v_ponctuelle::INTEGER
-       + (p_apres IS NOT NULL)::INTEGER <> 1 THEN
-        RAISE EXCEPTION 'Une tâche revient d''une seule façon : un rythme, des dates, ou après une autre tâche'
+       + (p_apres IS NOT NULL)::INTEGER + COALESCE(p_selon_description, FALSE)::INTEGER <> 1 THEN
+        RAISE EXCEPTION 'Une tâche revient d''une seule façon : un rythme, des dates, après une autre tâche, ou selon sa description'
               USING ERRCODE = 'check_violation';
     END IF;
     IF p_tous_les_jours IS NOT NULL AND (p_tous_les_jours < 1 OR p_tous_les_jours > 730) THEN
@@ -72,11 +76,10 @@ BEGIN
         END IF;
     END IF;
 
-    -- TAC-25 : sans type, le premier type de ménage.
+    -- TAC-25 : sans type, le type de base Ménage.
     SELECT * INTO v_type FROM type_tache
      WHERE id_type_tache = p_type
-        OR (p_type IS NULL AND categorie = 'menage')
-     ORDER BY ordre, id_type_tache
+        OR (p_type IS NULL AND base = 'menage')
      LIMIT 1;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'Ce type de tâche n''existe pas'
@@ -97,33 +100,31 @@ BEGIN
     END IF;
 
     IF p_apres IS NOT NULL AND NOT EXISTS (
-           SELECT 1 FROM tache WHERE id_tache = p_apres AND active AND categorie <> 'sport') THEN
+           SELECT 1 FROM tache WHERE id_tache = p_apres AND active AND id_type_tache IS NOT NULL) THEN
         RAISE EXCEPTION 'La tâche après laquelle venir n''existe pas, ou elle est arrêtée'
               USING ERRCODE = 'check_violation';
     END IF;
 
-    INSERT INTO tache (code, libelle, categorie, priorite, duree_minutes,
+    INSERT INTO tache (libelle, priorite, duree_minutes, revient,
                        periodicite_min_jours, periodicite_max_jours,
-                       rappel_journee, heure_min, heure_max,
-                       reportable, recurrente, id_utilisateur_defaut,
-                       abandon_apres_jours, ajoutee_par, id_type_tache, si_pas_faite)
-    VALUES ('AJOUT_' || nextval(pg_get_serial_sequence('tache', 'id_tache')),
-            v_libelle,
-            v_type.categorie,
+                       heure_min, heure_max, id_utilisateur_defaut,
+                       ajoutee_par, id_type_tache, si_pas_faite)
+    VALUES (v_libelle,
             COALESCE(p_priorite, v_type.priorite),
             v_duree,
-            COALESCE(p_tous_les_jours, 1),
+            CASE WHEN p_tous_les_jours IS NOT NULL THEN 'rythme'
+                 WHEN v_ponctuelle THEN 'dates'
+                 WHEN p_apres IS NOT NULL THEN 'apres'
+                 ELSE 'description' END,
+            p_tous_les_jours,
             -- Un septième de jeu : un jour pour une tâche hebdomadaire, deux
             -- semaines pour une tâche trimestrielle.
-            COALESCE(p_tous_les_jours + GREATEST(1, p_tous_les_jours / 7), 1),
-            p_heure_min IS NULL, p_heure_min, p_heure_max,
-            TRUE,
-            p_tous_les_jours IS NOT NULL,
+            p_tous_les_jours + GREATEST(1, p_tous_les_jours / 7),
+            p_heure_min, p_heure_max,
             p_pour,
-            CASE WHEN v_ponctuelle THEN 0 ELSE 5 END,
             p_acteur,
             v_type.id_type_tache,
-            CASE WHEN v_ponctuelle THEN COALESCE(p_si_pas_faite, 'reporter') ELSE 'reporter' END)
+            COALESCE(p_si_pas_faite, 'reporter'))
     RETURNING id_tache INTO v_tache;
 
     IF v_ponctuelle THEN
@@ -149,6 +150,7 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION creer_tache(TEXT, INTEGER, INTEGER, INTEGER, INTEGER, INTEGER, DATE, DATE,
-                                INTEGER, INTEGER, INTEGER, TIME, TIME, TEXT, INTEGER) IS
-    'TAC-20 à TAC-24 : crée une tâche régulière, ponctuelle (du … au …) ou née
-     d''une autre, sans heure, à une heure ou dans une plage. Rend son numéro.';
+                                INTEGER, INTEGER, INTEGER, TIME, TIME, TEXT, INTEGER, BOOLEAN) IS
+    'TAC-20 à TAC-24, MTA-8 : crée une tâche régulière, ponctuelle (du … au …),
+     née d''une autre ou selon sa description, sans heure, à une heure ou dans
+     une plage. Rend son numéro.';

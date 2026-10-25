@@ -8,7 +8,6 @@ Et comme pour une absence, ce qui a été réparti inégalement parce qu'on l'a
 voulu ne se rattrape pas la semaine suivante.
 """
 
-from datetime import timedelta
 
 import psycopg
 import pytest
@@ -25,7 +24,7 @@ def minutes(du, au) -> dict[str, int]:
           FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u USING (id_utilisateur)
          WHERE o.statut IN {OUVERTS}
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
            AND t.id_utilisateur_defaut IS NULL
            AND lower(COALESCE(o.creneau, o.fenetre)) >= %s
            AND lower(COALESCE(o.creneau, o.fenetre)) < %s
@@ -41,7 +40,7 @@ def charges() -> dict[str, int]:
 def tolerance() -> int:
     """PLA-12 : moins d'une heure d'écart, à une tâche près."""
     return 60 + un("SELECT max(duree_minutes) FROM tache WHERE active "
-                   "AND categorie <> 'sport' AND NOT requiert_les_deux "
+                   "AND id_type_tache IS NOT NULL "
                    "AND id_utilisateur_defaut IS NULL")
 
 
@@ -86,7 +85,8 @@ def test_l_autre_est_prevenu(place):
 
 
 def test_ce_qui_est_reserve_reste_a_son_proprietaire(place):
-    reservee = un("SELECT ajouter_tache('Arroser le ficus', %s, 2, NULL, %s, 5)",
+    reservee = un("SELECT creer_tache('Arroser le ficus', %s, p_tous_les_jours => 2, p_pour => %s, "
+                  "p_duree_minutes => 5)",
                   _id("thomas"), _id("thomas"))
     placer()
 
@@ -114,7 +114,7 @@ def test_les_jours_alleges_ne_comptent_pas_dans_la_balance(place):
     hors_periode = un(f"""
         SELECT COALESCE(sum(t.duree_minutes), 0) FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut IN {OUVERTS}
-           AND t.categorie <> 'sport' AND NOT t.requiert_les_deux
+           AND t.id_type_tache IS NOT NULL
            AND lower(COALESCE(o.creneau, o.fenetre)) >= %s""",
                       _id("lorette"), minuit(4))
 
@@ -205,7 +205,7 @@ def test_arreter_rend_la_repartition_normale(place):
     assert abs(charge["thomas"] - charge["lorette"]) <= tolerance(), charge
     # Dès l'arrêt, même pour le reste de la journée : une tâche neuve va au
     # moins chargé, et non plus d'office à Lorette.
-    neuve = un("SELECT ajouter_tache('Arroser le ficus', %s, 7)", _id("thomas"))
+    neuve = un("SELECT creer_tache('Arroser le ficus', %s, p_tous_les_jours => 7)", _id("thomas"))
     choisi = un("SELECT choisir_assigne(%s, tstzrange(now(), now() + INTERVAL '2 days'))",
                 neuve)
     assert choisi == _id(min(charge, key=charge.get)), charge
@@ -241,18 +241,3 @@ def test_le_journal_dit_qui_s_est_allege(place):
     assert "/allege" in texte
 
 
-def test_une_tache_de_depart_ne_se_redistribue_pas(place):
-    # Le rééquilibrage rouvre la semaine, mais ce qui revient au dernier à
-    # partir lui reste : c'est lui qui ferme l'appartement.
-    vendredi = minuit(5).replace(hour=12)
-    for pseudo, depart in (("lorette", vendredi - timedelta(hours=18)), ("thomas", vendredi)):
-        sql("INSERT INTO absence (id_utilisateur, periode, lieu, origine) "
-            "VALUES (%s, tstzrange(%s, %s, '[)'), 'Lusse', 'manuelle')",
-            _id(pseudo), depart, vendredi + timedelta(days=3))
-    placer()
-
-    allegement.activer(_id("thomas"), 7)
-
-    a_qui = {x["id_utilisateur"] for x in sql(
-        "SELECT id_utilisateur FROM occurrence WHERE origine = 'depart'")}
-    assert a_qui == {_id("thomas")}

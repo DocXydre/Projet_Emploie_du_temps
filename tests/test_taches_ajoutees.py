@@ -1,7 +1,7 @@
 """Les tâches ajoutées par le foyer                                       (TAC-20)
 
 Un cycle long, ou une chose à faire une fois avant une date. Ce que la base
-tient, quel que soit l'écran qui l'ajoute : ajouter_tache, arreter_tache, et
+tient, quel que soit l'écran qui l'ajoute : creer_tache, arreter_tache, et
 le report de minuit.
 """
 
@@ -25,7 +25,8 @@ from tests.test_ensemble import OUVERTS, _id, minuit, sql, un
 
 def test_une_tache_ponctuelle_ne_s_abandonne_pas_toute_seule(base):
     """Le ménage revient de lui-même, on peut en laisser passer un. Un colis non."""
-    numero = un("SELECT ajouter_tache('Rendre le colis', %s, NULL, %s, %s, 15)",
+    numero = un("SELECT creer_tache('Rendre le colis', %s, p_au => %s, p_pour => %s, "
+                "p_duree_minutes => 15)",
                 _id("thomas"), minuit(0).date(), _id("thomas"))
     # Six jours de retard : au-delà du délai d'abandon des tâches ordinaires.
     sql("""UPDATE occurrence SET fenetre = tstzrange(%s, %s, '[)'), statut = 'planifiee',
@@ -49,7 +50,7 @@ def test_une_tache_ponctuelle_ne_s_abandonne_pas_toute_seule(base):
 @pytest.mark.parametrize("jours, echeance", [(None, None), (7, "2099-01-01")])
 def test_reguliere_ou_ponctuelle_pas_les_deux(base, jours, echeance):
     with pytest.raises(psycopg.errors.CheckViolation):
-        sql("SELECT ajouter_tache('Essai', %s, %s, %s, NULL, 15)",
+        sql("SELECT creer_tache('Essai', %s, p_tous_les_jours => %s, p_au => %s)",
             _id("thomas"), jours, echeance)
 
 
@@ -58,15 +59,18 @@ def test_reguliere_ou_ponctuelle_pas_les_deux(base, jours, echeance):
 # ---------------------------------------------------------------------------
 
 
-def test_une_tache_de_reference_ne_s_arrete_pas_ainsi(base):
-    aspirateur = un("SELECT id_tache FROM tache WHERE code = 'ASPIRATEUR'")
+def test_une_tache_d_origine_s_arrete_comme_les_autres(base):
+    """TAC-29 : elle n'a plus rien de particulier ; elle rejoint les tâches arrêtées."""
+    aspirateur = un("SELECT essais.tache_de('ASPIRATEUR')")
 
-    assert un("SELECT arreter_tache(%s)", aspirateur) is False
-    assert un("SELECT active FROM tache WHERE id_tache = %s", aspirateur) is True
+    assert un("SELECT arreter_tache(%s)", aspirateur) is True
+    assert un("SELECT active FROM tache WHERE id_tache = %s", aspirateur) is False
+    assert un("SELECT arretee_le FROM tache WHERE id_tache = %s", aspirateur) is not None
 
 
 def test_la_tache_ajoutee_entre_au_planning_comme_les_autres(base):
-    sql("SELECT ajouter_tache('Nettoyer le four', %s, 30, NULL, NULL, 30)", _id("thomas"))
+    sql("SELECT creer_tache('Nettoyer le four', %s, p_tous_les_jours => 30, p_duree_minutes => 30)",
+        _id("thomas"))
 
     placer()
 

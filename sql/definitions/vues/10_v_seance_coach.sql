@@ -45,7 +45,7 @@ SELECT o.id_occurrence,
            ELSE se.etat
        END                                          AS situation
   FROM occurrence o
-  JOIN tache t           ON t.id_tache = o.id_tache AND t.categorie = 'sport'
+  JOIN tache t           ON t.id_tache = o.id_tache AND t.id_type_tache IS NULL
   LEFT JOIN seance se    ON se.id_occurrence = o.id_occurrence
   LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
   LEFT JOIN bilan_seance b ON b.id_occurrence = o.id_occurrence

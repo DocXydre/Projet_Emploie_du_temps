@@ -54,10 +54,13 @@ struct Instantane: Codable, Equatable, Sendable {
         var avancee: Double
     }
 
+    /// Les tâches du type Chat et leur prochaine fois, trois au plus.
     struct Chat: Codable, Equatable, Sendable {
-        var litiere: String
-        var eau: String
-        var fontaine: String
+        struct Soin: Codable, Equatable, Sendable {
+            var titre: String
+            var quand: String
+        }
+        var soins: [Soin]
     }
 
     /// Le temps passé aux tâches partagées sur sept jours.
@@ -142,7 +145,8 @@ struct Instantane: Codable, Equatable, Sendable {
                  Tache(titre: "Lessive blanche", faite: false, pourQui: "Toi")],
         enRetard: EnRetard(titre: "Aspirateur", detail: "reportée 2 fois", nombre: 1),
         objectif: Objectif(titre: "10 km sous 50 min", joursRestants: 38, avancee: 0.42),
-        chat: Chat(litiere: "ce soir", eau: "demain", fontaine: "sam. 24 oct."),
+        chat: Chat(soins: [.init(titre: "Litière", quand: "ce soir"), .init(titre: "Eau", quand: "demain"),
+                           .init(titre: "Fontaine", quand: "sam. 24 oct.")]),
         equilibre: Equilibre(partDeMoi: 0.55, autre: "Alex", dureeMoi: "3 h 20", dureeAutre: "2 h 45"),
         frequence: [58, 61, 64, 72, 88, 76, 69, 65, 63, 70, 74, 66],
         weekend: Ligne(titre: "Week-end libre à Lyon ?", detail: "Du sam. 24 oct. au dim. 25 oct."),

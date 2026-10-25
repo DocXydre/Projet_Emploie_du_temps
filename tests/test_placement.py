@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from tests.conftest import _url
+from tests.conftest import _url, id_de
 
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -97,7 +97,7 @@ def test_une_tache_frequente_revient_plusieurs_fois(client, thomas):
 
     toutes = client.get("/occurrences", headers=thomas,
                         params={"statut": ["a_placer", "planifiee"]}).json()
-    aspirateurs = [o for o in toutes if o["tache_code"] == "ASPIRATEUR"]
+    aspirateurs = [o for o in toutes if o["id_tache"] == id_de("ASPIRATEUR")]
 
     # Tous les 2 à 3 jours sur 35 jours : une dizaine d'occurrences.
     assert len(aspirateurs) >= 8, f"seulement {len(aspirateurs)} occurrence(s)"
@@ -120,14 +120,16 @@ def test_la_validation_repositionne_la_tache_enchainee(client, thomas):
         def lancer() -> None:
             numero = conn.execute(
                 "SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache) "
-                " WHERE t.code = 'LAVE_VAISSELLE' AND o.statut IN ('a_placer', 'planifiee') "
+                " WHERE t.id_tache = essais.tache_de('LAVE_VAISSELLE')"
+                " AND o.statut IN ('a_placer', 'planifiee') "
                 " ORDER BY lower(o.fenetre) LIMIT 1").fetchone()[0]
             conn.execute("SELECT valider_occurrence(%s, %s, NULL)", (numero, moi))
 
         def vidages() -> list[str]:
             return [ligne[0] for ligne in conn.execute(
                 "SELECT COALESCE(o.motif, '') FROM occurrence o JOIN tache t USING (id_tache) "
-                " WHERE t.code = 'VIDER_LAVE_VAISSELLE' AND o.statut = 'a_placer'")]
+                " WHERE t.id_tache = essais.tache_de('VIDER_LAVE_VAISSELLE')"
+                "   AND o.statut = 'a_placer'")]
 
         lancer()
         assert len(vidages()) == 1
@@ -143,7 +145,7 @@ def test_valider_efface_les_previsions_devenues_fausses(client, thomas):
 
     toutes = client.get("/occurrences", headers=thomas,
                         params={"statut": ["a_placer", "planifiee"]}).json()
-    aspirateurs = sorted([o for o in toutes if o["tache_code"] == "ASPIRATEUR"],
+    aspirateurs = sorted([o for o in toutes if o["id_tache"] == id_de("ASPIRATEUR")],
                          key=lambda o: o["echeance_min"])
     avant = len(aspirateurs)
     assert avant >= 3
@@ -153,7 +155,7 @@ def test_valider_efface_les_previsions_devenues_fausses(client, thomas):
 
     restantes = client.get("/occurrences", headers=thomas,
                            params={"statut": ["a_placer", "planifiee"]}).json()
-    apres = [o for o in restantes if o["tache_code"] == "ASPIRATEUR"]
+    apres = [o for o in restantes if o["id_tache"] == id_de("ASPIRATEUR")]
 
     # Les prévisions supposaient une exécution en fin de fenêtre. La validation
     # dit quand la tâche a vraiment été faite : la suite est refaite, et elle
@@ -181,7 +183,7 @@ def test_la_chaine_se_reconstitue_au_placement_suivant(client, thomas):
     client.post("/planning/placer", headers=thomas)
     toutes = client.get("/occurrences", headers=thomas,
                         params={"statut": ["a_placer", "planifiee"]}).json()
-    aspirateur = next(o for o in toutes if o["tache_code"] == "ASPIRATEUR")
+    aspirateur = next(o for o in toutes if o["id_tache"] == id_de("ASPIRATEUR"))
 
     client.post(f"/occurrences/{aspirateur['id_occurrence']}/valider",
                 headers=thomas, json={})
@@ -189,7 +191,7 @@ def test_la_chaine_se_reconstitue_au_placement_suivant(client, thomas):
 
     restantes = client.get("/occurrences", headers=thomas,
                            params={"statut": ["a_placer", "planifiee"]}).json()
-    apres = [o for o in restantes if o["tache_code"] == "ASPIRATEUR"]
+    apres = [o for o in restantes if o["id_tache"] == id_de("ASPIRATEUR")]
     assert len(apres) >= 8
 
 

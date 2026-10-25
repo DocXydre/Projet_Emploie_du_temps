@@ -1,10 +1,10 @@
 -- -----------------------------------------------------------------------------
 -- Supprimer un type de tâche                                           (TAC-26)
 --
--- Seulement s'il ne porte plus aucune tâche active : on déplace d'abord ses
--- tâches. Les tâches arrêtées perdent leur type (ON DELETE SET NULL) et gardent
--- leur historique. Le dernier type de ménage reste : c'est celui que prend une
--- tâche créée sans type.
+-- Seulement un type créé par le foyer, et s'il ne porte plus aucune tâche
+-- active : on déplace d'abord ses tâches. Ses tâches arrêtées passent à
+-- Ménage, avec leur historique : une tâche de la maison a toujours un type.
+-- Les cinq types de base ne se suppriment pas (TAC-25).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION supprimer_type_tache(p_type INTEGER)
 RETURNS VOID LANGUAGE plpgsql AS $$
@@ -23,15 +23,18 @@ BEGIN
                         v_type.libelle, v_actives
               USING ERRCODE = 'check_violation';
     END IF;
-    IF v_type.categorie = 'menage'
-       AND NOT EXISTS (SELECT 1 FROM type_tache
-                        WHERE categorie = 'menage' AND id_type_tache <> p_type) THEN
-        RAISE EXCEPTION 'Il faut garder au moins un type de ménage'
+    IF v_type.base IS NOT NULL THEN
+        RAISE EXCEPTION '« % » est un type de base : il se renomme et se recolore, mais ne se supprime pas',
+                        v_type.libelle
               USING ERRCODE = 'check_violation';
     END IF;
+
+    UPDATE tache
+       SET id_type_tache = (SELECT id_type_tache FROM type_tache WHERE base = 'menage')
+     WHERE id_type_tache = p_type AND NOT active;
 
     DELETE FROM type_tache WHERE id_type_tache = p_type;
 END $$;
 
 COMMENT ON FUNCTION supprimer_type_tache(INTEGER) IS
-    'TAC-26 : supprime un type qui ne porte plus de tâche active.';
+    'TAC-26 : supprime un type créé par le foyer qui ne porte plus de tâche active ; ses tâches arrêtées passent à Ménage.';

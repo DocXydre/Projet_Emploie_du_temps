@@ -2,13 +2,8 @@ CREATE OR REPLACE FUNCTION charge_domestique(p_utilisateur INTEGER) RETURNS INTE
 LANGUAGE sql STABLE AS $$
     -- PLA-10 : le sport est personnel, il n'entre pas dans la balance.
     --
-    -- Une tâche à deux non plus : le grand nettoyage dure deux heures et se
-    -- fait ensemble. Le compter chez celui à qui il est nominalement assigné
-    -- lui donnait deux heures d'avance imaginaire, et lui épargnait tout le
-    -- reste pendant des semaines.
-    --
     -- PLA-15 : ce qu'on fait seul parce que l'autre est parti ne compte pas non
-    -- plus, ni ce qu'on fait en partant ou en rentrant. Celui qui reste vit
+    -- plus, ni les tâches de départ et de retour d'avant octobre 2026. Celui qui reste vit
     -- dans l'appartement, il est normal qu'il s'en occupe. Compter ces tâches
     -- faisait passer celui qui reste pour débordé, et celui qui rentre
     -- récupérait tout le ménage de la semaine suivante.
@@ -24,8 +19,7 @@ LANGUAGE sql STABLE AS $$
                             debut_jour(jour_de(lower(COALESCE(o.creneau, o.fenetre))) + 1),
                             '[)') AS plage) j
      WHERE o.id_utilisateur = p_utilisateur
-       AND t.categorie <> 'sport'
-       AND NOT t.requiert_les_deux
+       AND t.id_type_tache IS NOT NULL
        AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
        AND o.origine NOT IN ('depart', 'retour')
        -- Les deux exceptions ne se vérifient que si une absence ou un mode
@@ -42,6 +36,6 @@ $$;
 
 COMMENT ON FUNCTION charge_domestique IS
     'Minutes de tâches domestiques encore à faire, pour équilibrer la
-     répartition. Hors sport, tâches à deux, tâches de départ et de retour,
+     répartition. Hors sport, tâches de départ et de retour,
      jours où l''autre est absent et jours de mode allégé (PLA-10, PLA-12,
      PLA-15, PLA-16).';

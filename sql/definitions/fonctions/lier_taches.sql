@@ -45,7 +45,7 @@ BEGIN
                         CASE WHEN v_de.active THEN v_vers.libelle ELSE v_de.libelle END
               USING ERRCODE = 'check_violation';
     END IF;
-    IF v_de.categorie = 'sport' OR v_vers.categorie = 'sport' THEN
+    IF v_de.id_type_tache IS NULL OR v_vers.id_type_tache IS NULL THEN
         RAISE EXCEPTION 'Une séance de sport ne se relie pas à une tâche : HAL s''en occupe'
               USING ERRCODE = 'check_violation';
     END IF;

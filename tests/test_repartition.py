@@ -19,7 +19,7 @@ from datetime import UTC, datetime, timedelta
 import psycopg
 import pytest
 
-from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url
+from tests.conftest import CLE_LORETTE, CLE_THOMAS, _url, id_de
 
 
 def _sql(requete: str, *parametres):
@@ -47,7 +47,7 @@ def _valider(client, pseudo: str, id_occurrence: int) -> None:
 def _declarer_faite(client, pseudo: str, code: str) -> None:
     """« J'ai fait… », depuis l'appli : prévue ou non, et pour qui que ce soit."""
     reponse = client.post("/occurrences/faite", headers={"X-Cle-Api": CLES[pseudo]},
-                          json={"code_tache": code})
+                          json={"id_tache": id_de(code)})
     assert reponse.status_code == 200, reponse.text
 
 
@@ -63,7 +63,7 @@ def _suite(code: str) -> list[str]:
           FROM occurrence o
           JOIN tache t ON t.id_tache = o.id_tache
           LEFT JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
-         WHERE t.code = %s AND o.statut IN ('planifiee', 'notifiee')
+         WHERE t.id_tache = essais.tache_de(%s) AND o.statut IN ('planifiee', 'notifiee')
          ORDER BY upper(o.fenetre)
         """, code)]
 
@@ -97,7 +97,7 @@ def test_le_pliage_du_linge_reste_a_lorette(client, thomas, base):
     # ABS-2 : une assignation fixée n'entre pas dans le roulement. Le pliage
     # naît d'un enchaînement, pas d'une récurrence : on interroge donc la règle
     # elle-même plutôt que d'attendre qu'une occurrence existe.
-    tache = _un("SELECT id_tache FROM tache WHERE code = 'PLIER_LINGE'")
+    tache = _un("SELECT id_tache FROM tache WHERE id_tache = essais.tache_de('PLIER_LINGE')")
 
     for _ in range(3):
         assert _un("SELECT choisir_assigne(%s, "
@@ -112,8 +112,8 @@ def test_le_roulement_cede_devant_un_gros_desequilibre(client, thomas, base):
     plus serait absurde. Au-delà d'une heure d'écart, la charge l'emporte.
     """
     elle, moi = _id("lorette"), _id("thomas")
-    tache = _un("SELECT id_tache FROM tache WHERE code = 'ASPIRATEUR'")
-    recurage = _un("SELECT id_tache FROM tache WHERE code = 'RECURAGE'")
+    tache = _un("SELECT id_tache FROM tache WHERE id_tache = essais.tache_de('ASPIRATEUR')")
+    recurage = _un("SELECT id_tache FROM tache WHERE id_tache = essais.tache_de('RECURAGE')")
 
     # Une heure et demie de récurage déjà sur le dos de Lorette.
     for _ in range(6):
@@ -140,11 +140,12 @@ def test_declarer_une_tache_prevue_pour_l_autre(client, thomas, place):
     moi = _id("thomas")
     sienne = _sql(
         """
-        SELECT o.id_occurrence, t.code
+        SELECT o.id_occurrence,
+               (SELECT c.code FROM essais.code_tache c WHERE c.id_tache = t.id_tache) AS code
           FROM occurrence o
           JOIN tache t ON t.id_tache = o.id_tache
          WHERE o.id_utilisateur = %s AND o.statut IN ('planifiee', 'notifiee')
-           AND t.categorie <> 'sport'
+           AND t.id_type_tache IS NOT NULL
          ORDER BY upper(o.fenetre) LIMIT 1
         """, _id("lorette"))[0]
 
@@ -166,10 +167,11 @@ def test_declarer_ne_laisse_pas_l_ancienne_ouverte(client, thomas, place):
 
     assert ouvertes, "il faut une occurrence ouverte pour que le test ait un sens"
     assert _un("SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache) "
-               " WHERE t.code = %s AND o.statut = 'faite'", code) == 1
+               " WHERE t.id_tache = essais.tache_de(%s) AND o.statut = 'faite'", code) == 1
     # Celle qu'on vient de faire ne traîne plus dans le planning de personne.
     assert _un("SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache) "
-               " WHERE t.code = %s AND o.statut IN ('a_placer', 'planifiee', 'notifiee') "
+               " WHERE t.id_tache = essais.tache_de(%s)"
+               " AND o.statut IN ('a_placer', 'planifiee', 'notifiee') "
                "   AND lower(o.fenetre) <= now()", code) == 0
 
 
@@ -177,7 +179,7 @@ def test_chacun_peut_cocher_la_tache_de_l_autre(client, thomas, lorette, place):
     a_moi = _sql(
         "SELECT o.id_occurrence FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache "
         " WHERE o.id_utilisateur = %s AND o.statut IN ('planifiee', 'notifiee') "
-        "   AND t.categorie <> 'sport' ORDER BY upper(o.fenetre) LIMIT 1", _id("thomas"))[0]
+        "   AND t.id_type_tache IS NOT NULL ORDER BY upper(o.fenetre) LIMIT 1", _id("thomas"))[0]
 
     _valider(client, "lorette", a_moi["id_occurrence"])
 
@@ -191,7 +193,8 @@ def test_on_declare_aussi_ce_qui_revient_a_l_autre(client, thomas):
     _declarer_faite(client, "thomas", "PLIER_LINGE")
 
     assert _un("SELECT o.id_utilisateur FROM occurrence o JOIN tache t USING (id_tache) "
-               " WHERE t.code = 'PLIER_LINGE' AND o.statut = 'faite'") == _id("thomas")
+               " WHERE t.id_tache = essais.tache_de('PLIER_LINGE')"
+               "   AND o.statut = 'faite'") == _id("thomas")
 
 
 # ---------------------------------------------------------------------------
@@ -204,13 +207,14 @@ def test_faite_en_avance_la_suivante_repart_d_aujourd_hui(client, thomas, place)
     code = "POUSSIERE"
     debut_avant = _un(
         "SELECT min(lower(o.fenetre)) FROM occurrence o JOIN tache t USING (id_tache) "
-        " WHERE t.code = %s AND o.statut IN ('planifiee', 'notifiee')", code)
+        " WHERE t.id_tache = essais.tache_de(%s) AND o.statut IN ('planifiee', 'notifiee')", code)
 
     _declarer_faite(client, "thomas", code)
 
     debut_apres = _un(
         "SELECT min(lower(o.fenetre)) FROM occurrence o JOIN tache t USING (id_tache) "
-        " WHERE t.code = %s AND o.statut IN ('a_placer', 'planifiee', 'notifiee')", code)
+        " WHERE t.id_tache = essais.tache_de(%s)"
+        "   AND o.statut IN ('a_placer', 'planifiee', 'notifiee')", code)
 
     assert debut_apres > debut_avant
     assert debut_apres >= datetime.now(UTC) + timedelta(days=6)
@@ -219,7 +223,8 @@ def test_faite_en_avance_la_suivante_repart_d_aujourd_hui(client, thomas, place)
 def _prochaine(code: str) -> dict:
     return _sql(
         "SELECT o.statut, o.creneau FROM occurrence o JOIN tache t USING (id_tache) "
-        " WHERE t.code = %s AND o.statut IN ('a_placer', 'planifiee', 'notifiee') "
+        " WHERE t.id_tache = essais.tache_de(%s)"
+        "   AND o.statut IN ('a_placer', 'planifiee', 'notifiee') "
         " ORDER BY lower(o.fenetre) LIMIT 1", code)[0]
 
 
@@ -234,7 +239,7 @@ def test_valider_par_l_api_replace_aussi(client, thomas, place):
     assert CLE_THOMAS and CLE_LORETTE  # les deux comptes existent bien
 
     occurrence = next(o for o in client.get("/occurrences", headers=thomas).json()
-                      if o["tache_code"] == "LITIERE_CROTTES")
+                      if o["id_tache"] == id_de("LITIERE_CROTTES"))
     client.post(f"/occurrences/{occurrence['id_occurrence']}/valider",
                 headers=thomas, json={})
 
@@ -254,9 +259,11 @@ def test_les_poubelles_et_les_draps_tournent(client, thomas, place):
     assert len(set(poubelles)) == 2, f"toujours la même personne : {poubelles}"
     # Toutes les deux semaines : deux ou trois sur l'horizon.
     assert draps
-    assert _un("SELECT reportable FROM tache WHERE code = 'DRAPS'") is True
-    # Les poubelles ne se remettent pas à demain, elles.
-    assert _un("SELECT reportable FROM tache WHERE code = 'POUBELLES'") is False
+    assert _un("SELECT si_pas_faite FROM tache "
+               "WHERE id_tache = essais.tache_de('DRAPS')") == "reporter"
+    # Les poubelles ne se remettent pas à demain : c'est dans leur description (TAC-29).
+    assert "Ne se repousse pas" in _un(
+        "SELECT texte FROM v_description_tache WHERE id_tache = essais.tache_de('POUBELLES')")
 
 
 # ---------------------------------------------------------------------------
@@ -273,12 +280,13 @@ def _sienne(pseudo: str) -> dict:
     """La prochaine tâche ménagère prévue pour quelqu'un."""
     return _sql(
         """
-        SELECT o.id_occurrence, t.code
+        SELECT o.id_occurrence,
+               (SELECT c.code FROM essais.code_tache c WHERE c.id_tache = t.id_tache) AS code
           FROM occurrence o
           JOIN tache t ON t.id_tache = o.id_tache
           JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
          WHERE u.pseudo = %s AND o.statut IN ('planifiee', 'notifiee')
-           AND t.categorie <> 'sport'
+           AND t.id_type_tache IS NOT NULL
          ORDER BY upper(o.fenetre) LIMIT 1
         """, pseudo)[0]
 
@@ -344,7 +352,7 @@ def test_une_tache_deja_annoncee_ne_bouge_pas(client, thomas, place):
         SELECT o.id_occurrence FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
          WHERE u.pseudo = 'thomas' AND o.statut = 'planifiee'
-           AND t.categorie <> 'sport' ORDER BY upper(o.fenetre) LIMIT 1
+           AND t.id_type_tache IS NOT NULL ORDER BY upper(o.fenetre) LIMIT 1
         """)[0]
 
     _valider(client, "lorette", autre["id_occurrence"])
@@ -364,6 +372,6 @@ def test_le_pliage_reste_a_lorette_meme_apres_un_reequilibrage(client, thomas, p
         """
         SELECT u.pseudo FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur
-         WHERE t.code = 'PLIER_LINGE' AND o.statut IN ('planifiee', 'notifiee')
+         WHERE t.id_tache = essais.tache_de('PLIER_LINGE') AND o.statut IN ('planifiee', 'notifiee')
         """)}
     assert assignes in ({"lorette"}, set())

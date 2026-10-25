@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 25 octobre 2026 (migration 085 ; partie H : lieux, position et météo, lieux de sport décrits)
+Version du 25 octobre 2026 (migration 085 ; partie H : lieux, position et météo, lieux de sport décrits ; les tâches sans réglage à part, écrites avant d'être construites, annexe 15)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer, puis les lieux, la position et la météo. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
@@ -43,7 +43,7 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 
 HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F).
 
-La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'appli, on peut le lui demander, et il le fait. On lui dit aussi les consignes particulières d'une tâche, « une fois par mois, un jour où je suis libre » : il les retient dans la mémoire de la tâche, place la tâche en conséquence, et vérifie chaque semaine et après chaque changement que c'est respecté. Le ménage peut se répartir équitablement chaque lundi (partie G).
+La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'appli, on peut le lui demander, et il le fait. Toutes les tâches se créent avec le même formulaire, et aucune n'a de réglage à elle seule. Ce que le formulaire ne sait pas dire, « les 19 et 23 du mois, un mois sur deux », « avant un départ », on le dit à HAL : il l'écrit dans la description de la tâche, place la tâche en conséquence, et vérifie chaque semaine et après chaque changement que c'est respecté. Le ménage peut se répartir équitablement chaque lundi (partie G).
 
 Les lieux ont une adresse et une description pour HAL : c'est elle qui fait choisir la salle d'une séance. L'iPhone dit dans quel lieu connu on se trouve : les trajets se calculent depuis là, HAL demande si l'on reste quand on arrive à Lusse, si l'on va à sa séance quand on n'est pas à la salle, et comment s'est passée la soirée quand on n'était pas rentré à minuit. Avant une course dehors, la météo est vérifiée ; après, HAL sait si le vent ou la chaleur ont joué (partie H).
 
@@ -74,7 +74,8 @@ Les lieux ont une adresse et une description pour HAL : c'est elle qui fait choi
 | Fournisseur du modèle | Chacun branche son abonnement Claude ; l'API prend le relais quand il est épuisé, dans un plafond mensuel | FOU |
 | Accords | Un client externe dépose une demande ; rien ne change sans l'accord de l'utilisateur, donné dans l'appli. Dans l'appli, HAL fait directement ce qu'on lui demande | ACC, ACT |
 | HAL du foyer | Un HAL commun pour la maison, à côté du HAL sport de chacun ; un aiguillage en Python envoie chaque message à l'un, à l'autre ou aux deux | HDF, AIG |
-| Consignes des tâches | Dites à HAL en langage libre, notées dans la mémoire de la tâche, lisibles dans son détail. HAL place selon elles et épingle ; il vérifie chaque semaine et après chaque déplacement | MTA, VER |
+| Description des tâches | Le formulaire dit le nom, le type, la durée, quand, si pas faite, l'heure, pour qui et les liens. Le reste se dit à HAL, qui l'écrit dans la description de la tâche, lisible dans son détail. HAL place selon elle et épingle ; il vérifie chaque semaine et après chaque changement | MTA, VER |
+| Tâches d'origine et arrêtées | Des tâches comme les autres, sans réglage à part : leurs particularités sont dans leur description. Une tâche arrêtée se reprend, ou s'efface avec son historique. Les cinq types de base ne se suppriment pas | TAC-25, TAC-29 à TAC-31 |
 | Répartition | Au choix du foyer, le lundi à 7 h : même charge en minutes × pénibilité, écart reporté, préférences dites à HAL | REP |
 | Lieux | Une adresse par lieu, donnée au démarrage ou dite à HAL, corrigeable dans Réglages ; une description par lieu, tenue par HAL, qui choisit d'après elle le lieu de chaque séance ; plus de lieux à ranger par discipline ; les trajets calculés par le serveur, à pied, à vélo ou en voiture | ADR |
 | Position | Un cercle de 50 m autour de chaque lieu, surveillé par l'iPhone ; pas de tracé ; HAL demande au départ, au retour, quand on manque une séance ou un cours | POS |
@@ -224,7 +225,7 @@ L'ordonnanceur vit dans le même processus que l'API. Les heures sont celles de 
 | 7h00 | Placement du matin | Refait le placement pour tous les comptes |
 | Toutes les 5 minutes | Bilan du matin et relance du soir | Envoie à chacun, à l'heure qu'il a réglée, l'annonce de la journée et le rappel de ce qui n'est pas validé (NOT-1, NOT-4, EXE-6, NOT-15) |
 | 7h10 | Propositions de week-end | Repère, annonce, relance (WKD-1 à WKD-10) |
-| 0h05 | Report d'office | Reporte ou abandonne ce qui n'est pas fait, clôt les conflits passés, purge le journal (EXE-6, EXE-12, COL-19, JRN-8) |
+| 0h05 | Report d'office | Reporte ou oublie ce qui n'est pas fait, selon ce que dit chaque tâche, clôt les conflits passés, purge le journal (EXE-6, TAC-24, EXE-12, COL-19, JRN-8) |
 
 Chaque passage ouvre une opération au journal : ce qu'il change se retrouve sous son nom dans l'Historique (JRN-4, JRN-9).
 
@@ -236,7 +237,7 @@ Pendant les heures de silence, de 23h30 à 7h30 par défaut, rien ne part : les 
 
 ### A.3 Règles de gestion
 
-Les règles sont regroupées par domaine. Chaque code est stable : ajouter une règle n'oblige jamais à renuméroter les autres, ni à reprendre les commentaires du code qui les citent. Un numéro absent d'un tableau est celui d'une règle remplacée ou retirée : elle est en annexe 1, 2 ou 5.
+Les règles sont regroupées par domaine. Chaque code est stable : ajouter une règle n'oblige jamais à renuméroter les autres, ni à reprendre les commentaires du code qui les citent. Un numéro absent d'un tableau est celui d'une règle remplacée ou retirée : elle est en annexe, la 1, la 2, la 5 ou la 15 pour celles du planning.
 
 Trois types, selon la manière dont la règle est tenue : **D** pour une règle sur les données, garantie par le schéma ou par un réglage ; **T** pour un traitement, réalisé par une fonction ou un trigger ; **M** pour une procédure manuelle, à la charge de l'utilisateur.
 
@@ -281,34 +282,30 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 | Code | Type | Règle |
 |---|---|---|
-| TAC-1 | D | Une tâche récurrente déclare une catégorie, une durée, une priorité de 1 à 5 et une périodicité minimale et maximale en jours. Elle ne porte aucune date |
-| TAC-2 | D | Une tâche est soit un rappel dans la journée, sans heure, soit une tâche à heure imposée déclarant sa fenêtre horaire |
-| TAC-3 | D | Une tâche déclare si elle mobilise la machine à laver, ressource unique du logement |
+| TAC-1 | D | Une tâche déclare un nom, un type (TAC-25), une durée et une priorité de 1 à 5. Elle revient d'une seule façon : par un rythme, une périodicité minimale et maximale en jours ; par des dates (TAC-22) ; après une autre tâche (TAC-27) ; ou selon sa description (MTA-8). La tâche ne porte aucune date : ce sont ses occurrences qui en ont |
+| TAC-2 | D | Une tâche est soit un rappel dans la journée, sans heure, soit une tâche à heure imposée qui déclare sa plage horaire (TAC-23). C'est la plage qui le dit : une tâche sans plage est un rappel |
 | TAC-4 | D | Une occurrence est une exécution concrète d'une tâche. Elle porte une fenêtre d'échéance, et non une date unique |
 | TAC-5 | D | Le créneau placé d'une occurrence est inclus dans sa fenêtre et dure au moins le temps prévu |
 | TAC-6 | D | Deux occurrences à heure imposée ne peuvent pas se chevaucher pour un même utilisateur. Les rappels d'une même journée, eux, cohabitent |
 | TAC-7 | D | Une tâche peut en déclencher une autre dans un délai maximal : une lessive déclenche l'étendage dans les 12 h, et l'étendage le pliage entre 12 et 48 h plus tard |
 | TAC-8 | D | Une tâche peut n'exister que par enchaînement. Étendre le linge ne revient pas tous les jours, seulement après une lessive |
-| TAC-9 | D | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
 | TAC-10 | T | Une tâche peut en couvrir une autre : la valider solde aussi, à la même date, ce qui était dû de la tâche couverte. Vider la litière vaut ramassage ; laver la fontaine vaut changer l'eau |
-| TAC-11 | D | Les poubelles sortent tous les quatre jours au plus tard, sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
-| TAC-12 | T | Une tâche peut être marquée « avant le départ » : quand l'appartement se vide, elle est posée avant que la dernière personne parte, en plus de sa récurrence. Les poubelles et la litière ne peuvent pas attendre le retour, et il n'y a plus personne pour s'en occuper. La liste est en TAC-18 |
-| TAC-13 | D | Les poubelles se sortent à partir de 17h et pas avant : le ramassage passe à l'aube, un sac sorti le matin attend dehors toute la journée. Un départ avant 17h fait donc tomber la corvée la veille au soir |
-| TAC-14 | T | Le lave-vaisselle lancé le soir se vide dans la journée qui suit. La tâche n'a pas de récurrence propre : elle naît de la validation du lancement, et revient à qui le roulement désigne, quel que soit celui qui a lancé |
+| TAC-14 | T | Une tâche née d'un « Ensuite » revient à qui le roulement désigne, quel que soit celui qui a fait la première : avoir lancé le lave-vaisselle n'oblige pas à le vider |
 | TAC-15 | T | Une tâche peut en entraîner une autre le même jour, pour la même personne, avant ou après elle. Récurer emmène l'aspirateur, avant. La poussière l'emmène, après. C'est l'aspirateur prévu le plus près qui se déplace ; on n'en pose un de plus que si aucun n'est à portée. Un aspirateur passé la veille ne l'empêche pas : un passage de trop vaut mieux qu'un de moins, et l'aspirateur se cale sur le jour du récurage |
-| TAC-16 | T | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) », « Nettoyage 2/3 : Passer l'aspirateur ». Les titres se refont à chaque placement |
-| TAC-17 | T | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
-| TAC-18 | T | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse du chat changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
+| TAC-16 | T | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) ». Les titres se refont à chaque placement |
 | TAC-19 | T | Ce qu'une tâche couvre disparaît du planning sans attendre qu'on la coche : pas de ramassage le jour d'un vidage, et un ramassage oublié s'efface quand le vidage est dû. Un ramassage en retard reste tant que le vidage est à venir. Même règle pour l'eau et la fontaine |
-| TAC-20 | M | Une tâche s'ajoute depuis le « + » d'Aujourd'hui ou de Maison, sur un seul écran [4.3] : son nom, son type (TAC-25), sa durée, quand (une fois, régulière, ou après une autre tâche), à quelle heure (TAC-23), pour qui (soi, l'autre, à tour de rôle). Un foyer sans tâche se voit proposer les tâches courantes, à ajouter d'un geste. Une tâche ponctuelle ne s'abandonne pas toute seule, sauf si on l'a demandé à sa création (TAC-24) : elle reste en retard jusqu'à être faite ou refusée |
-| TAC-21 | M | Toute tâche du foyer se modifie dans l'appli [4.2] : son nom, son type, sa durée, sa fréquence, son heure, pour qui, ses liens (TAC-27). Elle s'arrête aussi : désactivée, elle garde son historique. Qui peut ajouter, modifier et arrêter se règle par le foyer (FOY-6). L'autre est prévenu du changement (NOT-17) |
+| TAC-20 | M | Une tâche s'ajoute depuis le « + » d'Aujourd'hui ou de Maison, sur un seul écran [4.3] : son nom, son type (TAC-25), sa durée, quand (une fois, régulière, ou après une autre tâche), ce qu'elle devient si elle n'est pas faite (TAC-24), à quelle heure (TAC-23), pour qui (soi, l'autre, à tour de rôle). Un foyer sans tâche se voit proposer les tâches courantes, à ajouter d'un geste : des tâches ordinaires, sans description. Ce que l'écran ne sait pas dire se dit à HAL, qui l'écrit dans la description de la tâche (MTA-2) |
+| TAC-21 | M | Toute tâche du foyer se modifie dans l'appli [4.2] : son nom, son type, sa durée, sa fréquence, ce qu'elle devient si elle n'est pas faite, son heure, pour qui, ses liens (TAC-27). Elle s'arrête aussi : elle quitte le planning et la liste des tâches, et rejoint les tâches arrêtées avec son historique (TAC-30). Toutes s'arrêtent, celles d'origine comprises (TAC-29). Qui peut ajouter, modifier et arrêter se règle par le foyer (FOY-6). L'autre est prévenu du changement (NOT-17) |
 | TAC-22 | M | Une tâche faite une fois se date de deux façons. « Aujourd'hui », d'un geste : elle est due dans la journée. « Du … au … » : pas avant le premier jour, au plus tard le second. Le premier jour vaut aujourd'hui par défaut, ce qui donne « avant le … » ; deux dates égales disent un jour précis. Entre les deux, le moteur choisit le jour le moins chargé (PLA-4). Aucune des deux dates n'est passée, et la seconde ne précède pas la première |
 | TAC-23 | D | Toute tâche, ponctuelle ou régulière, a l'une de trois heures. Sans heure : un rappel dans la journée (TAC-2). « À 18h30 » : la tâche commence à cette heure-là et dure sa durée ; elle est à heure imposée, et sa plage est exactement sa durée. « Entre 18h et 21h » : le moteur choisit dans la plage, comme il le fait pour le lave-vaisselle. Une plage ne passe pas minuit et contient au moins la durée. Une heure occupée par un cours laisse la tâche à placer avec son motif (PLA-8), jamais posée par-dessus |
-| TAC-24 | M | Une tâche ponctuelle dit, à sa création, ce qu'elle devient si sa dernière date passe sans qu'elle soit faite. « La reporter » : elle revient chaque jour, en retard, jusqu'à être faite ou refusée (TAC-20). « L'oublier » : le report de minuit qui suit sa dernière date l'abandonne, et la personne à qui elle revenait en est prévenue (EXE-12). Arroser une plante avant de partir n'a plus de sens le lendemain ; rendre un colis en a toujours. Tant que sa dernière date n'est pas passée, elle se reporte comme les autres dans sa fenêtre |
-| TAC-25 | D | Les types de tâches sont des données du foyer, pas une liste du code : un nom, une couleur, une icône, une durée et une priorité par défaut. Les familles d'origine en deviennent : Ménage, Linge, Vaisselle, Chat, Administratif. Ils se renomment (« Chat » devient « Sassy ») et se recolorent ; on en crée autant qu'on veut (« Cours » pour les devoirs, « Plantes »). Une tâche nouvelle prend la durée et la priorité de son type, qu'on peut changer. Le sport n'est pas un type : il a son onglet et ses règles (SPT) |
-| TAC-26 | M | Un type se crée depuis le formulaire d'une tâche, en un geste, ou dans Réglages, Planning, Types de tâches [4.9, 4.10]. Il se modifie au même endroit, et se supprime seulement s'il ne porte plus aucune tâche active : on déplace d'abord ses tâches vers un autre type. Deux types d'un foyer ne portent pas le même nom, sans égard à la casse ni aux accents. Créer, modifier et supprimer un type suivent le droit de modifier les tâches (FOY-6) |
+| TAC-24 | M | Toute tâche dit ce qu'elle devient si sa fenêtre passe sans qu'elle soit faite. « La reporter » : elle revient chaque jour, en retard, jusqu'à être faite ou refusée ; elle n'est jamais abandonnée. « L'oublier » : le report de minuit qui suit la fin de sa fenêtre l'abandonne, et la personne à qui elle revenait en est prévenue (EXE-12). Pour une tâche ponctuelle, la fenêtre finit à sa dernière date : arroser une plante avant de partir n'a plus de sens le lendemain, rendre un colis en a toujours. Pour une tâche régulière, elle finit avec sa périodicité maximale : oubliée, elle laisse la place à la suivante, déjà prévue. « La reporter » est le choix par défaut. Tant que sa fenêtre n'est pas passée, une tâche se reporte comme les autres dans sa fenêtre |
+| TAC-25 | D | Les types de tâches sont des données du foyer, pas une liste du code : un nom, une couleur, une icône, une durée et une priorité par défaut. Cinq types de base existent dans tout foyer : Ménage, Linge, Vaisselle, Chat, Administratif. Ils se renomment (« Chat » devient « Sassy »), se recolorent et changent leurs valeurs par défaut, mais ne se suppriment pas. On en crée d'autres, autant qu'on veut (« Cours » pour les devoirs, « Plantes »). Une tâche nouvelle prend la durée et la priorité de son type, qu'on peut changer. Le sport n'est pas un type : il a son onglet et ses règles (SPT) |
+| TAC-26 | M | Un type se crée depuis le formulaire d'une tâche, en un geste, ou dans Réglages, Planning, Types de tâches [4.9, 4.10]. Il se modifie au même endroit. Un type créé par le foyer se supprime seulement s'il ne porte plus aucune tâche active : on déplace d'abord ses tâches vers un autre type, et ses tâches arrêtées passent à Ménage. Un type de base ne se supprime pas (TAC-25). Deux types d'un foyer ne portent pas le même nom, sans égard à la casse ni aux accents. Créer, modifier et supprimer un type suivent le droit de modifier les tâches (FOY-6) |
 | TAC-27 | M | Les liens entre tâches se posent dans l'appli, depuis le détail d'une tâche [4.2, 4.11], sans passer par la base. Trois sortes, qui existaient déjà : « Ensuite », faire celle-ci fait naître l'autre dans un délai : le jour même (dans les 12 h), le lendemain (de 12 à 36 h après) ou entre deux nombres d'heures, deux semaines au plus (TAC-7, EXE-2) ; « Le même jour », quand celle-ci est prévue l'autre vient le même jour, avant ou après, pour la même personne (TAC-15) ; « Vaut aussi », la faire solde l'autre (TAC-10, TAC-19). Une tâche créée « après une autre » n'a pas de rythme propre : elle ne naît que du lien, comme vider le lave-vaisselle (TAC-8, TAC-14) |
 | TAC-28 | T | Un lien se refuse avec son motif : vers la tâche elle-même, vers une tâche arrêtée ou un sport, en double, en boucle (A fait naître B qui fait naître A), ou réciproque pour « Vaut aussi » (A vaut B et B vaut A s'annuleraient). Retirer le dernier « Ensuite » d'une tâche qui n'existe que par lui est refusé : elle ne reviendrait plus jamais. On lui donne d'abord un rythme, ou on l'arrête |
+| TAC-29 | D | Aucune tâche n'a de réglage à elle seule. Les tâches d'origine, celles que le système avait au départ (poubelles, litière, eau et fontaine de Sassy, lessives, lave-vaisselle, ménage, draps, grand nettoyage), sont des tâches comme les autres : les réglages du formulaire, leurs liens, et une description pour le reste. Ce qu'elles faisaient de plus (passer avant un départ, revenir au retour, une machine par jour, se faire à deux, former le bloc « Nettoyage », ne pas se décaler) est écrit dans leur description, que HAL applique (MTA, VER-10, annexe 15). Elles s'arrêtent, se reprennent et s'effacent comme les autres : une tâche recréée avec les mêmes réglages et la même description se comporte de la même façon |
+| TAC-30 | M | Les tâches arrêtées se retrouvent dans Toutes les tâches, Tâches arrêtées [4.13], avec la date de leur arrêt et le nombre de fois qu'elles ont été faites. « Reprendre » remet une tâche au planning telle qu'elle était, avec ses réglages, ses liens et sa description. Une tâche régulière reprise est due dès aujourd'hui, comme une tâche neuve ; une tâche née d'une autre revient la prochaine fois que l'autre est faite. Une tâche ponctuelle dont la dernière date est passée ne se reprend pas : on en crée une autre. Reprendre suit le droit de modifier (FOY-6), et l'autre est prévenu (NOT-17) |
+| TAC-31 | M | Une tâche arrêtée s'efface définitivement depuis les tâches arrêtées, après confirmation : la tâche, ses occurrences, ses liens et sa description disparaissent, et l'équilibre ne compte plus ce qu'elle a pesé (PLA-12). Le journal en garde une ligne : la tâche effacée, son nom, et qui l'a effacée. Seule une tâche arrêtée s'efface, et seulement par le bouton (ACT-5) : c'est le seul geste sur les tâches qui ne se défait pas. Effacer suit le droit de modifier (FOY-6) |
 
 #### A.3.4 Placement : `PLA`
 
@@ -322,13 +319,12 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | PLA-6 | T | Un créneau prévu dans les sept jours ne bouge plus : on ne s'organise pas autour d'un planning qui se dérobe |
 | PLA-7 | T | Le planning est établi un mois à l'avance. Au-delà de la prochaine, les occurrences sont des prévisions : une validation réelle les efface et la chaîne se refait |
 | PLA-8 | T | Une occurrence sans créneau reste à placer, avec un motif lisible, et n'est jamais supprimée |
-| PLA-9 | T | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
 | PLA-10 | T | Seules les tâches domestiques entrent dans la répartition équitable. Compter le sport reviendrait à payer ses séances de piscine en heures de ménage |
 | PLA-11 | T | Le bilan du matin ne signale une occurrence sans créneau que si son échéance tombe entre deux jours et une semaine. En deçà il est trop tard pour réorganiser, au-delà ce n'est pas encore un problème, et une liste d'échéances déjà dépassées fait sauter la lecture du bilan entier |
-| PLA-12 | T | Sans la répartition de la semaine (REP-1), la répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge. Avec elle, qui fait quoi se décide le lundi (REP-2) |
+| PLA-12 | T | Sans la répartition de la semaine (REP-1), la répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Le sport n'entre pas dans cette charge. Avec elle, qui fait quoi se décide le lundi (REP-2) |
 | PLA-13 | T | Reprendre une tâche à quelqu'un rouvre la semaine à la répartition : ce qui n'a pas encore été annoncé repasse à placer et se redistribue avec les charges à jour. Sans cela, le gel de sept jours empêcherait la balance de tenir compte du coup de main. Ce qui est épinglé, annoncé ou nominatif ne bouge pas |
-| PLA-14 | D | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives, tâches ponctuelles. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage, cycles longs ajoutés |
-| PLA-15 | T | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour, pas plus que les tâches de départ et de retour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
+| PLA-14 | D | La priorité dit qui passe en premier quand deux tâches veulent la même place : 1 n'attend pas, 5 peut attendre. Elle vient du type et se change tâche par tâche (TAC-25) ; aucune liste n'en est écrite dans le code |
+| PLA-15 | T | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
 | PLA-16 | M | Le mode allégé : pendant la durée qu'il donne, de 1 à 14 jours, celui qui l'active fait un quart des tâches partagées et l'autre trois quarts. Ce qui lui est réservé lui reste. Activé par les deux le même jour, il s'annule ce jour-là : on ne vit pas dans la crasse. Les jours allégés ne comptent pas dans la balance, pour que la part cédée ne se rattrape pas ensuite. L'autre est prévenu à l'activation et à l'arrêt |
 
 #### A.3.5 Exécution et suivi : `EXE`
@@ -343,10 +339,10 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | EXE-6 | T | Une occurrence du jour non validée le soir est reportée d'office au lendemain et re-notifiée. Le compteur de relances croît tant qu'elle n'est pas faite |
 | EXE-7 | M | L'utilisateur valide, reporte ou refuse une occurrence dans l'appli : depuis la ligne de la tâche, le widget À cocher ou la notification |
 | EXE-8 | M | La validation peut être rétroactive : déclarer avoir fait la tâche la veille |
-| EXE-9 | M | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé. HAL épingle aussi ce qu'il place selon la mémoire d'une tâche (VER-1) |
+| EXE-9 | M | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé. HAL épingle aussi ce qu'il place selon la description d'une tâche (VER-1) |
 | EXE-10 | M | L'administrateur du serveur peut déclencher une collecte ou un replacement à tout moment, par les routes privées ou le bot (ADM-3) |
 | EXE-11 | M | Une tâche faite spontanément peut être déclarée sans qu'elle ait été prévue ce jour-là. Elle reprend l'occurrence ouverte s'il en existe une, sinon elle en crée une déjà validée. Dans les deux cas la récurrence repart de la date déclarée |
-| EXE-12 | T | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
+| EXE-12 | T | Une tâche pas faite à la fin de sa fenêtre suit ce qu'elle dit (TAC-24) : reportée jour après jour jusqu'à être faite ou refusée, ou oubliée au report de minuit, et la personne à qui elle revenait en est prévenue. Une séance de sport sans nouvelle, pour un compte sans HAL, est abandonnée au bout de trois jours : elle ne se rattrape pas (PLN-9). L'abandon est notifié, la récurrence suivante n'est pas touchée |
 | EXE-13 | D | Effacer une occurrence ne bute pas sur ce qui la référence : la notification déjà envoyée garde sa trace et perd seulement le lien. Une prévision effacée à la validation ne doit pas faire échouer cette validation |
 | EXE-14 | M | N'importe lequel des deux coche n'importe quelle tâche : celui qui la valide est celui qui l'a faite, et elle lui est recréditée. Refuser la validation d'une tâche assignée à l'autre obligeait à laisser au planning une tâche déjà faite |
 | EXE-15 | T | Déclarer une tâche faite reprend l'occurrence ouverte la plus proche, quel que soit son assigné, et le planning se refait aussitôt : une tâche faite en avance décale la suite sans attendre le placement de la nuit |
@@ -364,7 +360,6 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | ABS-5 | T | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan tenable, pas un plan devenu impossible |
 | ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu. Avec le suivi de la position, HAL le demande en voyant qu'on est rentré, et le retour se ferme à l'heure d'arrivée au foyer (POS-8) |
 | ABS-7 | M | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue |
-| ABS-8 | T | Quand l'appartement est resté vide plus de deux jours, l'eau du chat se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
 
 #### A.3.7 Trajets en train : `TRJ`
 
@@ -449,11 +444,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 
 #### A.3.11 Machine à laver : `UNI`
 
-Le stock d'uniforme a été retiré en septembre 2026, avec le planning de travail qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) se retrouvent dans l'historique git, sous le tag `avant-nettoyage`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. Reste celle qui ne lui devait rien.
-
-| Code | Type | Règle |
-|---|---|---|
-| UNI-12 | T | Deux occurrences mobilisant la machine ne sont pas placées le même jour |
+Le stock d'uniforme a été retiré en septembre 2026, avec le planning de travail qui le justifiait. Ses règles (UNI-1 à UNI-11, UNI-13 à UNI-15) se retrouvent dans l'historique git, sous le tag `avant-nettoyage`. Les migrations 001 à 015, qui font l'historique du schéma, les citent encore. La dernière, UNI-12, une seule machine par jour, est retirée en octobre 2026 avec les réglages propres à certaines tâches : elle est écrite dans la description des lessives (TAC-29, annexe 15).
 
 #### A.3.12 Notifications et calendrier : `NOT`
 
@@ -614,19 +605,20 @@ erDiagram
         varchar   choix
     }
     TACHE {
-        serial   id_tache PK
-        varchar  code UK
-        varchar  categorie
-        smallint priorite
-        integer  duree_minutes
-        integer  periodicite_min_jours
-        integer  periodicite_max_jours
-        boolean  rappel_journee
-        boolean  utilise_machine
-        integer  id_utilisateur_defaut FK
-        integer  ajoutee_par FK
-        integer  id_type_tache FK
-        varchar  si_pas_faite
+        serial      id_tache PK
+        varchar     libelle
+        smallint    priorite
+        integer     duree_minutes
+        varchar     revient
+        integer     periodicite_min_jours
+        integer     periodicite_max_jours
+        time        heure_min
+        time        heure_max
+        varchar     si_pas_faite
+        integer     id_utilisateur_defaut FK
+        integer     ajoutee_par FK
+        integer     id_type_tache FK
+        timestamptz arretee_le
     }
     TYPE_TACHE {
         serial   id_type_tache PK
@@ -635,6 +627,7 @@ erDiagram
         varchar  icone
         smallint duree_minutes
         smallint priorite
+        varchar  base UK
     }
     ENCHAINEMENT {
         serial  id_enchainement PK
@@ -653,8 +646,7 @@ erDiagram
         integer id_tache FK
         integer id_tache_jointe FK
         varchar place
-        boolean journee_libre
-        varchar bloc
+        varchar mention
     }
     OCCURRENCE {
         serial      id_occurrence PK
@@ -881,37 +873,30 @@ Un conflit caduc n'a pas été tranché : la question ne se pose plus. `motif_ca
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
 | id_tache | SERIAL | non | | oui | | oui | |
-| code | VARCHAR(30) | non | | oui | | | |
-| libelle | VARCHAR(100) | non | | | | | |
-| categorie | VARCHAR(20) | non | 'menage', 'linge', 'vaisselle', 'animal', 'admin', 'sport' | | | | |
+| libelle | VARCHAR(100) | non | de 2 à 100 caractères | | | | |
 | priorite | SMALLINT | non | entre 1 et 5 | | 3 | | |
 | duree_minutes | INTEGER | non | > 0 | | | | |
-| periodicite_min_jours | INTEGER | non | > 0 | | | | |
-| periodicite_max_jours | INTEGER | non | >= periodicite_min_jours | | | | |
-| rappel_journee | BOOLEAN | non | FALSE si une fenêtre horaire est définie | | TRUE | | |
+| revient | VARCHAR(12) | oui | 'rythme', 'dates', 'apres', 'description' ; vide pour la tâche du sport seule | | | | |
+| periodicite_min_jours | INTEGER | oui | > 0 ; renseignée si et seulement si `revient` = 'rythme' | | | | |
+| periodicite_max_jours | INTEGER | oui | >= periodicite_min_jours ; renseignée avec elle | | | | |
 | heure_min | TIME | oui | | | | | |
 | heure_max | TIME | oui | > heure_min si définie | | | | |
-| utilise_machine | BOOLEAN | non | | | FALSE | | |
-| requiert_les_deux | BOOLEAN | non | implique NOT rappel_journee | | FALSE | | |
-| reportable | BOOLEAN | non | | | TRUE | | |
-| recurrente | BOOLEAN | non | | | TRUE | | |
-| id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
-| active | BOOLEAN | non | | | TRUE | | |
-| quota_hebdomadaire | SMALLINT | oui | > 0 | | | | |
-| abandon_apres_jours | SMALLINT | non | >= 0 ; zéro : jamais abandonnée | | 5 | | |
-| avant_depart | BOOLEAN | non | | | FALSE | | |
-| au_retour_apres_jours | SMALLINT | oui | > 0 | | | | |
-| ajoutee_par | INTEGER | oui | | | | | Utilisateur |
-| id_type_tache | INTEGER | oui | obligatoire pour une tâche active hors sport, vide pour un sport | | | | TypeTache (mise à nul) |
 | si_pas_faite | VARCHAR(8) | non | 'reporter', 'oublier' | | 'reporter' | | |
+| id_utilisateur_defaut | INTEGER | oui | | | | | Utilisateur |
+| id_type_tache | INTEGER | oui | obligatoire pour une tâche de la maison, active ou arrêtée ; vide pour la tâche du sport, la seule | | | | TypeTache |
+| active | BOOLEAN | non | | | TRUE | | |
+| arretee_le | TIMESTAMPTZ | oui | renseignée si et seulement si la tâche est arrêtée | | | | |
+| ajoutee_par | INTEGER | oui | | | | | Utilisateur |
+| rappel_journee | BOOLEAN | non | calculée : `heure_min IS NULL` | | | | |
+| recurrente | BOOLEAN | non | calculée : `revient = 'rythme'` | | | | |
 
-La priorité 1 est la plus forte. Elle est réservée à ce qui n'attend pas : les animaux et le linge à étendre (PLA-14).
+La priorité 1 est la plus forte : ce qui n'attend pas (PLA-14). Elle vient du type, et se change par tâche.
 
-`rappel_journee` distingue les deux natures de tâches de la règle TAC-2. Une tâche cochée à vrai n'a pas d'heure : elle sortira en événement journée entière dans le calendrier. Une tâche cochée à faux doit déclarer sa fenêtre horaire.
+Une tâche n'a que les réglages du formulaire (TAC-29). `revient` dit sa façon de revenir (TAC-1) : un rythme, et la génération l'engendre ; des dates, posées à sa création (TAC-22) ; après une autre, par un « Ensuite » (TAC-8, TAC-27) ; selon sa description, et c'est HAL qui en pose les occurrences (MTA-8). Ce qui se déduit ne se règle pas à part : `rappel_journee`, vrai sans `heure_min` (TAC-2), et `recurrente`, vrai pour un rythme (TAC-8), sont des colonnes calculées par PostgreSQL, qu'on n'écrit jamais ; « à une heure » est une plage de la longueur exacte de la tâche (TAC-23). Ce que le formulaire ne règle pas est dans la description de la tâche, table DescriptionTache (MTA-1).
 
-`recurrente` à faux dit qu'une tâche ne revient pas d'elle-même : elle naît d'un enchaînement (TAC-8) ou d'un ajout ponctuel (TAC-20). `quota_hebdomadaire` portait le minimum de séances du sport (SPT-5, retirée, annexe 2) : plus rien ne la lit. `abandon_apres_jours` est le délai au bout duquel un retard est oublié (EXE-12). `ajoutee_par` distingue les tâches ajoutées par un membre de celles du départ. Depuis octobre 2026, toutes se modifient et s'arrêtent dans l'appli, selon les droits du foyer (TAC-21, FOY-6).
+`si_pas_faite` dit ce que devient une occurrence dont la fenêtre passe sans qu'elle soit faite (TAC-24). `ajoutee_par` garde qui a créé la tâche ; il est vide pour les tâches d'origine, qui n'en sont pas moins ordinaires (TAC-29). `arretee_le` date l'arrêt, que montre la liste des tâches arrêtées (TAC-30).
 
-`categorie` reste la famille technique, celle que lisent les règles : le sport (SPT), le chat (widget Chat), la machine. L'utilisateur ne la voit plus : il voit le type, `id_type_tache`, qui porte le nom, la couleur et l'icône (TAC-25). Une tâche créée dans un type d'origine prend sa famille ; une tâche d'un type créé par le foyer est de la famille « menage », celle des tâches domestiques qui entrent dans la répartition (PLA-10). `si_pas_faite` dit ce que devient une tâche ponctuelle dont la dernière date est passée (TAC-24). « À une heure » n'a pas de colonne : c'est une plage horaire de la longueur exacte de la tâche (TAC-23).
+La tâche n'a plus de famille à elle. Le type porte le nom, la couleur et l'icône (TAC-25) ; ce qui lisait la famille lit le type de base : le widget Chat montre les tâches du type Chat, quel que soit son nom, et le calendrier préfixe chaque tâche d'après son type de base (« Chat : »). Une tâche se désigne par son numéro : le `code` d'avant (POUBELLES, AJOUT_12) est retiré, et la tâche du sport se reconnaît à ce qu'elle n'a pas de type. Les colonnes retirées et ce qu'elles faisaient sont en annexe 15.
 
 #### Table : TypeTache
 
@@ -923,11 +908,11 @@ La priorité 1 est la plus forte. Elle est réservée à ce qui n'attend pas : l
 | icone | VARCHAR(60) | non | nom d'un symbole SF | | 'checklist' | | |
 | duree_minutes | SMALLINT | non | de 1 à 480 | | 15 | | |
 | priorite | SMALLINT | non | entre 1 et 5 | | 4 | | |
-| categorie | VARCHAR(20) | non | 'menage', 'linge', 'vaisselle', 'animal', 'admin' | | 'menage' | | |
+| base | VARCHAR(10) | oui | 'menage', 'linge', 'vaisselle', 'animal', 'admin' ; vide pour un type créé par le foyer | oui | | | |
 | ordre | SMALLINT | non | | | 0 | | |
 | date_creation | TIMESTAMPTZ | non | | | now() | | |
 
-Un type de tâche (TAC-25). La couleur est libre, choisie au sélecteur d'iOS ; l'icône est un symbole SF, choisi dans une grille. `duree_minutes` et `priorite` préremplissent le formulaire d'une tâche nouvelle, sans rien imposer ensuite. `categorie` est la famille qu'il donne à ses tâches : celle d'origine pour les cinq types de départ, « menage » pour les autres. Comme les tâches, les types n'ont pas encore de colonne de foyer : le serveur n'en tient qu'un (FOY-10).
+Un type de tâche (TAC-25). La couleur est libre, choisie au sélecteur d'iOS ; l'icône est un symbole SF, choisi dans une grille. `duree_minutes` et `priorite` préremplissent le formulaire d'une tâche nouvelle, sans rien imposer ensuite. `base` désigne les cinq types de base, qui ne se suppriment pas (TAC-25, TAC-26) ; il ne change pas quand on renomme le type. Comme les tâches, les types n'ont pas encore de colonne de foyer : le serveur n'en tient qu'un (FOY-10).
 
 #### Table : Enchainement
 
@@ -960,10 +945,8 @@ La tâche suivante est due entre `delai_min_heures` et `delai_max_heures` après
 | id_tache_jointe | INTEGER | non | ≠ id_tache | | | | Tache |
 | place | VARCHAR(5) | non | 'avant', 'apres' | | | | |
 | mention | VARCHAR(60) | oui | | | | | |
-| journee_libre | BOOLEAN | non | | | FALSE | | |
-| bloc | VARCHAR(40) | oui | renseigné si et seulement si journee_libre | | | | |
 
-« Quand ceci est prévu, cela vient le même jour ». `id_tache` mène et décide du jour, `id_tache_jointe` la rejoint. La `mention` est ce qu'on lit à côté de la tâche jointe : « avant de récurer ». Avec `journee_libre`, la règle ne joue que les jours sans cours ni travail, et les tâches réunies portent le nom du `bloc`.
+« Quand ceci est prévu, cela vient le même jour ». `id_tache` mène et décide du jour, `id_tache_jointe` la rejoint. La `mention` est ce qu'on lit à côté de la tâche jointe : « avant de récurer ».
 
 #### Table : Occurrence
 
@@ -975,10 +958,9 @@ La tâche suivante est due entre `delai_min_heures` et `delai_max_heures` après
 | fenetre | TSTZRANGE | non | non vide, bornée | | | | |
 | creneau | TSTZRANGE | oui | inclus dans fenetre | | | | |
 | statut | VARCHAR(20) | non | 'a_placer', 'planifiee', 'notifiee', 'faite', 'reportee', 'abandonnee' | | 'a_placer' | | |
-| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'quota', 'depart', 'retour', 'stock' (historique : lessives du stock d'uniforme retiré) | | 'recurrence' | | |
+| origine | VARCHAR(20) | non | 'recurrence', 'manuelle', 'enchainement', 'hal' (posée par HAL pour suivre une description, VER-10) ; pour l'historique : 'quota', 'depart', 'retour', 'stock' | | 'recurrence' | | |
 | epinglee | BOOLEAN | non | | | FALSE | | |
-| rappel_journee | BOOLEAN | non | recopié de la tâche | | TRUE | | |
-| utilise_machine | BOOLEAN | non | recopié de la tâche | | FALSE | | |
+| rappel_journee | BOOLEAN | non | déduit de la tâche : vrai si elle n'a pas de plage horaire | | TRUE | | |
 | nb_relances | INTEGER | non | >= 0 | | 0 | | |
 | motif | TEXT | oui | | | | | |
 | date_faite | TIMESTAMPTZ | oui | obligatoire si statut = 'faite', jamais dans le futur | | | | |
@@ -990,11 +972,11 @@ La tâche suivante est due entre `delai_min_heures` et `delai_max_heures` après
 
 Le champ `motif` conserve la raison du placement ou de l'échec : « placée à 18h, dernier créneau de 40 min avant l'échéance » ou « aucun créneau libre avant le 12 ». C'est ce qui rend le système compréhensible plutôt qu'arbitraire.
 
-Le champ `nb_relances` compte les reports d'office. Il ne sert pas à limiter les relances, c'est le délai d'abandon de la tâche qui le fait (EXE-12), mais à afficher « en retard depuis 3 jours » et à repérer les tâches qu'on ne fait jamais, qui méritent d'être revues plutôt que répétées.
+Le champ `nb_relances` compte les reports d'office. Il ne limite pas les relances, puisqu'une tâche à reporter revient jusqu'à être faite (TAC-24) : il sert à afficher « en retard depuis 3 jours » et à repérer les tâches qu'on ne fait jamais, qui méritent d'être revues plutôt que répétées.
 
 Une occurrence d'origine `quota` était une séance de sport « à déterminer », réservée pour tenir le minimum de la semaine (SPT-18). Les réservations sont retirées (annexe 2) : la valeur reste pour l'historique. Une séance de HAL est d'origine `coach` (section B.6.10), une séance posée à la main d'origine `manuelle`.
 
-Les deux drapeaux `rappel_journee` et `utilise_machine` sont recopiés de la tâche à la création de l'occurrence, par trigger. C'est une dénormalisation assumée : une contrainte d'exclusion ne sait pas lire une table liée, et ce sont ces drapeaux qui conditionnent les contraintes de chevauchement et de machine unique.
+Le drapeau `rappel_journee` se déduit de la tâche, vrai quand elle n'a pas de plage horaire, et se recopie à la création de l'occurrence, par trigger. C'est une dénormalisation assumée : une contrainte d'exclusion ne sait pas lire une table liée, et c'est ce drapeau qui conditionne la contrainte de chevauchement (TAC-6).
 
 #### Table : Allegement
 
@@ -1252,44 +1234,39 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 | Règle visée | Description | Type |
 |---|---|---|
-| TAC-1 | `priorite` entre 1 et 5, `duree_minutes > 0`, `periodicite_max_jours >= periodicite_min_jours` | Statique forte |
+| TAC-1 | `priorite` entre 1 et 5, `duree_minutes > 0`. `revient` parmi {rythme, dates, apres, description}, vide pour la tâche du sport seule ; les deux périodicités renseignées si et seulement si elle revient par un rythme, avec `periodicite_max_jours >= periodicite_min_jours` | Statique forte |
 | TAC-2 | Une tâche à heure imposée déclare ses deux bornes horaires avec `heure_max > heure_min` ; une tâche de type rappel n'en déclare aucune | Statique forte |
-| TAC-2 | `rappel_journee` et `utilise_machine` sont recopiés de la tâche vers l'occurrence : trigger | Dynamique forte |
+| TAC-2 | Le drapeau `rappel_journee` de l'occurrence se déduit de la tâche, vrai quand elle n'a pas de plage, et lui est recopié : trigger | Dynamique forte |
 | TAC-4 | `fenetre` est non vide et bornée | Statique forte |
 | TAC-5 | `creneau` est inclus dans `fenetre` | Statique forte |
 | TAC-5 | La durée du créneau est au moins égale à `duree_minutes` de la tâche | Statique forte |
 | TAC-6 | Deux occurrences à heure imposée ne se chevauchent pas pour un même utilisateur : contrainte d'exclusion GiST partielle sur `NOT rappel_journee` et les statuts planifiée et notifiée | Statique forte |
 | TAC-7 | Un enchaînement n'est pas réflexif, et le couple (source, suivante) est unique | Statique forte |
-| TAC-8 | Une tâche non récurrente n'est jamais engendrée par la génération périodique | Dynamique forte |
-| TAC-9 | `requiert_les_deux` exclut `rappel_journee` | Statique forte |
+| TAC-8 | Seule une tâche qui revient par un rythme est engendrée par la génération périodique | Dynamique forte |
 | TAC-10 | Un remplacement n'est pas réflexif, et le couple (faite, couverte) est unique | Statique forte |
 | TAC-10 | Valider une tâche solde, des tâches qu'elle couvre, ce qui était dû ce jour-là ou déjà annoncé. Les prévisions à venir ne sont pas marquées faites : la chaîne repart de la date réelle | Dynamique forte |
-| TAC-12 | Les fenêtres où l'appartement se vide sont l'intersection des absences de tous les comptes actifs : une seule personne présente suffit à l'annuler | Dynamique forte |
-| TAC-12 | Une occurrence « depart » est unique par tâche et par départ, et disparaît si le départ disparaît | Dynamique forte |
-| TAC-13 | Une tâche à heure imposée déclare ses deux bornes et une périodicité ouverte : bornes égales, la fenêtre serait vide | Statique forte |
 | TAC-15 | Un accompagnement n'est pas réflexif, et le couple (tâche, tâche jointe) est unique | Statique forte |
 | TAC-15 | `poser_les_accompagnements()` ne déplace ni une occurrence annoncée ni une occurrence épinglée, et seulement des rappels de journée | Dynamique forte |
-| TAC-17 | Une règle de journée libre nomme son bloc, et inversement : contrainte `accompagnement_bloc_nomme` | Statique forte |
-| TAC-17 | `journee_libre()` : aucune occupation de type cours ou travail ce jour-là | Dynamique forte |
-| TAC-18 | Une occurrence « depart » va à celui dont l'absence commence à l'instant où l'appartement se vide, s'il est seul dans ce cas | Dynamique forte |
 | TAC-19 | `absorber_les_couvertes()` efface une occurrence jamais annoncée, et clôt une occurrence annoncée avec le motif « Couverte par » | Dynamique forte |
-| TAC-20 | `creer_tache()` exige une seule façon de revenir : un rythme, des dates, ou une tâche après laquelle venir ; nom de 2 à 100 caractères, rythme de 1 à 730 jours, durée de 1 minute à 8 heures. `ajouter_tache()`, celle du bot, l'appelle | Dynamique forte |
-| TAC-20 | `arreter_tache()` ne touche qu'une tâche dont `ajoutee_par` est renseigné | Dynamique forte |
-| TAC-20 | Une tâche ponctuelle a `abandon_apres_jours` à zéro : le report d'office ne l'abandonne jamais au nom du retard (EXE-12) | Dynamique forte |
+| TAC-20 | `creer_tache()` exige une seule façon de revenir : un rythme, des dates, une tâche après laquelle venir, ou la description ; nom de 2 à 100 caractères, rythme de 1 à 730 jours, durée de 1 minute à 8 heures. C'est la seule fonction qui crée une tâche de la maison : la route, l'appli et HAL l'appellent | Dynamique forte |
+| TAC-21 | `arreter_tache()` arrête toute tâche active de la maison, celles d'origine comprises, et note `arretee_le` | Dynamique forte |
 | TAC-22 | `creer_tache()` refuse une date passée et une fin avant le début. La fenêtre de l'occurrence va du début du premier jour à la fin du second | Dynamique forte |
 | TAC-23 | Une plage horaire déclarée tient dans la journée et contient la durée : contrainte `tache_plage_contient_la_duree`. « À une heure » s'écrit `heure_max = heure_min + duree_minutes` | Statique forte |
 | TAC-23 | `verifier_plage_horaire()` refuse une plage à moitié donnée, qui passe minuit, ou plus courte que la tâche, avant que la contrainte ne le fasse | Dynamique forte |
 | TAC-23 | `regler_heure_tache()` change l'heure et la durée d'une même mise à jour, puis remet à placer les occurrences ni faites, ni annoncées, ni épinglées : leur drapeau `rappel_journee` suit la tâche (TAC-2) | Dynamique forte |
-| TAC-24 | `si_pas_faite` appartient à {reporter, oublier} | Statique forte |
-| TAC-24 | `reporter_taches_du_jour()` passe une occurrence d'une tâche à oublier à `oublier_occurrence()` dès que sa fenêtre est passée, avant tout report : abandonnée, avec un message qui ne parle pas de retard | Dynamique forte |
-| TAC-25 | `type_tache` : nom de 1 à 40 caractères, unique sans égard à la casse (index `type_tache_libelle_unique`) ; couleur `#RRGGBB` ; durée de 1 à 480 minutes ; priorité de 1 à 5 ; famille parmi les cinq domestiques | Statique forte |
-| TAC-25 | Toute tâche active hors sport a un type ; un sport n'en a pas : contrainte `tache_type_hors_sport` | Statique forte |
-| TAC-25 | `changer_type_tache()` range une tâche dans un autre type, et sa famille technique suit | Dynamique forte |
+| TAC-24 | `si_pas_faite` appartient à {reporter, oublier}, pour toute tâche | Statique forte |
+| TAC-24 | `reporter_taches_du_jour()` passe une occurrence d'une tâche à oublier à `oublier_occurrence()` dès que sa fenêtre est passée, avant tout report : abandonnée, avec un message qui ne parle pas de retard. Une tâche à reporter n'est jamais abandonnée | Dynamique forte |
+| TAC-25 | `type_tache` : nom de 1 à 40 caractères, unique sans égard à la casse (index `type_tache_libelle_unique`) ; couleur `#RRGGBB` ; durée de 1 à 480 minutes ; priorité de 1 à 5 ; `base` vide pour un type créé par le foyer, sinon l'un des cinq types de base, chacun une fois | Statique forte |
+| TAC-25 | Toute tâche de la maison a un type, active ou arrêtée ; la tâche du sport n'en a pas, et c'est la seule : contrainte `tache_type_hors_sport` et unicité partielle | Statique forte |
+| TAC-25 | `changer_type_tache()` range une tâche dans un autre type. Ce qui lisait la famille de la tâche lit le type de base : le widget Chat, le préfixe du calendrier | Dynamique forte |
 | TAC-26 | `enregistrer_type_tache()` crée ou modifie un type ; il compare les noms sans accents, par `cle_de_libelle()`, ce qu'un index ne sait pas faire sans l'extension unaccent | Dynamique forte |
-| TAC-26 | `supprimer_type_tache()` refuse un type qui porte une tâche active, et le dernier type de ménage ; les tâches arrêtées qu'il porte perdent leur type et gardent leur historique | Dynamique forte |
+| TAC-26 | `supprimer_type_tache()` refuse un type de base et un type qui porte une tâche active ; les tâches arrêtées qu'il porte passent au type de base Ménage, avec leur historique | Dynamique forte |
 | TAC-27 | `lier_taches()` pose l'une des trois sortes de lien et rend son numéro ; `delier_taches()` le retire | Dynamique forte |
 | TAC-28 | `lier_taches()` refuse un lien réflexif, vers une tâche arrêtée ou un sport, en double, réciproque pour « Vaut aussi », ou qui ferme une boucle d'« Ensuite » : recherche récursive sur `enchainement` | Dynamique forte |
-| TAC-28 | `delier_taches()` refuse de retirer le dernier « Ensuite » vers une tâche active et non récurrente | Dynamique forte |
+| TAC-28 | `delier_taches()` refuse de retirer le dernier « Ensuite » vers une tâche active qui revient « après une autre » | Dynamique forte |
+| TAC-29 | La tâche n'a plus de colonne que le formulaire ne règle pas : `code`, `categorie`, `rappel_journee`, `recurrente`, `utilise_machine`, `requiert_les_deux`, `reportable`, `abandon_apres_jours`, `avant_depart`, `au_retour_apres_jours` et `quota_hebdomadaire` sont retirées, comme `journee_libre` et `bloc` de l'accompagnement | Statique forte |
+| TAC-30 | `reprendre_tache()` réactive une tâche arrêtée et efface `arretee_le` ; elle refuse une tâche ponctuelle dont la dernière date est passée | Dynamique forte |
+| TAC-31 | `effacer_tache()` refuse une tâche active et la tâche du sport ; elle note l'effacement au journal, puis supprime la tâche avec ses occurrences, ses liens et les versions de sa description | Dynamique forte |
 
 #### A.7.4 Placement
 
@@ -1301,11 +1278,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | PLA-6 | Le replacement ne libère que les créneaux au-delà du délai de stabilité | Dynamique forte |
 | PLA-7 | La validation efface les occurrences prévisionnelles de la même tâche | Dynamique forte |
 | PLA-8 | Une occurrence non plaçable garde le statut à placer et reçoit un motif | Dynamique faible |
-| PLA-9 | Le créneau d'une tâche à deux est libre pour tous les utilisateurs actifs simultanément : intersection de multirange | Dynamique forte |
-| PLA-9 | L'absence d'intersection produit une notification d'alerte, jamais un placement arbitraire | Dynamique faible |
 | PLA-12 | `dernier_a_faire()` rend la personne de la dernière occurrence de la tâche, faite ou prévue | Dynamique forte |
 | PLA-12 | `choisir_assigne()` rend l'autre que le dernier tant que l'écart de charge reste sous une heure | Dynamique forte |
-| PLA-12 | `charge_domestique()` ignore le sport et les tâches à deux | Dynamique forte |
+| PLA-12 | `charge_domestique()` ignore le sport | Dynamique forte |
 | PLA-13 | `reequilibrer()` ne libère que des occurrences planifiées, non épinglées, sans assigné fixe, sans notification déjà créée, et à venir dans la semaine | Dynamique forte |
 | PLA-15 | `seul_ce_jour()` : tous les autres comptes actifs sont absents la journée entière | Dynamique forte |
 | PLA-16 | Deux modes allégés d'une même personne ne se chevauchent pas : contrainte d'exclusion. Relancer remplace | Statique forte |
@@ -1341,8 +1316,6 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | ABS-5 | Le replacement libère les créneaux gelés dont l'assigné est absent ce jour-là | Dynamique forte |
 | ABS-6 | Fermer une absence qui commence à l'instant donné l'efface, faute de quoi la période serait vide | Dynamique forte |
 | ABS-7 | Un départ est refusé si une absence est déjà en cours à cet instant | Dynamique forte |
-| ABS-8 | `au_retour_apres_jours` est nul ou strictement positif | Statique forte |
-| ABS-8 | Une occurrence « retour » est unique par tâche et par retour, et disparaît si le retour disparaît | Dynamique forte |
 
 #### A.7.7 Trajets en train
 
@@ -1397,10 +1370,9 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 | Règle visée | Description | Type |
 |---|---|---|
-| SPT-1 | `categorie` d'une tâche accepte 'sport' ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
+| SPT-1 | La tâche du sport est la seule sans type (TAC-25) ; `heure_fin` d'une ouverture suit `heure_debut` | Statique forte |
 | SPT-3 | Deux fermetures d'un même lieu ne se chevauchent pas : contrainte d'exclusion | Statique forte |
 | SPT-3 | Une fermeture s'exprime en jours pleins : une fermeture ne commence pas à 14h37 | Statique faible |
-| SPT-5 | `quota_hebdomadaire` est nul ou strictement positif | Statique forte |
 | SPT-7 | Un lieu qui exige un repos déclare une heure tardive | Statique forte |
 | SPT-8 | `preference` appartient à {tot, tard, apres} | Statique forte |
 | SPT-18 | Une réservation n'est jamais épinglée : contrainte `occurrence_quota_non_epinglee` | Statique forte |
@@ -1413,13 +1385,11 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | SPT-31 | `repondre_invitation()` refuse une deuxième réponse, et crée la séance de l'invité par `choisir_seance_sport` | Dynamique forte |
 | SPT-32 | L'invitation meurt avec la séance qui l'a créée (ON DELETE CASCADE) ; la séance acceptée, elle, survit | Statique forte |
 
-SPT-5, SPT-18, SPT-21 et SPT-30 sont retirées (annexe 2). Leurs contraintes restent en base pour les lignes d'historique, et `obstacle_seance()` sert maintenant HAL (PLN-5) et la séance posée à la main (SPT-17).
+SPT-5, SPT-18, SPT-21 et SPT-30 sont retirées (annexe 2). Leurs contraintes restent en base pour les lignes d'historique, sauf celle de SPT-5, partie avec la colonne `quota_hebdomadaire` (annexe 15) ; et `obstacle_seance()` sert maintenant HAL (PLN-5) et la séance posée à la main (SPT-17).
 
 #### A.7.11 Machine à laver
 
-| Règle visée | Description | Type |
-|---|---|---|
-| UNI-12 | Deux occurrences avec `utilise_machine` ne sont pas placées le même jour pour un même utilisateur : trigger | Dynamique forte |
+UNI-12 est retirée (annexe 15) : son déclencheur et la colonne `utilise_machine` partent avec elle.
 
 #### A.7.12 Notifications et calendrier
 
@@ -1474,13 +1444,13 @@ SPT-5, SPT-18, SPT-21 et SPT-30 sont retirées (annexe 2). Leurs contraintes res
 
 | | |
 |---|---|
-| **Objectif** | Tenir, pour chaque tâche récurrente, une chaîne d'occurrences jusqu'à l'horizon du planning |
+| **Objectif** | Tenir, pour chaque tâche qui a un rythme, une chaîne d'occurrences jusqu'à l'horizon du planning |
 | **Acteurs** | Système (principal) |
 | **Événement déclencheur** | Exécution du placement |
 | **Pré-conditions** | Aucune |
-| **Actions** | 1. Pour chaque tâche active et récurrente, chercher la fin de sa dernière occurrence ouverte<br>2. S'il n'y en a aucune, partir de la dernière date d'exécution réelle. Si la tâche n'a jamais été faite, créer une occurrence due dès aujourd'hui<br>3. Prolonger la chaîne jusqu'à l'horizon, un mois par défaut : chaque fenêtre va de la fin de la précédente plus la périodicité minimale, à la fin de la précédente plus la périodicité maximale<br>4. Donner à chaque occurrence l'assigné par défaut de la tâche, s'il existe. Sinon l'assigné se décide au placement |
-| **Actions alternatives** | Une tâche désactivée est ignorée. Une tâche non récurrente aussi : elle ne naît que d'un enchaînement (TAC-8) ou d'un ajout ponctuel (TAC-20). Une chaîne qui atteint déjà l'horizon n'est pas prolongée : c'est ce qui empêche l'accumulation |
-| **Post-conditions** | Chaque tâche récurrente active a ses occurrences jusqu'à l'horizon. Au-delà de la prochaine, ce sont des prévisions : une validation réelle les efface et la chaîne se refait (PLA-7) |
+| **Actions** | 1. Pour chaque tâche active qui a un rythme, chercher la fin de sa dernière occurrence ouverte<br>2. S'il n'y en a aucune, partir de la dernière date d'exécution réelle. Si la tâche n'a jamais été faite, créer une occurrence due dès aujourd'hui<br>3. Prolonger la chaîne jusqu'à l'horizon, un mois par défaut : chaque fenêtre va de la fin de la précédente plus la périodicité minimale, à la fin de la précédente plus la périodicité maximale<br>4. Donner à chaque occurrence l'assigné par défaut de la tâche, s'il existe. Sinon l'assigné se décide au placement |
+| **Actions alternatives** | Une tâche désactivée est ignorée. Une tâche sans rythme aussi : elle ne naît que de ses dates (TAC-20), d'un enchaînement (TAC-8) ou de HAL (MTA-8). Une chaîne qui atteint déjà l'horizon n'est pas prolongée : c'est ce qui empêche l'accumulation |
+| **Post-conditions** | Chaque tâche active qui a un rythme a ses occurrences jusqu'à l'horizon. Au-delà de la prochaine, ce sont des prévisions : une validation réelle les efface et la chaîne se refait (PLA-7) |
 
 #### Opération 3 : Projection du stock de vêtements de travail
 
@@ -1494,9 +1464,9 @@ Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérat
 | **Acteurs** | Système (principal), ordonnanceur ou utilisateur (déclencheur) |
 | **Événement déclencheur** | Collecte ayant modifié une occupation, validation d'une tâche, absence déclarée, bilan du matin, ou demande explicite |
 | **Pré-conditions** | Aucune |
-| **Actions** | 1. Poser ce qui se fait au retour d'une absence longue (ABS-8), puis exécuter l'opération 2<br>2. Solder les propositions de week-end qu'une absence couvre (WKD-3), et poser ce qui se fait avant un départ (TAC-12, TAC-18)<br>3. Libérer le créneau des occurrences planifiées qui ne sont ni épinglées, ni prévues dans les sept jours ; une occurrence annoncée ne bouge pas. Une occurrence gelée est libérée quand même si son assigné est absent ce jour-là (ABS-5)<br>4. Retirer du planning ce qu'une autre tâche couvre (TAC-19), puis compter comme prises les séances de sport, proposées ou validées : le ménage se range autour (PLN-4)<br>5. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>6. Choisir l'assigné parmi les présents : tour de rôle, balance des charges, mode allégé (ABS-3, PLA-12, PLA-16)<br>7. **Tâche de type rappel** : retenir, dans la fenêtre d'échéance, le jour le moins chargé où la personne a assez de temps libre, et affecter la journée entière (PLA-3, PLA-4)<br>8. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche, et à venir. Si la tâche mobilise la machine, écarter les jours où une autre tâche à machine est déjà placée<br>9. **Tâche à deux** : chercher de la même façon, mais dans l'intersection des disponibilités de tous les utilisateurs actifs<br>10. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>11. Une fois tout placé, retirer de nouveau ce qui est couvert, puis rapprocher ce qui va ensemble : l'aspirateur avec le récurage ou la poussière, le bloc « Nettoyage » (TAC-15 à TAC-17) |
-| **Actions alternatives** | Si personne n'est présent sur toute la fenêtre, l'occurrence reste sans assigné et attend le retour (ABS-4).<br>Si aucune disponibilité ne convient, l'occurrence reste au statut à placer et reçoit un motif explicite. Elle sera retentée au placement suivant et signalée dans le bilan du matin (PLA-11).<br>Pour une tâche à deux, l'absence d'intersection déclenche en plus une notification : c'est un cas qu'aucun replacement ne résoudra tout seul |
-| **Post-conditions** | Chaque occurrence plaçable est affectée à une personne, et à un créneau ou à une journée. Aucune tâche à heure imposée n'en chevauche une autre, aucun jour ne porte deux machines. Les occurrences non plaçables restent visibles avec leur motif |
+| **Actions** | 1. Exécuter l'opération 2<br>2. Solder les propositions de week-end qu'une absence couvre (WKD-3)<br>3. Libérer le créneau des occurrences planifiées qui ne sont ni épinglées, ni prévues dans les sept jours ; une occurrence annoncée ne bouge pas. Une occurrence gelée est libérée quand même si son assigné est absent ce jour-là (ABS-5)<br>4. Retirer du planning ce qu'une autre tâche couvre (TAC-19), puis compter comme prises les séances de sport, proposées ou validées : le ménage se range autour (PLN-4)<br>5. Trier les occurrences à placer par priorité croissante, puis par fin de fenêtre croissante, puis par durée décroissante<br>6. Choisir l'assigné parmi les présents : tour de rôle, balance des charges, mode allégé (ABS-3, PLA-12, PLA-16)<br>7. **Tâche de type rappel** : retenir, dans la fenêtre d'échéance, le jour le moins chargé où la personne a assez de temps libre, et affecter la journée entière (PLA-3, PLA-4)<br>8. **Tâche à heure imposée** : chercher la première disponibilité assez longue, incluse dans la fenêtre d'échéance et dans la fenêtre horaire de la tâche, et à venir<br>9. Enregistrer le créneau, passer au statut planifiée et écrire le motif du placement<br>10. Une fois tout placé, retirer de nouveau ce qui est couvert, puis rapprocher ce qui va ensemble, selon les liens « Le même jour » : l'aspirateur avec le récurage ou la poussière (TAC-15, TAC-16)<br>11. Mettre dans la file des vérifications ce qui touche une tâche décrite (VER-3) |
+| **Actions alternatives** | Si personne n'est présent sur toute la fenêtre, l'occurrence reste sans assigné et attend le retour (ABS-4).<br>Si aucune disponibilité ne convient, l'occurrence reste au statut à placer et reçoit un motif explicite. Elle sera retentée au placement suivant et signalée dans le bilan du matin (PLA-11). |
+| **Post-conditions** | Chaque occurrence plaçable est affectée à une personne, et à un créneau ou à une journée. Aucune tâche à heure imposée n'en chevauche une autre. Les occurrences non plaçables restent visibles avec leur motif |
 
 #### Opération 5 : Validation d'une occurrence
 
@@ -1519,7 +1489,7 @@ Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérat
 | **Événement déclencheur** | L'utilisateur appuie sur le bouton reporter ou refuser |
 | **Pré-conditions** | L'occurrence existe et n'est pas dans un statut terminal |
 | **Actions** | **Report** : 1. Repasser l'occurrence au statut à placer et libérer son créneau<br>2. Faire courir sa fenêtre de maintenant à la nouvelle échéance demandée, ou à défaut un jour après l'ancienne<br>**Refus** : 1. Passer l'occurrence au statut abandonnée<br>2. Créer une occurrence de remplacement avec la même fenêtre, mais sans assigné, pour qu'elle soit reprise par l'autre utilisateur ou réassignée à la main<br>Dans les deux cas, l'occurrence à placer est reprise au prochain passage de l'opération 4 |
-| **Actions alternatives** | Si la nouvelle échéance demandée est dans le passé, rejeter l'opération.<br>Si la tâche n'est pas reportable, comme la litière, refuser le report : le système ne doit pas permettre de repousser sans le dire ce qui ne se repousse pas.<br>Une séance de sport refusée n'est pas réassignée : elle est close comme « pas faite », et HAL décide de la suite (SPT-36, PLN-10) |
+| **Actions alternatives** | Si la nouvelle échéance demandée est dans le passé, rejeter l'opération.<br>Une séance de sport refusée n'est pas réassignée : elle est close comme « pas faite », et HAL décide de la suite (SPT-36, PLN-10) |
 | **Post-conditions** | La tâche reste due sous une nouvelle forme. Rien ne disparaît sans trace |
 
 #### Opération 7 : Bilan du matin
@@ -1543,7 +1513,7 @@ Retirée avec le stock d'uniforme (septembre 2026). La numérotation des opérat
 | **Événement déclencheur** | L'heure de la relance de chacun, 21h par défaut (NOT-15), puis 0h05 |
 | **Pré-conditions** | Aucune |
 | **Actions** | 1. Lister les occurrences notifiées affectées à la journée qui s'achève et qui ne sont pas validées<br>2. Créer une notification de rappel pour chacune, avec ses boutons d'action<br>3. Juste après minuit, pour celles qui restent non validées : reporter l'affectation au lendemain, étendre la fenêtre d'échéance jusqu'à cette nouvelle date, incrémenter le nombre de relances et repasser l'occurrence au statut planifiée<br>4. L'occurrence sera reprise dans le bilan du matin suivant, marquée comme en retard |
-| **Actions alternatives** | Une tâche à heure imposée dont l'heure est passée n'est pas relancée le soir même : elle est directement reportée, puisqu'on ne peut plus lancer une machine à 23h50 pour qu'elle finisse en heures creuses.<br>Au-delà du délai d'abandon propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus, et l'abandon est notifié (EXE-12).<br>Une séance de sport ne se reporte pas : elle se valide faite ou pas faite (SPT-25) |
+| **Actions alternatives** | Une tâche à heure imposée dont l'heure est passée n'est pas relancée le soir même : elle est directement reportée, puisqu'on ne peut plus lancer une machine à 23h50 pour qu'elle finisse en heures creuses.<br>Une tâche à oublier dont la fenêtre est passée est abandonnée au lieu d'être reportée, et la personne prévenue (TAC-24). Une séance sans nouvelle d'un compte sans HAL l'est au bout de trois jours (EXE-12).<br>Une séance de sport ne se reporte pas : elle se valide faite ou pas faite (SPT-25) |
 | **Post-conditions** | Aucune tâche non faite ne disparaît sans qu'on le sache. Elle revient le lendemain, avec son compteur de relances qui rend le retard visible, ou son abandon est annoncé |
 
 #### Opération 9 : Consultation du planning
@@ -1588,15 +1558,15 @@ Les modules venus après la première version ont leurs propres opérations. Ell
 
 | Opération | Déclencheur | Ce qu'elle fait | Règles |
 |---|---|---|---|
-| Déclarer une absence, un départ, un retour | L'utilisateur, depuis l'appli ou l'API | Enregistre la période hors du logement, puis replace : les tâches reviennent à qui reste | ABS-1 à ABS-8 |
+| Déclarer une absence, un départ, un retour | L'utilisateur, depuis l'appli ou l'API | Enregistre la période hors du logement, puis replace : les tâches reviennent à qui reste | ABS-1 à ABS-7 |
 | Chercher et retenir un trajet | L'utilisateur, depuis l'appli | Calcule les creux, interroge la SNCF, propose des horaires. Retenir un aller-retour crée l'absence | TRJ-1 à TRJ-11 |
 | Relever les billets | Toutes les deux heures, ou l'administrateur du serveur (ADM-3) | Lit les confirmations d'achat et déclare le voyage correspondant | BIL-1 à BIL-21 |
 | Proposer un week-end | Chaque matin à 7h10 | Repère un creux, l'inscrit au calendrier, puis l'annonce une semaine avant | WKD-1 à WKD-10 |
 | Organiser le sport | HAL, l'utilisateur | HAL propose les quatre semaines (partie B). L'utilisateur valide, décale le jour même, annonce une séance libre, invite | SPT-17, SPT-24, SPT-29, SPT-31 à SPT-37, PLN-11 |
 | Composer un calendrier | L'utilisateur, depuis l'appli ou l'API | Crée une adresse d'abonnement qui montre certaines personnes et certaines familles de contenu | NOT-5 à NOT-10 |
 | Passer en mode allégé | L'utilisateur, depuis le « + » | Redistribue les tâches partagées pour quelques jours | PLA-16 |
-| Ajouter, modifier ou arrêter une tâche | L'utilisateur, depuis le « + » ou le détail de la tâche, selon les droits du foyer | Crée une tâche régulière, ponctuelle ou née d'une autre, avec ou sans heure ; la modifie ou la désactive | TAC-20 à TAC-24, FOY-6 |
-| Gérer les types de tâches | L'utilisateur, depuis Réglages ou le formulaire d'une tâche | Crée, renomme, recolore ou supprime un type du foyer | TAC-25, TAC-26 |
+| Ajouter, modifier, arrêter, reprendre ou effacer une tâche | L'utilisateur, depuis le « + » ou le détail de la tâche, selon les droits du foyer | Crée une tâche régulière, ponctuelle ou née d'une autre, avec ou sans heure ; la modifie, l'arrête, la reprend ou l'efface | TAC-20 à TAC-24, TAC-29 à TAC-31, FOY-6 |
+| Gérer les types de tâches | L'utilisateur, depuis Réglages ou le formulaire d'une tâche | Crée, renomme ou recolore un type ; supprime un type créé par le foyer | TAC-25, TAC-26 |
 | Relier deux tâches | L'utilisateur, depuis le détail d'une tâche | Pose ou retire un lien « Ensuite », « Le même jour » ou « Vaut aussi » | TAC-27, TAC-28 |
 | Lire le journal | L'utilisateur, l'écran Historique ou l'API | Rend les dernières actions et ce que chacune a changé | JRN-1 à JRN-9 |
 
@@ -1628,11 +1598,12 @@ Tâches
   POST   /occurrences/{id_occurrence}/refuser              Refuser une occurrence
   POST   /occurrences/{id_occurrence}/reporter             Reporter une occurrence
   POST   /occurrences/{id_occurrence}/valider              Valider, éventuellement rétroactivement
-  GET    /taches?seulement_actives=                        Lister les tâches récurrentes
-  POST   /taches                                           Créer une tâche
+  GET    /taches?seulement_actives=                        Lister les tâches, arrêtées comprises si seulement_actives est faux
   POST   /taches/nouvelle                                  Créer une tâche : rythme, dates ou après une autre, heure
   PATCH  /taches/{id_tache}                                Modifier une tâche, son type et son heure
-  DELETE /taches/{id_tache}                                Désactiver une tâche
+  DELETE /taches/{id_tache}                                Arrêter une tâche (TAC-21)
+  POST   /taches/{id_tache}/reprendre                      Reprendre une tâche arrêtée (TAC-30)
+  DELETE /taches/{id_tache}/definitivement                 Effacer une tâche arrêtée (TAC-31)
   GET    /taches/{id_tache}/liens                          Ce qui suit, accompagne ou est couvert
   POST   /taches/{id_tache}/liens                          Relier à une autre tâche
   DELETE /taches/liens/{sorte}/{id_lien}                   Retirer un lien
@@ -1738,13 +1709,13 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 | Déplacements | `TRJ`, `BIL`, `WKD`, ABS-6, ABS-7 | 008 à 010, 012, 039, 041 à 043, 046, 047 | Fenêtres libres, horaires de la SNCF, confirmations d'achat lues par courriel, propositions de week-end, départ et retour déclarés d'un mot. L'absence qui en découle libère les tâches et les redistribue. Tables `trajet`, `courriel`, `proposition` |
 | Calendriers personnels | COL-14 à COL-16 | 011, 020 | Chacun publie son calendrier depuis son application ; plusieurs calendriers par personne |
 | Sport | `SPT` | 013, 016 à 018, 023 à 026, 033, 034, 037, 038 | Un minimum de séances par semaine, heures d'ouverture relevées, trois semaines organisées d'avance, habitudes, séances à deux. Tables `lieu_sport`, `ouverture`, `fermeture`, `tache_lieu`, `choix_sport`, `invitation_sport`. Le minimum, les réservations et les habitudes sont retirés par la migration 065 : HAL propose les séances |
-| Oubli des retards | EXE-12 | 021, 032 | Un retard trop ancien est abandonné au lieu d'être reporté sans fin |
+| Oubli des retards | EXE-12 | 021, 032 | Un retard trop ancien est abandonné au lieu d'être reporté sans fin. Remplacé en octobre 2026 par « Si pas faite », pour toute tâche (TAC-24) |
 | Conflits caducs, flux arrêtés | COL-19 à COL-21 | 028, 030 | Une question qui ne se pose plus est refermée ; un emploi du temps cesse d'être suivi sans perdre son passé |
 | Calendriers composés | NOT-5 à NOT-10 | 035 | Autant d'adresses d'abonnement qu'on veut, chacune avec ses personnes et ses contenus. Table `calendrier` |
 | Roulement et coup de main | PLA-12, PLA-13, EXE-14 à EXE-16 | 036, 045 | Les tâches alternent, n'importe qui coche n'importe quoi, et l'autre est prévenu |
-| Poubelles, départs et retours | TAC-11 à TAC-13, TAC-18, ABS-8 | 040, 044, 049 | Des poubelles qui ne se reportent pas, ce qui ne peut pas attendre qu'on rentre, et ce qu'on refait en rentrant |
+| Poubelles, départs et retours | TAC-11 à TAC-13, TAC-18, ABS-8 | 040, 044, 049 | Des poubelles qui ne se reportent pas, ce qui ne peut pas attendre qu'on rentre, et ce qu'on refait en rentrant. Retiré en octobre 2026 : ces consignes sont dans les descriptions (annexe 15) |
 | Journal | `JRN` | 048 | Ce qui change, qui l'a déclenché, dans quelle action. Table `evenement` |
-| Tâches qui vont ensemble | TAC-14 à TAC-19 | 049 | L'aspirateur avec le récurage ou la poussière, le bloc « Nettoyage », le vidage qui vaut ramassage dès le planning. Table `accompagnement` |
+| Tâches qui vont ensemble | TAC-14 à TAC-19 | 049 | L'aspirateur avec le récurage ou la poussière, le bloc « Nettoyage », le vidage qui vaut ramassage dès le planning. Table `accompagnement`. Le bloc « Nettoyage » est retiré en octobre 2026 (annexe 15) |
 | Mode allégé, tâches ajoutées | PLA-16, TAC-20 | 050 | En faire moins pendant quelques jours ; ajouter une tâche depuis le bot. Table `allegement` |
 | HAL | Partie B | 051 à 058 | Un modèle de langage construit le contenu des séances, suit ce qui est fait et ajuste. Une application iPhone envoie les données de Santé et sert à saisir les séances de musculation. Tout est en partie B |
 | Connexion de l'application | `CNX`, NOT-14 | 059 | Le pseudo et un mot de passe rendent la clé d'API à l'application, qui passe par `tailscale funnel` sans le client Tailscale. La nuit, seul HAL d'une conversation en cours répond |
@@ -1755,7 +1726,7 @@ La première version, les migrations 001 à 007, couvrait la collecte, les tâch
 | HAL par MCP et par abonnement | Partie F | 070 à 072 | HAL en serveur MCP pour Claude Code et Gemini CLI, l'abonnement de chacun avant l'API, les demandes qui attendent l'accord. Tables `cle_mcp`, `session_mcp`, `fournisseur_modele`, `tarif_modele`, `demande` |
 | Exercices à soi | EXO-11 | 073 | Un exercice que le catalogue ne connaît pas s'ajoute par son nom ; HAL le reconnaît, et il rejoint le catalogue de ce compte seul |
 
-Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests se retrouvent sous le tag git `avant-nettoyage`.
+Un module a fait le chemin inverse. Le **stock d'uniforme** (règles `UNI`, opération 3) suivait les vêtements de travail et déclenchait les lessives. Il a été retiré par la migration 031, à la fin du contrat qui le justifiait. Son code, ses règles et ses tests se retrouvent sous le tag git `avant-nettoyage`. Les réglages propres à certaines tâches d'origine ont suivi en octobre 2026 : ce qu'ils faisaient est écrit dans les descriptions, que HAL applique (annexe 15).
 
 Depuis la migration 048, les fonctions, les vues et les déclencheurs ne vivent plus dans les migrations mais dans `sql/definitions/`, un fichier par fonction. Les migrations ne portent plus que les tables, les contraintes et les données.
 
@@ -3900,18 +3871,19 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 
 | Écran | Ce qu'il fait | Règles |
 |---|---|---|
-| 4.1 Maison | Tâches du jour des deux, équilibre, chat, linge, ce qui arrive, « Toutes les tâches » | PLA-12 |
-| 4.2 Détail d'une tâche | Nom, type, durée, quand, heure, pour qui ; ses liens, « Ajouter un lien » ; « Je l'ai faite », même pour l'autre ; « Arrêter » | TAC-21, TAC-27, EXE-14, EXE-16 |
-| 4.3 Nouvelle tâche | Nom, type, durée ; « Une fois », « Régulière » ou « Après une autre » ; pour une fois, « Aujourd'hui » ou « Du … au … », et « Si pas faite : la reporter, l'oublier » ; l'heure : sans, « À … », « Entre … et … » ; pour qui | TAC-20, TAC-22 à TAC-24 |
+| 4.1 Maison | Tâches du jour des deux, équilibre, chat (les tâches du type de base Chat), linge, ce qui arrive, « Toutes les tâches » | PLA-12, TAC-25 |
+| 4.2 Détail d'une tâche | Nom, type, durée, quand, si pas faite, heure, pour qui ; « HAL retient : … », sa description ; ses liens, « Ajouter un lien » ; « Je l'ai faite », même pour l'autre ; « Arrêter » | TAC-21, TAC-24, TAC-27, MTA-7, EXE-14, EXE-16 |
+| 4.3 Nouvelle tâche | Nom, type, durée ; « Une fois », « Régulière » ou « Après une autre » ; pour une fois, « Aujourd'hui » ou « Du … au … » ; « Si pas faite : la reporter, l'oublier », pour toutes ; l'heure : sans, « À … », « Entre … et … » ; pour qui | TAC-20, TAC-22 à TAC-24 |
 | 4.4 C'est fait | Aujourd'hui, hier ou un autre jour, même pour l'autre, ou une tâche faite en plus | EXE-8, EXE-11, EXE-17 |
-| 4.5 Ce qui traîne | Les retards et leur nombre de reports | EXE-4, EXE-6, EXE-12 |
+| 4.5 Ce qui traîne | Les retards et leur nombre de reports | EXE-4, EXE-6, TAC-24 |
 | 4.6 Mode allégé | De 1 à 14 jours, un quart des tâches partagées | PLA-16 |
 | 4.7 Absences et voyages | Les absences, les voyages lus dans les billets | ABS, BIL |
-| 4.8 Je pars, je suis rentré | Départ maintenant, retour inconnu ou daté, ce qui doit être fait avant | ABS-6, ABS-7, TAC-18, ABS-8 |
+| 4.8 Je pars, je suis rentré | Départ maintenant, retour inconnu ou daté ; ce que HAL a posé avant le départ, d'après les descriptions | ABS-6, ABS-7, VER-10 |
 | 4.9 Types de tâches | Les types du foyer, leur couleur, leur icône, leur nombre de tâches ; « + » en crée un | TAC-25, TAC-26 |
-| 4.10 Type de tâche | Nom, couleur au sélecteur, icône dans une grille, durée et priorité par défaut, aperçu de la ligne ; « Supprimer » s'il est vide | TAC-25, TAC-26 |
+| 4.10 Type de tâche | Nom, couleur au sélecteur, icône dans une grille, durée et priorité par défaut, aperçu de la ligne ; « Supprimer » pour un type créé par le foyer, s'il est vide ; un type de base ne se supprime pas | TAC-25, TAC-26 |
 | 4.11 Ajouter un lien | La sorte (Ensuite, Le même jour, Vaut aussi), l'autre tâche, le délai ou la place, et la phrase qui en résulte | TAC-27, TAC-28 |
-| 4.12 Toutes les tâches | Les tâches actives du foyer, rangées par type, avec leur rythme et leur heure ; toucher ouvre le détail | TAC-21, TAC-25 |
+| 4.12 Toutes les tâches | Les tâches actives du foyer, rangées par type, avec leur rythme et leur heure ; toucher ouvre le détail ; « Tâches arrêtées » en bas | TAC-21, TAC-25, TAC-30 |
+| 4.13 Tâches arrêtées | Les tâches arrêtées, avec la date de l'arrêt et le nombre de fois qu'elles ont été faites ; « Reprendre » ; « Effacer définitivement », après confirmation. Écran à ajouter à la maquette | TAC-30, TAC-31 |
 
 **5 · Réglages**
 
@@ -4055,9 +4027,9 @@ L'API reste mince : chaque ajout appelle une fonction de la base. Tout ce tablea
 | Historique | `/journal`, déjà là, lu par l'écran Historique ; `avant` charge la suite, `correspond` désigne ce qui parle du mot | JRN-9 |
 | Calendriers à suivre | `/appli/calendriers` : lister ceux du foyer, essayer un lien sans le garder, suivre un calendrier pour soi ou un membre, régler groupe et UE écartées, changer le lien, arrêter, reprendre | COL-7, COL-14, COL-17, COL-21 |
 | Hors réseau | Une clé d'appareil acceptée sur les validations de tâches et les « c'est fait », comme sur les séries | APP-3 |
-| Tâches | Modifier et arrêter par un membre selon les droits ; une tâche faite en plus | TAC-21, EXE-17, FOY-6 |
+| Tâches | Modifier, arrêter, reprendre et effacer par un membre selon les droits ; une tâche faite en plus | TAC-21, TAC-30, TAC-31, EXE-17, FOY-6 |
 | Tâches datées et liens | Créer une tâche pour aujourd'hui, entre deux dates ou après une autre, avec son heure et ce qu'elle devient si elle n'est pas faite ; changer son type et son heure ; lire, poser et retirer ses liens | TAC-20 à TAC-24, TAC-27, TAC-28 |
-| Types de tâches | Lister, créer, modifier, supprimer ; chaque tâche rendue à l'appli porte son type, et `/appli/aujourdhui` rend la liste des types, pour l'hors réseau | TAC-25, TAC-26 |
+| Types de tâches | Lister, créer, modifier, supprimer un type créé par le foyer ; chaque tâche rendue à l'appli porte son type, et `/appli/aujourdhui` rend la liste des types, pour l'hors réseau | TAC-25, TAC-26 |
 | Conflit | « Voir plus tard » et son retour à sept jours | COL-23 |
 | Séance | Arrêter ici, faite sans saisie, décaler l'heure le jour même, changer de lieu ; changer d'exercice en gardant ses séries, retirer une série notée par erreur | SAI-15, SAI-16, SAI-22, PLN-11, LIE-5 |
 | HAL | Le moment « changement », l'écran affiché, l'annulation d'une action dans les cinq secondes | COA-32, COA-33, ORB-6 |
@@ -4099,9 +4071,9 @@ Aujourd'hui, le même compte tient les deux rôles. Ils restent séparés : un j
 | FOY-5 | M | L'administrateur retire un membre, après confirmation. Les tâches à venir du membre repassent à ceux qui restent ; ce qu'il a fait reste au journal du foyer. Tant que le système ne tient qu'un foyer, son compte est mis en pause : il garde son planning personnel, son HAL et son historique, et revient en rejoignant un foyer |
 | FOY-6 | M | L'administrateur règle, pour le foyer, qui peut ajouter des tâches, et qui peut les modifier et les arrêter : tout le monde, ou lui seul. Par défaut, tout le monde. Cocher une tâche, la déclarer faite et la reporter restent ouverts à tous (EXE-14) |
 | FOY-7 | M | L'administrateur passe son rôle à un autre membre. Il ne peut quitter le foyer qu'après l'avoir fait, sauf s'il y est seul. Le dernier qui part ferme le foyer : ses tâches s'arrêtent, son historique reste |
-| FOY-8 | D | HAL est double. Le HAL sport est à chacun : le profil, les limitations, les objectifs, la santé, les mesures, sa mémoire et ses échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17). Le HAL du foyer est commun : il tient la maison, sa mémoire et celle des tâches sont au foyer, et les conversations qu'on a avec lui restent à leur auteur (HDF) |
+| FOY-8 | D | HAL est double. Le HAL sport est à chacun : le profil, les limitations, les objectifs, la santé, les mesures, sa mémoire et ses échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17). Le HAL du foyer est commun : il tient la maison, sa mémoire et la description des tâches sont au foyer, et les conversations qu'on a avec lui restent à leur auteur (HDF) |
 | FOY-9 | D | Ce qui se lit à deux se lit dans le foyer, et seulement dans le foyer : le journal (JRN-6), les calendriers de l'autre (NOT-9), les absences, les tâches. Deux foyers ne voient rien l'un de l'autre |
-| FOY-10 | D | Les tâches, leurs enchaînements et leurs accompagnements, les tâches de départ et de retour, et ce qui concerne les animaux appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
+| FOY-10 | D | Les tâches, leurs enchaînements, leurs accompagnements et leurs descriptions, et les types de tâches appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
 | FOY-11 | D | Un compte porte le rôle d'administrateur du serveur. C'est le seul que le bot écoute (ADM-1), le seul qui lit la partie technique du journal (JRN-6) et qui joint les routes privées (CNX-5) |
 | FOY-12 | T | Au passage à cette version, les deux comptes existants forment le premier foyer. L'administrateur du serveur en devient l'administrateur. Rien du passé ne change : tâches, occurrences, journal et séances gardent leurs numéros |
 
@@ -4173,7 +4145,7 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 15. Gemini CLI | Le fournisseur `gemini_cli`, sa carte dans Réglages, Intelligence, avec les étapes pour le brancher, et la commande à copier pour le brancher comme client | Ses identifiants collés dans l'appli sont essayés puis gardés ; les scénarios du chapitre 10.5 passent avec lui (FOU-17) |
 | 16. HAL du foyer et aiguillage | `api/aiguillage.py` et ses mots-clés, `coach/consigne_foyer.md`, le moment « maison », la mémoire du foyer, le verrou par HAL ; la réponse en deux blocs | « Décale l'aspirateur à jeudi », depuis Maison, va au HAL du foyer sans petit modèle ; « je pars ce week-end, décale ma séance et la litière » rend une réponse en deux blocs ; Lorette ne lit pas la conversation de Thomas |
 | 17. Les gestes par HAL | Un outil par geste des boutons, pour les deux HAL ; exécution directe, « Annuler », notification de l'autre ; les clients externes gardent les demandes | Chaque geste de Maison et de Sport, demandé à HAL, donne le même résultat que le bouton ; refusé avec le même motif ; défait par « Annuler » |
-| 18. Mémoire des tâches et vérifications | Migration 078 : mémoire des tâches, file des vérifications, épingle par HAL, réglage du jour ; les moments « semaine » et « vérification » ; la ligne « HAL retient » du détail | « Trier les papiers une fois par mois quand je suis libre » est noté et placé sur une journée vide ; un cours ajouté ce jour-là fait déplacer la tâche par HAL, avec la raison ; une semaine sans tâche à mémoire ne fait aucun appel |
+| 18. Description des tâches et vérifications | Migration 086 : les réglages à part retirés (les colonnes, `taches_avant_depart`, `taches_au_retour`, la machine unique, la tâche à deux, le bloc « Nettoyage », `ajouter_tache`), les descriptions des tâches d'origine écrites (annexe 15), `revient` et `arretee_le`, les types de base ; la description des tâches, la file des vérifications, l'épingle par HAL, les occurrences posées par HAL, le réglage du jour ; les moments « semaine » et « vérification » ; dans l'appli, « Si pas faite » pour toutes, la ligne « HAL retient » du détail, « Quand : selon HAL », les tâches arrêtées [4.13] | « Nettoyer la hotte les 19 et 23 du mois, un mois sur deux », dit à HAL, crée la tâche et en pose les occurrences ; un cours ajouté un de ces jours-là la fait déplacer par HAL, avec la raison ; un départ à deux fait poser les poubelles la veille au soir par HAL ; les poubelles arrêtées, effacées puis recréées dans l'appli avec la même description font de même ; un type de base refuse d'être supprimé ; une semaine sans tâche décrite ne fait aucun appel |
 | 19. Répartition de la semaine | Attributions, charges, préférences et pénibilité dites à HAL ; le calcul du lundi et ses imprévus ; l'annonce ; le bloc « Ma semaine » | Rejouée sur huit semaines réelles, l'écart n'est pas pire qu'avec PLA-12 ; une absence mercredi ne redonne que les jours qui restent ; aucune route ni aucun outil ne rend la préférence de l'autre |
 | 20. Lieux connus et trajets | Migration 084 : lieux connus, mode de chacun, mémoire des lieux, trajets calculés ; `api/lieux.py`, la Géoplateforme et OSRM ; `noter_lieu`, `ecrire_memoire_lieu`, `lire_lieux` pour les deux HAL ; SPT-4 par `trajet_minutes` ; Réglages, Lieux, « Mes adresses » | « La salle est au 15 rue Saint-Jean, j'y vais à pied » pose l'adresse et donne le trajet depuis le foyer ; un jour d'absence à Lusse, le bloc d'une séance à la piscine compte le trajet depuis Lusse ; une adresse corrigée dans Réglages refait les trajets |
 | 21. Position, questions et soirée | Présences, dernière position, questions, cours annulés, soirées ; `POST /appli/position` ; `CLMonitor` dans l'appli ; les contrôles toutes les cinq minutes ; les moments « presence », « absent », « soiree » ; AIG-10 | Une position envoyée à 40 m de la salle y met le compte ; l'arrivée à Lusse fait demander « tu y restes ? » et la réponse déclare l'absence ; une séance à 18 h, toujours au foyer à 18 h 15, fait demander « tu y vas ? » ; ailleurs à minuit, une question au réveil ; Lorette ne lit rien de tout cela |
@@ -4187,7 +4159,7 @@ Trois raisons fixent cet ordre :
 
 Pour la partie F, la lecture vient avant l'écriture : le lot 12 n'écrit rien qui ne soit déjà permis à HAL, le lot 13 change le fournisseur sans changer les outils, et les demandes n'arrivent qu'au lot 14, avec leurs accords.
 
-Pour la partie G, le HAL du foyer et l'aiguillage viennent d'abord : les gestes, la mémoire des tâches et la répartition s'appuient sur eux.
+Pour la partie G, le HAL du foyer et l'aiguillage viennent d'abord : les gestes, la description des tâches et la répartition s'appuient sur eux.
 
 Pour la partie H, les adresses viennent d'abord : la position ne sait reconnaître que des lieux qui ont des coordonnées, et la météo d'une séance se lit au point de son lieu.
 
@@ -4233,6 +4205,12 @@ La partie H est écrite le 25 octobre 2026, et ses **lots 20 à 22** sont faits 
 Le même jour, l'écran « Lieux de sport » est retiré : les lieux de chaque discipline se déduisent des adresses, et chaque lieu a une description que HAL tient et lit pour choisir le lieu d'une séance (ADR-15 à ADR-18, DEM-7, migration 085, annexe 14). L'étape des lieux du démarrage demande maintenant les adresses.
 
 Restent à vérifier : les cercles sur un vrai iPhone (le simulateur ne les surveille pas), les questions de HAL avec le vrai modèle (arrivée à Lusse, séance manquée, soirée, pluie), et les scénarios du chapitre 10.5, puisque les consignes changent (COA-14).
+
+Le 25 octobre aussi, les règles des tâches sont revues avec Thomas (annexe 15). Plus aucune tâche n'a de réglage à elle seule : toutes se créent et se modifient par le même formulaire, qui ne change pas, sauf « Si pas faite », ouvert aux tâches régulières. Ce que le formulaire ne sait pas dire va dans la description de la tâche, que HAL tient et applique : c'est le lot 18, réécrit avec « description » à la place de « mémoire ». Les tâches d'origine deviennent des tâches comme les autres, leurs particularités écrites dans leur description ; une tâche arrêtée se reprend ou s'efface ; les cinq types de base ne se suppriment plus.
+
+Le **lot 18** est fait le même jour (migration 086, `api/coach/verification.py`, `placer_par_hal`, `retirer_par_hal`, `ecrire_description_tache`, `reprendre_tache`, `effacer_tache` ; dans l'appli, « Si pas faite » pour toutes, la description dans le détail, « Quand : selon HAL », les tâches arrêtées [4.13], les types de base, le jour de la relecture). Vérifié par les tests du serveur (`tests/test_taches_decrites.py`, et les tests des règles retirées réécrits ou retirés) et, sur la fausse base, avec le vrai modèle : « Trier les papiers les 19 et 23 du mois, un mois sur deux » a créé la tâche selon sa description, puis HAL a écrit la description et posé les quatre prochaines dates, épinglées ; un créneau ajouté le 19 novembre a fait relire la tâche en un seul appel, et HAL l'a laissée ; un départ à deux a fait poser par HAL, d'après les descriptions, les poubelles le vendredi à 17 h 15 et le vidage de la litière, pour la dernière à partir. Dans le simulateur : la description dans le détail, « selon HAL » dans la liste, l'effacement depuis les tâches arrêtées, avec sa ligne au journal, et un type de base sans bouton de suppression.
+
+Ce que le lot a appris en route : une tâche que HAL crée n'existe qu'une fois le geste fait, quelques secondes après sa réponse. Sa description part donc avec le geste de création, et ses occurrences se posent à la vérification qui suit. Le placement ne met dans la file que ce qui bouge dans les sept jours qui viennent : sans cette borne, chaque placement faisait appeler HAL (VER-3). Restent à vérifier sur un iPhone : la notification de HAL qui déplace une tâche, et le réglage de la relecture.
 
 ---
 
@@ -4705,14 +4683,14 @@ Ne changent pas : la consigne et son ordre, les paquets du dossier, la mémoire,
 
 ## Partie G. Le HAL du foyer
 
-Cette partie est nouvelle. Elle est écrite le 22 octobre 2026 avec Thomas, avant d'être construite : ses lots, 16 à 19, sont en section E.2. Une première version, faite de règles structurées en « briques » et d'un écran pour les saisir, a été construite puis retirée le même jour : ce n'était pas ce qui était voulu (annexe 12). Les parties A à F ne changent que là où l'annexe 12 le dit.
+Cette partie est nouvelle. Elle est écrite le 22 octobre 2026 avec Thomas, avant d'être construite : ses lots, 16 à 19, sont en section E.2. Une première version, faite de règles structurées en « briques » et d'un écran pour les saisir, a été construite puis retirée le même jour : ce n'était pas ce qui était voulu (annexe 12). Les parties A à F ne changent que là où l'annexe 12 le dit. Le 25 octobre, avant sa construction, la mémoire des tâches devient leur description, et les tâches d'origine perdent leurs réglages à part (annexe 15).
 
 ### G.1 Rappel du besoin et choix effectués
 
 #### G.1.1 Le besoin
 
 - **Tout faire en parlant à HAL.** Chaque action qu'on fait avec un bouton de l'appli, on doit pouvoir la demander à HAL, avec ses mots.
-- **Des consignes libres sur les tâches.** « Trier les papiers une fois par mois, un jour où je suis complètement libre », « l'aspirateur jamais le mardi », « les vitres quand Lorette n'est pas là ». Ce ne sont pas des règles précises : on les dit à HAL, il les retient et s'en souvient.
+- **Des consignes libres sur les tâches.** Le formulaire d'une tâche dit son rythme, ses dates, son heure, pour qui et ses liens. Le reste n'est pas fait de règles précises : « trier les papiers une fois par mois, un jour où je suis complètement libre », « les 19 et 23 du mois, un mois sur deux », « l'aspirateur jamais le mardi », « les vitres quand Lorette n'est pas là ». On le dit à HAL, qui l'écrit dans la description de la tâche.
 - **HAL vérifie.** Chaque semaine, et chaque fois que le système déplace une tâche qui a une consigne, HAL regarde si elle est respectée, et corrige.
 - **Le ménage réparti équitablement**, calculé en début de semaine.
 
@@ -4721,9 +4699,9 @@ Cette partie est nouvelle. Elle est écrite le 22 octobre 2026 avec Thomas, avan
 - **Deux HAL.** Le HAL du foyer s'occupe de la maison et du planning ; il est le même pour tous les membres. Le HAL sport reste à chacun (partie B).
 - **Un aiguillage en Python** décide qui répond : l'écran d'où part le message, puis des mots-clés, puis un petit modèle en dernier recours. Un message qui parle des deux part aux deux, et l'appli rend une seule réponse.
 - **HAL fait ce qu'on lui demande, directement.** Une action demandée dans la conversation s'exécute tout de suite, par la même fonction que le bouton, avec les mêmes droits et les mêmes refus. HAL dit ce qu'il a fait, et on peut annuler pendant cinq secondes (ORB-6).
-- **Une consigne est une mémoire, pas une règle.** HAL note la consigne en texte libre dans la mémoire de la tâche, et c'est lui qui l'interprète. Le moteur ne la lit pas. On la voit dans le détail de la tâche, sans pouvoir l'y modifier : pour la changer, on le dit à HAL.
-- **Ce que HAL place selon une mémoire est épinglé.** Le moteur ne le déplace plus, sauf absence ou geste à la main : HAL et le moteur ne se renvoient pas la tâche.
-- **HAL vérifie à deux moments.** Une fois par semaine, le lundi matin par défaut, réglable. Et après un placement qui a déplacé des tâches à mémoire, en un seul appel pour toutes.
+- **Une consigne est une description, pas une règle.** HAL note la consigne en texte libre dans la description de la tâche, et c'est lui qui l'interprète. Le moteur ne la lit pas : il applique le formulaire, HAL applique la description, comme pour un lieu (ADR-11). On la voit dans le détail de la tâche, sans pouvoir l'y modifier : pour la changer, on le dit à HAL.
+- **Ce que HAL place selon une description est épinglé.** Le moteur ne le déplace plus, sauf absence ou geste à la main : HAL et le moteur ne se renvoient pas la tâche.
+- **HAL vérifie à deux moments.** Une fois par semaine, le lundi matin par défaut, réglable. Et après un changement qui touche des tâches décrites, en un seul appel pour toutes.
 - **La répartition de la semaine** se calcule le lundi à 7 h : la même charge pour chacun, en minutes multipliées par la pénibilité, avec l'écart de la semaine passée reporté et les préférences de chacun. Les préférences et la pénibilité se disent à HAL, comme les consignes.
 - **Rien de nouveau à régler à la main**, sauf ce qui est un réglage du foyer : le HAL du foyer, la répartition, le jour et l'heure de la vérification.
 
@@ -4739,7 +4717,7 @@ Aucun outil extérieur. Le HAL du foyer est le module HAL de la partie B, avec u
 |---|---|
 | `api/aiguillage.py` | Décide maison, sport ou les deux (AIG) |
 | `coach/aiguillage.json` | Les mots-clés de chaque côté : des données du dépôt, pas du code |
-| `coach/consigne_foyer.md` | La consigne du HAL du foyer : son rôle, agir quand on le lui demande, tenir la mémoire des tâches, vérifier, quand poser une question |
+| `coach/consigne_foyer.md` | La consigne du HAL du foyer : son rôle, agir quand on le lui demande, tenir la description des tâches, vérifier, quand poser une question |
 | `api/coach/foyer.py` | Les moments du HAL du foyer : maison, semaine, vérification |
 
 #### G.2.2 Schéma d'ensemble
@@ -4753,11 +4731,11 @@ Aucun outil extérieur. Le HAL du foyer est le module HAL de la partie B, avec u
  maison│                   │sport              les deux : les deux HAL,
        ▼                   ▼                   une seule réponse
   HAL du foyer          HAL sport (partie B)
-       │  outils : chaque geste de l'appli, mémoire des tâches,
+       │  outils : chaque geste de l'appli, description des tâches,
        │           préférences, pénibilité, déplacer en épinglant
        ▼
    PostgreSQL ◄── moteur de placement (7 h, et après chaque geste)
-       │                    │ a déplacé une tâche à mémoire ?
+       │                    │ a touché une tâche décrite ?
        │                    ▼
        │            file des vérifications ─► HAL du foyer, moment « vérification »
        │
@@ -4767,11 +4745,15 @@ Aucun outil extérieur. Le HAL du foyer est le module HAL de la partie B, avec u
 
 #### G.2.3 Pas à pas
 
-**Une consigne.** Thomas, depuis la tâche « Trier les papiers » : « une fois par mois, quand je suis complètement libre ». L'aiguillage voit l'écran d'une tâche : c'est la maison. Le HAL du foyer note la consigne dans la mémoire de la tâche, telle qu'il la comprend : « Une fois par mois, un jour où Thomas n'a rien du tout dans son agenda. » S'il doute de ce que veut dire « complètement libre », il demande avant, avec des réponses prêtes (ORB-9). Il lit l'agenda, choisit le samedi 24, y place l'occurrence et l'épingle. Il répond : « C'est noté. Je l'ai mise samedi 24, ta seule journée vide du mois. » La tâche montre désormais, dans son détail : « HAL retient : une fois par mois, un jour où Thomas n'a rien du tout. »
+**Une consigne.** Thomas, depuis la tâche « Trier les papiers » : « une fois par mois, quand je suis complètement libre ». L'aiguillage voit l'écran d'une tâche : c'est la maison. Le HAL du foyer note la consigne dans la description de la tâche, telle qu'il la comprend : « Une fois par mois, un jour où Thomas n'a rien du tout dans son agenda. » S'il doute de ce que veut dire « complètement libre », il demande avant, avec des réponses prêtes (ORB-9). Il lit l'agenda, choisit le samedi 24, y place l'occurrence et l'épingle. Il répond : « C'est noté. Je l'ai mise samedi 24, ta seule journée vide du mois. » La tâche montre désormais, dans son détail : « HAL retient : une fois par mois, un jour où Thomas n'a rien du tout. »
 
-**Une vérification.** Jeudi, un cours est ajouté le samedi 24. Le moteur ne déplace pas la tâche, puisqu'elle est épinglée ; mais l'occupation nouvelle tombe sur le jour d'une tâche à mémoire, et la tâche entre dans la file des vérifications (VER-3). Le quart d'heure suivant, HAL est appelé avec elle, voit que le samedi n'est plus libre, la déplace au dimanche 8 et prévient Thomas : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24. »
+**Une vérification.** Jeudi, un cours est ajouté le samedi 24. Le moteur ne déplace pas la tâche, puisqu'elle est épinglée ; mais l'occupation nouvelle tombe sur le jour d'une tâche décrite, et la tâche entre dans la file des vérifications (VER-3). Le quart d'heure suivant, HAL est appelé avec elle, voit que le samedi n'est plus libre, la déplace au dimanche 8 et prévient Thomas : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24. »
 
-**Une action.** « Je pars chez mes parents de vendredi à dimanche. » Le HAL du foyer déclare l'absence, comme le bouton « Je pars », et répond avec « Annuler » pendant cinq secondes. Le placement qui suit repasse les tâches de Thomas à Lorette ; celles qui ont une mémoire sont vérifiées.
+**Une action.** « Je pars chez mes parents de vendredi à dimanche. » Le HAL du foyer déclare l'absence, comme le bouton « Je pars », et répond avec « Annuler » pendant cinq secondes. Le placement qui suit repasse les tâches de Thomas à Lorette ; celles qui ont une description sont vérifiées.
+
+**Un calendrier que le formulaire ne sait pas dire.** Thomas : « ajoute “Nettoyer la hotte”, les 19 et 23 du mois, un mois sur deux ». Aucun rythme du formulaire ne le dit. Le HAL du foyer crée la tâche « selon sa description » (MTA-8), écrit la description, « les 19 et 23 du mois, un mois sur deux, à partir de novembre », et pose les occurrences des quatre semaines à venir, épinglées. Chaque lundi, la vérification de la semaine pose celles qui entrent dans les quatre semaines.
+
+**Avant un départ.** Les poubelles ont pour description « à sortir avant un départ qui vide l'appartement ; la veille au soir si le départ est avant 17 h ». Thomas est déjà chez ses parents ; Lorette déclare un départ vendredi à 10 h. L'absence fait entrer les tâches décrites dans la file (VER-3). Au quart d'heure suivant, HAL pose une sortie des poubelles jeudi soir pour Lorette, en plus du rythme, et l'épingle (VER-10) : « Poubelles jeudi soir : l'appartement est vide à partir de vendredi matin. »
 
 ---
 
@@ -4786,11 +4768,11 @@ Mêmes conventions que les parties précédentes.
 | HDF-1 | D | Un foyer a un HAL du foyer, commun à tous ses membres. Il s'active pour le foyer, par l'administrateur, et l'est par défaut. Le HAL sport reste à chacun (COA-1) |
 | HDF-2 | D | Le HAL du foyer s'occupe de la maison et du planning : tâches, occurrences, liens, types, absences et voyages, occupations saisies à la main, conflits, mode allégé, répartition. Il ne lit rien du sport, de la santé, du profil ni des objectifs (FOY-8) ; une séance n'y est qu'un créneau pris |
 | HDF-3 | D | De celui qui ne lui parle pas, il ne lit que ce qu'il faut pour la maison : ses créneaux pris, sans titre ni lieu, ses absences, ses tâches (COA-15) |
-| HDF-4 | D | Il a deux sortes de mémoire. La mémoire du foyer, commune, pour ce qui touche la maison en général (« Sassy vomit si on change sa litière trop tard ») ; elle se lit et se corrige dans Réglages, Maison, comme la mémoire de HAL (MEM). Et la mémoire de chaque tâche (MTA) |
-| HDF-5 | D | Les conversations avec le HAL du foyer sont à celui qui écrit : l'autre ne les lit pas. Ce qui en sort de concret (une tâche, une mémoire, un déplacement) se voit dans Maison et dans l'Historique |
+| HDF-4 | D | Il a deux sortes de mémoire. La mémoire du foyer, commune, pour ce qui touche la maison en général (« Sassy vomit si on change sa litière trop tard ») ; elle se lit et se corrige dans Réglages, Maison, comme la mémoire de HAL (MEM). Et la description de chaque tâche (MTA) |
+| HDF-5 | D | Les conversations avec le HAL du foyer sont à celui qui écrit : l'autre ne les lit pas. Ce qui en sort de concret (une tâche, une description, un déplacement) se voit dans Maison et dans l'Historique |
 | HDF-6 | T | Un message est payé par la chaîne de fournisseurs de celui qui l'écrit (FOU-4). Un appel automatique, la vérification de la semaine ou celle d'après un placement, par celle de l'administrateur du foyer |
 | HDF-7 | T | Un appel du HAL du foyer est une opération du journal, sous l'acteur « hal_foyer ». Il suit les règles d'un appel de HAL : bornes de tours, nouveaux essais, réponse construite depuis la base (COA-7, COA-11, COA-17, COA-18, COA-23, COA-24). Son verrou est par membre et par HAL : on peut parler à ses deux HAL en même temps, pas deux fois au même. Un appel automatique prend le verrou de l'administrateur |
-| HDF-8 | T | Sans HAL du foyer, ou HAL injoignable, rien ne s'arrête : les boutons font tout, les tâches épinglées restent où elles sont, et la vérification suivante rattrape ce qui a été manqué |
+| HDF-8 | T | Sans HAL du foyer, ou HAL injoignable, rien ne s'arrête : les boutons font tout, les tâches épinglées restent où elles sont, et la vérification suivante rattrape ce qui a été manqué. Les descriptions attendent : ce qu'elles demandent de plus, comme les poubelles avant un départ, n'est pas posé tant que HAL ne répond pas |
 
 #### G.3.2 Aiguillage : `AIG`
 
@@ -4812,50 +4794,52 @@ Mêmes conventions que les parties précédentes.
 | ACT-1 | D | Chaque geste qu'un bouton de l'appli permet a son outil chez HAL : celui du foyer pour la maison et le planning, celui du sport pour le sport. L'outil appelle la même fonction que le bouton, avec les mêmes droits (FOY-6) et les mêmes refus |
 | ACT-2 | T | Une action demandée dans la conversation s'exécute directement. La réponse dit ce qui a été fait, avec « Annuler » pendant cinq secondes (ORB-6). L'autre membre est prévenu comme pour le geste, avec la raison « demandé à HAL par Thomas » (NOT-17) |
 | ACT-3 | T | Si la demande laisse un doute (quelle tâche, quel jour, pour qui), HAL demande avant d'agir, avec des réponses prêtes (ORB-9). Il ne devine pas une action |
-| ACT-4 | T | De lui-même, sans qu'on le lui demande, HAL ne fait que ce que cette partie lui confie, déplacer une tâche pour respecter sa mémoire (VER), et ce que la partie B permettait déjà au HAL sport : proposer des séances et des ajustements. Le reste, il le suggère dans son message |
-| ACT-5 | D | Restent aux boutons seuls : l'administration du foyer (inviter, retirer un membre, passer son rôle, régler les droits), le compte (mot de passe, clés MCP, fournisseurs, abonnement), et les données de santé |
+| ACT-4 | T | De lui-même, sans qu'on le lui demande, HAL ne fait que ce que cette partie lui confie, suivre la description d'une tâche : la déplacer, poser ou retirer une occurrence (VER), et ce que la partie B permettait déjà au HAL sport : proposer des séances et des ajustements. Le reste, il le suggère dans son message |
+| ACT-5 | D | Restent aux boutons seuls : l'administration du foyer (inviter, retirer un membre, passer son rôle, régler les droits), le compte (mot de passe, clés MCP, fournisseurs, abonnement), les données de santé, et l'effacement définitif d'une tâche, qui ne se défait pas (TAC-31) |
 | ACT-6 | D | Un client MCP externe garde les demandes : il ne change rien sans l'accord donné dans l'appli (ACC-1). Il peut tourner seul ; la conversation dans l'appli, non |
 
-#### G.3.4 La mémoire des tâches : `MTA`
+#### G.3.4 La description des tâches : `MTA`
 
 | Code | Type | Règle |
 |---|---|---|
-| MTA-1 | D | Une tâche peut avoir une mémoire : un texte libre, de 1 000 caractères au plus, que tient le HAL du foyer. Ce n'est pas une règle : rien d'autre que HAL ne la lit pour placer |
-| MTA-2 | T | Quand un membre dit à HAL une consigne sur une tâche, HAL l'écrit dans la mémoire de la tâche, telle qu'il la comprend, en une ou deux phrases. Une nouvelle consigne complète ou remplace l'ancienne : HAL réécrit la mémoire en entier. Si la tâche n'existe pas encore, il la crée d'abord (ACT-1) |
-| MTA-3 | T | Dès qu'une consigne est notée, HAL place les occurrences à venir de la tâche selon elle, sans attendre la vérification de la semaine (VER-4) |
-| MTA-4 | D | La mémoire d'une tâche est au foyer : les deux membres la voient. Elle se lit dans le détail de la tâche, « HAL retient : … », sans y être modifiable. Pour la changer ou l'effacer, on le dit à HAL. Chaque version est gardée, avec qui l'a dite, et passe au journal |
-| MTA-5 | T | Une mémoire dit aussi, si on le lui a dit, pour qui est la tâche : « quand je suis libre » dit par Thomas veut dire que Thomas la fait. HAL règle alors « pour qui » de la tâche, comme le bouton (ACT-1) |
-| MTA-6 | T | Une tâche arrêtée garde sa mémoire, avec son historique (TAC-21) |
+| MTA-1 | D | Une tâche peut avoir une description : un texte libre, de 1 000 caractères au plus, que tient le HAL du foyer. Elle dit ce que le formulaire ne sait pas dire (TAC-20). Ce n'est pas une règle : rien d'autre que HAL ne la lit pour placer |
+| MTA-2 | T | Quand un membre dit à HAL une consigne sur une tâche, HAL l'écrit dans la description de la tâche, telle qu'il la comprend, en une ou deux phrases. Une nouvelle consigne complète ou remplace l'ancienne : HAL réécrit la description en entier. Ce que le formulaire sait dire, HAL le règle par le geste et ne l'écrit pas : « tous les trois jours » change le rythme (ACT-1), « les 19 et 23 du mois » va dans la description. Si la tâche n'existe pas encore, il la crée avec sa description, dans le même geste (ACT-1) ; elle n'existe qu'une fois le geste fait, et ses occurrences se posent à la vérification qui suit (VER-3) |
+| MTA-3 | T | Dès qu'une description est écrite ou changée, HAL place les occurrences à venir de la tâche selon elle, sans attendre la vérification de la semaine (VER-4) |
+| MTA-4 | D | La description d'une tâche est au foyer : les deux membres la voient. Elle se lit dans le détail de la tâche, « HAL retient : … », sans y être modifiable. Pour la changer ou l'effacer, on le dit à HAL. Chaque version est gardée, avec qui l'a dite, et passe au journal |
+| MTA-5 | T | Une consigne dit aussi, si on le lui a dit, pour qui est la tâche : « quand je suis libre » dit par Thomas veut dire que Thomas la fait. HAL règle alors « pour qui » de la tâche, comme le bouton (ACT-1) |
+| MTA-6 | T | Une tâche arrêtée garde sa description, avec ses versions, et la retrouve si on la reprend (TAC-21, TAC-30). Effacée, elle la perd (TAC-31) |
+| MTA-8 | T | Une description peut dire à elle seule quand la tâche revient : « les 19 et 23 du mois, un mois sur deux ». HAL règle alors la tâche « selon sa description » : sans rythme ni dates, aucune génération ne l'engendre, et c'est HAL qui en pose chaque occurrence sur les quatre semaines à venir, épinglée (VER-1, VER-5). Cette façon de revenir ne s'offre pas dans le formulaire [4.3] : on la dit à HAL. Le détail de la tâche la montre « Quand : selon HAL », et un rythme choisi ensuite dans le détail la remplace |
 
 #### G.3.5 Les vérifications de HAL : `VER`
 
 | Code | Type | Règle |
 |---|---|---|
-| VER-1 | D | Une occurrence que HAL place selon la mémoire de sa tâche est épinglée par HAL. Le moteur ne la déplace plus (PLA-5), et elle porte le motif écrit par HAL : « samedi 24 : ta seule journée vide du mois » |
+| VER-1 | D | Une occurrence que HAL place selon la description de sa tâche est épinglée par HAL. Le moteur ne la déplace plus (PLA-5), et elle porte le motif écrit par HAL : « samedi 24 : ta seule journée vide du mois » |
 | VER-2 | T | Une occurrence épinglée par HAL un jour d'absence de celui à qui elle revient est désépinglée et replacée par le moteur (ABS-5), puis vérifiée (VER-3). Déplacée à la main, elle reste où on l'a mise : celui qui la déplace a le dernier mot, et elle n'est pas vérifiée |
-| VER-3 | T | Une occurrence d'une tâche à mémoire entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer, ou quand une occupation, une absence ou un conflit tombe sur son jour. Ce que HAL vient de faire lui-même n'y entre pas |
-| VER-4 | T | La file des vérifications part au plus une fois par quart d'heure, en un seul appel au HAL du foyer, moment « vérification », avec chaque occurrence, sa mémoire et ce qui l'a fait entrer. HAL laisse, ou déplace en épinglant (VER-1). Une file vide ne fait aucun appel |
-| VER-5 | T | Chaque semaine, au jour et à l'heure réglés pour le foyer, le lundi à 6h30 par défaut, HAL relit toutes les tâches à mémoire et leurs occurrences des quatre semaines à venir, moment « semaine ». Il place ce qui manque et corrige ce qui ne respecte pas la mémoire. Sans tâche à mémoire, pas d'appel |
+| VER-3 | T | Une occurrence d'une tâche décrite entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer dans les sept jours qui viennent, ou quand une occupation, une absence ou un conflit tombe sur son jour. Au-delà des sept jours, le moteur repose chaque matin ses prévisions : la vérification de la semaine les relit (VER-5). Une absence déclarée, changée ou retirée y fait entrer en plus chaque tâche décrite, une fois, même sans occurrence ce jour-là : sa description peut parler des départs et des retours. Ce que HAL vient de faire lui-même n'y entre pas |
+| VER-4 | T | La file des vérifications part au plus une fois par quart d'heure, en un seul appel au HAL du foyer, moment « vérification », avec chaque occurrence ou tâche, sa description et ce qui l'a fait entrer. HAL laisse, déplace en épinglant (VER-1), ou pose et retire ce que la description demande (VER-10). Une file vide ne fait aucun appel |
+| VER-5 | T | Chaque semaine, au jour et à l'heure réglés pour le foyer, le lundi à 6h30 par défaut, HAL relit toutes les tâches décrites et leurs occurrences des quatre semaines à venir, moment « semaine ». Il place ce qui manque et corrige ce qui ne respecte pas la description. Sans tâche décrite, pas d'appel |
 | VER-6 | T | Quand HAL déplace une occurrence, celui à qui elle revient est prévenu avec la raison, en une phrase (NOT-17) : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24 ». Les messages d'une même vérification partent ensemble |
-| VER-7 | T | Si aucun jour ne respecte la mémoire, HAL le dit à la personne concernée et propose un compromis dans son message : le jour qui s'en approche le plus, ou plus tard. L'occurrence reste là où elle est jusqu'à sa réponse |
+| VER-7 | T | Si aucun jour ne respecte la description, HAL le dit à la personne concernée et propose un compromis dans son message : le jour qui s'en approche le plus, ou plus tard. L'occurrence reste là où elle est jusqu'à sa réponse |
 | VER-8 | M | L'administrateur du foyer règle le jour et l'heure de la vérification de la semaine, dans Réglages, Maison |
 | VER-9 | T | Une vérification qui échoue est réessayée comme un appel planifié (COA-11). Si HAL reste injoignable, rien ne bouge, et la file est gardée pour l'appel suivant |
+| VER-10 | T | Pour suivre une description, HAL peut poser une occurrence de plus que le rythme, d'origine « hal » : les poubelles avant un départ, l'eau changée au retour. Elle est épinglée, avec son motif, et revient à qui la description désigne, sinon au roulement. Pour une tâche à faire à deux, il la pose sur un créneau où les deux sont libres, ou le dit aux deux s'il n'y en a aucun (VER-7). Il peut aussi retirer une prévision que la description exclut. Il ne retire jamais une occurrence annoncée, faite ou placée à la main |
 
 #### G.3.6 La répartition de la semaine : `REP`
 
 | Code | Type | Règle |
 |---|---|---|
 | REP-1 | M | L'administrateur du foyer active la répartition de la semaine, dans Réglages, Maison. Activée, elle remplace l'alternance et la balance de chaque matin (PLA-12). Arrêtée, elles reprennent dès le lendemain |
-| REP-2 | T | Elle se calcule le lundi à 7h00, après la vérification de la semaine et le placement, pour le lundi au dimanche. Elle porte sur les tâches domestiques sans « pour qui » fixe (PLA-10) : ni le sport, ni les tâches à deux, ni celles de départ et de retour (PLA-15) |
+| REP-2 | T | Elle se calcule le lundi à 7h00, après la vérification de la semaine et le placement, pour le lundi au dimanche. Elle porte sur les tâches domestiques sans « pour qui » fixe (PLA-10) : pas le sport |
 | REP-3 | D | La charge d'une occurrence est sa durée multipliée par sa pénibilité, de 1 à 3 : des points. Chaque type de tâche a une pénibilité, et une tâche peut avoir la sienne. On la dit à HAL : « récurer, c'est dur » |
 | REP-4 | T | Le but est que les deux aient la même charge sur la semaine, corrigée de l'écart de la semaine passée : celui qui en a fait plus en fait d'autant moins. L'écart se compte sur ce qui a été fait, hors des jours allégés et de ce qu'on a fait seul (PLA-15), plafonné à 120 points, et ne remonte qu'à la semaine passée |
 | REP-5 | T | Une absence réduit la part : la cible de chacun suit le nombre de jours où il est là (ABS-3). Le mode allégé donne un quart et trois quarts de ses jours (PLA-16) |
 | REP-6 | T | Chacun dit à HAL ce qu'il aime et ce qu'il déteste faire : « je déteste passer l'aspirateur ». HAL le note, pour cette personne et cette tâche. Personne d'autre ne voit ces préférences, ni dans l'appli ni par HAL ; on n'en voit que l'effet |
 | REP-7 | T | À trente points près de la cible, la répartition donne à chacun ce qu'il préfère. Une tâche que les deux détestent, ou que les deux aiment, tourne d'une semaine à l'autre. À préférences égales, l'alternance départage (PLA-12) |
 | REP-8 | T | Elle décide aussi qui prendra les occurrences qui ne sont pas encore nées : celles des enchaînements, et celles que la récurrence recrée après une validation. Pour chaque tâche, la k-ième occurrence de la semaine revient à quelqu'un. Une de plus que prévu revient à celui qui porte le moins de charge |
-| REP-9 | T | Une fois calculée, la semaine ne change plus de mains, sauf : absence déclarée (ABS-5), coup de main (PLA-13), mode allégé, tâche ajoutée en cours de semaine. Seul ce qui n'est pas fait, sur les jours qui restent, est redonné. Une tâche à mémoire qui change de mains entre dans la file des vérifications (VER-3) |
+| REP-9 | T | Une fois calculée, la semaine ne change plus de mains, sauf : absence déclarée (ABS-5), coup de main (PLA-13), mode allégé, tâche ajoutée en cours de semaine. Seul ce qui n'est pas fait, sur les jours qui restent, est redonné. Une tâche décrite qui change de mains entre dans la file des vérifications (VER-3) |
 | REP-10 | T | Chaque attribution garde son motif : « à toi cette semaine : ta charge restait sous la sienne ». Le motif ne cite jamais la préférence de l'autre |
-| REP-11 | T | Le lundi, à l'heure du bilan de chacun (NOT-15), l'annonce de la semaine : ses tâches jour par jour, sa charge et celle de l'autre, l'écart reporté, et ce que HAL a placé ou déplacé selon les mémoires. Elle contient le bilan du lundi |
+| REP-11 | T | Le lundi, à l'heure du bilan de chacun (NOT-15), l'annonce de la semaine : ses tâches jour par jour, sa charge et celle de l'autre, l'écart reporté, et ce que HAL a placé ou déplacé selon les descriptions. Elle contient le bilan du lundi |
 
 ---
 
@@ -4863,7 +4847,7 @@ Mêmes conventions que les parties précédentes.
 
 | Acteur | Type | Rôle |
 |---|---|---|
-| HAL du foyer | Programme du système | Fait ce qu'on lui demande pour la maison, tient la mémoire des tâches, les place et les vérifie |
+| HAL du foyer | Programme du système | Fait ce qu'on lui demande pour la maison, tient la description des tâches, les place et les vérifie |
 | HAL sport | Programme du système | Celui de la partie B ; fait aussi, à la demande, les gestes de l'onglet Sport (ACT-1) |
 | Aiguillage | Programme du système | Envoie chaque message au bon HAL, ou aux deux |
 | Administrateur du foyer | Humain | Active le HAL du foyer et la répartition, règle le jour de la vérification |
@@ -4873,18 +4857,18 @@ Mêmes conventions que les parties précédentes.
 
 Les migrations partent de 078 : la 076 et la 077 ont servi à la première version, retirée (annexe 12).
 
-#### Table : MemoireTache
+#### Table : DescriptionTache
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
-| id_memoire_tache | BIGINT | non | | oui | identité | oui | |
+| id_description_tache | BIGINT | non | | oui | identité | oui | |
 | id_tache | INTEGER | non | | | | | Tache (cascade) |
 | texte | TEXT | non | de 0 à 1 000 caractères ; vide : effacée | | | | |
 | dite_par | INTEGER | oui | le membre dont vient la consigne | | | | Utilisateur |
 | id_appel | BIGINT | oui | l'appel qui l'a écrite | | | | AppelCoach (mise à nul) |
 | quand | TIMESTAMPTZ | non | | | now() | | |
 
-Une ligne par version (MTA-4). La mémoire en vigueur est la dernière, lue par `v_memoire_tache`. Une tâche « a une mémoire » si sa dernière version n'est pas vide.
+Une ligne par version (MTA-4). La description en vigueur est la dernière, lue par `v_description_tache`. Une tâche « est décrite » si sa dernière version n'est pas vide. C'est la même forme que la description d'un lieu (ADR-11).
 
 #### Table : MemoireFoyer
 
@@ -4905,8 +4889,9 @@ Une ligne par version (MTA-4). La mémoire en vigueur est la dernière, lue par 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
 | id_verification | BIGINT | non | | oui | identité | oui | |
-| id_occurrence | INTEGER | non | | une seule en attente par occurrence | | | Occurrence (cascade) |
-| raison | VARCHAR(16) | non | 'creee', 'deplacee', 'a_placer', 'occupation', 'absence', 'conflit', 'repartition' | | | | |
+| id_occurrence | INTEGER | oui | l'une des deux, `id_occurrence` ou `id_tache` | une seule en attente par occurrence | | | Occurrence (cascade) |
+| id_tache | INTEGER | oui | la tâche entière, à relire après une absence (VER-3) | une seule en attente par tâche | | | Tache (cascade) |
+| raison | VARCHAR(16) | non | 'creee', 'deplacee', 'a_placer', 'occupation', 'absence', 'conflit', 'repartition', 'description' | | | | |
 | cree_le | TIMESTAMPTZ | non | | | now() | | |
 | traitee_le | TIMESTAMPTZ | oui | | | | | |
 | id_appel | BIGINT | oui | l'appel qui l'a traitée | | | | AppelCoach (mise à nul) |
@@ -4951,9 +4936,10 @@ Une ligne absente vaut « égal ». Aucune vue ni aucun outil ne rend les préf�
 | Table | Changement | Règles |
 |---|---|---|
 | Foyer | Colonnes `hal_actif` (vrai par défaut), `verification_jour` (1 à 7, 1 par défaut), `verification_heure` (6h30 par défaut), `repartition_semaine` (faux par défaut) | HDF-1, VER-8, REP-1 |
-| TypeTache | Colonne `penibilite`, de 1 à 3, 2 par défaut | REP-3 |
+| TypeTache | Colonne `penibilite`, de 1 à 3, 2 par défaut ; `categorie` devient `base` (section A.6.3) | REP-3, TAC-25 |
 | Tache | Colonne `penibilite`, de 1 à 3 ; vide : celle du type | REP-3 |
-| Occurrence | Colonne `epinglee_par` ('admin', 'hal'), renseignée si et seulement si `epinglee` ; et `rang_semaine` (REP-8) | VER-1, REP-8 |
+| Occurrence | Colonne `epinglee_par` ('admin', 'hal'), renseignée si et seulement si `epinglee` ; `rang_semaine` (REP-8) ; `origine` accepte 'hal' | VER-1, VER-10, REP-8 |
+| Tache | Les réglages à part sont retirés ; colonnes `revient` et `arretee_le` (section A.6.3) | TAC-29, TAC-30, MTA-8 |
 | AppelCoach | Colonnes `hal` ('sport', 'foyer') et `id_foyer`. `moment` accepte 'maison', 'semaine', 'verification'. Le verrou devient : un appel en cours par utilisateur et par HAL | HDF-6, HDF-7 |
 | Echange | Colonnes `hal` et `aiguillage` ('contexte', 'mots', 'modele', 'utilisateur'). Mêmes moments qu'AppelCoach | AIG-7 |
 | Notification | `type` accepte 'semaine' | REP-11 |
@@ -4963,9 +4949,9 @@ Une ligne absente vaut « égal ». Aucune vue ni aucun outil ne rend les préf�
 
 | Code | Contrainte | Où elle est tenue |
 |---|---|---|
-| MTA-1 | Une mémoire de 1 000 caractères au plus | `CHECK` sur `memoire_tache` |
+| MTA-1 | Une description de 1 000 caractères au plus | `CHECK` sur `description_tache` |
 | VER-1 | Épinglée par HAL ou par l'administrateur, et seulement épinglée | `CHECK ((epinglee_par IS NOT NULL) = epinglee)` |
-| VER-3 | Une seule vérification en attente par occurrence | Unicité partielle sur `id_occurrence` quand `traitee_le IS NULL` |
+| VER-3 | Une seule vérification en attente par occurrence, ou par tâche | Unicité partielle sur `id_occurrence`, et sur `id_tache`, quand `traitee_le IS NULL` |
 | REP-3 | Pénibilité de 1 à 3 | `CHECK` sur `type_tache` et `tache` |
 | REP-4 | Écart plafonné | `CHECK (ecart_reporte BETWEEN -120 AND 120)` |
 | REP-6 | Les préférences de l'autre ne sortent pas | `v_preference` filtrée sur l'appelant ; aucun outil ne les rend |
@@ -4980,7 +4966,7 @@ Une ligne absente vaut « égal ». Aucune vue ni aucun outil ne rend les préf�
 |---|---|
 | Déclencheur | Un message dans le panneau de HAL |
 | Entrée | Le texte, l'onglet, l'élément joint |
-| Traitement | L'aiguillage choisit le HAL (AIG). Le HAL lit ce qu'il faut ; si la demande est claire, il appelle l'outil du geste, sinon il pose sa question (ACT-3). Une consigne sur une tâche va dans sa mémoire, et la tâche est placée selon elle (MTA-2, MTA-3) |
+| Traitement | L'aiguillage choisit le HAL (AIG). Le HAL lit ce qu'il faut ; si la demande est claire, il appelle l'outil du geste, sinon il pose sa question (ACT-3). Une consigne sur une tâche va dans sa description, et la tâche est placée selon elle (MTA-2, MTA-3) |
 | Sortie | Le message, ce qui a été fait avec « Annuler », ou une question à réponses prêtes |
 | Règles | AIG, ACT-1 à ACT-4, MTA-2, MTA-3 |
 
@@ -4989,18 +4975,18 @@ Une ligne absente vaut « égal ». Aucune vue ni aucun outil ne rend les préf�
 | | |
 |---|---|
 | Déclencheur | Toutes les quinze minutes, une file non vide |
-| Entrée | Les occurrences en attente, la mémoire de leur tâche, ce qui les a fait entrer, l'agenda |
-| Traitement | Un appel au HAL du foyer, moment « vérification », sur la chaîne de l'administrateur. Il laisse, déplace en épinglant, ou propose un compromis. Les lignes sont closes avec l'appel |
-| Sortie | Les déplacements et leurs notifications |
-| Règles | VER-1 à VER-4, VER-6, VER-7, VER-9 |
+| Entrée | Les occurrences et les tâches en attente, la description de chaque tâche, ce qui les a fait entrer, l'agenda |
+| Traitement | Un appel au HAL du foyer, moment « vérification », sur la chaîne de l'administrateur. Il laisse, déplace en épinglant, pose ou retire une occurrence, ou propose un compromis. Les lignes sont closes avec l'appel |
+| Sortie | Les déplacements, les occurrences posées ou retirées, et leurs notifications |
+| Règles | VER-1 à VER-4, VER-6, VER-7, VER-9, VER-10 |
 
 #### Opération G3 : La vérification de la semaine
 
 | | |
 |---|---|
 | Déclencheur | Le jour et l'heure réglés pour le foyer, lundi 6h30 par défaut |
-| Entrée | Les tâches à mémoire, leurs occurrences des quatre semaines à venir, l'agenda des membres |
-| Traitement | Un appel au HAL du foyer, moment « semaine ». Il place ce qui manque, corrige ce qui ne respecte pas la mémoire, vide la file des vérifications au passage |
+| Entrée | Les tâches décrites, leurs occurrences des quatre semaines à venir, l'agenda des membres |
+| Traitement | Un appel au HAL du foyer, moment « semaine ». Il place ce qui manque, corrige ce qui ne respecte pas la description, vide la file des vérifications au passage |
 | Sortie | Les placements, les déplacements, et ce qu'en dira l'annonce du lundi |
 | Règles | VER-5, VER-6, REP-11 |
 
@@ -5031,20 +5017,21 @@ HAL du foyer
   GET    /hal-foyer/echanges?limite=         Mes conversations avec le HAL du foyer
 ```
 
-`GET /taches` rend en plus, pour chaque tâche, `memoire` : la mémoire en vigueur, et qui l'a dite. `POST /coach/question`, `/coach/changement` et `/coach/signalement` gardent leur nom et passent par l'aiguillage.
+`GET /taches` rend en plus, pour chaque tâche, `description` : la description en vigueur, et qui l'a dite. `POST /coach/question`, `/coach/changement` et `/coach/signalement` gardent leur nom et passent par l'aiguillage.
 
-Il n'y a pas de route pour écrire la mémoire d'une tâche, ni les préférences, ni la pénibilité : elles passent par HAL.
+Il n'y a pas de route pour écrire la description d'une tâche, ni les préférences, ni la pénibilité : elles passent par HAL.
 
 #### G.8.2 Outils du HAL du foyer
 
 | Outil | Ce qu'il fait | Ce qu'il appelle |
 |---|---|---|
-| `lire_aujourdhui`, `lire_taches`, `lire_occurrences`, `lire_absences`, `lire_conflits` | Ceux de la section F.8.2 ; `lire_taches` rend aussi la mémoire de chaque tâche | |
+| `lire_aujourdhui`, `lire_taches`, `lire_occurrences`, `lire_absences`, `lire_conflits` | Ceux de la section F.8.2 ; `lire_taches` rend aussi la description de chaque tâche | |
 | `lire_planning` | Celui de la section B.9.2, réduit aux créneaux pour l'autre membre (HDF-3) | `v_planning` |
 | `lire_semaine_maison` | La répartition, les charges, l'écart, les motifs | `v_semaine_maison` |
 | Un outil par geste de la maison | Créer, modifier, arrêter une tâche ; lier, délier ; types ; faite, reporter, refuser ; absence, départ, retour ; occupation à la main ; mode allégé ; trancher un conflit. Les actions des demandes de la section F.8.2, exécutées directement (ACT-1) | Les fonctions des routes |
-| `ecrire_memoire_tache` | Écrit ou efface la mémoire d'une tâche (MTA-2) | `ecrire_memoire_tache()` |
-| `placer_occurrence` | Pose une occurrence un jour donné et l'épingle, avec son motif (VER-1) | `placer_par_hal()` |
+| `ecrire_description_tache` | Écrit ou efface la description d'une tâche (MTA-2) | `ecrire_description_tache()` |
+| `placer_occurrence` | Pose une occurrence un jour donné, ou sur un créneau pour une tâche à heure imposée, et l'épingle, avec son motif ; une occurrence de plus si la description le demande (VER-1, VER-10) | `placer_par_hal()` |
+| `retirer_prevision` | Retire une prévision que la description exclut (VER-10) | `retirer_par_hal()` |
 | `noter_preference` | Note ce que la personne qui parle aime ou déteste faire (REP-6) | `noter_preference()` |
 | `regler_penibilite` | Règle la pénibilité d'un type ou d'une tâche (REP-3) | `regler_penibilite()` |
 | `lire_memoire_foyer`, `ecrire_memoire_foyer`, `ajouter_memoire_foyer` | La mémoire du foyer (HDF-4) | `v_memoire_foyer`, `ecrire_memoire_foyer()` |
@@ -5053,7 +5040,7 @@ Le HAL sport gagne de même un outil par geste de l'onglet Sport (ACT-1) : valid
 
 Les outils permis selon le moment (COA-5) :
 
-| Moment | Lecture | Gestes | Mémoire des tâches | Placer en épinglant | Préférences et pénibilité | Mémoire du foyer |
+| Moment | Lecture | Gestes | Description des tâches | Placer, poser, retirer | Préférences et pénibilité | Mémoire du foyer |
 |---|---|---|---|---|---|---|
 | maison | oui | oui | oui | oui | oui | oui |
 | semaine | oui | | | oui | | oui |
@@ -5065,7 +5052,7 @@ La semaine et la vérification n'ont pas les gestes : personne ne les a demandé
 
 | Code | Type | Règle |
 |---|---|---|
-| MTA-7 | D | Le détail d'une tâche [4.2] montre sa mémoire, si elle en a une : « HAL retient : … », avec qui l'a dite. Rien n'y est modifiable ; un toucher ouvre le panneau de HAL avec la tâche jointe (ORB-10) |
+| MTA-7 | D | Le détail d'une tâche [4.2] montre sa description, si elle en a une : « HAL retient : … », avec qui l'a dite. Rien n'y est modifiable ; un toucher ouvre le panneau de HAL avec la tâche jointe (ORB-10). Une tâche « selon sa description » montre « Quand : selon HAL » (MTA-8) |
 | ACT-7 | D | Ce que HAL a fait s'affiche dans sa réponse, un bloc par action, avec « Annuler » pendant cinq secondes (ORB-6) |
 | AIG-9 | D | Une réponse des deux HAL montre deux blocs, « Maison » et « Sport », dans la même bulle |
 | REP-12 | D | Maison a un bloc « Ma semaine » : mes tâches jour par jour, ma charge et celle de l'autre en points, l'écart reporté. Toucher une tâche montre son motif |
@@ -5080,19 +5067,21 @@ La semaine et la vérification n'ont pas les gestes : personne ne les a demandé
 | HAL | Un par compte | Le HAL sport, à chacun, et le HAL du foyer, commun | FOY-8, COA-1, HDF |
 | Chat de HAL | Un seul HAL reçoit tout | L'aiguillage choisit, ou envoie aux deux | AIG |
 | HAL dans l'appli | Il dépose des demandes à accepter | Il fait directement ce qu'on lui demande ; les clients externes gardent les demandes | ACC-1, ACT |
-| Épingler | L'administrateur du serveur seul | Aussi HAL, pour ce qu'il place selon une mémoire | EXE-9, VER-1 |
+| Épingler | L'administrateur du serveur seul | Aussi HAL, pour ce qu'il place selon une description | EXE-9, VER-1 |
+| Tâches d'origine | Des réglages que seules elles avaient, appliqués par le moteur | Des tâches comme les autres ; leurs particularités dans leur description, appliquées par HAL | TAC-29, VER-10 |
 | Répartition | Alternance et balance d'une heure, chaque matin | Au choix du foyer : la même chose, ou la répartition de la semaine | PLA-12, REP |
 | Ordonnanceur | 7h00 placement ; 0h05 report | En plus : la vérification de la semaine, la file des vérifications toutes les quinze minutes, la répartition du lundi | VER, REP |
 
-Ne changent pas : le moteur de placement et ses choix, les enchaînements et les liens, le HAL sport et tout le sport, la chaîne des fournisseurs. Un foyer sans HAL du foyer et sans répartition fonctionne exactement comme avant.
+Ne changent pas : le moteur de placement et ses choix, hors des réglages à part qu'il perd (annexe 15), les enchaînements et les liens, le HAL sport et tout le sport, la chaîne des fournisseurs. Un foyer sans HAL du foyer et sans répartition fonctionne comme avant, à ceci près que les descriptions n'y sont pas appliquées : seul le formulaire compte (HDF-8).
 
 ### G.11 Risques et points ouverts
 
 | Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
 |---|---|---|
 | HAL agit directement | Un modèle peut mal comprendre une demande | Il demande s'il doute (ACT-3), dit ce qu'il a fait, et « Annuler » le défait. Des scénarios de demandes (phrase, action attendue, question attendue) sont à écrire, comme le chapitre 10.5, et à rejouer avant chaque changement de consigne |
-| Interprétation des mémoires | Rien ne vérifie qu'une mémoire est respectée, sinon HAL | C'est le choix : la mémoire est libre. La vérification de la semaine rattrape ce que les vérifications d'après placement auraient manqué |
-| Coût des vérifications | Chaque placement peut remplir la file | Une file au plus par quart d'heure, et seulement pour les tâches à mémoire. À mesurer après un mois |
+| Interprétation des descriptions | Rien ne vérifie qu'une description est respectée, sinon HAL | C'est le choix : la description est libre. La vérification de la semaine rattrape ce que les vérifications d'après placement auraient manqué |
+| Coût des vérifications | Chaque placement peut remplir la file | Une file au plus par quart d'heure, et seulement pour les tâches décrites ; une absence fait relire toutes les tâches décrites. À mesurer après un mois |
+| Ce que le moteur faisait seul | Avant un départ, au retour, à deux, une machine par jour : c'est HAL qui le fait maintenant, d'après les descriptions (annexe 15) | HAL injoignable, rien de cela n'est posé (HDF-8) ; la file est gardée et rattrapée (VER-9). Un scénario par description d'origine est à écrire, comme le chapitre 10.5, et à rejouer avant chaque changement de consigne |
 | Calcul de la répartition | L'algorithme exact n'est pas choisi | À écrire au lot 19, rejoué sur huit semaines réelles : déterministe, expliqué par son motif, pas pire que PLA-12 sur l'écart |
 | Deux HAL à la fois | Un message aux deux lance deux Claude Code | Deux au plus à la fois (FOU-16). À mesurer sur le portable |
 | Foyer de deux | La répartition est écrite pour deux | Comme FOY-4 |
@@ -5100,7 +5089,8 @@ Ne changent pas : le moteur de placement et ses choix, les enchaînements et les
 ### G.12 Ce qui est volontairement exclu
 
 - Des règles structurées que le moteur appliquerait, et un écran pour les saisir : la consigne reste un texte que HAL interprète.
-- Modifier la mémoire d'une tâche, les préférences ou la pénibilité à la main.
+- Modifier la description d'une tâche, les préférences ou la pénibilité à la main.
+- Des réglages que seules certaines tâches auraient : ce que le formulaire ne dit pas va dans la description (TAC-29).
 - Par HAL : l'administration du foyer, le compte, les données de santé (ACT-5).
 - L'échange de tâches entre membres, toujours remplacé par le coup de main (EXE-16).
 
@@ -5711,7 +5701,7 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Conflit caché | Revient sept jours avant sa date | Choix du projet | COL-23 |
 | Annulation d'une action de HAL | Cinq secondes | Maquette [2.4] | ORB-6 |
 | Historique minimal pour le rapport de charge | 4 semaines | Chapitre 8.1 du dossier | `v_charge_entrainement` |
-| Mémoire d'une tâche | 1 000 caractères | Choix de conception | MTA-1 |
+| Description d'une tâche | 1 000 caractères | Choix de conception | MTA-1 |
 | Vérification de la semaine | Lundi 6h30, réglable par le foyer | Choix du projet | VER-5, VER-8 |
 | File des vérifications | Au plus un appel par quart d'heure | Choix de conception | VER-4 |
 | Vérification de la semaine : horizon | Quatre semaines | Choix de conception | VER-5 |
@@ -6078,3 +6068,124 @@ Version du 25 octobre 2026, migration 085, décidée avec Thomas après la mise 
 | C.12 | Réglages, HAL et sport : « Lieux et position » à la place de « Lieux de sport » |
 | B.8, opération C0 | L'étape 3 du démarrage |
 
+### Annexe 15 : les tâches sans réglage à part
+
+Version du 25 octobre 2026, écrite avec Thomas avant d'être construite, au lot 18. Jusque-là, certaines tâches d'origine avaient des réglages que le formulaire ne montrait pas, et que personne ne pouvait donner à une tâche nouvelle : passer avant un départ, revenir au retour, une machine par jour, se faire à deux, former le bloc « Nettoyage », ne pas se reporter, s'abandonner après cinq jours. Elles ne pouvaient pas non plus s'arrêter. Désormais, toutes les tâches ont les mêmes réglages, ceux du formulaire, qui ne change pas ; ce qu'il ne sait pas dire va dans la description de la tâche, que HAL applique (MTA, VER). La « mémoire des tâches » de la partie G, pas encore construite, devient cette description, sur le modèle de celle des lieux (annexe 14).
+
+**Les choix.**
+
+- Le formulaire reste tel qu'il est. Seul « Si pas faite : la reporter, l'oublier » s'ouvre aux tâches régulières ; il remplace `reportable` et le délai d'abandon (TAC-24).
+- HAL relit les descriptions chaque semaine, et à chaque changement qui touche une tâche décrite, une absence comprise (VER-3, VER-5).
+- Les réglages à part des tâches d'origine deviennent des descriptions, écrites par la migration (ci-dessous). Le moteur ne les applique plus.
+- Une tâche arrêtée se retrouve dans les tâches arrêtées : elle se reprend, ou s'efface définitivement, historique compris (TAC-30, TAC-31).
+- Les cinq types de base ne se suppriment plus ; ils se renomment et se recolorent (TAC-25, TAC-26).
+- Ce qui ne servait plus quitte le schéma (ci-dessous).
+
+Règles nouvelles : TAC-29 à TAC-31, MTA-8, VER-10.
+
+**Règles retirées.**
+
+| Code | Ce qu'elle est devenue | Ce qu'elle disait |
+|---|---|---|
+| TAC-3 | La machine se dit dans la description des lessives : « une seule machine par jour » | Une tâche déclare si elle mobilise la machine à laver, ressource unique du logement |
+| TAC-9 | « À deux » se dit dans la description ; HAL pose la tâche sur un créneau où les deux sont libres (VER-10) | Une tâche peut exiger la présence des deux utilisateurs. Elle est alors nécessairement à heure imposée : un rappel « dans la journée » ne dit rien de la simultanéité |
+| TAC-11 | Le rythme des poubelles se règle dans le formulaire ; « ne se repousse pas » est dans leur description | Les poubelles sortent tous les quatre jours au plus tard, sans report : un sac oublié quatre jours de plus se sent. Les draps se changent toutes les deux semaines, plus longue et reportable, parce que la décaler d'un jour ne coûte rien |
+| TAC-12 | Dans la description des tâches concernées ; HAL pose l'occurrence avant le départ (VER-3, VER-10) | Une tâche peut être marquée « avant le départ » : quand l'appartement se vide, elle est posée avant que la dernière personne parte, en plus de sa récurrence. Les poubelles et la litière ne peuvent pas attendre le retour, et il n'y a plus personne pour s'en occuper. La liste est en TAC-18 |
+| TAC-13 | Une plage horaire, « entre 17h et 23h59 », réglée dans le formulaire (TAC-23) ; la veille au soir est dans la description | Les poubelles se sortent à partir de 17h et pas avant : le ramassage passe à l'aube, un sac sorti le matin attend dehors toute la journée. Un départ avant 17h fait donc tomber la corvée la veille au soir |
+| TAC-17 | Dans la description de la poussière et du récurage ; les deux liens du bloc sont retirés | Un jour sans cours ni travail, la poussière et le récurage se rejoignent et forment le bloc « Nettoyage » : poussière, aspirateur, récurage. Il ne se forme que si l'une des deux était déjà due ce jour-là, et n'avance jamais l'autre de plus du tiers de sa période |
+| TAC-18 | Dans la description des poubelles, du lave-vaisselle et du vidage de la litière (VER-10) | Avant un départ qui vide l'appartement : les poubelles, le lave-vaisselle lancé, la caisse du chat changée en entier. Ces tâches viennent en plus du roulement, même faites deux jours plus tôt, et reviennent au dernier à partir. Partis ensemble, elles se répartissent |
+| ABS-8 | Dans la description de l'eau de Sassy (VER-10) | Quand l'appartement est resté vide plus de deux jours, l'eau du chat se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
+| UNI-12 | Comme TAC-3 | Deux occurrences mobilisant la machine ne sont pas placées le même jour |
+| PLA-9 | Comme TAC-9 | Une tâche à deux se place sur une intersection des disponibilités. Faute d'intersection, le système notifie au lieu de placer au hasard |
+
+**Règles réécrites.** Voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| TAC-1 | Une tâche récurrente déclare une catégorie, une durée, une priorité de 1 à 5 et une périodicité minimale et maximale en jours. Elle ne porte aucune date |
+| TAC-2 | Une tâche est soit un rappel dans la journée, sans heure, soit une tâche à heure imposée déclarant sa fenêtre horaire |
+| TAC-14 | Le lave-vaisselle lancé le soir se vide dans la journée qui suit. La tâche n'a pas de récurrence propre : elle naît de la validation du lancement, et revient à qui le roulement désigne, quel que soit celui qui a lancé |
+| TAC-16 | Une occurrence qui en accompagne une autre porte un titre qui dit sa place : « Passer l'aspirateur (avant de récurer) », « Nettoyage 2/3 : Passer l'aspirateur ». Les titres se refont à chaque placement |
+| TAC-20 | Une tâche s'ajoute depuis le « + » d'Aujourd'hui ou de Maison, sur un seul écran [4.3] : son nom, son type (TAC-25), sa durée, quand (une fois, régulière, ou après une autre tâche), à quelle heure (TAC-23), pour qui (soi, l'autre, à tour de rôle). Un foyer sans tâche se voit proposer les tâches courantes, à ajouter d'un geste. Une tâche ponctuelle ne s'abandonne pas toute seule, sauf si on l'a demandé à sa création (TAC-24) : elle reste en retard jusqu'à être faite ou refusée |
+| TAC-21 | Toute tâche du foyer se modifie dans l'appli [4.2] : son nom, son type, sa durée, sa fréquence, son heure, pour qui, ses liens (TAC-27). Elle s'arrête aussi : désactivée, elle garde son historique. Qui peut ajouter, modifier et arrêter se règle par le foyer (FOY-6). L'autre est prévenu du changement (NOT-17) |
+| TAC-24 | Une tâche ponctuelle dit, à sa création, ce qu'elle devient si sa dernière date passe sans qu'elle soit faite. « La reporter » : elle revient chaque jour, en retard, jusqu'à être faite ou refusée (TAC-20). « L'oublier » : le report de minuit qui suit sa dernière date l'abandonne, et la personne à qui elle revenait en est prévenue (EXE-12). Arroser une plante avant de partir n'a plus de sens le lendemain ; rendre un colis en a toujours. Tant que sa dernière date n'est pas passée, elle se reporte comme les autres dans sa fenêtre |
+| TAC-25 | Les types de tâches sont des données du foyer, pas une liste du code : un nom, une couleur, une icône, une durée et une priorité par défaut. Les familles d'origine en deviennent : Ménage, Linge, Vaisselle, Chat, Administratif. Ils se renomment (« Chat » devient « Sassy ») et se recolorent ; on en crée autant qu'on veut (« Cours » pour les devoirs, « Plantes »). Une tâche nouvelle prend la durée et la priorité de son type, qu'on peut changer. Le sport n'est pas un type : il a son onglet et ses règles (SPT) |
+| TAC-26 | Un type se crée depuis le formulaire d'une tâche, en un geste, ou dans Réglages, Planning, Types de tâches [4.9, 4.10]. Il se modifie au même endroit, et se supprime seulement s'il ne porte plus aucune tâche active : on déplace d'abord ses tâches vers un autre type. Deux types d'un foyer ne portent pas le même nom, sans égard à la casse ni aux accents. Créer, modifier et supprimer un type suivent le droit de modifier les tâches (FOY-6) |
+| PLA-12 | Sans la répartition de la semaine (REP-1), la répartition alterne : une tâche revient à qui ne l'a pas eue la dernière fois, faite ou seulement prévue. La balance reprend la main au-delà d'une heure d'écart de charge, pour ne pas charger celui qui croule au motif que c'était son tour. Une tâche à deux et le sport n'entrent pas dans cette charge. Avec elle, qui fait quoi se décide le lundi (REP-2) |
+| PLA-14 | Les priorités disent qui passe en premier quand deux tâches veulent la même place. 1 : les animaux et le linge à étendre, qui n'attendent pas. 2 : poubelles, lave-vaisselle, lessives, tâches ponctuelles. 3 : draps, récurage. 4 : aspirateur, poussière, linge à plier. 5 : grand nettoyage, cycles longs ajoutés |
+| PLA-15 | Ce qu'on fait seul parce que l'autre est parti ne compte ni dans la balance ni dans le tour, pas plus que les tâches de départ et de retour. Celui qui reste vit dans l'appartement, il est normal qu'il s'en occupe : celui qui rentre ne rattrape rien, et le tour reprend là où il s'était arrêté |
+| EXE-9 | L'administrateur du serveur peut épingler un créneau, qui n'est alors plus déplacé. HAL épingle aussi ce qu'il place selon la mémoire d'une tâche (VER-1) |
+| EXE-12 | Au-delà d'un délai de retard propre à la tâche, l'occurrence est abandonnée au lieu d'être reportée une fois de plus : cinq jours pour une tâche ordinaire, trois pour une séance de sport, qui ne se rattrape pas. Un délai nul dit que la tâche ne s'abandonne jamais. L'abandon est notifié, la récurrence suivante n'est pas touchée |
+| FOY-8 | HAL est double. Le HAL sport est à chacun : le profil, les limitations, les objectifs, la santé, les mesures, sa mémoire et ses échanges appartiennent au compte, jamais au foyer, et n'en sortent pas (CAR-8, PRO-8, SAN-7). Le foyer voit les créneaux de sport et les séances à deux, pas leur contenu (PLN-17). Le HAL du foyer est commun : il tient la maison, sa mémoire et celle des tâches sont au foyer, et les conversations qu'on a avec lui restent à leur auteur (HDF) |
+| FOY-10 | Les tâches, leurs enchaînements et leurs accompagnements, les tâches de départ et de retour, et ce qui concerne les animaux appartiennent au foyer. Ce sont des données, pas du code : un autre foyer aurait les siennes |
+| HDF-4 | Il a deux sortes de mémoire. La mémoire du foyer, commune, pour ce qui touche la maison en général (« Sassy vomit si on change sa litière trop tard ») ; elle se lit et se corrige dans Réglages, Maison, comme la mémoire de HAL (MEM). Et la mémoire de chaque tâche (MTA) |
+| HDF-5 | Les conversations avec le HAL du foyer sont à celui qui écrit : l'autre ne les lit pas. Ce qui en sort de concret (une tâche, une mémoire, un déplacement) se voit dans Maison et dans l'Historique |
+| HDF-8 | Sans HAL du foyer, ou HAL injoignable, rien ne s'arrête : les boutons font tout, les tâches épinglées restent où elles sont, et la vérification suivante rattrape ce qui a été manqué |
+| ACT-4 | De lui-même, sans qu'on le lui demande, HAL ne fait que ce que cette partie lui confie, déplacer une tâche pour respecter sa mémoire (VER), et ce que la partie B permettait déjà au HAL sport : proposer des séances et des ajustements. Le reste, il le suggère dans son message |
+| ACT-5 | Restent aux boutons seuls : l'administration du foyer (inviter, retirer un membre, passer son rôle, régler les droits), le compte (mot de passe, clés MCP, fournisseurs, abonnement), et les données de santé |
+| MTA-1 | Une tâche peut avoir une mémoire : un texte libre, de 1 000 caractères au plus, que tient le HAL du foyer. Ce n'est pas une règle : rien d'autre que HAL ne la lit pour placer |
+| MTA-2 | Quand un membre dit à HAL une consigne sur une tâche, HAL l'écrit dans la mémoire de la tâche, telle qu'il la comprend, en une ou deux phrases. Une nouvelle consigne complète ou remplace l'ancienne : HAL réécrit la mémoire en entier. Si la tâche n'existe pas encore, il la crée d'abord (ACT-1) |
+| MTA-3 | Dès qu'une consigne est notée, HAL place les occurrences à venir de la tâche selon elle, sans attendre la vérification de la semaine (VER-4) |
+| MTA-4 | La mémoire d'une tâche est au foyer : les deux membres la voient. Elle se lit dans le détail de la tâche, « HAL retient : … », sans y être modifiable. Pour la changer ou l'effacer, on le dit à HAL. Chaque version est gardée, avec qui l'a dite, et passe au journal |
+| MTA-5 | Une mémoire dit aussi, si on le lui a dit, pour qui est la tâche : « quand je suis libre » dit par Thomas veut dire que Thomas la fait. HAL règle alors « pour qui » de la tâche, comme le bouton (ACT-1) |
+| MTA-6 | Une tâche arrêtée garde sa mémoire, avec son historique (TAC-21) |
+| MTA-7 | Le détail d'une tâche [4.2] montre sa mémoire, si elle en a une : « HAL retient : … », avec qui l'a dite. Rien n'y est modifiable ; un toucher ouvre le panneau de HAL avec la tâche jointe (ORB-10) |
+| VER-1 | Une occurrence que HAL place selon la mémoire de sa tâche est épinglée par HAL. Le moteur ne la déplace plus (PLA-5), et elle porte le motif écrit par HAL : « samedi 24 : ta seule journée vide du mois » |
+| VER-3 | Une occurrence d'une tâche à mémoire entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer, ou quand une occupation, une absence ou un conflit tombe sur son jour. Ce que HAL vient de faire lui-même n'y entre pas |
+| VER-4 | La file des vérifications part au plus une fois par quart d'heure, en un seul appel au HAL du foyer, moment « vérification », avec chaque occurrence, sa mémoire et ce qui l'a fait entrer. HAL laisse, ou déplace en épinglant (VER-1). Une file vide ne fait aucun appel |
+| VER-5 | Chaque semaine, au jour et à l'heure réglés pour le foyer, le lundi à 6h30 par défaut, HAL relit toutes les tâches à mémoire et leurs occurrences des quatre semaines à venir, moment « semaine ». Il place ce qui manque et corrige ce qui ne respecte pas la mémoire. Sans tâche à mémoire, pas d'appel |
+| VER-7 | Si aucun jour ne respecte la mémoire, HAL le dit à la personne concernée et propose un compromis dans son message : le jour qui s'en approche le plus, ou plus tard. L'occurrence reste là où elle est jusqu'à sa réponse |
+| REP-2 | Elle se calcule le lundi à 7h00, après la vérification de la semaine et le placement, pour le lundi au dimanche. Elle porte sur les tâches domestiques sans « pour qui » fixe (PLA-10) : ni le sport, ni les tâches à deux, ni celles de départ et de retour (PLA-15) |
+| REP-9 | Une fois calculée, la semaine ne change plus de mains, sauf : absence déclarée (ABS-5), coup de main (PLA-13), mode allégé, tâche ajoutée en cours de semaine. Seul ce qui n'est pas fait, sur les jours qui restent, est redonné. Une tâche à mémoire qui change de mains entre dans la file des vérifications (VER-3) |
+| REP-11 | Le lundi, à l'heure du bilan de chacun (NOT-15), l'annonce de la semaine : ses tâches jour par jour, sa charge et celle de l'autre, l'écart reporté, et ce que HAL a placé ou déplacé selon les mémoires. Elle contient le bilan du lundi |
+
+**Les descriptions écrites par la migration.** Elles sont écrites d'après les colonnes telles qu'elles sont au moment du passage : une case décochée depuis, à la main ou par le rattrapage `sql/apres/080`, n'écrit rien. Les lignes que ce rattrapage avait mises dans la mémoire du foyer y restent. Les descriptions se corrigent ensuite en parlant à HAL.
+
+| Ce que la tâche avait | Ce que la description dit |
+|---|---|
+| Ne se reporte pas (poubelles) | Ne se repousse pas : un sac qui attend se sent. |
+| Ne se reporte pas (litière, eau et fontaine de Sassy, lessive de travail) | Ne se décale pas : à faire le jour prévu. |
+| Avant un départ (poubelles) | Quand l'appartement va se vider, à sortir avant que le dernier parte, en plus du rythme, même si elles ont été sorties deux jours plus tôt. Le ramassage passe à l'aube : un départ avant 17 h la fait tomber la veille au soir. |
+| Avant un départ (vidage de la litière) | Quand l'appartement va se vider, la caisse se change en entier avant que le dernier parte, en plus du rythme : personne ne s'en occupera. |
+| Avant un départ (lave-vaisselle) | Quand l'appartement va se vider, à faire avant que le dernier parte, en plus du rythme. |
+| Au retour (eau de Sassy) | Quand l'appartement est resté vide plus de 2 jours, à refaire au retour, pour le premier rentré, le jour même, ou le lendemain s'il rentre après 21 h. |
+| La machine (lessives) | Une seule machine par jour : jamais le même jour qu'une autre lessive. |
+| À deux (grand nettoyage) | Se fait à deux, au même moment, sur un créneau où les deux sont libres. S'il n'y en a aucun, le dire aux deux plutôt que de la poser au hasard. |
+| Le bloc « Nettoyage » (poussière, récurage) | Les jours sans cours ni travail, la poussière et le récurage se font ensemble, l'aspirateur entre les deux : c'est le bloc « Nettoyage ». Seulement si l'un des deux était déjà dû ce jour-là, et sans avancer l'autre de plus du tiers de sa période. |
+
+Une tâche qui avait plusieurs de ces réglages a les phrases à la suite. Les autres, l'aspirateur, les draps, le linge à étendre et à plier, vider le lave-vaisselle, n'ont pas de description : le formulaire et leurs liens disent tout. La lessive de travail, arrêtée depuis septembre 2026, rejoint les tâches arrêtées, où elle peut être effacée. Toutes les tâches existantes gardent « Si pas faite : la reporter », sauf une tâche ponctuelle qui avait demandé l'oubli : une tâche régulière en retard n'est plus abandonnée au bout de cinq jours, elle revient jusqu'à être faite ou refusée. Les liens restent, sauf les deux qui formaient le bloc « Nettoyage ».
+
+**Ce qui quitte le schéma.**
+
+| Où | Ce qui part | Pourquoi |
+|---|---|---|
+| Tache | `code` | Une tâche se désigne par son numéro ; la tâche du sport, par l'absence de type. `declarer_faite()` et `demander_faite` prennent le numéro |
+| Tache | `categorie` | Le type la remplace, et le type de base pour ce qui la lisait : le widget Chat, le préfixe du calendrier, la répartition (PLA-10) |
+| Tache | `rappel_journee`, `recurrente` | Ne se règlent plus : ce sont des colonnes calculées, de `heure_min` et de `revient`, qui dit aussi « selon la description » |
+| Tache | `utilise_machine`, `requiert_les_deux`, `avant_depart`, `au_retour_apres_jours` | Dans les descriptions |
+| Tache | `reportable`, `abandon_apres_jours` | « Si pas faite », pour toutes (TAC-24). Les trois jours d'une séance sans nouvelle deviennent une constante (EXE-12) |
+| Tache | `quota_hebdomadaire` | Plus rien ne la lisait depuis le retrait des réservations (annexe 2) |
+| Occurrence | `utilise_machine` | Avec UNI-12 |
+| Accompagnement | `journee_libre`, `bloc` | Avec TAC-17 |
+| TypeTache | `categorie` | Devient `base`, vide pour un type créé par le foyer |
+| Fonctions | `ajouter_tache()`, `taches_avant_depart()`, `taches_au_retour()`, `trg_machine_unique()`, `machine_occupee()`, `journee_libre()`, la recherche d'un créneau commun et le bloc de `poser_les_accompagnements()` | La première était la forme du bot, que seuls des tests appelaient ; les autres appliquaient les règles retirées |
+| Routes | `POST /taches` | L'ancienne création, qui écrivait un code et une famille ; `POST /taches/nouvelle` reste |
+| Fonctions | La ligne de `appliquer_assignations()` qui donnait le pliage du linge à Lorette | Elle repassait à chaque démarrage de l'API, par-dessus le « pour qui » choisi dans l'appli |
+| Appli | Le widget Chat lu par codes (`LITIERE%`, `EAU_SASSY`, `FONTAINE_SASSY`) | Il lit les tâches du type de base Chat |
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| En-tête, 0.1 et 0.2 | La description des tâches, les tâches d'origine et arrêtées |
+| A.2.4 | Le report de minuit suit « Si pas faite » |
+| A.3, A.3.11 | Les annexes des règles retirées ; UNI-12 |
+| A.5 et A.6.3 | Tache, TypeTache, Accompagnement, Occurrence |
+| A.7.3, A.7.4, A.7.6, A.7.10, A.7.11 | Les contraintes des règles retirées et réécrites |
+| A.8 | Les opérations 2, 4, 6 et 8, et celles ajoutées depuis |
+| A.9.1 et C.13 | Reprendre, effacer ; `POST /taches` retirée |
+| A.10 | Les modules des poubelles, des tâches qui vont ensemble et de l'oubli des retards |
+| C.7 | Les écrans 4.1 à 4.12, et l'écran 4.13, nouveau |
+| E.2 et E.3 | Le lot 18 |
+| G, G.1, G.2, G.4 à G.12 | « Mémoire des tâches » devient « description » ; deux pas-à-pas de plus ; DescriptionTache, la file par tâche, `retirer_prevision` |
+| Annexe 3 | La description d'une tâche |

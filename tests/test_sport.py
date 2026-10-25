@@ -81,7 +81,7 @@ def seances(client, entete) -> list[dict]:
           FROM occurrence o
           JOIN tache t ON t.id_tache = o.id_tache
           LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
-         WHERE t.categorie = 'sport' AND o.creneau IS NOT NULL
+         WHERE t.id_type_tache IS NULL AND o.creneau IS NOT NULL
          ORDER BY lower(o.creneau)
     """)
 
@@ -251,7 +251,7 @@ def choisies(lundi: date, pseudo: str = "thomas") -> list[dict]:
         SELECT o.id_occurrence, o.debut_seance, o.creneau, o.id_lieu, o.statut,
                o.epinglee, jour_de(o.debut_seance) AS jour
           FROM occurrence o JOIN tache t ON t.id_tache = o.id_tache
-         WHERE t.code = 'SPORT'
+         WHERE t.id_tache = essais.tache_de('SPORT')
            AND o.id_utilisateur = %s
            AND o.statut IN ('planifiee', 'notifiee', 'faite')
            AND jour_de(o.debut_seance) BETWEEN %s AND %s + 6
@@ -343,7 +343,7 @@ def test_la_migration_retire_les_reservations_ouvertes(client, thomas):
                                 origine, id_lieu, debut_seance, motif)
         SELECT t.id_tache, %s, tstzrange(%s, %s), tstzrange(%s, %s), 'planifiee',
                'quota', %s, %s, 'À déterminer'
-          FROM tache t WHERE t.code = 'SPORT'
+          FROM tache t WHERE t.id_tache = essais.tache_de('SPORT')
         RETURNING id_occurrence
     """, moi, a(jour, 0), a(jour + timedelta(days=1), 0), a(jour, 17), a(jour, 19),
         lieu("SALLE"), a(jour, 17, 50))
@@ -428,7 +428,8 @@ def test_pas_faite_est_close_sans_rien_recompleter(client, thomas):
     assert un("SELECT statut FROM occurrence WHERE id_occurrence = %s", seance) == "abandonnee"
     # SPT-36 : la semaine ne se recomplète plus d'elle-même.
     assert un("SELECT count(*) FROM occurrence o JOIN tache t USING (id_tache)"
-              " WHERE t.code = 'SPORT' AND o.statut IN ('planifiee', 'notifiee')") == 0
+              " WHERE t.id_tache = essais.tache_de('SPORT')"
+              " AND o.statut IN ('planifiee', 'notifiee')") == 0
 
 
 def test_refuser_une_seance_ne_la_reassigne_pas(client, thomas):

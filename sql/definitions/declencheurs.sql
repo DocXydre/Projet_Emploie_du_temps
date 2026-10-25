@@ -13,9 +13,9 @@ CREATE OR REPLACE TRIGGER occurrence_close
     FOR EACH ROW EXECUTE FUNCTION trg_occurrence_close();
 
 
-CREATE OR REPLACE TRIGGER occurrence_machine_unique
-    BEFORE INSERT OR UPDATE OF creneau, statut ON occurrence
-    FOR EACH ROW EXECUTE FUNCTION trg_machine_unique();
+CREATE OR REPLACE TRIGGER occurrence_epingle
+    BEFORE INSERT OR UPDATE OF epinglee, epinglee_par ON occurrence
+    FOR EACH ROW EXECUTE FUNCTION trg_occurrence_epingle();
 
 
 CREATE OR REPLACE TRIGGER occurrence_apres_validation
@@ -28,6 +28,17 @@ CREATE OR REPLACE TRIGGER occurrence_apres_validation
 CREATE OR REPLACE TRIGGER occupation_reverifier_propositions
     AFTER INSERT OR UPDATE OR DELETE ON occupation
     FOR EACH STATEMENT EXECUTE FUNCTION trg_occupation_reverifier();
+
+
+-- VER-3 : un créneau pris, une absence, font relire les tâches décrites.
+CREATE OR REPLACE TRIGGER occupation_verifier_taches
+    AFTER INSERT OR UPDATE OF periode, id_utilisateur OR DELETE ON occupation
+    FOR EACH ROW EXECUTE FUNCTION trg_occupation_verifier();
+
+
+CREATE OR REPLACE TRIGGER absence_verifier_taches
+    AFTER INSERT OR UPDATE OF periode OR DELETE ON absence
+    FOR EACH STATEMENT EXECUTE FUNCTION trg_absence_verifier();
 
 
 -- CNX-12 : la clé d'API du compte n'est gardée qu'en empreinte.
@@ -103,7 +114,7 @@ CREATE OR REPLACE TRIGGER journal_tache
     FOR EACH ROW EXECUTE FUNCTION trg_journal(
         'foyer', 'libelle', 'active', 'duree_minutes', 'periodicite_min_jours',
         'periodicite_max_jours', 'heure_min', 'heure_max', 'id_utilisateur_defaut',
-        'priorite', 'avant_depart', 'id_type_tache', 'si_pas_faite');
+        'priorite', 'id_type_tache', 'si_pas_faite', 'revient');
 
 
 -- TAC-25 à TAC-27 : les types et les liens se règlent dans l'appli, par l'un

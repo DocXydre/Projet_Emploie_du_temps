@@ -5,9 +5,10 @@ CREATE VIEW v_occurrence AS
 SELECT
     o.id_occurrence,
     o.id_tache,
-    t.code            AS tache_code,
     t.libelle         AS tache_libelle,
-    t.categorie,
+    -- La famille, lue du type de base : la tâche n'en a plus à elle (TAC-29).
+    CASE WHEN t.id_type_tache IS NULL THEN 'sport'
+         ELSE COALESCE(y.base, 'menage') END::VARCHAR AS categorie,
     t.id_type_tache,
     t.priorite,
     t.duree_minutes,
@@ -22,8 +23,8 @@ SELECT
     o.statut,
     o.origine,
     o.epinglee,
+    o.epinglee_par,
     o.rappel_journee,
-    o.utilise_machine,
     o.nb_relances,
     o.motif,
     o.date_faite,
@@ -57,4 +58,5 @@ SELECT
     END                                                   AS actions_possibles
 FROM occurrence o
 JOIN tache t          ON t.id_tache = o.id_tache
+LEFT JOIN type_tache y  ON y.id_type_tache = t.id_type_tache
 LEFT JOIN utilisateur u ON u.id_utilisateur = o.id_utilisateur;

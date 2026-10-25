@@ -326,7 +326,7 @@ CHAMPS_TACHE = {
     "periodicite_min_jours": "tous les (jours, au plus tôt)",
     "periodicite_max_jours": "tous les (jours, au plus tard)",
     "heure_min": "pas avant", "heure_max": "pas après",
-    "avant_depart": "à faire avant de partir",
+    "si_pas_faite": "si pas faite", "revient": "revient",
 }
 
 

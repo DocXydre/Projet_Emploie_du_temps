@@ -21,7 +21,8 @@ SELECT
     'tache'                            AS nature,
     o.id_occurrence::BIGINT            AS id,
     o.id_utilisateur,
-    t.categorie,
+    CASE WHEN t.id_type_tache IS NULL THEN 'sport'
+         ELSE COALESCE(y.base, 'menage') END::VARCHAR AS categorie,
     -- TAC-16 : le titre de l'occurrence quand elle en accompagne une autre.
     CASE WHEN o.origine = 'quota' THEN t.libelle || ' à déterminer'
          ELSE COALESCE(o.titre, t.libelle) END AS libelle,
@@ -35,6 +36,7 @@ SELECT
     o.nb_relances
 FROM occurrence o
 JOIN tache t ON t.id_tache = o.id_tache
+LEFT JOIN type_tache y ON y.id_type_tache = t.id_type_tache
 LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
 WHERE o.creneau IS NOT NULL
   AND o.statut IN ('planifiee', 'notifiee')

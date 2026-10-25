@@ -24,11 +24,10 @@ BEGIN
        -- TAC-18, ABS-8 : une tâche de départ ou de retour revient à celui qui
        -- part le dernier ou rentre le premier, pas au roulement.
        AND o.origine NOT IN ('depart', 'retour')
-       AND t.categorie <> 'sport'
+       AND t.id_type_tache IS NOT NULL
        -- ABS-2 : le pliage du linge reste à Lorette, quoi qu'il arrive.
        AND t.id_utilisateur_defaut IS NULL
        -- TAC-9 : une tâche à deux n'a personne à qui la reprendre.
-       AND NOT t.requiert_les_deux
        AND o.creneau IS NOT NULL
        AND lower(o.creneau) > now()
        AND lower(o.creneau) < now() + make_interval(days => p_jours)

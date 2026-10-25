@@ -1,12 +1,8 @@
 """Ce qu'on fait avant de partir, et ce qu'un voyage change au calendrier.
 
-Un appartement vide n'est pas un appartement au repos. Le sac de poubelle qu'on
-laisse deux jours se rappelle au retour, et le chat, lui, ne part pas en
-week-end. Ces deux tâches-là ne peuvent donc pas attendre (TAC-12).
-
-Deux détails les distinguent. Les poubelles ont une heure, 17h au plus tôt : un
-sac sorti le matin passe la journée dehors pour un ramassage qui a lieu à
-l'aube (TAC-13). La litière, elle, se fait dans la journée du départ.
+Les poubelles ont une heure, 17h au plus tôt, réglée dans le formulaire comme
+pour toute tâche. Ce qu'elles demandent avant un départ n'est plus une règle du
+moteur : c'est leur description, que HAL applique (TAC-29, VER-10, annexe 15).
 
 Et une proposition de week-end ne pose plus la question une fois le billet
 acheté : elle devient le week-end (WKD-6).
@@ -16,7 +12,6 @@ from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import psycopg
-import pytest
 
 from tests.conftest import _url
 
@@ -50,92 +45,6 @@ def _partir(depart: datetime, retour: datetime, pseudos=("thomas", "lorette")) -
              "  FROM utilisateur WHERE pseudo = %s", depart, retour, pseudo)
 
 
-def _avant_depart(code: str) -> dict | None:
-    lignes = _sql(
-        """
-        SELECT o.statut, o.motif, u.pseudo,
-               lower(o.creneau) AS pose_le, lower(o.fenetre) AS fenetre_debut,
-               upper(o.fenetre) AS fenetre_fin
-          FROM occurrence o
-          JOIN tache t USING (id_tache)
-          LEFT JOIN utilisateur u USING (id_utilisateur)
-         WHERE t.code = %s AND o.origine = 'depart'
-        """, code)
-    return lignes[0] if lignes else None
-
-
-@pytest.fixture
-def week_end_a_deux(client, thomas):
-    """Les deux partent vendredi 13h03 et rentrent dimanche 10h26."""
-    depart = _vendredi_prochain().replace(hour=11, minute=3, second=0, microsecond=0)
-    retour = depart + timedelta(days=2, hours=-1)
-    _partir(depart, retour)
-    client.post("/planning/placer", headers=thomas)
-    return depart
-
-
-# ---------------------------------------------------------------------------
-# L'appartement se vide                                                TAC-12
-# ---------------------------------------------------------------------------
-
-def test_les_poubelles_sortent_le_dernier_soir(week_end_a_deux):
-    poubelles = _avant_depart("POUBELLES")
-
-    assert poubelles is not None, "aucune sortie de poubelles avant le départ"
-    assert poubelles["statut"] == "planifiee"
-    # Le train part avant 17h : le dernier créneau possible est la veille.
-    assert poubelles["pose_le"].astimezone(PARIS).date() \
-        == (week_end_a_deux.astimezone(PARIS) - timedelta(days=1)).date()
-    assert "Avant de partir" in poubelles["motif"] or poubelles["motif"]
-
-
-def test_la_litiere_se_vide_le_jour_du_depart(week_end_a_deux):
-    # TAC-18 : la caisse est changée en entier, pour que Sassy tienne jusqu'au
-    # retour. Le simple ramassage ne figure plus dans la liste.
-    litiere = _avant_depart("LITIERE_VIDAGE")
-
-    assert litiere is not None
-    assert _avant_depart("LITIERE_CROTTES") is None
-    # Le chat reste : la caisse se change le matin même, pas la veille.
-    assert litiere["fenetre_debut"].astimezone(PARIS).date() \
-        == week_end_a_deux.astimezone(PARIS).date()
-
-
-def test_les_deux_taches_ont_quelqu_un_pour_les_faire(week_end_a_deux):
-    for code in ("POUBELLES", "LITIERE_VIDAGE", "LAVE_VAISSELLE"):
-        assert _avant_depart(code)["pseudo"] is not None, code
-
-
-def test_personne_ne_part_rien_de_special(client, thomas):
-    # Thomas s'en va, Lorette reste : c'est elle qui sortira le sac quand il
-    # sera plein, et le placement ordinaire s'en charge déjà.
-    depart = _vendredi_prochain().replace(hour=11, minute=3, second=0, microsecond=0)
-    _partir(depart, depart + timedelta(days=2), pseudos=("thomas",))
-
-    client.post("/planning/placer", headers=thomas)
-
-    assert _avant_depart("POUBELLES") is None
-    assert _avant_depart("LITIERE_VIDAGE") is None
-
-
-def test_replacer_ne_double_pas_les_taches_de_depart(client, thomas, week_end_a_deux):
-    client.post("/planning/placer", headers=thomas)
-    client.post("/planning/placer", headers=thomas)
-
-    # Les poubelles, le lave-vaisselle et la caisse de Sassy : une de chaque.
-    assert _un("SELECT count(*) FROM occurrence WHERE origine = 'depart'") == 3
-
-
-def test_un_depart_annule_reprend_ses_taches(client, thomas, week_end_a_deux):
-    _sql("DELETE FROM absence")
-
-    client.post("/planning/placer", headers=thomas)
-
-    # Plus de départ, plus de corvée d'avant-départ : elle ne doit pas rester
-    # plantée dans le planning d'un voyage qui n'a pas lieu.
-    assert _un("SELECT count(*) FROM occurrence WHERE origine = 'depart'") == 0
-
-
 # ---------------------------------------------------------------------------
 # Les poubelles ont une heure                                          TAC-13
 # ---------------------------------------------------------------------------
@@ -146,7 +55,7 @@ def test_les_poubelles_ne_se_sortent_pas_le_matin(client, thomas):
     heures = _sql(
         "SELECT lower(o.creneau) AT TIME ZONE 'Europe/Paris' AS quand "
         "  FROM occurrence o JOIN tache t USING (id_tache) "
-        " WHERE t.code = 'POUBELLES' AND o.creneau IS NOT NULL")
+        " WHERE t.id_tache = essais.tache_de('POUBELLES') AND o.creneau IS NOT NULL")
 
     assert heures, "aucune sortie de poubelles placée"
     for ligne in heures:
@@ -154,13 +63,14 @@ def test_les_poubelles_ne_se_sortent_pas_le_matin(client, thomas):
 
 
 def test_les_poubelles_gardent_leur_echeance(base):
-    tache = _sql("SELECT * FROM tache WHERE code = 'POUBELLES'")[0]
+    tache = _sql("SELECT * FROM tache WHERE id_tache = essais.tache_de('POUBELLES')")[0]
 
     assert tache["rappel_journee"] is False
-    assert tache["avant_depart"] is True
-    assert tache["reportable"] is False
     # Quatre jours au plus entre deux sorties, comme avant.
     assert tache["periodicite_max_jours"] == 4
+    # Le départ est dans la description, pour HAL.
+    assert "avant que le dernier parte" in _un(
+        "SELECT texte FROM v_description_tache WHERE id_tache = %s", tache["id_tache"])
 
 
 # ---------------------------------------------------------------------------

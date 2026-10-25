@@ -161,6 +161,10 @@ struct FoyerLu: Codable, Sendable {
     let modifTaches: String
     /// HDF-1 : le HAL du foyer, actif par défaut.
     var halActif: Bool? = nil
+    /// VER-8 : le jour (1, lundi, à 7) et l'heure, « 06:30:00 », de la
+    /// vérification de la semaine.
+    var verificationJour: Int? = nil
+    var verificationHeure: String? = nil
     let placesLibres: Int
     let jeSuisAdmin: Bool
     let membres: [MembreLu]

@@ -11,7 +11,7 @@ BEGIN
        SET statut = 'abandonnee', motif = 'Pas faite'
       FROM tache t
      WHERE t.id_tache = o.id_tache
-       AND t.categorie = 'sport'
+       AND t.id_type_tache IS NULL
        AND o.id_occurrence = p_occurrence
        AND o.id_utilisateur = p_utilisateur
        AND o.statut IN ('planifiee', 'notifiee')

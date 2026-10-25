@@ -99,11 +99,11 @@ private struct VueChat: View {
 
     var body: some View {
         Cadre(entree: entree, titre: "Sassy", icone: "pawprint", couleur: Teinte.categorie("chat")) { instantane in
-            if let chat = instantane.chat {
+            if let chat = instantane.chat, !chat.soins.isEmpty {
                 VStack(alignment: .leading, spacing: 3) {
-                    ligne("Litière", chat.litiere)
-                    ligne("Eau", chat.eau)
-                    ligne("Fontaine", chat.fontaine)
+                    ForEach(chat.soins, id: \.titre) { soin in
+                        ligne(soin.titre, soin.quand)
+                    }
                 }
             } else {
                 RienAMontrer(texte: "Ouvre HAL une fois")

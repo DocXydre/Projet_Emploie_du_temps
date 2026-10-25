@@ -12,15 +12,15 @@ WITH liens AS (
     SELECT 'ensuite'::TEXT AS sorte, e.id_enchainement AS id_lien,
            e.id_tache_source AS id_de, e.id_tache_suivante AS id_vers,
            e.delai_min_heures, e.delai_max_heures,
-           NULL::TEXT AS place, NULL::TEXT AS mention, FALSE AS journee_libre, NULL::TEXT AS bloc
+           NULL::TEXT AS place, NULL::TEXT AS mention
       FROM enchainement e
     UNION ALL
     SELECT 'meme_jour', a.id_accompagnement, a.id_tache, a.id_tache_jointe,
-           NULL, NULL, a.place, a.mention, a.journee_libre, a.bloc
+           NULL, NULL, a.place, a.mention
       FROM accompagnement a
     UNION ALL
     SELECT 'vaut_aussi', r.id_remplacement, r.id_tache_faite, r.id_tache_couverte,
-           NULL, NULL, NULL, NULL, FALSE, NULL
+           NULL, NULL, NULL, NULL
       FROM remplacement r
 )
 SELECT
@@ -34,8 +34,6 @@ SELECT
     l.delai_max_heures,
     l.place,
     l.mention,
-    l.journee_libre,
-    l.bloc,
     de.active AND vers.active AS actif,
 
     -- Le délai en mots : « dans les 12 h », « entre 8 et 20 h après ».
@@ -53,7 +51,6 @@ SELECT
         WHEN 'meme_jour' THEN
             format('%s, le même jour, %s', vers.libelle,
                    CASE l.place WHEN 'avant' THEN 'avant' ELSE 'après' END)
-            || CASE WHEN l.journee_libre THEN format(' (les jours sans cours, bloc « %s »)', l.bloc) ELSE '' END
         ELSE vers.libelle
     END AS phrase_depuis,
 

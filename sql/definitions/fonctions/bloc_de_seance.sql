@@ -24,7 +24,7 @@ CREATE OR REPLACE FUNCTION bloc_de_seance(
                              make_interval(mins => COALESCE(
                                  p_duree, l.duree_minutes,
                                  (SELECT t.duree_minutes FROM tache t
-                                   WHERE t.code = 'SPORT'))) AS duree
+                                   WHERE t.id_type_tache IS NULL))) AS duree
                         FROM lieu_sport l
                        WHERE l.id_lieu = p_lieu) x)
     END;
