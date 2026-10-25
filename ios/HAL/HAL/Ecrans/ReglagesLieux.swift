@@ -1,8 +1,9 @@
 import SwiftUI
 
 // Réglages, Lieux et position (ADR-14, POS-14) : où le suivi en est, et chaque
-// lieu connu avec son adresse, sa nature, son mode et ce que HAL en retient.
-// Seule l'adresse se corrige ici (ADR-6) ; le reste se dit à HAL.
+// lieu connu avec son adresse, sa nature, son mode et sa description, celle que
+// HAL lit pour choisir le lieu d'une séance. Seule l'adresse se corrige ici
+// (ADR-6) ; le reste se dit à HAL.
 
 struct EcranAdresses: View {
     @Environment(\.openURL) private var ouvrir
@@ -37,7 +38,7 @@ struct EcranAdresses: View {
                 if !charge {
                     ProgressView().frame(maxWidth: .infinity)
                 } else if suivi.lieux.isEmpty {
-                    Text("Aucune adresse. Dis-les à HAL : « la salle est au 15 rue… », « à Lusse je suis chez mes parents ».")
+                    Text("Aucune adresse. Dis-les à HAL : « ma salle est au 15 rue…, ouverte 24 h sur 24 », « à Lusse je suis chez mes parents ».")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                 }
                 ForEach(suivi.lieux) { lieu in
@@ -46,6 +47,8 @@ struct EcranAdresses: View {
                 }
             } header: {
                 Text("Mes adresses")
+            } footer: {
+                Text("Chaque lieu de sport vaut pour toutes tes séances : HAL choisit d'après sa description. Pour la changer, dis-le à HAL.")
             }
         }
         .navigationTitle("Lieux et position")
@@ -90,9 +93,9 @@ private struct LigneLieu: View {
                 Text(lieu.nom).texte(.corpsFort).foregroundStyle(Palette.textePrincipal)
                 Text(lieu.adresse).texte(.legende).foregroundStyle(Palette.texteSecondaire)
                 Text(details).texte(.legende).foregroundStyle(Palette.texteTertiaire)
-                if let memoire = lieu.memoire, !memoire.isEmpty {
-                    Text("HAL retient : \(memoire)").texte(.legende)
-                        .foregroundStyle(Categorie.ia.couleur).lineLimit(3)
+                if let description = lieu.description, !description.isEmpty {
+                    Text(description).texte(.legende)
+                        .foregroundStyle(Categorie.ia.couleur).lineLimit(4)
                 }
             }
             Spacer(minLength: 4)

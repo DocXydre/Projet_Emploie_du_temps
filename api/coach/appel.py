@@ -210,7 +210,7 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
             "s'enregistre avec `noter_mesure`. Une soirée qu'il annonce ou raconte (ce "
             "qu'il a bu, l'heure du coucher, comment il va) se note avec `noter_soiree` ; "
             "s'il faut alors alléger ou décaler une séance, requalifie. Une adresse ou ce "
-            "qu'il fait dans un lieu se notent avec `noter_lieu` et `ecrire_memoire_lieu`. "
+            "qu'il fait dans un lieu se notent avec `noter_lieu` et `ecrire_description_lieu`. "
             "N'écris jamais « c'est noté », « je vais "
             "proposer » ou « je déplace » sans l'avoir fait par un outil dans cet appel.")
 

@@ -50,8 +50,8 @@ BEGIN
 
     -- Le lieu : celui donné, sinon le premier de la discipline s'il y en a un.
     IF v_lieu IS NULL THEN
-        SELECT dl.id_lieu INTO v_lieu FROM discipline_lieu dl
-         WHERE dl.id_utilisateur = p_utilisateur AND dl.discipline = p_discipline
+        SELECT dl.id_lieu INTO v_lieu FROM lieux_de_sport(p_utilisateur) dl
+         WHERE dl.discipline = p_discipline
          ORDER BY dl.rang LIMIT 1;
     END IF;
 

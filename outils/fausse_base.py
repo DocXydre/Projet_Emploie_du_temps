@@ -818,8 +818,9 @@ def quotidien(t: int) -> None:
     dire(f"{len(lignes)} mesures du quotidien et {len(phases)} phases de sommeil")
 
 def lieux_et_position(t: int) -> None:
-    """Partie H : le foyer, la salle, l'école et Lusse, à des adresses inventées
-    mais vraisemblables, Thomas au foyer, et la soirée d'avant-hier racontée.
+    """Partie H : le foyer, deux salles, l'école et Lusse, à des adresses inventées
+    mais vraisemblables, chacun avec sa description, Thomas au foyer, et la soirée
+    d'avant-hier racontée.
     Les coordonnées sont posées sans chercher l'adresse : rien ne part vers la
     Géoplateforme. Les trajets, eux, se calculent comme en vrai."""
     from api import lieux
@@ -828,8 +829,10 @@ def lieux_et_position(t: int) -> None:
     for cle, (proprio, nom, nature, adresse, lat, lon, rayon) in {
         "foyer": ("f", "Chez nous", "foyer", "12 Rue des Maquettes 54000 Nancy",
                   48.6880, 6.1760, 50),
-        "salle": ("f", "Salle de musculation", "sport", "40 Rue de la Fonte 54000 Nancy",
+        "salle": ("u", "Salle de musculation", "sport", "40 Rue de la Fonte 54000 Nancy",
                   48.6925, 6.1870, 50),
+        "salle24": ("u", "Fitness 24/24", "sport", "8 Avenue du Vingtième Corps 54000 Nancy",
+                    48.6985, 6.1975, 50),
         "ecole": ("u", "La fac", "etudes", "Boulevard des Aiguillettes 54500 Vandœuvre",
                   48.6655, 6.1610, 300),
         "lusse": ("u", "Lusse", "sejour", "Lusse 88490", 48.2898, 7.1141, 500),
@@ -843,9 +846,22 @@ def lieux_et_position(t: int) -> None:
     sql("UPDATE lieu_sport SET id_lieu_connu = %(l)s WHERE code = 'SALLE'", l=ids["salle"])
     sql("""INSERT INTO lieu_de_chacun VALUES (%(u)s, %(s)s, 'pied'), (%(u)s, %(l)s, 'voiture')""",
         u=t, s=ids["salle"], l=ids["lusse"])
-    sql("SELECT ecrire_memoire_lieu(%(u)s, %(l)s, %(t)s, 'coach')", u=t, l=ids["lusse"],
-        t="Chez ses parents : il s'y repose, mange bien. Pas de piscine ni de salle ; "
-          "de beaux chemins pour le trail.")
+    # ADR-15 : la seconde salle a son lieu de placement, comme si elle avait été
+    # donnée au démarrage.
+    sql("""INSERT INTO lieu_sport (code, libelle, minutes_domicile, minutes_fac, heure_min,
+                                   heure_max, preference, marge_minutes, id_lieu_connu)
+           VALUES ('LIEU_' || %(l)s, 'Fitness 24/24', 0, 0, '00:00', '23:59', 'tot', 15, %(l)s)""",
+        l=ids["salle24"])
+    for cle, texte in {
+        "lusse": "Chez mes parents : je m'y repose, je mange bien. Pas de piscine ni de salle ; "
+                 "de beaux chemins pour le trail.",
+        "salle": "La plus proche, mais blindée de 17 h à 20 h. Plutôt pour le cardio et le "
+                 "tapis. Ouverte de 6 h à 22 h, 9 h à 20 h le dimanche.",
+        "salle24": "Ouverte 24 h sur 24, calme le soir : c'est là que je fais mes séances de "
+                   "musculation.",
+    }.items():
+        sql("SELECT ecrire_description_lieu(%(u)s, %(l)s, %(t)s, 'utilisateur')",
+            u=t, l=ids[cle], t=texte)
     sql("""SELECT recevoir_position(%(u)s, 48.68805, 6.17602, 12, now() - INTERVAL '3 hours',
                                     'toujours', TRUE)""", u=t)
     sql("""INSERT INTO soiree (id_utilisateur, nuit, origine, statut, verres, couche_a, ressenti,
@@ -853,7 +869,8 @@ def lieux_et_position(t: int) -> None:
            VALUES (%(u)s, %(n)s, 'position', 'racontee', 4, %(c)s, 3, 'Anniversaire', now())""",
         u=t, n=J - timedelta(days=2), c=a(J - timedelta(days=1), 2, 30))
     faits = lieux.completer_trajets(t)
-    dire(f"4 lieux connus, {faits} trajets, Thomas au foyer, une soirée racontée")
+    dire(f"5 lieux connus, dont deux salles décrites, {faits} trajets, Thomas au foyer, "
+         "une soirée racontée")
 
 
 def principal() -> None:

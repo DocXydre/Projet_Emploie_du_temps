@@ -101,9 +101,9 @@ def etre(compte: int, ou: str, il_y_a: timedelta = timedelta(0), precision: floa
 def test_une_adresse_de_salle_donne_le_trajet_de_la_seance(u):  # noqa: F811
     ids = adresses(u)
     assert un("SELECT id_lieu_connu FROM lieu_sport WHERE code = 'SALLE'") == ids["salle"]
-    # Le foyer et la salle sont communs ; l'école et Lusse sont à Thomas.
+    # Seul le foyer est commun ; la salle, l'école et Lusse sont à Thomas (ADR-1).
     communs = {r["nom"] for r in sql("SELECT nom FROM lieu_connu WHERE id_foyer IS NOT NULL")}
-    assert communs == {"Chez nous", "Salle de musculation"}
+    assert communs == {"Chez nous"}
     depuis_le_foyer = un("SELECT minutes FROM trajet_calcule WHERE id_depart = %s "
                          "AND id_arrivee = %s AND mode = 'pied'", ids["foyer"], ids["salle"])
     assert depuis_le_foyer is not None
@@ -157,7 +157,7 @@ def test_l_autre_ne_voit_ni_mes_lieux_ni_ma_position(client, thomas, lorette, u)
     adresses(u)
     etre(u, "lusse")
     vu = client.get("/appli/lieux", headers=lorette).json()
-    assert {x["nom"] for x in vu["lieux"]} == {"Chez nous", "Salle de musculation"}
+    assert {x["nom"] for x in vu["lieux"]} == {"Chez nous"}
     assert vu["position"]["sue"] is False
     assert client.get("/appli/lieux", headers=thomas).json()["position"]["lieu"] == "Lusse"
     # Lorette ne peut pas corriger l'école de Thomas.
@@ -166,23 +166,23 @@ def test_l_autre_ne_voit_ni_mes_lieux_ni_ma_position(client, thomas, lorette, u)
                         json={"adresse": "salle"}).status_code == 404
 
 
-def test_la_memoire_d_un_lieu_garde_ses_versions(u):  # noqa: F811
+def test_la_description_d_un_lieu_garde_ses_versions(u):  # noqa: F811
     ids = adresses(u)
     texte = "Chez mes parents : repos, bons petits plats. Chemins pour le trail."
     rendu, refus = outils.executer_outil(
-        "ecrire_memoire_lieu", u, {"id_lieu_connu": ids["lusse"], "texte": texte},
-        {"ecrire_memoire_lieu"})
+        "ecrire_description_lieu", u, {"id_lieu_connu": ids["lusse"], "texte": texte},
+        {"ecrire_description_lieu"})
     assert not refus, rendu
     # Le même texte ne crée pas de version (MEM-2) ; trop long, refusé (ADR-11).
-    outils.executer_outil("ecrire_memoire_lieu", u,
+    outils.executer_outil("ecrire_description_lieu", u,
                           {"id_lieu_connu": ids["lusse"], "texte": texte},
-                          {"ecrire_memoire_lieu"})
-    assert un("SELECT count(*) FROM memoire_lieu") == 1
+                          {"ecrire_description_lieu"})
+    assert un("SELECT count(*) FROM description_lieu") == 1
     rendu, refus = outils.executer_outil(
-        "ecrire_memoire_lieu", u, {"id_lieu_connu": ids["lusse"], "texte": "x" * 1001},
-        {"ecrire_memoire_lieu"})
+        "ecrire_description_lieu", u, {"id_lieu_connu": ids["lusse"], "texte": "x" * 1001},
+        {"ecrire_description_lieu"})
     assert refus and "1 000" in rendu
-    # Quand il y est, la mémoire part avec le contexte de HAL (ADR-12).
+    # Quand il y est, la description part avec le contexte de HAL (ADR-12).
     etre(u, "lusse")
     assert texte in lieux.texte_pour_hal(u)
 
@@ -474,3 +474,106 @@ def test_la_meteo_d_une_course(client, thomas, lorette, monkeypatch, u):  # noqa
     assert rendu.json()["part_face"] > 0.9
     assert "face au vent" in rendu.json()["en_clair"]
     assert client.get(f"/appli/meteo/activite/{activite}", headers=lorette).status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Les lieux de sport décrits                        (ADR-15 à ADR-18, DEM-7)
+# ---------------------------------------------------------------------------
+
+def deux_salles(compte: int) -> tuple[int, int]:
+    """La salle d'avant à son adresse, et une seconde, ouverte jour et nuit."""
+    proche = lieux.noter_lieu(compte, adresse="salle", id_lieu_sport=lieu("SALLE"),
+                              description="Blindée le soir : cardio et tapis")
+    loin = lieux.noter_lieu(compte, nom="Fitness 24/24", adresse="ecole", nature="sport",
+                            description="Ouverte 24 h sur 24 : mes séances de muscu")
+    return proche["id_lieu_connu"], loin["id_lieu_connu"]
+
+
+def test_un_lieu_de_sport_donne_par_adresse_a_son_lieu_de_placement(u):  # noqa: F811
+    _, loin = deux_salles(u)
+    s = sql("SELECT code, heure_min, heure_max, marge_minutes FROM lieu_sport "
+            "WHERE id_lieu_connu = %s", loin)[0]
+    assert s["code"] == f"LIEU_{loin}"
+    assert (str(s["heure_min"]), str(s["heure_max"]), s["marge_minutes"]) == \
+        ("00:00:00", "23:59:00", lieux.BATTEMENT_MINUTES)
+    # Le noter de nouveau ne crée pas un second lieu de placement.
+    lieux.noter_lieu(u, nom="Fitness 24/24", nature="sport")
+    assert un("SELECT count(*) FROM lieu_sport WHERE id_lieu_connu = %s", loin) == 1
+
+
+def test_les_lieux_de_chaque_discipline_se_deduisent_des_adresses(u):  # noqa: F811
+    # Avant toute adresse de sport, le choix d'avant tient (ADR-18).
+    avant = {(r["discipline"], r["id_lieu"]) for r in sql(
+        "SELECT discipline, id_lieu FROM lieux_de_sport(%s)", u)}
+    assert ("musculation", lieu("SALLE")) in avant
+    lieux.noter_lieu(u, nom="Chez nous", adresse="foyer", nature="foyer")
+    _, loin = deux_salles(u)
+    lieu_loin = un("SELECT id_lieu FROM lieu_sport WHERE id_lieu_connu = %s", loin)
+    rangs = sql("SELECT discipline, id_lieu, rang FROM lieux_de_sport(%s) "
+                "ORDER BY discipline, rang", u)
+    par = {}
+    for r in rangs:
+        par.setdefault(r["discipline"], []).append(r["id_lieu"])
+    # Chaque salle pour chaque discipline, la plus proche du foyer d'abord ; la course
+    # dehors en tête de la course.
+    assert par["musculation"] == [lieu("SALLE"), lieu_loin]
+    assert par["cardio"] == [lieu("SALLE"), lieu_loin]
+    assert par["course"] == [lieu("COURSE"), lieu("SALLE"), lieu_loin]
+    # La base accepte la salle éloignée pour la musculation, et refuse la piscine,
+    # qui n'a pas d'adresse.
+    assert un("SELECT lieu_de_discipline(%s, 'musculation', %s)", u, lieu_loin) == lieu_loin
+    with pytest.raises(Exception, match="ne fait pas partie"):
+        sql("SELECT lieu_de_discipline(%s, 'musculation', %s)", u, lieu("PISCINE_SUAPS"))
+
+
+def test_hal_lit_la_description_des_salles(u):  # noqa: F811
+    lieux.noter_lieu(u, nom="Chez nous", adresse="foyer", nature="foyer")
+    deux_salles(u)
+    from api.coach import contexte
+    texte = contexte.texte(u)
+    assert "Ouverte 24 h sur 24 : mes séances de muscu" in texte
+    assert "Blindée le soir : cardio et tapis" in texte
+    assert "horaires dans sa description" in texte
+
+
+def test_le_demarrage_ajoute_les_adresses(client, thomas, lorette, u):  # noqa: F811
+    corps = {"nom": "Chez mes parents", "adresse": "lusse", "nature": "sejour",
+             "description": "Je me repose, il y a des chemins pour le trail"}
+    reponse = client.post("/appli/lieux", headers=thomas, json=corps)
+    assert reponse.status_code == 201, reponse.text
+    assert reponse.json()["description"] == corps["description"]
+    # Refaire l'étape met à jour le même lieu, sans doublon.
+    client.post("/appli/lieux", headers=thomas, json={**corps, "description": "Repos"})
+    assert un("SELECT count(*) FROM lieu_connu WHERE nom = 'Chez mes parents'") == 1
+    assert client.get("/appli/lieux", headers=thomas).json()["lieux"][0]["description"] == \
+        "Repos"
+    # Une salle donnée au démarrage devient un lieu de sport.
+    salle = client.post("/appli/lieux", headers=thomas, json={
+        "nom": "Ma salle", "adresse": "salle", "nature": "sport"}).json()
+    assert un("SELECT count(*) FROM lieu_sport WHERE id_lieu_connu = %s",
+              salle["id_lieu_connu"]) == 1
+    # Une adresse introuvable est dite.
+    refus = client.post("/appli/lieux", headers=thomas, json={**corps, "adresse": "nulle part"})
+    assert refus.status_code == 422 and refus.json()["code"] == "adresse_introuvable"
+    # Lorette ne voit ni les parents de Thomas, ni leur description.
+    assert "Chez mes parents" not in {
+        x["nom"] for x in client.get("/appli/lieux", headers=lorette).json()["lieux"]}
+
+
+def test_l_etape_des_adresses_du_demarrage(client, lorette):
+    from api.coach import demarrage
+    lo = _id("lorette")
+    sql("INSERT INTO profil (id_utilisateur, date_naissance, sexe, taille_cm, "
+        "niveau_musculation, niveau_course) VALUES (%s, '2000-01-01', 'femme', 165, "
+        "'debutant', 'debutant')", lo)
+    client.post("/appli/demarrage/limitations-faites", headers=lorette)
+    assert demarrage.bloc_manquant(lo) == "lieux"
+    # Le foyer seul ne suffit pas : l'étape attend qu'on la passe.
+    client.post("/appli/lieux", headers=lorette,
+                json={"nom": "Chez nous", "adresse": "foyer", "nature": "foyer"})
+    assert demarrage.bloc_manquant(lo) == "lieux"
+    # Passée sans salle, elle est faite : la course dehors suffit (DEM-7).
+    client.post("/appli/demarrage/adresses-faites", headers=lorette)
+    assert demarrage.bloc_manquant(lo) == "objectif"
+    assert {r["discipline"] for r in sql(
+        "SELECT discipline FROM lieux_de_sport(%s)", lo)} == {"course"}

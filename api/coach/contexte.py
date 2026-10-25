@@ -67,13 +67,12 @@ def fiches_completes(id_utilisateur: int) -> str | None:
 
 def lieux(id_utilisateur: int) -> list[dict]:
     return lister(
-        """SELECT dl.discipline, dl.rang, l.id_lieu, l.libelle,
+        """SELECT dl.discipline, dl.rang, l.id_lieu, l.libelle, l.code,
                   l.minutes_domicile, l.minutes_fac, l.dehors, lc.nom AS lieu_connu,
                   to_char(l.heure_min, 'HH24:MI') AS ouvre,
                   to_char(l.heure_max, 'HH24:MI') AS ferme
-             FROM discipline_lieu dl JOIN lieu_sport l ON l.id_lieu = dl.id_lieu
+             FROM lieux_de_sport(%(u)s) dl JOIN lieu_sport l ON l.id_lieu = dl.id_lieu
              LEFT JOIN lieu_connu lc ON lc.id_lieu_connu = l.id_lieu_connu
-            WHERE dl.id_utilisateur = %(u)s
             ORDER BY dl.discipline, dl.rang""", {"u": id_utilisateur})
 
 
@@ -212,19 +211,23 @@ def texte(id_utilisateur: int) -> str:
     morceaux.append("## Lieux par discipline")
     ls = lieux(id_utilisateur)
     if not ls:
-        morceaux.append("Aucun lieu choisi (LIE-6 : aucun plan pour une discipline sans lieu).")
+        morceaux.append("Aucun lieu (LIE-6 : aucun plan pour une discipline sans lieu). "
+                        "Demande-lui l'adresse de sa salle ou de son lieu de sport.")
     for lieu in ls:
         # SPT-4, ADR-9 : sans adresse, les minutes saisies ; avec, le trajet calculé
-        # depuis là où l'on sera, donné plus bas avec les lieux connus.
+        # depuis là où l'on sera, et la description, donnés plus bas avec les lieux
+        # connus (ADR-12, ADR-17).
         trajet = (f"adresse : {lieu['lieu_connu']}" if lieu["lieu_connu"] else
                   "là où l'on est" if lieu["dehors"] else
                   f"{lieu['minutes_domicile']} min du domicile, "
                   f"{lieu['minutes_fac']} min de la fac")
         morceaux.append(
-            f"- {lieu['discipline']}, rang {lieu['rang']} : {lieu['libelle']} "
+            f"- {lieu['discipline']} : {lieu['libelle']} "
             f"(id_lieu {lieu['id_lieu']}, {trajet}"
             f"{', dehors' if lieu['dehors'] else ''}, "
-            f"ouvert de {lieu['ouvre']} à {lieu['ferme']})")
+            # ADR-16 : les horaires d'un lieu donné par adresse sont dans sa description.
+            + ("horaires dans sa description)" if lieu["code"].startswith("LIEU_")
+               else f"ouvert de {lieu['ouvre']} à {lieu['ferme']})"))
     sans = sorted({"musculation", "course", "cardio"} - {lieu["discipline"] for lieu in ls})
     if ls and sans:
         morceaux.append(f"Disciplines sans lieu : {', '.join(sans)}.")

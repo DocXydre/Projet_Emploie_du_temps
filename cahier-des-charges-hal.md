@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 25 octobre 2026 (migration 084 ; partie H : lieux, position et météo)
+Version du 25 octobre 2026 (migration 085 ; partie H : lieux, position et météo, lieux de sport décrits)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer, puis les lieux, la position et la météo. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
@@ -45,7 +45,7 @@ HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qu
 
 La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'appli, on peut le lui demander, et il le fait. On lui dit aussi les consignes particulières d'une tâche, « une fois par mois, un jour où je suis libre » : il les retient dans la mémoire de la tâche, place la tâche en conséquence, et vérifie chaque semaine et après chaque changement que c'est respecté. Le ménage peut se répartir équitablement chaque lundi (partie G).
 
-Les lieux ont une adresse et une mémoire pour HAL. L'iPhone dit dans quel lieu connu on se trouve : les trajets se calculent depuis là, HAL demande si l'on reste quand on arrive à Lusse, si l'on va à sa séance quand on n'est pas à la salle, et comment s'est passée la soirée quand on n'était pas rentré à minuit. Avant une course dehors, la météo est vérifiée ; après, HAL sait si le vent ou la chaleur ont joué (partie H).
+Les lieux ont une adresse et une description pour HAL : c'est elle qui fait choisir la salle d'une séance. L'iPhone dit dans quel lieu connu on se trouve : les trajets se calculent depuis là, HAL demande si l'on reste quand on arrive à Lusse, si l'on va à sa séance quand on n'est pas à la salle, et comment s'est passée la soirée quand on n'était pas rentré à minuit. Avant une course dehors, la météo est vérifiée ; après, HAL sait si le vent ou la chaleur ont joué (partie H).
 
 ### 0.2 Principaux choix
 
@@ -76,7 +76,7 @@ Les lieux ont une adresse et une mémoire pour HAL. L'iPhone dit dans quel lieu 
 | HAL du foyer | Un HAL commun pour la maison, à côté du HAL sport de chacun ; un aiguillage en Python envoie chaque message à l'un, à l'autre ou aux deux | HDF, AIG |
 | Consignes des tâches | Dites à HAL en langage libre, notées dans la mémoire de la tâche, lisibles dans son détail. HAL place selon elles et épingle ; il vérifie chaque semaine et après chaque déplacement | MTA, VER |
 | Répartition | Au choix du foyer, le lundi à 7 h : même charge en minutes × pénibilité, écart reporté, préférences dites à HAL | REP |
-| Lieux | Une adresse par lieu, dite à HAL et corrigeable dans Réglages ; une mémoire par lieu pour HAL ; les trajets calculés par le serveur, à pied, à vélo ou en voiture | ADR |
+| Lieux | Une adresse par lieu, donnée au démarrage ou dite à HAL, corrigeable dans Réglages ; une description par lieu, tenue par HAL, qui choisit d'après elle le lieu de chaque séance ; plus de lieux à ranger par discipline ; les trajets calculés par le serveur, à pied, à vélo ou en voiture | ADR |
 | Position | Un cercle de 50 m autour de chaque lieu, surveillé par l'iPhone ; pas de tracé ; HAL demande au départ, au retour, quand on manque une séance ou un cours | POS |
 | Soirée | Pas chez soi à minuit : soirée probable ; HAL demande au réveil ce qu'on a bu et comment on va, et ajuste la séance | SOI |
 | Météo | Open-Meteo ; seuils fixes une heure avant une séance dehors, qui font appeler HAL ; prévision lue la veille ; vent rapporté au tracé d'une course. L'utilisateur a le dernier mot | MTO |
@@ -2252,11 +2252,11 @@ Le placement d'une séance dépend de son lieu : le trajet, les heures d'ouvertu
 
 | Code | Type | Règle |
 |---|---|---|
-| LIE-1 | D | Une discipline se pratique dans un ou plusieurs lieux, propres à chaque compte et rangés par ordre de préférence : la musculation à la salle ; la course dehors, ou sur le tapis de la salle |
-| LIE-2 | T | HAL choisit le lieu de chaque séance parmi ceux de sa discipline. La base refuse un lieu qui n'en fait pas partie. Sans lieu donné, le premier du rang s'applique |
-| LIE-3 | T | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet depuis le foyer, depuis l'école et depuis là où l'on est (ADR-10), et sa mémoire. Les heures d'ouverture se lisent avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) |
-| LIE-4 | M | L'utilisateur choisit ses lieux et leur ordre, discipline par discipline, au démarrage, et les change quand il veut. Les lieux possibles lui sont proposés : ce sont ceux que le système connaît déjà |
-| LIE-5 | M | L'utilisateur change le lieu d'une séance, proposée ou validée, sans passer par HAL. Les lieux de la discipline lui sont proposés, dans leur ordre |
+| LIE-1 | D | Une discipline se pratique dans un ou plusieurs lieux, propres à chaque compte. Ils se déduisent des adresses : chaque lieu de sport du compte vaut pour toutes les disciplines, et la course dehors, sans adresse, pour la course (ADR-17). Ce qu'on préfère faire où est dans la description de chaque lieu (ADR-11) |
+| LIE-2 | T | HAL choisit le lieu de chaque séance parmi ceux de sa discipline, d'après la description de chacun et là où l'on sera. La base refuse un lieu qui n'en fait pas partie. Sans lieu donné, le plus proche du foyer |
+| LIE-3 | T | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet depuis le foyer, depuis l'école et depuis là où l'on est (ADR-10), et sa description. Les heures d'ouverture se lisent dans la description ; pour les lieux d'avant (la salle, la piscine du SUAPS), avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) et des descriptions |
+| LIE-4 | M | L'utilisateur donne ses adresses au démarrage : son foyer, ses lieux de sport, une autre adresse où il dort, chacun avec son nom et sa description (DEM-7). Il en ajoute ou en change ensuite en le disant à HAL. Il n'y a plus de liste de lieux à ranger par discipline |
+| LIE-5 | M | L'utilisateur change le lieu d'une séance, proposée ou validée, sans passer par HAL. Les lieux de la discipline lui sont proposés, les plus proches d'abord |
 | LIE-6 | T | Aucun plan n'est construit pour une discipline sans lieu. HAL dit laquelle, au lieu de l'écarter en silence |
 
 #### B.3.15 Pause : `PAU`
@@ -3107,8 +3107,8 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 
 | Règle visée | Description | Type |
 |---|---|---|
-| LIE-1 | Clé primaire (`id_utilisateur`, `discipline`, `id_lieu`) ; `rang` unique par utilisateur et par discipline | Statique forte |
-| LIE-2 | `proposer_seance()` et `modifier_seance_proposee()` refusent un lieu hors de `discipline_lieu` ; sans lieu, elles prennent celui de rang 1 | Dynamique forte |
+| LIE-1 | Les lieux d'une discipline se lisent par `lieux_de_sport()`, déduits des adresses (ADR-17), ou de `discipline_lieu` pour un compte sans lieu de sport avec adresse (ADR-18) | Dynamique forte |
+| LIE-2 | `proposer_seance()` et `modifier_seance_proposee()` refusent un lieu hors de `lieux_de_sport()` ; sans lieu, elles prennent le plus proche du foyer | Dynamique forte |
 | LIE-5 | Le changement de lieu d'une séance par l'utilisateur ne propose que les lieux de sa discipline | Dynamique faible |
 | LIE-6 | `construire_plan()` rend la liste des disciplines sans lieu ; `proposer_seance()` refuse une discipline sans lieu | Dynamique forte |
 | PAU-1 | Contrainte d'exclusion sur (`id_utilisateur`, `periode`) : deux pauses d'un même compte ne se chevauchent pas | Statique forte |
@@ -3138,7 +3138,7 @@ Les opérations portent la lettre C pour ne pas se mêler à la numérotation de
 | **Acteurs** | Utilisateur (principal), système et HAL (secondaires) |
 | **Événement déclencheur** | Un compte qui a HAL n'a pas encore de profil, de lieux ou d'objectif principal : l'appli propose le démarrage, depuis Sport ou l'orbe (DEM-1) |
 | **Pré-conditions** | Le compte existe et est actif |
-| **Actions** | 1. Remplir le profil, écran par écran dans l'appli, avec un champ libre à chaque étape (PRO-1, PRO-2, DEM-1)<br>2. Dire s'il y a une douleur ou une limitation qui dure (DEM-3), puis régler les exercices qu'elle interdit (EXO-8)<br>3. Choisir ses lieux, discipline par discipline, et leur ordre (LIE-4)<br>4. Créer un objectif principal ; pour une course, donner le temps visé. L'opération C2 rend son avis, puis l'opération C3 construit le plan<br>5. Se connecter dans l'application iPhone, l'autoriser à lire l'application Santé, et envoyer l'historique disponible (SAN-8)<br>6. La première semaine est une semaine de calibrage (PLN-20) |
+| **Actions** | 1. Remplir le profil, écran par écran dans l'appli, avec un champ libre à chaque étape (PRO-1, PRO-2, DEM-1)<br>2. Dire s'il y a une douleur ou une limitation qui dure (DEM-3), puis régler les exercices qu'elle interdit (EXO-8)<br>3. Donner ses adresses : le foyer, les lieux de sport, une autre adresse où l'on dort, chacune avec sa description (LIE-4, DEM-7)<br>4. Créer un objectif principal ; pour une course, donner le temps visé. L'opération C2 rend son avis, puis l'opération C3 construit le plan<br>5. Se connecter dans l'application iPhone, l'autoriser à lire l'application Santé, et envoyer l'historique disponible (SAN-8)<br>6. La première semaine est une semaine de calibrage (PLN-20) |
 | **Actions alternatives** | Si le profil manque, l'objectif est enregistré mais le plan attend, et HAL dit ce qui manque (PRO-4).<br>Sans application Santé, HAL démarre sur les saisies seules et le dit.<br>`outils/coach_demarrer.py` remplit le profil, les lieux et les limitations depuis un fichier gardé hors du dépôt |
 | **Post-conditions** | Un profil, des lieux, un objectif principal, un plan dont la première semaine sert à connaître les charges |
 
@@ -3923,7 +3923,6 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 5.4 Ajouter un calendrier | Coller le lien, vérifier, dire ce que c'est et à qui | COL-7, COL-14 |
 | 5.5 Profil sportif | Questions fermées, maximum de séances par semaine | PRO, PLN-14 |
 | 5.6 Limitations | Zone, côté, description, exercices interdits | EXO-6 à EXO-9 |
-| 5.7 Lieux de sport | Par discipline, rangés par préférence | LIE |
 | 5.8 Mémoire de HAL | Les quatre étages, corriger, revenir à une version | MEM-1, MEM-5 |
 | 5.9 Mettre HAL en pause | Motif, date de fin | PAU-1 |
 | 5.10 Santé et Apple Watch | Envoi automatique, ce qui est lu case par case, l'avancée du premier envoi de l'historique, « Tout renvoyer depuis le début ». « J'ai une Apple Watch » ; sans montre, comment faire écrire Strava dans Santé | SAN-10, SAN-14, MON-7, MON-10 |
@@ -3952,7 +3951,7 @@ L'icône de l'appli et le logo de HAL sont l'iris d'origine de la maquette.
 | 7.1 Bienvenue | Les cinq étapes ; « Plus tard » laisse l'appli utilisable sans plan | DEM-1 |
 | 7.2 à 7.5 Profil | Identité, niveaux, disponibilités, alimentation, avec un champ libre à chaque étape | PRO-1, PRO-2, PRO-7, DEM-1 |
 | 7.6 à 7.8 Limitation | Y en a-t-il une, où et quoi, exercices à éviter | DEM-3, EXO-8 |
-| 7.9 Lieux | Les lieux d'entraînement, par discipline | LIE-4, LIE-6 |
+| 7.9 Tes adresses | Le foyer, les lieux de sport et les autres adresses, chacun avec son nom et sa description | LIE-4, DEM-7 |
 | 7.10 à 7.12 Objectif | Le type, la course et le temps visé, les objectifs à côté | OBJ-1, OBJ-3, OBJ-4, DEM-4 |
 | 7.13 Récapitulatif | Tout sur un écran, chaque ligne se corrige | DEM-2, DEM-6 |
 | 7.14 HAL construit le plan | L'avis sur l'objectif | OBJ-5 |
@@ -4037,7 +4036,7 @@ Une séance libre suit le même chemin depuis le widget « Séance libre » [3.1
 |---|---|
 | Apparence | Fond et couleurs [5.2] |
 | Planning | Calendriers à suivre [5.3, 5.4], calendriers abonnés [5.12], types de tâches [4.9], Historique [5.17] |
-| HAL et sport | Profil [5.5], limitations [5.6], lieux [5.7], mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5), Intelligence : fournisseurs, clients MCP et leurs clés (FOU-19, partie F) |
+| HAL et sport | Profil [5.5], limitations [5.6], lieux et position (ADR-14), mémoire [5.8], pause [5.9], reprendre ou refaire le démarrage (DEM-4, DEM-5), Intelligence : fournisseurs, clients MCP et leurs clés (FOU-19, partie F) |
 | Appareil | Santé, Apple Watch et Strava [5.10], notifications et heures [5.11] |
 | Foyer et compte | Le foyer, ses membres, l'invitation et les droits [5.15, 5.16], le serveur et la connexion [5.13], le mot de passe, se déconnecter |
 
@@ -4230,6 +4229,8 @@ Le **lot 17** est fait le même jour (migration 079). Un geste demandé à HAL p
 Ce que le lot 16 laissait aux suivants : les gestes directs, faits au lot 17. La mémoire du foyer a sa globale et une étape par semaine, mais pas encore le roulement de la nuit (MEM-6) : les semaines passées restent lisibles, les trois dernières entrent dans la consigne.
 
 La partie H est écrite le 25 octobre 2026, et ses **lots 20 à 22** sont faits le même jour (migration 084, `api/lieux.py`, `api/position.py`, `api/meteo.py`, `api/routeurs/lieux.py`, `api/coach/outils_lieux.py` ; dans l'appli, `Position/SuiviPosition.swift`, Réglages, Lieux et position, la météo des séances dehors et la carte « Météo » d'une course). Vérifiés par vingt-six tests du serveur (`tests/test_lieux_position_meteo.py`), sans appel aux services extérieurs ; la suite entière passe. Sur la fausse base, qui a maintenant quatre lieux, une mémoire de Lusse et une soirée racontée : les trajets réels d'OSRM (la salle à 14 min à pied du foyer, à 80 min en voiture de Lusse), la prévision réelle d'Open-Meteo sur la course du jour, la météo de samedi sur la course faite. Dans le simulateur : l'écran Lieux et position, la position envoyée à l'ouverture, et, appli en arrière-plan sur un trajet simulé en voiture, le passage de « Chez nous » à « ailleurs ».
+
+Le même jour, l'écran « Lieux de sport » est retiré : les lieux de chaque discipline se déduisent des adresses, et chaque lieu a une description que HAL tient et lit pour choisir le lieu d'une séance (ADR-15 à ADR-18, DEM-7, migration 085, annexe 14). L'étape des lieux du démarrage demande maintenant les adresses.
 
 Restent à vérifier : les cercles sur un vrai iPhone (le simulateur ne les surveille pas), les questions de HAL avec le vrai modèle (arrivée à Lusse, séance manquée, soirée, pluie), et les scénarios du chapitre 10.5, puisque les consignes changent (COA-14).
 
@@ -5117,7 +5118,7 @@ Cette partie est nouvelle. Elle est écrite le 25 octobre 2026 avec Thomas, avan
 - **Le trajet depuis là où l'on est.** Le temps pour aller à une activité se calcule depuis l'endroit où l'on se trouve, et plus à partir de deux durées saisies à la main.
 - **Savoir où l'on est.** La position de l'iPhone, à 50 m près, dit si l'on est dans un lieu connu : à Lusse, je suis chez mes parents ; à l'école, j'ai cours ; à la salle, je m'entraîne. HAL doit aussi savoir quand on n'est pas là où le planning nous met.
 - **Ce qu'on peut faire dépend d'où l'on est.** À Lusse, la piscine n'est pas possible ; la course l'est toujours, et le trail aussi.
-- **Un lieu a une mémoire pour HAL.** « À Lusse, je suis chez mes parents : je me repose, je me détends, je mange de bons petits plats. »
+- **Un lieu a une description pour HAL.** « À Lusse, je suis chez mes parents : je me repose, je me détends, je mange de bons petits plats. »
 - **La soirée.** Si à minuit on n'est pas chez soi, c'est souvent qu'on fait la fête. Boire et se coucher tard changent la forme du lendemain : HAL doit le savoir, et le demander.
 - **La météo.** Avant une course, la pluie, le froid, le vent ou la chaleur peuvent faire préférer le tapis, une autre heure ou une autre séance. Après coup, il faut savoir si la température ou le vent de face ont joué.
 
@@ -5196,7 +5197,7 @@ Sur l'iPhone, Core Location : la surveillance de régions de `CLLocationManager`
 
 **Une adresse.** Thomas, à HAL : « La salle est au 15 rue Saint-Jean à Nancy, j'y vais à pied. » HAL cherche l'adresse, la pose sur le lieu de sport « Salle de musculation », règle le mode à pied pour Thomas, et répond : « C'est noté : 15 Rue Saint-Jean, 54000 Nancy, à 12 minutes à pied de chez vous. » Le serveur calcule les trajets depuis le foyer et depuis l'école. L'iPhone ajoute un cercle autour de la salle au prochain envoi.
 
-**Une mémoire de lieu.** « À Lusse je suis chez mes parents, je me repose et je mange bien. Il y a de beaux chemins pour le trail. » HAL l'écrit dans la mémoire du lieu Lusse, pour Thomas. Quand Thomas y est, ou qu'il y sera, elle est jointe à chaque appel.
+**Une description de lieu.** « À Lusse je suis chez mes parents, je me repose et je mange bien. Il y a de beaux chemins pour le trail. » HAL l'écrit dans la description du lieu Lusse, pour Thomas. Quand Thomas y est, ou qu'il y sera, elle est jointe à chaque appel.
 
 **Un départ.** Vendredi 18 h, Thomas entre dans le cercle de Lusse. Il n'a pas d'absence en cours. Le HAL du foyer lui écrit : « Tu es à Lusse. Tu y restes jusqu'à quand ? » avec « Jusqu'à dimanche » et « Juste ce soir ». Thomas répond « dimanche soir » : HAL déclare l'absence jusqu'à dimanche 20 h, avec Lusse pour lieu, et la répartition passe ses tâches à Lorette. Samedi, le HAL sport sait que la piscine est à 1 h 10 en voiture : il ne la propose pas, et propose un trail sur les chemins de la mémoire.
 
@@ -5218,18 +5219,18 @@ Mêmes conventions que les parties précédentes.
 
 | Code | Type | Règle |
 |---|---|---|
-| ADR-1 | D | Un lieu connu a un nom, une adresse et ses coordonnées. Il est commun au foyer (le foyer lui-même, la salle, la piscine) ou personnel à un compte (Lusse, l'école). Deux lieux d'un même propriétaire ne portent pas le même nom |
+| ADR-1 | D | Un lieu connu a un nom, une adresse et ses coordonnées. Le foyer est commun à ses membres ; les autres lieux sont personnels à un compte (ses salles, Lusse, l'école) : deux membres qui vont à la même salle l'ont chacun, avec sa description. Deux lieux d'un même propriétaire ne portent pas le même nom |
 | ADR-2 | D | Chaque lieu a une nature : foyer, sport, études, travail, séjour, autre. Un lieu de séjour est un lieu où l'on dort (Lusse). Un foyer a un seul lieu de nature foyer, commun à ses membres |
 | ADR-3 | D | Un lieu a un rayon, 50 m par défaut, de 30 à 500 m. Un campus ou un parc se règle plus large, en le disant à HAL |
 | ADR-4 | T | Une adresse dite à HAL est cherchée à la Géoplateforme. HAL répète l'adresse trouvée dans sa réponse, pour qu'une erreur se voie. Une adresse introuvable ou trop vague (une ville pour une salle) est refusée avec son motif. Un lieu se pose aussi « ici », à la dernière position reçue (POS-4), avec l'adresse la plus proche |
-| ADR-5 | D | Un lieu de sport (LieuSport) peut avoir son lieu connu : la séance a lieu à son adresse. Un lieu de sport sans adresse, la course dehors, se pratique là où l'on est |
+| ADR-5 | D | Un lieu de sport est un lieu connu de nature sport. On en a autant qu'on veut : deux salles, une piscine. Le créer crée son lieu de sport pour le placement (LieuSport), relié à son adresse. La course dehors n'a pas d'adresse : elle se pratique là où l'on est |
 | ADR-6 | M | Réglages, Lieux montre chaque lieu connu du compte : son nom, son adresse, sa nature, le mode de trajet et la mémoire. L'adresse s'y corrige à la main ; le reste se dit à HAL |
 | ADR-7 | D | Chaque compte a un mode de trajet par lieu : à pied, à vélo ou en voiture. Sans mode dit, à pied jusqu'à 2 km du foyer à vol d'oiseau, en voiture au-delà. Un trajet se fait dans le mode du lieu d'arrivée, sauf au-delà de 5 km à vol d'oiseau à pied ou de 20 km à vélo : en voiture. Depuis Lusse, on prend la voiture pour la salle |
 | ADR-8 | T | Le trajet entre deux lieux connus est calculé par le serveur, pour le mode de la destination, et gardé. Il se recalcule quand une adresse ou un mode change. Un calcul impossible garde l'ancien ; à défaut, une estimation à vol d'oiseau, marquée comme telle (annexe 3) |
 | ADR-9 | T | Une séance part de là où l'on sera ce jour-là : le lieu de l'absence qui couvre la journée, l'école un jour de cours, sinon le foyer. C'est ce trajet qui entre dans le bloc de la séance (SPT-4). Faute de lieu ou de calcul, les minutes saisies du lieu de sport |
 | ADR-10 | T | HAL reçoit, pour chaque lieu de ses disciplines, le trajet depuis le foyer, depuis l'école, et depuis là où l'on est. Il juge de ce qui est trop loin : la base ne fixe pas de distance au-delà de laquelle un lieu est impossible |
-| ADR-11 | D | Un lieu a une mémoire pour chaque compte : un texte libre de 1 000 caractères au plus, que HAL écrit d'après ce qu'on lui dit. Chaque écriture ajoute une version, comme la mémoire de HAL (MEM-2) |
-| ADR-12 | T | La mémoire du lieu où l'on est, et celle du lieu où l'on sera (une absence à venir dans un lieu connu), sont jointes à chaque appel des deux HAL. Les autres se lisent par outil |
+| ADR-11 | D | Un lieu a une description pour chaque compte : un texte libre de 1 000 caractères au plus. On l'écrit au démarrage, puis HAL la tient d'après ce qu'on lui dit. Elle dit ce que le lieu est pour soi : « plus proche mais blindé, plutôt pour le cardio et le tapis », « ouvert 24 h sur 24, mes séances de muscu », les horaires qui comptent, « chez mes parents, je me repose ». Chaque écriture ajoute une version, comme la mémoire de HAL (MEM-2) |
+| ADR-12 | T | La description de chaque lieu de sport est jointe à chaque appel du HAL sport : c'est elle qui fait choisir le lieu d'une séance. Celle du lieu où l'on est, et celle du lieu où l'on sera (une absence à venir), sont jointes aux appels des deux HAL. Les autres se lisent par outil |
 | ADR-13 | D | Une absence peut désigner un lieu connu, en plus de son nom libre. HAL le pose quand il déclare une absence dans un lieu qu'il connaît |
 
 #### H.3.2 Position : `POS`
@@ -5257,7 +5258,7 @@ Mêmes conventions que les parties précédentes.
 | SOI-1 | T | À minuit, un compte dont la position est sue, qui n'est ni au foyer, ni dans un lieu de séjour, ni dans un train retenu, est noté en soirée probable pour la nuit qui commence |
 | SOI-2 | M | Une soirée se dit aussi à HAL, avant ou après : « je suis en soirée », « hier soir j'ai fait la fête » |
 | SOI-3 | T | Au réveil, le HAL sport demande comment s'est passée la soirée : ce qu'on a bu, l'heure du coucher, comment on se sent. Le réveil est la fin de la nuit lue dans les données de la montre ; au plus tard, l'heure du bilan du matin (NOT-15). Une seule question par soirée, et aucune si elle a déjà été racontée |
-| SOI-4 | D | Une soirée garde ce qu'on a répondu : le nombre de verres d'alcool, l'heure du coucher, le ressenti de 1 à 5, un mot libre. « Ce n'était pas une soirée » l'écarte, et HAL peut retenir pourquoi dans la mémoire du lieu |
+| SOI-4 | D | Une soirée garde ce qu'on a répondu : le nombre de verres d'alcool, l'heure du coucher, le ressenti de 1 à 5, un mot libre. « Ce n'était pas une soirée » l'écarte, et HAL peut retenir pourquoi dans la description du lieu |
 | SOI-5 | T | HAL lit les soirées des 14 derniers jours avec la forme. Il en tient compte pour la séance du jour et du lendemain : alléger ou décaler, par ajustement sur une séance validée ; l'utilisateur tranche. Il s'en sert aussi pour lire une séance moins bonne |
 | SOI-6 | T | HAL ne fait pas la morale : il constate et ajuste. Il ne parle des soirées qu'à leur auteur |
 
@@ -5281,6 +5282,18 @@ Mêmes conventions que les parties précédentes.
 | Code | Type | Règle |
 |---|---|---|
 | AIG-10 | T | Une réponse à une question de HAL va au HAL qui l'a posée : si le dernier message du compte est une question d'un HAL de moins de douze heures, restée sans réponse, et que ni l'élément joint, ni l'onglet, ni les mots-clés ne tranchent. Elle passe avant le petit modèle |
+
+#### H.3.6 Lieux de sport décrits : règles ajoutées
+
+Ajoutées le 25 octobre 2026, après la mise en production des lots 20 à 22 : l'écran « Lieux de sport » faisait doublon avec les adresses (annexe 14).
+
+| Code | Type | Règle |
+|---|---|---|
+| ADR-15 | T | Un lieu de sport créé avec son adresse a, pour la base, un lieu de sport ouvert de 0 h à 24 h, avec quinze minutes de battement, et cherché au plus tôt dans la plage que HAL donne. Ses vraies heures d'ouverture sont dans sa description |
+| ADR-16 | T | Pour ces lieux, c'est HAL qui tient les horaires, l'affluence et les préférences dites dans la description : la base ne les vérifie pas. Elle vérifie le reste comme pour tout lieu : le trajet, le battement, les cours et le travail, la sécurité. La salle et la piscine du SUAPS d'avant gardent leurs horaires relevés |
+| ADR-17 | T | Les lieux de chaque discipline se déduisent des adresses : tous les lieux de sport du compte pour la musculation, le cardio et la course ; et la course dehors, pour la course. Rien n'est rangé à la main |
+| ADR-18 | T | Tant qu'un compte n'a aucun lieu de sport avec adresse, ses lieux d'avant, choisis par discipline, restent valables : rien ne s'arrête le jour de la mise en production. Sans lieux d'avant, l'adresse du foyer suffit pour courir dehors. Sans aucune adresse, aucun lieu : le démarrage les demande (DEM-7) |
+| DEM-7 | M | L'étape des lieux du démarrage [7.9] demande les adresses, et se compte faite même sans lieu de sport (on court dehors) : celle du foyer (montrée si un autre membre l'a déjà donnée), un ou plusieurs lieux de sport, et d'autres adresses, comme celle où l'on dort chez ses parents. Chacune a un nom, une adresse et une description, facultative. Une autre adresse dit aussi ce qu'elle est : on y dort, l'école, le travail. Chaque adresse est cherchée à l'enregistrement, et une adresse introuvable est dite sous son champ |
 
 ---
 
@@ -5313,7 +5326,7 @@ Mêmes conventions que les parties précédentes.
 | cree_le | TIMESTAMPTZ | non | | | now() | | |
 | modifie_le | TIMESTAMPTZ | non | | | now() | | |
 
-Un lieu de nature foyer est toujours commun ; un lieu de séjour, d'études ou de travail toujours personnel (ADR-1, ADR-2).
+Un lieu de nature foyer est toujours commun ; les autres, lieux de sport compris, sont personnels (ADR-1, ADR-2).
 
 #### Table : LieuDeChacun
 
@@ -5325,18 +5338,18 @@ Un lieu de nature foyer est toujours commun ; un lieu de séjour, d'études ou d
 
 Le mode dit par chacun (ADR-7). Sans ligne, le mode par défaut.
 
-#### Table : MemoireLieu
+#### Table : DescriptionLieu
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
-| id_memoire_lieu | BIGINT | non | | oui | identité | oui | |
+| id_description_lieu | BIGINT | non | | oui | identité | oui | |
 | id_utilisateur | INTEGER | non | | | | | Utilisateur (cascade) |
 | id_lieu_connu | INTEGER | non | | | | | LieuConnu (cascade) |
 | texte | TEXT | non | de 0 à 1 000 caractères ; vide : effacée | | | | |
 | auteur | VARCHAR(12) | non | 'coach', 'hal_foyer', 'utilisateur' | | | | |
 | quand | TIMESTAMPTZ | non | | | now() | | |
 
-Une ligne par version (ADR-11). La mémoire en vigueur est la dernière.
+Une ligne par version (ADR-11). La description en vigueur est la dernière. Créée sous le nom `memoire_lieu` par la migration 084, renommée par la 085.
 
 #### Table : TrajetCalcule
 
@@ -5462,7 +5475,8 @@ MTO-6, MTO-7. Elle suit l'activité : l'autre membre ne la voit pas.
 
 | Table | Changement | Règles |
 |---|---|---|
-| LieuSport | Colonnes `id_lieu_connu` (son adresse, vide : là où l'on est) et `dehors` (vrai pour la course) | ADR-5, MTO-2 |
+| LieuSport | Colonnes `id_lieu_connu` (son adresse, vide : là où l'on est) et `dehors` (vrai pour la course). Une ligne de plus pour chaque lieu de sport donné par adresse (ADR-15) | ADR-5, MTO-2, ADR-15 |
+| DisciplineLieu | Ne sert plus qu'aux comptes sans lieu de sport avec adresse (ADR-18). Les lieux d'une discipline se lisent par `lieux_de_sport()` | ADR-17 |
 | Absence | Colonne `id_lieu_connu`, mise à nul si le lieu disparaît | ADR-13 |
 | AppelCoach, Echange | `moment` accepte 'presence', 'absent', 'soiree', 'meteo' | POS, SOI, MTO |
 
@@ -5474,7 +5488,7 @@ MTO-6, MTO-7. Elle suit l'activité : l'autre membre ne la voit pas.
 | ADR-1 | Un nom par propriétaire | Unicité sur (`id_foyer`, `lower(nom)`) et (`id_utilisateur`, `lower(nom)`) |
 | ADR-2 | Un lieu foyer par foyer, toujours commun ; séjour, études, travail toujours personnels | Unicité partielle ; `CHECK` sur la nature et le propriétaire |
 | ADR-3 | Rayon de 30 à 500 m | `CHECK` sur `lieu_connu` |
-| ADR-11 | Mémoire de 1 000 caractères au plus | `CHECK` sur `memoire_lieu` |
+| ADR-11 | Description de 1 000 caractères au plus | `CHECK` sur `description_lieu` |
 | POS-4 | Une présence à la fois | Exclusion sur (`id_utilisateur`, `periode`) |
 | POS-5 | Les lieux personnels, les présences et les soirées ne sortent pas du compte | Chaque route et chaque outil filtrent sur l'appelant ; aucun outil ne prend de compte en paramètre |
 | SOI-4 | Une soirée par nuit | Unicité (`id_utilisateur`, `nuit`) |
@@ -5551,6 +5565,7 @@ Elles passent par le funnel, derrière la clé (CNX-5).
 ```
 Lieux
   GET    /appli/lieux                         Mes lieux connus : communs et personnels, adresse, nature, rayon, mode, mémoire, trajets depuis le foyer
+  POST   /appli/lieux                         Ajouter un lieu au démarrage : nom, adresse, nature, description (DEM-7)
   PATCH  /appli/lieux/{id}                    Corriger l'adresse d'un lieu (ADR-6) ; elle est cherchée avant d'être gardée
   POST   /appli/position                      Une position : latitude, longitude, precision_m, instant, autorisation, precise ; rend le lieu trouvé
   GET    /appli/position                      Où je suis pour le serveur, et si la position est sue (POS-6)
@@ -5560,15 +5575,15 @@ Météo
   GET    /appli/meteo/activite/{id_activite}  La météo d'une de mes courses, relevée au besoin (MTO-6, MTO-7)
 ```
 
-Il n'y a pas de route pour écrire la mémoire d'un lieu, son mode ou sa nature : ils passent par HAL.
+`POST /appli/lieux` crée un lieu avec son nom, son adresse, sa nature et sa description : c'est l'étape des adresses du démarrage (DEM-7). Ensuite, la description, le mode et la nature passent par HAL.
 
 #### H.8.2 Outils de HAL
 
 | Outil | HAL | Ce qu'il fait |
 |---|---|---|
-| `lire_lieux` | les deux | Mes lieux connus, leur mémoire, les trajets, où je suis maintenant |
-| `noter_lieu` | les deux | Crée ou met à jour un lieu : nom, adresse ou « ici », nature, rayon, mode de trajet ; peut attacher l'adresse à un lieu de sport (ADR-4, ADR-5) |
-| `ecrire_memoire_lieu` | les deux | Écrit ou efface la mémoire d'un lieu (ADR-11) |
+| `lire_lieux` | les deux | Mes lieux connus, leur description, les trajets, où je suis maintenant |
+| `noter_lieu` | les deux | Crée ou met à jour un lieu : nom, adresse ou « ici », nature, rayon, mode de trajet, description ; un lieu de sport nouveau a son lieu de placement (ADR-4, ADR-5, ADR-15) |
+| `ecrire_description_lieu` | les deux | Écrit ou efface la description d'un lieu (ADR-11) |
 | `noter_soiree` | sport | Note une soirée, dite ou racontée : verres, coucher, ressenti, mot libre ; ou l'écarte (SOI-2, SOI-4) |
 | `lire_meteo` | sport | La prévision heure par heure d'un jour, au point d'une séance ou d'un lieu (MTO-4, MTO-5) |
 | `annuler_cours` | foyer | Un geste : retire un cours dit annulé, qui ne revient plus (POS-11) |
@@ -5583,13 +5598,13 @@ Les outils permis selon le moment (COA-5) :
 | soiree | sport | oui | oui | Noter une soirée déjà racontée, la mémoire. La réponse, dans le chat, se note avec `noter_soiree` ; un ajustement passe par le signalement |
 | meteo | sport | oui | oui | Lire la météo, proposer une séance ou un ajustement |
 
-Le chat, le signalement, la synthèse et la révision gagnent `lire_lieux`, `noter_lieu`, `ecrire_memoire_lieu` ; le chat et le signalement gagnent `noter_soiree` ; la synthèse, la révision et le signalement gagnent `lire_meteo`. Le moment « maison » du HAL du foyer gagne les outils de lieux et `annuler_cours`.
+Le chat, le signalement, la synthèse et la révision gagnent `lire_lieux`, `noter_lieu`, `ecrire_description_lieu` ; le chat et le signalement gagnent `noter_soiree` ; la synthèse, la révision et le signalement gagnent `lire_meteo`. Le moment « maison » du HAL du foyer gagne les outils de lieux et `annuler_cours`.
 
 ### H.9 Dans l'application
 
 | Code | Type | Règle |
 |---|---|---|
-| ADR-14 | D | Réglages, Lieux a une partie « Mes adresses » : chaque lieu connu avec son adresse, sa nature, son mode et sa mémoire (« HAL retient : … »), et un champ pour corriger l'adresse. Un toucher sur la mémoire ouvre HAL avec le lieu joint |
+| ADR-14 | D | Réglages, Lieux et position montre chaque lieu connu avec son adresse, sa nature, son mode et sa description, et un champ pour corriger l'adresse. La description se change en le disant à HAL. L'ancien écran « Lieux de sport », où l'on rangeait les lieux par discipline, est retiré |
 | POS-14 | D | Réglages, Lieux montre l'état du suivi : en marche, autorisation à donner, ou position approximative à rendre exacte, avec le bouton qui ouvre les réglages d'iOS. Et où le serveur me croit maintenant |
 | MTO-11 | D | La carte d'une séance dehors porte une ligne météo : l'icône du temps, la température, la pluie, le vent à l'heure prévue. Le détail d'une course faite a une carte « Météo » : température et ressenti, vent et sa direction, part du parcours face au vent, allures face et dos au vent |
 
@@ -5600,7 +5615,7 @@ Le chat, le signalement, la synthèse et la révision gagnent `lire_lieux`, `not
 | Élément | Avant | Après | Règles |
 |---|---|---|---|
 | Lieu de sport | Deux trajets saisis à la main, depuis le logement et depuis la fac | Une adresse ; le trajet calculé depuis là où l'on sera ; les minutes à la main en secours | SPT-4, ADR-5, ADR-9 |
-| Lieux rendus à HAL | Le trajet depuis le logement et la fac | Aussi depuis là où l'on est ; la mémoire du lieu | LIE-3, ADR-10, ADR-12 |
+| Lieux rendus à HAL | Le trajet depuis le logement et la fac | Aussi depuis là où l'on est ; la description du lieu | LIE-3, ADR-10, ADR-12 |
 | Absence | Déclarée à la main, ou par un trajet en train | Aussi demandée par HAL à l'arrivée dans un lieu de séjour ; le retour aussi | ABS-6, POS-7, POS-8 |
 | Cours | Seulement collectés | Un cours peut être dit annulé, et ne revient pas | POS-11 |
 | Aiguillage | Contexte, mots, petit modèle | Une réponse à une question va au HAL qui l'a posée | AIG-10 |
@@ -5616,7 +5631,7 @@ Ne change pas : un compte sans suivi de la position, ou dont les lieux n'ont pas
 | Précision d'iOS | iOS ne garantit pas un cercle de 50 m : les entrées et sorties peuvent arriver avec une ou deux minutes de retard, ou rater un passage très court | Le relevé précis à chaque passage corrige le lieu ; une question de séance attend quinze minutes ; une position qui n'est pas sue ne fait rien demander |
 | Batterie | La surveillance des cercles est sobre, le relevé précis l'est moins | Un relevé par passage, pas de suivi continu. À mesurer sur une semaine |
 | Services gratuits | Géoplateforme, OSRM de FOSSGIS et Open-Meteo n'ont pas d'engagement de service | Tout est gardé en base ; un service muet ne bloque rien (ADR-8, MTO-10). Un serveur OSRM à soi, si FOSSGIS change ses conditions |
-| Soirée | « Pas chez soi à minuit » se trompe : un dîner chez un ami, un concert | HAL demande au lieu de supposer, et « ce n'était pas une soirée » l'écarte. La mémoire du lieu évite de redemander pour un lieu habituel |
+| Soirée | « Pas chez soi à minuit » se trompe : un dîner chez un ami, un concert | HAL demande au lieu de supposer, et « ce n'était pas une soirée » l'écarte. La description du lieu évite de redemander pour un lieu habituel |
 | Vérifier sur un iPhone | Sur le simulateur d'iOS 27, la surveillance de régions n'est pas disponible : les cercles ne s'y vérifient pas. Les changements importants, eux, y marchent sur un trajet simulé | À vérifier sur le téléphone de Thomas pendant une semaine réelle : l'entrée dans la salle, l'arrivée à Lusse, le retour au foyer |
 | Scénarios de HAL | Les nouveaux moments changent les consignes | Les scénarios du chapitre 10.5 sont à rejouer, avec des scénarios de soirée et de météo |
 
@@ -6035,3 +6050,31 @@ Version du 25 octobre 2026, migration 084. La partie H est écrite avec Thomas l
 | A.6.5, LieuSport | Les minutes saisies ne servent plus qu'en secours |
 | E.2 | Les lots 20 à 22 |
 | Annexe 3 | Les valeurs de la partie H |
+
+### Annexe 14 : les lieux de sport décrits
+
+Version du 25 octobre 2026, migration 085, décidée avec Thomas après la mise en production de la partie H. L'écran « Lieux de sport » faisait doublon avec les adresses : les lieux de chaque discipline se déduisent maintenant des adresses, et chaque lieu a une description, que HAL tient et lit pour choisir où placer une séance. « J'ai deux salles : la plus proche est blindée, je la préfère pour le cardio et le tapis ; l'autre est ouverte 24 h sur 24, j'y fais ma muscu. » Les horaires d'un lieu donné par adresse sont dans sa description, tenus par HAL et non par la base. Règles nouvelles : ADR-15 à ADR-18, DEM-7. Dix règles sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| ADR-1 | Un lieu connu a un nom, une adresse et ses coordonnées. Il est commun au foyer (le foyer lui-même, la salle, la piscine) ou personnel à un compte (Lusse, l'école). Deux lieux d'un même propriétaire ne portent pas le même nom |
+| LIE-1 | Une discipline se pratique dans un ou plusieurs lieux, propres à chaque compte et rangés par ordre de préférence : la musculation à la salle ; la course dehors, ou sur le tapis de la salle |
+| LIE-2 | HAL choisit le lieu de chaque séance parmi ceux de sa discipline. La base refuse un lieu qui n'en fait pas partie. Sans lieu donné, le premier du rang s'applique |
+| LIE-3 | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet depuis le foyer, depuis l'école et depuis là où l'on est (ADR-10), et sa mémoire. Les heures d'ouverture se lisent avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) |
+| LIE-4 | L'utilisateur choisit ses lieux et leur ordre, discipline par discipline, au démarrage, et les change quand il veut. Les lieux possibles lui sont proposés : ce sont ceux que le système connaît déjà |
+| LIE-5 | L'utilisateur change le lieu d'une séance, proposée ou validée, sans passer par HAL. Les lieux de la discipline lui sont proposés, dans leur ordre |
+| ADR-5 | Un lieu de sport (LieuSport) peut avoir son lieu connu : la séance a lieu à son adresse. Un lieu de sport sans adresse, la course dehors, se pratique là où l'on est |
+| ADR-11 | Un lieu a une mémoire pour chaque compte : un texte libre de 1 000 caractères au plus, que HAL écrit d'après ce qu'on lui dit. Chaque écriture ajoute une version, comme la mémoire de HAL (MEM-2) |
+| ADR-12 | La mémoire du lieu où l'on est, et celle du lieu où l'on sera (une absence à venir dans un lieu connu), sont jointes à chaque appel des deux HAL. Les autres se lisent par outil |
+| ADR-14 | Réglages, Lieux a une partie « Mes adresses » : chaque lieu connu avec son adresse, sa nature, son mode et sa mémoire (« HAL retient : … »), et un champ pour corriger l'adresse. Un toucher sur la mémoire ouvre HAL avec le lieu joint |
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| H.5 | `MemoireLieu` devient `DescriptionLieu` ; `LieuSport` et `DisciplineLieu` |
+| H.8 | `POST /appli/lieux` ; l'outil `ecrire_description_lieu` remplace `ecrire_memoire_lieu` |
+| C.7 | L'écran 5.7 est retiré ; l'écran 7.9 demande les adresses |
+| C.12 | Réglages, HAL et sport : « Lieux et position » à la place de « Lieux de sport » |
+| B.8, opération C0 | L'étape 3 du démarrage |
+

@@ -4,8 +4,9 @@ L'appli lit ses lieux pour savoir quels cercles surveiller (POS-2), envoie une
 position à chaque passage, et lit la météo de ses séances dehors et de ses
 courses (MTO-9). Chaque route ne parle que du compte qui appelle (POS-5).
 
-Il n'y a pas de route pour écrire la mémoire d'un lieu, son mode ou sa nature :
-ils se disent à HAL. Seule l'adresse se corrige à la main (ADR-6).
+Un lieu s'ajoute ici au démarrage, avec son nom, son adresse et sa description
+(DEM-7). Ensuite, la description, le mode et la nature se disent à HAL : seule
+l'adresse se corrige à la main (ADR-6).
 """
 
 from datetime import date, datetime, time, timedelta
@@ -34,6 +35,30 @@ def mes_lieux(qui: Authentifie) -> dict:
         x["trajets_depuis"] = lieux.trajets_vers(u, x["id_lieu_connu"])
         rendu.append(x)
     return {"lieux": rendu, "position": _position(u)}
+
+
+class NouveauLieu(BaseModel):
+    nom: str = Field(min_length=1, max_length=60)
+    adresse: str = Field(min_length=3, max_length=200)
+    nature: str = Field(pattern="^(foyer|sport|etudes|travail|sejour|autre)$")
+    description: str | None = Field(default=None, max_length=1000)
+
+
+@routeur.post("/lieux", status_code=status.HTTP_201_CREATED, summary="Ajouter un lieu")
+def ajouter(corps: NouveauLieu, qui: Authentifie) -> dict:
+    """DEM-7 : une adresse du démarrage, cherchée avant d'être gardée. Un lieu du même
+    nom est mis à jour : refaire l'étape ne crée pas de doublon."""
+    try:
+        lieu = lieux.noter_lieu(qui.id_utilisateur, nom=corps.nom, adresse=corps.adresse,
+                                nature=corps.nature, description=corps.description)
+    except lieux.AdresseIntrouvable as erreur:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail={"code": "adresse_introuvable",
+                                    "message": str(erreur)}) from None
+    except ValueError as erreur:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={"code": "requete_invalide", "message": str(erreur)}) from None
+    return _lieu(lieu)
 
 
 class Correction(BaseModel):

@@ -344,7 +344,7 @@ erDiagram
 ```
 
 - `lieu_sport`
-- `discipline_lieu`
+- `discipline_lieu` : LIE-1, ADR-18 : les lieux choisis par discipline, avant les adresses. Ne sert plus qu'aux comptes sans lieu de sport avec adresse.
 - `ouverture`
 - `fermeture`
 - `tache_lieu`
@@ -488,9 +488,9 @@ erDiagram
 ```mermaid
 erDiagram
     source ||--o{ cours_annule : "id_source"
+    lieu_connu ||--o{ description_lieu : "id_lieu_connu"
     foyer ||--o{ lieu_connu : "id_foyer"
     lieu_connu ||--o{ lieu_de_chacun : "id_lieu_connu"
-    lieu_connu ||--o{ memoire_lieu : "id_lieu_connu"
     activite_sante ||--o{ meteo_activite : "id_activite"
     lieu_connu ||--o{ presence : "id_lieu_connu"
     lieu_connu ||--o{ trajet_calcule : "id_arrivee"
@@ -504,8 +504,8 @@ erDiagram
         integer id_utilisateur PK,FK
         integer id_lieu_connu PK,FK
     }
-    memoire_lieu {
-        bigint id_memoire_lieu PK
+    description_lieu {
+        bigint id_description_lieu PK
         integer id_utilisateur FK
         integer id_lieu_connu FK
     }
@@ -547,7 +547,7 @@ erDiagram
 
 - `lieu_connu` : ADR-1 : un lieu nommé, avec son adresse et ses coordonnées. Commun au foyer, ou à un seul compte.
 - `lieu_de_chacun` : ADR-7 : le mode de trajet dit par chacun pour un lieu. Sans ligne, le mode par défaut.
-- `memoire_lieu` : ADR-11 : ce que HAL retient d'un lieu, pour un compte. Une ligne par version ; la dernière est en vigueur.
+- `description_lieu` : ADR-11 : la description d'un lieu pour un compte, ce que HAL lit pour choisir le lieu d'une séance. Une ligne par version ; la dernière est en vigueur.
 - `trajet_calcule` : ADR-8 : le temps de trajet entre deux lieux connus, calculé par OSRM. estime : à vol d'oiseau, faute de calcul.
 - `presence` : POS-4 : un passage dans un lieu connu, ou ailleurs (id_lieu_connu vide). Ouverte : en cours.
 - `position_actuelle` : POS-4, POS-6 : la dernière position reçue, une par compte, écrasée à chaque envoi.

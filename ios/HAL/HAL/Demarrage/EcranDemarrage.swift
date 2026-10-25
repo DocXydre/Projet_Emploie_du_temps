@@ -12,7 +12,7 @@ struct EcranDemarrage: View {
         switch bloc {
         case "profil": "ton profil"
         case "limitations": "les douleurs et limitations"
-        case "lieux": "tes lieux de sport"
+        case "lieux": "tes adresses"
         case "objectif": "ton objectif"
         default: bloc
         }
@@ -260,7 +260,7 @@ private struct Bienvenue: View {
                 Divider().overlay(Palette.verreBord)
                 ligne(2, "Limitation", "une douleur ou une gêne qui dure", "exclamationmark.circle")
                 Divider().overlay(Palette.verreBord)
-                ligne(3, "Lieux", "où tu fais chaque sport", "mappin.and.ellipse")
+                ligne(3, "Adresses", "ton foyer, ta salle, là où tu dors", "mappin.and.ellipse")
                 Divider().overlay(Palette.verreBord)
                 ligne(4, "Objectif", "ce que tu veux atteindre", "scope")
                 Divider().overlay(Palette.verreBord)
@@ -540,42 +540,89 @@ private struct ExercicesAEviter: View {
     }
 }
 
-// MARK: - 7.9 Lieux
+// MARK: - 7.9 Tes adresses
 
+/// DEM-7 : le foyer, les lieux de sport et les autres adresses, chacun avec sa
+/// description. Les lieux de chaque discipline s'en déduisent (ADR-17) : il n'y
+/// a plus rien à ranger.
 private struct Lieux: View {
     @Environment(ModeleDemarrage.self) private var modele
 
     var body: some View {
-        Page(titre: "Où tu fais chaque sport ?",
-             texte: "Touche tes lieux dans ton ordre de préférence. Une discipline que tu ne fais pas reste vide.",
+        @Bindable var modele = modele
+        Page(titre: "Tes adresses",
+             texte: "Ton foyer, ta salle, et un autre endroit où tu dors si tu en as un. Une description dit à HAL ce que chaque lieu est pour toi : les horaires, ce que tu préfères y faire.",
              note: "lieux") {
-            ForEach(LibellesHAL.disciplines, id: \.0) { discipline in
-                let rangs = modele.lieux[discipline.0] ?? []
-                VStack(alignment: .leading, spacing: 10) {
-                    Label(discipline.1.uppercased(), systemImage: icone(discipline.0))
-                        .texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                    Flux(espacement: 8) {
-                        ForEach(modele.etat?.lieuxPossibles ?? []) { lieu in
-                            let rang = rangs.firstIndex(of: lieu.idLieu)
-                            PuceChoix(texte: rang.map { "\($0 + 1) · \(lieu.libelle)" } ?? lieu.libelle,
-                                      choisie: rang != nil) {
-                                modele.basculer(lieu.idLieu, pour: discipline.0)
-                            }
-                        }
-                    }
+            groupe("TON FOYER", icone: "house") {
+                if let connu = modele.foyerConnu {
+                    Text(connu).texte(.corps).foregroundStyle(Palette.textePrincipal)
+                    Text("Déjà donnée. Elle se corrige dans Réglages, Lieux et position.")
+                        .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                } else {
+                    champ("Numéro, rue, ville", $modele.foyer.adresse, adresse: true)
+                    erreur(modele.foyer.erreur)
                 }
-                .padding(Espace.interne)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .carte()
             }
+            ForEach($modele.lieuxDeSport) { $lieu in
+                groupe("LIEU DE SPORT", icone: "dumbbell") {
+                    champ("Nom : Basic-Fit centre, piscine…", $lieu.nom)
+                    champ("Numéro, rue, ville", $lieu.adresse, adresse: true)
+                    champ("Description : horaires, affluence, ce que tu y fais", $lieu.description,
+                          lignes: 3)
+                    erreur(lieu.erreur)
+                }
+            }
+            Button("Ajouter un lieu de sport", systemImage: "plus") { modele.ajouterUnLieuDeSport() }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
+            ForEach($modele.autresAdresses) { $lieu in
+                groupe("AUTRE ADRESSE", icone: "mappin") {
+                    champ("Nom : chez mes parents…", $lieu.nom)
+                    champ("Numéro, rue, ville", $lieu.adresse, adresse: true)
+                    Picker("C'est", selection: $lieu.nature) {
+                        Text("J'y dors").tag("sejour")
+                        Text("L'école").tag("etudes")
+                        Text("Le travail").tag("travail")
+                        Text("Autre").tag("autre")
+                    }
+                    .pickerStyle(.segmented)
+                    champ("Description : ce que tu y fais", $lieu.description, lignes: 3)
+                    erreur(lieu.erreur)
+                }
+            }
+            Button("Ajouter une autre adresse", systemImage: "plus") { modele.ajouterUneAdresse() }
+                .buttonStyle(.hal(.verre, pleineLargeur: true))
         }
+        .task { await modele.chargerLesAdresses() }
     }
 
-    private func icone(_ discipline: String) -> String {
-        switch discipline {
-        case "musculation": "dumbbell"
-        case "course": "figure.run"
-        default: "heart"
+    private func groupe<Contenu: View>(_ titre: String, icone: String,
+                                       @ViewBuilder _ contenu: () -> Contenu) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(titre, systemImage: icone).texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
+            contenu()
+        }
+        .padding(Espace.interne)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .carte()
+    }
+
+    private func champ(_ invite: String, _ texte: Binding<String>, adresse: Bool = false,
+                       lignes: Int = 1) -> some View {
+        TextField(invite, text: texte, axis: .vertical)
+            .lineLimit(1...max(1, lignes + 1))
+            .textContentType(adresse ? .fullStreetAddress : nil)
+            .texte(.corps)
+            .foregroundStyle(Palette.textePrincipal)
+            .padding(12)
+            .background(Palette.verreTeinte, in: RoundedRectangle(cornerRadius: Rayon.controle, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func erreur(_ texte: String?) -> some View {
+        if let texte {
+            Label(texte, systemImage: "exclamationmark.circle")
+                .texte(.legende).foregroundStyle(Categorie.alerte.couleur)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -719,7 +766,7 @@ private struct Recapitulatif: View {
                 ligne("Repas", alimentation, .alimentation)
             }
             groupe("Limitation") { ligne("Gênes", limitations, .limitationQuestion) }
-            groupe("Lieux") { ligne("Où", lieux, .lieux) }
+            groupe("Adresses") { ligne("Où", lieux, .lieux) }
             groupe("Objectif") { ligne("Principal", modele.objectifEnClair, .objectif) }
             if !fini {
                 Text("HAL construit tes quatre semaines : ça prend quelques minutes.")
@@ -789,13 +836,19 @@ private struct Recapitulatif: View {
         return deja.isEmpty ? "Aucune" : deja.joined(separator: ", ")
     }
 
+    /// Le foyer, les lieux de sport et les autres adresses, par leur nom.
     private var lieux: String {
-        let noms = Dictionary(uniqueKeysWithValues: (modele.etat?.lieuxPossibles ?? []).map { ($0.idLieu, $0.libelle) })
-        let lignes = LibellesHAL.disciplines.compactMap { discipline -> String? in
-            guard let choisis = modele.lieux[discipline.0], !choisis.isEmpty else { return nil }
-            return "\(discipline.1) : " + choisis.compactMap { noms[$0] }.joined(separator: ", ")
+        let pleines = { (liste: [AdresseSaisie]) in
+            liste.filter { !$0.adresse.trimmingCharacters(in: .whitespaces).isEmpty }
+                .map { $0.nom.isEmpty ? $0.adresse : $0.nom }
         }
-        return lignes.isEmpty ? "Aucun" : lignes.joined(separator: "\n")
+        var lignes: [String] = []
+        if modele.foyerConnu != nil || !modele.foyer.adresse.isEmpty { lignes.append("Le foyer") }
+        let sport = pleines(modele.lieuxDeSport)
+        if !sport.isEmpty { lignes.append("Sport : " + sport.joined(separator: ", ")) }
+        let autres = pleines(modele.autresAdresses)
+        if !autres.isEmpty { lignes.append(autres.joined(separator: ", ")) }
+        return lignes.isEmpty ? "Aucune" : lignes.joined(separator: "\n")
     }
 }
 

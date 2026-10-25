@@ -24,9 +24,8 @@ RETURNS INTEGER LANGUAGE sql STABLE AS $$
        AND (se.discipline = p_discipline
             OR (se.id_occurrence IS NULL
                 AND (o.id_lieu IS NULL
-                     OR EXISTS (SELECT 1 FROM discipline_lieu dl
-                                 WHERE dl.id_utilisateur = p_utilisateur
-                                   AND dl.id_lieu = o.id_lieu
+                     OR EXISTS (SELECT 1 FROM lieux_de_sport(p_utilisateur) dl
+                                 WHERE dl.id_lieu = o.id_lieu
                                    AND dl.discipline = p_discipline))))
      ORDER BY (se.discipline IS NULL),
               abs(EXTRACT(EPOCH FROM (COALESCE(o.debut_seance, lower(o.creneau),

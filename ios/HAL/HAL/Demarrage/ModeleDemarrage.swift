@@ -24,7 +24,7 @@ enum PageDemarrage: String, CaseIterable, Sendable {
     /// « ÉTAPE 1 SUR 5 · PROFIL · 2/4 », au-dessus du titre.
     var repere: String {
         guard let etape else { return "" }
-        let blocs = ["PROFIL", "LIMITATION", "LIEUX", "OBJECTIF", "PLAN"]
+        let blocs = ["PROFIL", "LIMITATION", "ADRESSES", "OBJECTIF", "PLAN"]
         var texte = "ÉTAPE \(etape) SUR 5 · \(blocs[etape - 1])"
         if let rang = Self.duProfil.firstIndex(of: self) {
             texte += " · \(rang + 1)/\(Self.duProfil.count)"
@@ -66,8 +66,13 @@ final class ModeleDemarrage {
     private(set) var limitationEnCours: Int?
     private(set) var catalogue: [ExerciceCatalogue] = []
 
-    // Lieux (7.9)
-    var lieux: [String: [Int]] = [:]
+    // Tes adresses (7.9, DEM-7)
+    var foyer = AdresseSaisie(nom: "Chez nous", nature: "foyer")
+    /// Le foyer a déjà son adresse, donnée par un autre membre : elle se montre.
+    private(set) var foyerConnu: String?
+    var lieuxDeSport: [AdresseSaisie] = [AdresseSaisie(nom: "", nature: "sport")]
+    var autresAdresses: [AdresseSaisie] = []
+    private var adressesLues = false
 
     // Objectif (7.10 à 7.12)
     var objectif: String?
@@ -136,10 +141,6 @@ final class ModeleDemarrage {
         zone = b["zone"]
         cote = b["cote"]
         description = b["description"] ?? ""
-        for discipline in LibellesHAL.disciplines.map(\.0) {
-            let choisis = lu.lieux.filter { $0.discipline == discipline }.sorted { $0.rang < $1.rang }.map(\.idLieu)
-            if !choisis.isEmpty { lieux[discipline] = choisis }
-        }
         objectif = b["objectif"]
         distance = b["distance"].flatMap(Int.init)
         tempsVise = b["temps"] ?? ""
@@ -201,7 +202,7 @@ final class ModeleDemarrage {
         case .limitationExercices:
             if await enregistrerLesInterdits() { aller(.limitationAutre) }
         case .lieux:
-            if await enregistrerLesLieux() { aller(.objectif) }
+            if await enregistrerLesAdresses() { aller(.objectif) }
         case .objectif:
             aller(objectif == "course" ? .course : .recap)
         case .course: aller(.recap)
@@ -366,33 +367,94 @@ final class ModeleDemarrage {
         }
     }
 
-    /// LIE-4 : un lieu touché s'ajoute à la fin, touché encore il s'enlève.
-    func basculer(_ lieu: Int, pour discipline: String) {
-        var choisis = lieux[discipline] ?? []
-        if let rang = choisis.firstIndex(of: lieu) { choisis.remove(at: rang) } else { choisis.append(lieu) }
-        lieux[discipline] = choisis
+    // MARK: Tes adresses (DEM-7)
+
+    private struct LieuLu: Decodable, Sendable {
+        var nom: String
+        var nature: String
+        var adresse: String
+        var description: String?
     }
 
-    private func enregistrerLesLieux() async -> Bool {
-        guard lieux.values.contains(where: { !$0.isEmpty }) else {
-            // LIE-6 : sans lieu, HAL ne peut rien placer.
-            erreur = "Il faut au moins un lieu, pour une discipline au moins."
+    private struct LieuxLus: Decodable, Sendable { var lieux: [LieuLu] }
+
+    private struct NouveauLieu: Encodable {
+        var nom: String
+        var adresse: String
+        var nature: String
+        var description: String?
+    }
+
+    /// Ce qui est déjà connu se remplit : refaire l'étape met à jour, sans doublon.
+    func chargerLesAdresses() async {
+        guard !adressesLues, let client,
+              let lu: LieuxLus = try? await client.requete("GET", "appli/lieux") else { return }
+        adressesLues = true
+        foyerConnu = lu.lieux.first { $0.nature == "foyer" }?.adresse
+        let saisies = { (x: LieuLu) in
+            AdresseSaisie(nom: x.nom, adresse: x.adresse, nature: x.nature,
+                          description: x.description ?? "")
+        }
+        let sport = lu.lieux.filter { $0.nature == "sport" }.map(saisies)
+        if !sport.isEmpty { lieuxDeSport = sport }
+        autresAdresses = lu.lieux.filter { !["foyer", "sport"].contains($0.nature) }.map(saisies)
+    }
+
+    func ajouterUnLieuDeSport() { lieuxDeSport.append(AdresseSaisie(nom: "", nature: "sport")) }
+    func ajouterUneAdresse() { autresAdresses.append(AdresseSaisie(nom: "", nature: "sejour")) }
+
+    /// Chaque adresse remplie part au serveur, qui la cherche (ADR-4). Une adresse
+    /// introuvable est dite sous son champ, et l'étape attend qu'on la corrige.
+    private func enregistrerLesAdresses() async -> Bool {
+        if foyerConnu == nil, foyer.adresse.trimmingCharacters(in: .whitespaces).isEmpty {
+            erreur = "Il faut l'adresse de ton foyer : c'est d'elle que partent les trajets."
             return false
         }
         guard let client else { return true }
         envoi = true
         defer { envoi = false }
-        do {
-            for discipline in LibellesHAL.disciplines.map(\.0) {
-                try await client.envoyer("PUT", "disciplines/\(discipline)/lieux",
-                                         corps: ClientAPI.corps(lieux[discipline] ?? []))
+        /// Le motif du refus, ou nil si l'adresse est gardée (ou vide).
+        func envoyer(_ saisie: AdresseSaisie, nomParDefaut: String) async -> String? {
+            let adresse = saisie.adresse.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !adresse.isEmpty else { return nil }
+            let nom = saisie.nom.trimmingCharacters(in: .whitespaces)
+            let description = saisie.description.trimmingCharacters(in: .whitespacesAndNewlines)
+            do {
+                try await client.envoyer("POST", "appli/lieux", corps: ClientAPI.corps(
+                    NouveauLieu(nom: nom.isEmpty ? nomParDefaut : nom, adresse: adresse,
+                                nature: saisie.nature,
+                                description: description.isEmpty ? nil : description)))
+                return nil
+            } catch {
+                return Self.motif(error)
             }
-            await rafraichir()
-            return true
+        }
+
+        if foyerConnu == nil { foyer.erreur = await envoyer(foyer, nomParDefaut: "Chez nous") }
+        for rang in lieuxDeSport.indices {
+            let refus = await envoyer(lieuxDeSport[rang],
+                                      nomParDefaut: rang == 0 ? "Ma salle" : "Salle \(rang + 1)")
+            lieuxDeSport[rang].erreur = refus
+        }
+        for rang in autresAdresses.indices {
+            let refus = await envoyer(autresAdresses[rang], nomParDefaut: "Autre adresse \(rang + 1)")
+            autresAdresses[rang].erreur = refus
+        }
+        let toutPasse = foyer.erreur == nil && lieuxDeSport.allSatisfy { $0.erreur == nil }
+            && autresAdresses.allSatisfy { $0.erreur == nil }
+        guard toutPasse else {
+            erreur = "Une adresse n'a pas été trouvée : corrige-la."
+            return false
+        }
+        do {
+            // DEM-7 : l'étape compte faite, même sans lieu de sport.
+            try await client.envoyer("POST", "appli/demarrage/adresses-faites")
         } catch {
             erreur = Self.motif(error)
             return false
         }
+        await rafraichir()
+        return true
     }
 
     private func rafraichir() async {
@@ -517,4 +579,16 @@ final class ModeleDemarrage {
     static func motif(_ erreur: Error) -> String {
         (erreur as? ErreurAPI)?.message ?? erreur.localizedDescription
     }
+}
+
+
+/// Une adresse de l'étape 7.9 : son nom, l'adresse, ce qu'elle est, sa description.
+struct AdresseSaisie: Identifiable, Sendable {
+    let id = UUID()
+    var nom: String
+    var adresse = ""
+    var nature: String
+    var description = ""
+    /// Ce que le serveur a répondu : « aucune adresse trouvée pour … ».
+    var erreur: String?
 }

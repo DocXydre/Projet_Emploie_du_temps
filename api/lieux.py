@@ -6,7 +6,8 @@ trajets dont le placement et HAL ont besoin, avec OSRM sur les cartes
 OpenStreetMap (ADR-8).
 
     1. chercher une adresse, ou celle d'une position              (ADR-4)
-    2. créer ou mettre à jour un lieu, son mode, sa mémoire  (ADR-1 à ADR-7, ADR-11)
+    2. créer ou mettre à jour un lieu, son mode, sa description
+                                                    (ADR-1 à ADR-7, ADR-11, ADR-15)
     3. compléter les trajets qui manquent                         (ADR-8)
     4. ce que HAL lit des lieux                          (ADR-10, ADR-12)
 
@@ -44,6 +45,9 @@ VITESSES_KMH = {"pied": 5.0, "velo": 15.0, "voiture": 50.0}
 # ADR-4 : une commune entière n'est pas une adresse de salle. Elle passe pour un
 # lieu de séjour ou un autre, avec un cercle plus large.
 RAYON_D_UNE_COMMUNE = 500
+
+# ADR-15 : le battement d'un lieu de sport donné par adresse.
+BATTEMENT_MINUTES = 15
 
 
 class AdresseIntrouvable(Exception):
@@ -99,19 +103,19 @@ def adresse_proche(latitude: float, longitude: float) -> str:
 # ---------------------------------------------------------------------------
 
 def lieux_du_compte(id_utilisateur: int) -> list[dict]:
-    """Les lieux du compte, avec ce qu'il en dit : mode, mémoire, lieu de sport."""
+    """Les lieux du compte, avec ce qu'il en dit : mode, description, lieu de sport."""
     return lister(
         """SELECT l.id_lieu_connu, l.nom, l.nature, l.adresse, l.latitude, l.longitude,
                   l.rayon_m, l.id_utilisateur IS NULL AS commun,
                   mode_trajet_de(%(u)s, l.id_lieu_connu) AS mode_trajet,
-                  m.texte AS memoire, m.quand AS memoire_le,
+                  m.texte AS description, m.quand AS description_le,
                   (SELECT array_agg(ls.libelle ORDER BY ls.id_lieu) FROM lieu_sport ls
                     WHERE ls.id_lieu_connu = l.id_lieu_connu) AS lieux_de_sport
              FROM lieux_du_compte(%(u)s) l
              LEFT JOIN LATERAL (
-                  SELECT texte, quand FROM memoire_lieu ml
-                   WHERE ml.id_utilisateur = %(u)s AND ml.id_lieu_connu = l.id_lieu_connu
-                   ORDER BY id_memoire_lieu DESC LIMIT 1) m ON TRUE
+                  SELECT texte, quand FROM description_lieu dl
+                   WHERE dl.id_utilisateur = %(u)s AND dl.id_lieu_connu = l.id_lieu_connu
+                   ORDER BY id_description_lieu DESC LIMIT 1) m ON TRUE
             ORDER BY CASE l.nature WHEN 'foyer' THEN 0 ELSE 1 END, l.nom""",
         {"u": id_utilisateur})
 
@@ -137,11 +141,12 @@ def _trouver(id_utilisateur: int, nom: str | None, id_lieu_sport: int | None,
 def noter_lieu(id_utilisateur: int, *, nom: str | None = None, adresse: str | None = None,
                ici: bool = False, nature: str | None = None, rayon_m: int | None = None,
                mode_trajet: str | None = None, id_lieu_sport: int | None = None,
-               id_lieu_connu: int | None = None) -> dict:
+               id_lieu_connu: int | None = None, description: str | None = None,
+               auteur: str = "utilisateur") -> dict:
     """Crée ou met à jour un lieu connu (opération H1). Rend le lieu, et ce qui a changé.
 
-    Un lieu commun (le foyer, un lieu de sport) va au foyer du compte s'il en a
-    un ; le reste lui est personnel (ADR-1, ADR-2). Lève AdresseIntrouvable ou
+    Le lieu du foyer va au foyer du compte ; le reste lui est personnel, les
+    lieux de sport compris (ADR-1, ADR-2). Lève AdresseIntrouvable ou
     ValueError, avec un motif à lire tel quel.
     """
     if nature is not None and nature not in NATURES:
@@ -189,7 +194,9 @@ def noter_lieu(id_utilisateur: int, *, nom: str | None = None, adresse: str | No
 
     foyer = un_seul("SELECT id_foyer FROM utilisateur WHERE id_utilisateur = %(u)s",
                     {"u": id_utilisateur})["id_foyer"]
-    commun = nature_finale in ("foyer", "sport") and foyer is not None
+    # ADR-1 : seul le foyer est commun. Une salle est à celui qui la donne : sa
+    # description dit ce qu'elle est pour lui (ADR-11).
+    commun = nature_finale == "foyer" and foyer is not None
     if nature_finale == "foyer" and foyer is None:
         raise ValueError("Le foyer n'existe pas encore : son adresse attend qu'il soit ouvert")
 
@@ -225,6 +232,23 @@ def noter_lieu(id_utilisateur: int, *, nom: str | None = None, adresse: str | No
         if id_lieu_sport is not None:
             cur.execute("UPDATE lieu_sport SET id_lieu_connu = %(l)s WHERE id_lieu = %(s)s",
                         {"l": id_lieu, "s": id_lieu_sport})
+        elif nature_finale == "sport":
+            # ADR-15 : un lieu de sport a son lieu de placement, ouvert jour et nuit
+            # pour la base ; ses vraies heures sont dans sa description (ADR-16).
+            cur.execute(
+                """INSERT INTO lieu_sport (code, libelle, minutes_domicile, minutes_fac,
+                                           heure_min, heure_max, preference, marge_minutes,
+                                           id_lieu_connu)
+                   SELECT 'LIEU_' || l.id_lieu_connu, l.nom, 0, 0, '00:00', '23:59', 'tot',
+                          %(m)s, l.id_lieu_connu
+                     FROM lieu_connu l
+                    WHERE l.id_lieu_connu = %(l)s
+                      AND NOT EXISTS (SELECT 1 FROM lieu_sport s
+                                       WHERE s.id_lieu_connu = l.id_lieu_connu)""",
+                {"l": id_lieu, "m": BATTEMENT_MINUTES})
+            cur.execute("""UPDATE lieu_sport s SET libelle = l.nom FROM lieu_connu l
+                            WHERE s.id_lieu_connu = l.id_lieu_connu AND l.id_lieu_connu = %(l)s
+                              AND s.code = 'LIEU_' || l.id_lieu_connu""", {"l": id_lieu})
         if mode_trajet is not None:
             cur.execute(
                 """INSERT INTO lieu_de_chacun (id_utilisateur, id_lieu_connu, mode_trajet)
@@ -233,6 +257,8 @@ def noter_lieu(id_utilisateur: int, *, nom: str | None = None, adresse: str | No
                    DO UPDATE SET mode_trajet = EXCLUDED.mode_trajet""",
                 {"u": id_utilisateur, "l": id_lieu, "m": mode_trajet})
 
+    if description is not None:
+        ecrire_description(id_utilisateur, id_lieu, description, auteur)
     completer_trajets(id_utilisateur)
     lieu = next(x for x in lieux_du_compte(id_utilisateur) if x["id_lieu_connu"] == id_lieu)
     lieu["trajets_depuis"] = trajets_vers(id_utilisateur, id_lieu)
@@ -240,8 +266,10 @@ def noter_lieu(id_utilisateur: int, *, nom: str | None = None, adresse: str | No
     return lieu
 
 
-def ecrire_memoire(id_utilisateur: int, id_lieu_connu: int, texte: str, auteur: str) -> int | None:
-    ligne = executer("SELECT ecrire_memoire_lieu(%(u)s, %(l)s, %(t)s, %(a)s) AS id",
+def ecrire_description(id_utilisateur: int, id_lieu_connu: int, texte: str,
+                       auteur: str) -> int | None:
+    """ADR-11 : une version de plus de la description d'un lieu, pour ce compte."""
+    ligne = executer("SELECT ecrire_description_lieu(%(u)s, %(l)s, %(t)s, %(a)s) AS id",
                      {"u": id_utilisateur, "l": id_lieu_connu, "t": texte, "a": auteur})
     return (ligne or {}).get("id")
 
@@ -385,7 +413,7 @@ def _lieu_a_venir(id_utilisateur: int) -> dict | None:
 
 
 def texte_pour_hal(id_utilisateur: int, hal: str = "sport") -> str:
-    """Les lieux, où l'on est, et les mémoires utiles (ADR-10, ADR-12, POS-5).
+    """Les lieux, où l'on est, et les descriptions utiles (ADR-10, ADR-12, POS-5).
 
     Rien que pour le compte qui parle. Le HAL du foyer n'a pas les trajets vers
     les lieux de sport : il ne place pas les séances.
@@ -395,7 +423,8 @@ def texte_pour_hal(id_utilisateur: int, hal: str = "sport") -> str:
     if not lieux:
         return ("# Lieux et position\nAucun lieu n'a d'adresse. Les trajets des séances sont "
                 "les minutes saisies des lieux de sport. Si l'utilisateur te donne une adresse "
-                "(son foyer, sa salle, l'école, un lieu où il dort), note-la avec `noter_lieu`.")
+                "(son foyer, sa salle, l'école, un lieu où il dort), note-la avec `noter_lieu`, "
+                "et ce qu'il en dit dans sa description.")
     ici = ou_je_suis(id_utilisateur)
     lignes = ["# Lieux et position"]
     if ici.get("sue") and ici.get("id_presence"):
@@ -426,8 +455,10 @@ def texte_pour_hal(id_utilisateur: int, hal: str = "sport") -> str:
             if trajets:
                 morceaux.append("trajet " + ", ".join(trajets))
         lignes.append(" ; ".join(morceaux))
-        if x["memoire"] and x["id_lieu_connu"] in utiles:
-            lignes.append(f"  Mémoire de {x['nom']} : {x['memoire']}")
-        elif x["memoire"]:
-            lignes.append("  (a une mémoire : `lire_lieux` la rend)")
+        # ADR-12 : celle d'un lieu de sport sert à choisir le lieu d'une séance.
+        sport = x["nature"] == "sport" or x["lieux_de_sport"]
+        if x["description"] and (x["id_lieu_connu"] in utiles or (hal == "sport" and sport)):
+            lignes.append(f"  Description de {x['nom']} : {x['description']}")
+        elif x["description"]:
+            lignes.append("  (a une description : `lire_lieux` la rend)")
     return "\n".join(lignes)

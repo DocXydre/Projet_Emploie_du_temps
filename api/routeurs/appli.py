@@ -758,6 +758,15 @@ def limitations_faites(qui: Authentifie) -> dict:
     return {"limitations_faites": True}
 
 
+@routeur.post("/appli/demarrage/adresses-faites", summary="L'étape des adresses est passée")
+def adresses_faites(qui: Authentifie) -> dict:
+    """DEM-7 : les adresses sont données, même sans lieu de sport : on court dehors."""
+    reponses = _reponses_du_demarrage(qui.id_utilisateur)
+    reponses["_adresses_faites"] = True
+    _garder_le_demarrage(qui.id_utilisateur, "lieux", reponses)
+    return {"adresses_faites": True}
+
+
 @routeur.post("/appli/demarrage/activer", summary="Activer HAL pour soi")
 def activer_hal(qui: Authentifie) -> dict:
     """COA-1 : HAL s'active pour chaque membre. La base exige un profil, et refuse

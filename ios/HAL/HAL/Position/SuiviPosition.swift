@@ -36,7 +36,7 @@ final class SuiviPosition: NSObject {
         var rayonM: Int
         var commun: Bool
         var modeTrajet: String
-        var memoire: String?
+        var description: String?
         var lieuxDeSport: [String]?
         var trajetsDepuis: [Trajet]?
 

@@ -62,9 +62,8 @@ BEGIN
     -- LIE-6 : les disciplines sans lieu sont rendues, pas écartées en silence.
     SELECT COALESCE(array_agg(x.discipline ORDER BY x.discipline), '{}') INTO v_sans_lieu
       FROM unnest(ARRAY['musculation', 'course', 'cardio']) AS x(discipline)
-     WHERE NOT EXISTS (SELECT 1 FROM discipline_lieu dl
-                        WHERE dl.id_utilisateur = p_utilisateur
-                          AND dl.discipline = x.discipline);
+     WHERE NOT EXISTS (SELECT 1 FROM lieux_de_sport(p_utilisateur) dl
+                        WHERE dl.discipline = x.discipline);
     IF cardinality(v_sans_lieu) = 3 THEN
         PERFORM refus_coach('lieu_non_permis',
             'Aucune discipline n''a de lieu : il faut en choisir au moins un');

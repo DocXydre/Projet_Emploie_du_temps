@@ -79,7 +79,11 @@ def bloc_manquant(id_utilisateur: int) -> str | None:
         return "profil"
     if not (_etat(id_utilisateur)["reponses"] or {}).get("_limitations_faites"):
         return "limitations"
-    if not contexte.lieux(id_utilisateur):
+    # DEM-7 : les adresses données, ou les lieux d'avant (ADR-18).
+    deja = un_seul("SELECT 1 AS ok FROM discipline_lieu WHERE id_utilisateur = %(u)s LIMIT 1",
+                   {"u": id_utilisateur})
+    if not contexte.lieux(id_utilisateur) or (
+            deja is None and not (_etat(id_utilisateur)["reponses"] or {}).get("_adresses_faites")):
         return "lieux"
     if not any(o["principal"] and o["statut"] == "actif"
                for o in contexte.objectifs(id_utilisateur)):

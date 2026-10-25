@@ -4,7 +4,7 @@ Les mêmes pour les deux HAL, sauf la soirée et la météo, qui ne vont qu'au H
 sport (section H.8.2). Comme les autres outils, ils ne parlent que du compte
 de l'appel (POS-5) : aucun ne prend de compte en paramètre.
 
-    lieux    lire_lieux, noter_lieu, ecrire_memoire_lieu      (ADR-4, ADR-11)
+    lieux    lire_lieux, noter_lieu, ecrire_description_lieu  (ADR-4, ADR-11, ADR-15)
     soiree   noter_soiree                                     (SOI-2, SOI-4)
     meteo    lire_meteo                                       (MTO-4, MTO-5)
 """
@@ -51,13 +51,20 @@ def lire_lieux(u: int, a: dict) -> object:
             "lieux": rendu}
 
 
-def noter_lieu(u: int, a: dict) -> object:
+def noter_lieu(auteur: str):
+    def noter(u: int, a: dict) -> object:
+        return _noter_lieu(u, a, auteur)
+    return noter
+
+
+def _noter_lieu(u: int, a: dict, auteur: str) -> object:
     try:
         lieu = lieux.noter_lieu(
             u, nom=a.get("nom"), adresse=a.get("adresse"), ici=bool(a.get("ici")),
             nature=a.get("nature"), rayon_m=a.get("rayon_m"),
             mode_trajet=a.get("mode_trajet"), id_lieu_sport=a.get("id_lieu_sport"),
-            id_lieu_connu=a.get("id_lieu_connu"))
+            id_lieu_connu=a.get("id_lieu_connu"), description=a.get("description"),
+            auteur=auteur)
     except lieux.AdresseIntrouvable as erreur:
         raise _refus()("adresse_introuvable", str(erreur)) from None
     except ValueError as erreur:
@@ -66,16 +73,18 @@ def noter_lieu(u: int, a: dict) -> object:
             "id_lieu_connu": lieu["id_lieu_connu"], "nom": lieu["nom"],
             "adresse_trouvee": lieu["adresse"], "nature": lieu["nature"],
             "mode_trajet": lieu["mode_trajet"], "rayon_m": lieu["rayon_m"],
+            "description": lieu["description"],
             "trajets_depuis": lieu["trajets_depuis"],
             "note": "Répète l'adresse trouvée dans ta réponse : si ce n'est pas le bon "
                     "endroit, l'utilisateur la corrigera (ADR-4)."}
 
 
-def ecrire_memoire_lieu(auteur: str):
+def ecrire_description_lieu(auteur: str):
     def ecrire(u: int, a: dict) -> object:
-        version = lieux.ecrire_memoire(u, a.get("id_lieu_connu"), a.get("texte") or "", auteur)
-        return {"fait": "mémoire du lieu écrite" if a.get("texte") else "mémoire effacée",
-                "version": version}
+        version = lieux.ecrire_description(u, a.get("id_lieu_connu"), a.get("texte") or "",
+                                           auteur)
+        return {"fait": "description du lieu écrite" if a.get("texte")
+                else "description effacée", "version": version}
     return ecrire
 
 
@@ -171,24 +180,29 @@ SCHEMA_NOTER_LIEU = _objet({
                     "description": "Comment cet utilisateur y va"},
     "id_lieu_sport": {"type": "integer",
                       "description": "Le lieu de sport dont c'est l'adresse (id_lieu)"},
-    "id_lieu_connu": {"type": "integer", "description": "Le lieu connu à mettre à jour"}})
+    "id_lieu_connu": {"type": "integer", "description": "Le lieu connu à mettre à jour"},
+    "description": {"type": "string",
+                    "description": "Toute la description du lieu, réécrite (ADR-11)"}})
 
 DESCRIPTION_NOTER_LIEU = (
     "Crée ou met à jour un lieu connu : son adresse (cherchée à la Géoplateforme) ou "
-    "« ici », sa nature, son rayon, et le mode de trajet de l'utilisateur pour y aller. "
-    "id_lieu_sport attache l'adresse à un lieu de sport. Un lieu existant se retrouve par "
-    "son nom ou id_lieu_connu. Les trajets se recalculent. Répète l'adresse trouvée.")
+    "« ici », sa nature, son rayon, le mode de trajet de l'utilisateur pour y aller, et sa "
+    "description. Un lieu de nature sport (une salle, une piscine) devient un lieu où placer "
+    "des séances, pour toutes les disciplines. Un lieu existant se retrouve par son nom ou "
+    "id_lieu_connu. Les trajets se recalculent. Répète l'adresse trouvée.")
 
-SCHEMA_MEMOIRE = _objet({
+SCHEMA_DESCRIPTION = _objet({
     "id_lieu_connu": {"type": "integer"},
     "texte": {"type": "string",
-              "description": "Toute la mémoire du lieu, réécrite, 1 000 caractères au plus ; "
-                             "vide : effacée"}}, ["id_lieu_connu", "texte"])
+              "description": "Toute la description du lieu, réécrite, 1 000 caractères au "
+                             "plus ; vide : effacée"}}, ["id_lieu_connu", "texte"])
 
-DESCRIPTION_MEMOIRE = (
-    "Écrit la mémoire d'un lieu pour l'utilisateur : ce qu'il y fait, ce que ça change "
-    "(« chez mes parents : repos, bons petits plats ; chemins pour le trail »). Réécris "
-    "tout le texte, en gardant ce qui vaut encore. Jointe aux appels quand il y est.")
+DESCRIPTION_DESCRIPTION = (
+    "Écrit la description d'un lieu pour l'utilisateur : ce qu'il y fait, ce qu'il y "
+    "préfère, les horaires qui comptent, l'affluence (« ouverte 24 h sur 24, mes séances de "
+    "muscu » ; « plus proche mais blindée, plutôt cardio et tapis » ; « chez mes parents : "
+    "repos »). C'est elle qui te fait choisir le lieu d'une séance. Réécris tout le texte, en "
+    "gardant ce qui vaut encore.")
 
 SCHEMA_SOIREE = _objet({
     "nuit": {"type": "string", "description": "AAAA-MM-JJ, le jour où la soirée commence. "
@@ -218,17 +232,17 @@ DESCRIPTION_METEO = (
 
 
 def outils(auteur: str, famille_lieux: str = "lieux") -> tuple:
-    """Les outils des lieux, pour un HAL : `auteur` signe les mémoires écrites."""
+    """Les outils des lieux, pour un HAL : `auteur` signe les descriptions écrites."""
     from api.coach.outils import Outil
     return (
         Outil("lire_lieux", famille_lieux,
-              "Les lieux connus de l'utilisateur : adresse, nature, mode, mémoire, trajets "
+              "Les lieux connus de l'utilisateur : adresse, nature, mode, description, trajets "
               "calculés depuis ses lieux de départ ; et où il est maintenant.",
               _objet({}), lire_lieux),
         Outil("noter_lieu", famille_lieux, DESCRIPTION_NOTER_LIEU, SCHEMA_NOTER_LIEU,
-              noter_lieu),
-        Outil("ecrire_memoire_lieu", famille_lieux, DESCRIPTION_MEMOIRE, SCHEMA_MEMOIRE,
-              ecrire_memoire_lieu(auteur)),
+              noter_lieu(auteur)),
+        Outil("ecrire_description_lieu", famille_lieux, DESCRIPTION_DESCRIPTION,
+              SCHEMA_DESCRIPTION, ecrire_description_lieu(auteur)),
     )
 
 
