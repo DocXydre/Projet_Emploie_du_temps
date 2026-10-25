@@ -40,7 +40,7 @@ struct PuceType: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Circle().fill(Color(hexa: type.couleur) ?? Palette.texteSecondaire)
+                Circle().fill(Categorie.couleurDuType(type.couleur) ?? Palette.texteSecondaire)
                     .frame(width: 10, height: 10)
                 Text(type.libelle).texte(.corps).foregroundStyle(Palette.textePrincipal)
             }
@@ -62,7 +62,7 @@ struct PastilleType: View {
 
     var body: some View {
         Pastille(icone: type?.icone ?? "checklist",
-                 couleur: type.flatMap { Color(hexa: $0.couleur) } ?? Categorie.menage.couleur)
+                 couleur: type.flatMap { Categorie.couleurDuType($0.couleur) } ?? Categorie.menage.couleur)
     }
 }
 
@@ -884,7 +884,9 @@ struct FormulaireType: View {
                          "checklist", "star", "heart", "bolt", "moon", "wrench.and.screwdriver"]
 
     @State private var libelle = ""
-    @State private var couleur = Color(hex: 0x7ED957)
+    @State private var couleur = Categorie.sport.couleur
+    /// La couleur montrée à l'ouverture : non touchée, celle du serveur reste et suit le duo.
+    @State private var couleurOuverte: Color?
     @State private var icone = "checklist"
     @State private var duree = 15
     @State private var priorite = 4
@@ -957,7 +959,8 @@ struct FormulaireType: View {
         .onAppear {
             guard let type else { return }
             libelle = type.libelle
-            couleur = Color(hexa: type.couleur) ?? couleur
+            couleur = Categorie.couleurDuType(type.couleur) ?? couleur
+            couleurOuverte = couleur
             icone = type.icone
             duree = type.dureeMinutes ?? duree
             priorite = type.priorite ?? priorite
@@ -980,7 +983,8 @@ struct FormulaireType: View {
         enCours = true
         erreur = nil
         defer { enCours = false }
-        let demande = Demande(libelle: libelle.trimmingCharacters(in: .whitespaces), couleur: couleur.hexa,
+        let hexa = couleur == couleurOuverte ? type?.couleur ?? couleur.hexa : couleur.hexa
+        let demande = Demande(libelle: libelle.trimmingCharacters(in: .whitespaces), couleur: hexa,
                               icone: icone, dureeMinutes: duree, priorite: priorite)
         do {
             let enregistre: TypeTache = try await foyer.demander(type == nil ? "POST" : "PATCH",

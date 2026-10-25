@@ -176,7 +176,7 @@ PAGE_INVITATION = """<!doctype html>
   .code { font: 600 26px ui-monospace, Menlo, monospace; letter-spacing: 2px;
           padding: 14px; border-radius: 18px; background: rgba(255,255,255,.08);
           border: 1px solid rgba(255,255,255,.24); margin: 0 0 24px; }
-  a.bouton { display: block; padding: 16px; border-radius: 999px; background: #5ce1c5;
+  a.bouton { display: block; padding: 16px; border-radius: 999px; background: #ff7a6b;
              color: #0a0f14; font-weight: 600; text-decoration: none; margin-bottom: 16px; }
   small { color: rgba(255,255,255,.5); }
 </style>

@@ -57,24 +57,15 @@ struct WidgetsDeLaMaison: WidgetBundle {
 
 // MARK: - Les couleurs
 
+/// Les nuances du duo que l'appli a laissé dans le dossier partagé (THM-3).
 enum Teinte {
-    static let sport = Color(red: 0.36, green: 0.88, blue: 0.77)
-    static let hal = Color(red: 0.62, green: 0.58, blue: 1.0)
-    static let alerte = Color(red: 1.0, green: 0.42, blue: 0.38)
+    static var sport: Color { categorie("sport") }
+    static var hal: Color { categorie("ia") }
+    static let alerte = Duo.alerte.couleur
     static let fond = Color(red: 0.07, green: 0.08, blue: 0.10)
 
     static func categorie(_ nom: String) -> Color {
-        switch nom {
-        case "cours": Color(red: 1.0, green: 0.54, blue: 0.40)
-        case "travail": Color(red: 0.48, green: 0.72, blue: 1.0)
-        case "sport": sport
-        case "menage": Color(red: 1.0, green: 0.82, blue: 0.40)
-        case "linge": Color(red: 0.72, green: 0.58, blue: 0.96)
-        case "chat": Color(red: 1.0, green: 0.61, blue: 0.80)
-        case "ia": hal
-        case "alerte": alerte
-        default: Color(red: 0.68, green: 0.72, blue: 0.78)
-        }
+        Duo.enregistre.nuance(nom).couleur
     }
 }
 

@@ -3731,7 +3731,7 @@ La barre d'onglets compte quatre onglets et l'orbe de HAL au milieu.
 |---|---|---|
 | THM-1 | M | Une photo de fond pour toute l'appli, choisie dans la photothèque, changeable à tout moment dans Réglages [5.2] |
 | THM-2 | T | La photo est floutée, assombrie et désaturée pour que le texte reste lisible, quelle qu'elle soit. Les trois réglages ont une valeur par défaut et se règlent au curseur |
-| THM-3 | D | Quatre combinaisons de couleurs au choix : Menthe · Lilas (par défaut), Ambre · Corail, Océan · Indigo, Neige · Ardoise. Elles changent les boutons, l'orbe, les anneaux, les cases cochées et les accents. Les textes, le verre et les couleurs des catégories ne changent pas [8.16, 8.17] |
+| THM-3 | D | Six duos de couleurs au choix, dans un dépliant : Corail · Ambre (par défaut), Rose · Prune, Forêt · Citron, Menthe · Lilas, Océan · Indigo, Neige · Ardoise. Ils changent les boutons, l'orbe, les anneaux, les cases cochées, les accents, les couleurs des catégories (des nuances du duo), les widgets et l'icône de l'appli. Les textes, le verre et l'alerte (rouge) ne changent pas [8.16, 8.17] |
 | THM-4 | M | En option, les couleurs sont déduites de la photo au lieu d'une des quatre combinaisons |
 | THM-5 | D | Le verre sert à ce qui flotte : la barre d'onglets, les boutons, l'orbe, le panneau de HAL. Les widgets sont des cartes plus opaques, pour que le contenu se lise. Trois styles de verre : widget, contrôle, orbe |
 | THM-6 | D | L'apparence est un réglage de l'appareil, pas du compte : elle ne part pas au serveur |

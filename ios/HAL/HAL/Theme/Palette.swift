@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Les couleurs fixes de l'appli : textes, verre, catégories.
-/// Elles ne changent pas avec la combinaison choisie (THM-3).
+/// Les couleurs fixes de l'appli : textes et verre.
+/// Elles ne changent pas avec la combinaison choisie, les catégories si (THM-3).
 enum Palette {
     static let textePrincipal = Color.white
     static let texteSecondaire = Color.white.opacity(0.72)
@@ -23,17 +23,19 @@ enum Categorie: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var couleur: Color {
-        switch self {
-        case .cours: Color(hex: 0xFF8A65)
-        case .travail: Color(hex: 0x7BB7FF)
-        case .sport: Color(hex: 0x5CE1C5)
-        case .menage: Color(hex: 0xFFD166)
-        case .linge: Color(hex: 0xB794F6)
-        case .chat: Color(hex: 0xFF9BCB)
-        case .ia: Color(hex: 0x9E94FF)
-        case .alerte: Color(hex: 0xFF6B61)
-        case .perso: Color(hex: 0xAEB8C8)
+    /// Une nuance du duo choisi : toute l'appli suit la couleur (THM-3).
+    var couleur: Color { Apparence.enVigueur.theme.couleur(self) }
+
+    /// TAC-25 : la couleur d'un type de tâche. Celles que le serveur donne à sa
+    /// création suivent le duo comme les familles, une couleur choisie reste.
+    static func couleurDuType(_ hexa: String) -> Color? {
+        switch hexa.uppercased() {
+        case "#FFD166": Categorie.menage.couleur
+        case "#B794F6": Categorie.linge.couleur
+        case "#6FD3F2": Categorie.travail.couleur
+        case "#FF9BCB": Categorie.chat.couleur
+        case "#AEB8C8": Categorie.perso.couleur
+        default: Color(hexa: hexa)
         }
     }
 

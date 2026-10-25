@@ -32,7 +32,7 @@ struct EcranReglages: View {
 
             EnTeteGroupe(texte: "Apparence")
             GroupeReglages {
-                lien("Fond et couleurs", "photo", Categorie.ia.couleur, valeur: apparence.combinaison.nom) { EcranFondCouleurs() }
+                lien("Fond et couleurs", "photo", Categorie.ia.couleur, valeur: apparence.couleursDeLaPhoto ? "Photo" : apparence.combinaison.nom) { EcranFondCouleurs() }
                 lien("Disposition de l'accueil", "checklist", Categorie.menage.couleur,
                      valeur: "\(disposition.places.count + 1) widgets") { EcranDisposition() }
             }
@@ -133,6 +133,10 @@ struct EcranFondCouleurs: View {
                 Spacer(minLength: 0)
             }
 
+            DepliantDuos()
+                .padding(Espace.interne)
+                .carte(rayon: Rayon.controle)
+
             VStack(spacing: 14) {
                 curseur("Flou", valeur: $apparence.flou)
                 curseur("Assombrissement", valeur: $apparence.assombrissement, bornes: 0...0.7)
@@ -144,23 +148,6 @@ struct EcranFondCouleurs: View {
                 .disabled(apparence.photo == nil)
                 Button("Réglages d'origine") { apparence.revenirAuxReglagesParDefaut() }
                     .buttonStyle(.hal(.verre))
-            }
-            .padding(Espace.interne)
-            .carte(rayon: Rayon.controle)
-
-            VStack(alignment: .leading, spacing: 14) {
-                Text("COULEURS DES BOUTONS").texte(.etiquette).foregroundStyle(Palette.texteSecondaire)
-                HStack(alignment: .top) {
-                    ForEach(Combinaison.allCases) { combinaison in
-                        PastilleTheme(combinaison: combinaison,
-                                      choisie: !apparence.couleursDeLaPhoto && apparence.combinaison == combinaison) {
-                            withAnimation(.smooth) {
-                                apparence.couleursDeLaPhoto = false
-                                apparence.combinaison = combinaison
-                            }
-                        }
-                    }
-                }
             }
             .padding(Espace.interne)
             .carte(rayon: Rayon.controle)

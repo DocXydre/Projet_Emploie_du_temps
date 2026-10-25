@@ -52,7 +52,7 @@ struct Tache: Identifiable, Hashable {
     var type: TypeTache? = nil
 
     /// La couleur du type, sinon celle de la famille.
-    var couleur: Color { type.flatMap { Color(hexa: $0.couleur) } ?? categorie.couleur }
+    var couleur: Color { type.flatMap { Categorie.couleurDuType($0.couleur) } ?? categorie.couleur }
 }
 
 /// Une absence d'un membre : ses tâches passent aux autres (ABS).

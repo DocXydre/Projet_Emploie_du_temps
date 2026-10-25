@@ -3,7 +3,7 @@ import SwiftUI
 @main
 struct HALApp: App {
     @UIApplicationDelegateAdaptor(DelegueApp.self) private var delegue
-    @State private var apparence = Apparence()
+    @State private var apparence = Apparence.enVigueur
     @State private var session: Session
     @State private var foyer: Foyer
     @State private var file: FileAttente
@@ -56,6 +56,7 @@ struct HALApp: App {
             .environment(\.theme, apparence.theme)
             .environment(\.verre, apparence.verre)
             .tint(apparence.theme.principal)
+            .onAppear { apparence.teinterFenetres() }
             .preferredColorScheme(.dark)
             .task(id: session.etat) {
                 brancher()

@@ -186,37 +186,85 @@ struct EnTeteOnglet<Boutons: View>: View {
     }
 }
 
-/// Une des quatre combinaisons, à toucher pour la choisir.
-struct PastilleTheme: View {
-    let combinaison: Combinaison
-    let choisie: Bool
-    var action: () -> Void
+/// Les deux couleurs d'un duo, moitié-moitié dans un rond.
+struct RondDuo: View {
+    let principal: Color
+    let secondaire: Color
+    var taille: CGFloat = 28
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                HStack(spacing: 0) {
-                    Rectangle().fill(combinaison.principal)
-                    Rectangle().fill(combinaison.secondaire)
-                }
-                .frame(width: 52, height: 52)
-                .clipShape(Circle())
-                .overlay {
-                    if choisie {
-                        Circle().strokeBorder(Palette.textePrincipal, lineWidth: 2).padding(-4)
-                    }
-                }
-                .padding(4)
-                Text(combinaison.nom.replacingOccurrences(of: " · ", with: "\n"))
-                    .texte(.legende)
-                    .foregroundStyle(choisie ? Palette.textePrincipal : Palette.texteSecondaire)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity)
+        HStack(spacing: 0) {
+            Rectangle().fill(principal)
+            Rectangle().fill(secondaire)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(combinaison.nom)
-        .accessibilityAddTraits(choisie ? .isSelected : [])
+        .frame(width: taille, height: taille)
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(Palette.verreBord, lineWidth: 0.5))
+    }
+}
+
+/// Le dépliant des duos (THM-3) : le duo en vigueur, qui s'ouvre sur les autres.
+struct DepliantDuos: View {
+    @Environment(Apparence.self) private var apparence
+    @State private var deplie = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(.smooth) { deplie.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    RondDuo(principal: apparence.theme.principal, secondaire: apparence.theme.secondaire, taille: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Couleur de l'appli").texte(.corps).foregroundStyle(Palette.textePrincipal)
+                        Text(apparence.couleursDeLaPhoto ? "Tirée de la photo" : apparence.combinaison.nom)
+                            .texte(.legende).foregroundStyle(Palette.texteSecondaire)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Palette.texteSecondaire)
+                        .rotationEffect(.degrees(deplie ? 180 : 0))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(apparence.couleursDeLaPhoto ? "Tirée de la photo" : apparence.combinaison.nom)
+
+            if deplie {
+                VStack(spacing: 0) {
+                    ForEach(Combinaison.allCases) { combinaison in
+                        let choisie = !apparence.couleursDeLaPhoto && apparence.combinaison == combinaison
+                        Button {
+                            withAnimation(.smooth) {
+                                apparence.couleursDeLaPhoto = false
+                                apparence.combinaison = combinaison
+                                deplie = false
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                RondDuo(principal: combinaison.principal, secondaire: combinaison.secondaire)
+                                Text(combinaison.nom).texte(.corps)
+                                    .foregroundStyle(choisie ? Palette.textePrincipal : Palette.texteSecondaire)
+                                Spacer(minLength: 0)
+                                if choisie {
+                                    Image(systemName: "checkmark").foregroundStyle(combinaison.principal)
+                                }
+                            }
+                            .padding(.vertical, 9)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(choisie ? .isSelected : [])
+                    }
+                    Text("L'icône de l'appli prend la même couleur.")
+                        .texte(.legende).foregroundStyle(Palette.texteTertiaire)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
+                }
+                .padding(.top, 10)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 }

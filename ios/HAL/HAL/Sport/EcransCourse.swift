@@ -319,8 +319,10 @@ struct DetailCourse: View {
 
     // MARK: Les zones
 
-    static let couleursZones = [Categorie.cours.couleur, Categorie.sport.couleur, Categorie.menage.couleur,
-                                Categorie.alerte.couleur, Categorie.ia.couleur]
+    static var couleursZones: [Color] {
+        [Categorie.cours.couleur, Categorie.sport.couleur, Categorie.menage.couleur,
+         Categorie.alerte.couleur, Categorie.ia.couleur]
+    }
 
     private func zonesCardiaques(_ zones: [Int]) -> some View {
         let total = Double(max(1, zones.reduce(0, +)))
