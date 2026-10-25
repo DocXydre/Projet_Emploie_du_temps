@@ -25,6 +25,22 @@ L'écran de connexion n'a alors plus de champ serveur (CNX-10) ; « Autre serveu
 
 L'équipe de signature est dans `project.yml` (`DEVELOPMENT_TEAM`) : celle du compte développeur payant, qui permet les notifications d'Apple et « Se connecter avec Apple ». Lancer sur l'iPhone. Le `.xcodeproj` n'entre pas dans le dépôt : il se régénère depuis `project.yml`. Un fichier ajouté ou retiré demande de relancer `xcodegen`.
 
+## Envoyer à TestFlight
+
+```sh
+./outils/testflight.sh
+```
+
+Le script archive l'appli, la signe pour la distribution et l'envoie sur App Store Connect, où elle apparaît dans l'onglet TestFlight de la fiche après quelques minutes. Il lui faut le certificat « Apple Distribution » dans le trousseau du Mac : le certificat gardé chez Apple casse la signature à cause du « ü » de « Kühn » (détails en tête du script).
+
+Pour qu'un push le fasse tout seul, ce Mac surveille GitHub (une fois) :
+
+```sh
+./outils/testflight_auto.sh installer
+```
+
+Toutes les cinq minutes, si ce qui est sur `main` a changé dans `ios/`, il construit dans un clone à part et envoie. Les testeurs internes reçoivent la version d'eux-mêmes ; une notification du Mac dit si l'envoi a réussi. Rien ne part tant que le Mac dort : le push est rattrapé au réveil.
+
 ## Essayer dans le simulateur, sur la fausse base
 
 Pour voir chaque écran avec des données, sans toucher à rien de réel :

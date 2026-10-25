@@ -35,6 +35,8 @@ targets:
     dependencies:
       - target: HALWidgets
         embed: true
+    # Un schéma partagé, pour archiver en ligne de commande (outils/testflight.sh).
+    scheme: {}
     settings:
       base:
         # Unique chez Apple. Si Xcode dit qu'il est déjà pris, change la fin.
@@ -55,6 +57,9 @@ targets:
         CFBundleLocalizations: [fr]
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # TestFlight : seulement du HTTPS, chiffrement exempté. Évite la question
+        # à chaque envoi.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: FondLancement
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
