@@ -14,7 +14,8 @@ donc en phrases courtes, étape par étape, à côté de ce qui était prévu :
 - les kilomètres, les zones, la dynamique de course, la FC de récupération.
 
 Le tracé GPS n'est jamais envoyé : il ne dit rien de l'entraînement, et il dit
-où l'utilisateur court.
+où l'utilisateur court. Il sert seulement, ici, à rapporter le vent au parcours :
+la météo du départ, la part face au vent et l'allure de chaque côté (MTO-8).
 """
 
 from datetime import date, datetime, timedelta
@@ -231,13 +232,26 @@ def en_clair(detail: dict, complet: bool = True) -> dict:
     return {cle: v for cle, v in rendu.items() if v not in (None, "", [])}
 
 
+def avec_la_meteo(u: int, detail: dict, rendu: dict) -> dict:
+    """MTO-8 : la météo du départ et le vent sur le parcours, s'il y a un tracé."""
+    if detail.get("id_activite") and detail.get("trace"):
+        try:
+            from api import meteo
+            ligne = meteo.en_clair_de_l_activite(meteo.de_l_activite(u, detail["id_activite"]))
+            if ligne:
+                rendu["meteo"] = ligne
+        except Exception:  # noqa: BLE001 - une course se lit aussi sans sa météo
+            pass
+    return rendu
+
+
 def course_de_la_seance(u: int, id_occurrence: int) -> dict | None:
     """La course d'une séance, si sa séance de la montre a des mesures."""
     ligne = un_seul("SELECT detail_course(%(u)s, %(o)s) AS d", {"u": u, "o": id_occurrence})
     detail = ligne and ligne["d"]
     if not detail or detail.get("discipline") != "course" or len(detail.get("courbe") or []) < 2:
         return None
-    return en_clair(detail)
+    return avec_la_meteo(u, detail, en_clair(detail))
 
 
 def courses(u: int, du: date, au: date, nombre: int, complet: bool) -> list[dict]:
@@ -254,7 +268,7 @@ def courses(u: int, du: date, au: date, nombre: int, complet: bool) -> list[dict
         ligne = un_seul("SELECT detail_activite(%(u)s, %(a)s) AS d",
                         {"u": u, "a": x["id_activite"]})
         if ligne and ligne["d"]:
-            rendu.append(en_clair(ligne["d"], complet))
+            rendu.append(avec_la_meteo(u, ligne["d"], en_clair(ligne["d"], complet)))
     return rendu
 
 

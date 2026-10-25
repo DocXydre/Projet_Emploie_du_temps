@@ -46,6 +46,10 @@
 	<string>HAL lit tes pas, ta fréquence cardiaque, ta variabilité cardiaque, ta VO2max, ton poids, ton sommeil, tes séances avec leur détail et leur tracé, pour adapter ton plan. Tout reste sur ton serveur.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>HAL n'écrit rien dans Santé.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>HAL surveille un cercle de 50 m autour de tes lieux, même appli fermée, pour savoir où tu es. Le serveur garde le lieu, jamais tes trajets.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HAL reconnaît les lieux que tu lui as donnés (le foyer, la salle, l'école) pour calculer tes trajets et savoir si tu es parti.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Le micro sert à dicter tes messages à HAL, seulement quand tu le demandes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

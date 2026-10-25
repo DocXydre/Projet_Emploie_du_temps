@@ -5,6 +5,7 @@ import Foundation
 
 /// 3.22, 3.23 : `GET /appli/seances/{id}/course`.
 struct CourseDetaillee: Decodable, Sendable {
+    let idActivite: Int?
     let type: String?
     let debut: Date
     let dureeSecondes: Int?

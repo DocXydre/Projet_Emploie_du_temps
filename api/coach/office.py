@@ -139,6 +139,15 @@ def texte(id_utilisateur: int, moment: str, id_occurrence: int | None = None) ->
                 morceaux.append(f"## {titre}\n{_json(lu)}")
         except Exception as erreur:  # noqa: BLE001 - une lecture manquée se refait par outil
             LOG.warning("Lecture d'office « %s » sautée : %s", titre, erreur)
+    if moment in ("synthese", "revision"):
+        # MTO-5 : la veille, la prévision des séances dehors de demain.
+        try:
+            from api import meteo
+            lu = meteo.texte_du_lendemain(id_utilisateur)
+            if lu:
+                morceaux.append(lu)
+        except Exception as erreur:  # noqa: BLE001 - la météo manquée se lit par outil
+            LOG.warning("Météo du lendemain sautée : %s", erreur)
     if not morceaux:
         return ""
     return ("# Données lues pour toi à l'ouverture de l'appel\n"

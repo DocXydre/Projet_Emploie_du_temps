@@ -176,8 +176,26 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
             "n'est pas claire, pose une seule question, avec deux ou trois réponses "
             "possibles. Ton message dit en une ou deux phrases ce que tu proposes et "
             "pourquoi ; les boutons pour valider s'affichent dessous.")
-    elif m == "maison":
-        lignes = [foyer.moment(demande.id_utilisateur)]
+    elif m in foyer.MOMENTS:
+        lignes = [foyer.moment(demande.id_utilisateur, m)]
+    elif m == "absent":
+        lignes.append(
+            "Tu écris de toi-même : l'utilisateur n'est pas là où sa séance devait "
+            "commencer (POS-9). Pose ta question en une ou deux phrases, avec des réponses "
+            "prêtes, sans reproche. Tu n'as ici aucun outil pour changer la séance : sa "
+            "réponse, dans la conversation, le fera (décaler l'heure, déclarer pas faite).")
+    elif m == "soiree":
+        lignes.append(
+            "Tu écris de toi-même, au réveil de l'utilisateur, après une soirée probable "
+            "(SOI-3). Ta question est courte et chaleureuse, avec des réponses prêtes. S'il "
+            "a déjà dit sa soirée dans les derniers échanges, note-la avec `noter_soiree` "
+            "au lieu de redemander. Tu ne changes aucune séance ici : sa réponse le fera.")
+    elif m == "meteo":
+        lignes.append(
+            "Tu écris de toi-même : une séance dehors commence dans l'heure, et la "
+            "prévision franchit un seuil (MTO-4). Tu proposes ; l'utilisateur a le dernier "
+            "mot. Ton message est court : ce que la météo annonce, ce que tu proposes et "
+            "pourquoi.")
     elif m == "chat":
         lignes.append(
             "L'utilisateur t'écrit. Une question : réponds-y. S'il te demande un geste de "
@@ -189,7 +207,11 @@ def _moment_du(demande: Demande, deja_ecrit: list[dict], relais: bool = False) -
             "signale une douleur, une fatigue ou un contretemps, ou s'il répond à une "
             "question que tu as posée : tu auras alors les outils pour agir. Une mesure "
             "qu'il te donne (poids, tour de bras, temps) "
-            "s'enregistre avec `noter_mesure`. N'écris jamais « c'est noté », « je vais "
+            "s'enregistre avec `noter_mesure`. Une soirée qu'il annonce ou raconte (ce "
+            "qu'il a bu, l'heure du coucher, comment il va) se note avec `noter_soiree` ; "
+            "s'il faut alors alléger ou décaler une séance, requalifie. Une adresse ou ce "
+            "qu'il fait dans un lieu se notent avec `noter_lieu` et `ecrire_memoire_lieu`. "
+            "N'écris jamais « c'est noté », « je vais "
             "proposer » ou « je déplace » sans l'avoir fait par un outil dans cet appel.")
 
     if demande.precision:

@@ -10,7 +10,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
-from api.base import executer, lister
+from api.base import executer, lister, un_seul
 from api.securite import Authentifie
 
 routeur = APIRouter(prefix="/absences", tags=["Absences"])
@@ -20,6 +20,8 @@ class DemandeAbsence(BaseModel):
     debut: datetime
     fin: datetime
     lieu: str | None = None
+    # ADR-13 : le lieu connu où l'on part, un de ceux du compte.
+    id_lieu_connu: int | None = None
     commentaire: str | None = None
     id_utilisateur: int | None = None
 
@@ -49,12 +51,25 @@ def declarer(demande: DemandeAbsence, qui: Authentifie, replacer: bool = False) 
             detail={"code": "periode_invalide", "message": "La fin doit suivre le début"},
         )
 
+    lieu = demande.lieu
+    if demande.id_lieu_connu is not None:
+        connu = un_seul(
+            "SELECT nom FROM lieux_du_compte(COALESCE(%(u)s, %(a)s)) WHERE id_lieu_connu = %(l)s",
+            {"u": demande.id_utilisateur, "a": qui.id_utilisateur, "l": demande.id_lieu_connu})
+        if connu is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "lieu_inconnu", "message": "Ce lieu n'est pas un de tes lieux"},
+            )
+        lieu = lieu or connu["nom"]
+
     creee = executer(
         """
-        INSERT INTO absence (id_utilisateur, periode, lieu, commentaire, origine)
+        INSERT INTO absence (id_utilisateur, periode, lieu, id_lieu_connu, commentaire,
+                             origine)
         VALUES (COALESCE(%(utilisateur)s, %(appelant)s),
                 tstzrange(%(debut)s, %(fin)s, '[)'),
-                %(lieu)s, %(commentaire)s, 'manuelle')
+                %(lieu)s, %(id_lieu)s, %(commentaire)s, 'manuelle')
         RETURNING id_absence, lower(periode) AS debut, upper(periode) AS fin, lieu
         """,
         {
@@ -62,7 +77,8 @@ def declarer(demande: DemandeAbsence, qui: Authentifie, replacer: bool = False) 
             "appelant": qui.id_utilisateur,
             "debut": demande.debut,
             "fin": demande.fin,
-            "lieu": demande.lieu,
+            "lieu": lieu,
+            "id_lieu": demande.id_lieu_connu,
             "commentaire": demande.commentaire,
         },
     )

@@ -5,7 +5,8 @@ décide, dans cet ordre, et s'arrête au premier qui tranche :
 
     1. le contexte : l'onglet d'où part le message, l'élément joint      (AIG-2)
     2. les mots-clés de `coach/aiguillage.json`                           (AIG-3)
-    3. un appel très court au petit modèle, qui répond d'un mot           (AIG-4)
+    3. la question que HAL vient de poser de lui-même                     (AIG-10)
+    4. un appel très court au petit modèle, qui répond d'un mot           (AIG-4)
 
 Si le petit modèle ne répond pas, l'appli demande à l'utilisateur : « Maison »
 ou « Sport ». À ne pas confondre avec `api/coach/aiguillage.py`, qui choisit
@@ -109,6 +110,27 @@ def lire_le_mot(reponse: str) -> str | None:
     return None
 
 
+# AIG-10 : les moments où HAL écrit de lui-même pour poser une question.
+MOMENTS_QUESTION = ("presence", "absent", "soiree", "meteo")
+QUESTION_VAUT_HEURES = 12
+
+
+def question_en_attente(id_utilisateur: int) -> str | None:
+    """AIG-10 : le HAL dont le dernier message est une question restée sans
+    réponse, de moins de douze heures."""
+    from api.base import un_seul
+    ligne = un_seul(
+        """SELECT auteur, moment, hal,
+                  quand > now() - make_interval(hours => %(h)s) AS recente
+             FROM echange WHERE id_utilisateur = %(u)s
+            ORDER BY id_echange DESC LIMIT 1""",
+        {"u": id_utilisateur, "h": QUESTION_VAUT_HEURES})
+    if ligne is None or ligne["auteur"] != "coach" or not ligne["recente"] \
+            or ligne["moment"] not in MOMENTS_QUESTION:
+        return None
+    return MAISON if ligne["hal"] == "foyer" else SPORT
+
+
 def par_modele(texte: str, id_utilisateur: int) -> str | None:
     """AIG-4 : le petit modèle ne reçoit que le message. Rend None s'il ne répond
     pas, ou pas d'un des trois mots."""
@@ -145,6 +167,9 @@ def choisir(texte: str, id_utilisateur: int, ecran: str | None = None,
         return Choix(onglet, "contexte")
     if selon_les_mots:
         return Choix(selon_les_mots, "mots")
+    question = question_en_attente(id_utilisateur)
+    if question:
+        return Choix(question, "question")
     hal = par_modele(texte, id_utilisateur)
     if hal:
         return Choix(hal, "modele")

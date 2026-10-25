@@ -155,8 +155,11 @@ struct EcranSport: View {
         }
         ForEach(foyer.sportDuServeur?.seancesDuJour.filter { !$0.close && $0.seance.discipline != "musculation" } ?? []) { course in
             Button { prevue = course } label: {
+                // MTO-9 : le temps à l'heure de la course, avant la consigne.
+                let consigne = course.prevu.first?.consigne ?? course.seance.consigne ?? "Le détail de la séance"
+                let meteo = foyer.complements.meteo[course.seance.idOccurrence]?.enBref
                 BandeauEtat(icone: "figure.run", titre: "\(course.titre) aujourd'hui",
-                            detail: course.prevu.first?.consigne ?? course.seance.consigne ?? "Le détail de la séance",
+                            detail: [meteo, consigne].compactMap { $0 }.joined(separator: " · "),
                             categorie: .sport)
             }
             .buttonStyle(.plain)
@@ -417,6 +420,12 @@ private struct CetteSemaine: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(titre(seance)).texte(.corpsFort).foregroundStyle(Palette.textePrincipal).lineLimit(1)
                 Text(detail(seance)).texte(.legende).foregroundStyle(Palette.texteSecondaire).lineLimit(1)
+                // MTO-9 : dehors, le temps à l'heure prévue.
+                if !faite, let meteo = foyer.complements.meteo[seance.idOccurrence] {
+                    Label(meteo.enBref, systemImage: meteo.icone).texte(.legende)
+                        .foregroundStyle(meteo.seuils.isEmpty ? Palette.texteSecondaire : Categorie.alerte.couleur)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 0)
             if faite {

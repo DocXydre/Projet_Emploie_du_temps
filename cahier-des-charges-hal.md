@@ -4,9 +4,9 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 22 octobre 2026 (migration 079 ; partie G : lots 16 et 17 construits)
+Version du 25 octobre 2026 (migration 084 ; partie H : lieux, position et météo)
 
-Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
+Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer, puis les lieux, la position et la météo. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
 ## Comment lire ce document
 
@@ -28,6 +28,7 @@ Ce document sert de base à l'écriture du code. Une règle écrite ici est une 
 - Partie E. Plan de réalisation
 - Partie F. HAL par MCP et par abonnement
 - Partie G. Le HAL du foyer
+- Partie H. Lieux, position et météo
 - Annexes
 
 ---
@@ -43,6 +44,8 @@ Tout passe par une application iPhone, HAL elle aussi, dans le style Liquid Glas
 HAL est aussi un serveur MCP : on lui parle depuis Claude Code ou tout client qui parle MCP, et il fait tourner ses appels sur l'abonnement de chacun, l'API ne servant plus qu'en secours (partie F).
 
 La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'appli, on peut le lui demander, et il le fait. On lui dit aussi les consignes particulières d'une tâche, « une fois par mois, un jour où je suis libre » : il les retient dans la mémoire de la tâche, place la tâche en conséquence, et vérifie chaque semaine et après chaque changement que c'est respecté. Le ménage peut se répartir équitablement chaque lundi (partie G).
+
+Les lieux ont une adresse et une mémoire pour HAL. L'iPhone dit dans quel lieu connu on se trouve : les trajets se calculent depuis là, HAL demande si l'on reste quand on arrive à Lusse, si l'on va à sa séance quand on n'est pas à la salle, et comment s'est passée la soirée quand on n'était pas rentré à minuit. Avant une course dehors, la météo est vérifiée ; après, HAL sait si le vent ou la chaleur ont joué (partie H).
 
 ### 0.2 Principaux choix
 
@@ -73,6 +76,10 @@ La maison a son propre HAL, commun au foyer. Tout ce que font les boutons de l'a
 | HAL du foyer | Un HAL commun pour la maison, à côté du HAL sport de chacun ; un aiguillage en Python envoie chaque message à l'un, à l'autre ou aux deux | HDF, AIG |
 | Consignes des tâches | Dites à HAL en langage libre, notées dans la mémoire de la tâche, lisibles dans son détail. HAL place selon elles et épingle ; il vérifie chaque semaine et après chaque déplacement | MTA, VER |
 | Répartition | Au choix du foyer, le lundi à 7 h : même charge en minutes × pénibilité, écart reporté, préférences dites à HAL | REP |
+| Lieux | Une adresse par lieu, dite à HAL et corrigeable dans Réglages ; une mémoire par lieu pour HAL ; les trajets calculés par le serveur, à pied, à vélo ou en voiture | ADR |
+| Position | Un cercle de 50 m autour de chaque lieu, surveillé par l'iPhone ; pas de tracé ; HAL demande au départ, au retour, quand on manque une séance ou un cours | POS |
+| Soirée | Pas chez soi à minuit : soirée probable ; HAL demande au réveil ce qu'on a bu et comment on va, et ajuste la séance | SOI |
+| Météo | Open-Meteo ; seuils fixes une heure avant une séance dehors, qui font appeler HAL ; prévision lue la veille ; vent rapporté au tracé d'une course. L'utilisateur a le dernier mot | MTO |
 
 ### 0.3 Valeurs retenues
 
@@ -355,7 +362,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | ABS-3 | T | Les tâches sans assigné fixe reviennent à la personne présente. Si les deux le sont, à celle qui porte le moins de minutes |
 | ABS-4 | T | Quand personne n'est présent sur toute la fenêtre, la tâche attend le retour au lieu d'être assignée à un absent |
 | ABS-5 | T | Une absence déclarée l'emporte sur le gel des créneaux à sept jours. Le gel protège un plan tenable, pas un plan devenu impossible |
-| ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu |
+| ABS-6 | M | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu. Avec le suivi de la position, HAL le demande en voyant qu'on est rentré, et le retour se ferme à l'heure d'arrivée au foyer (POS-8) |
 | ABS-7 | M | Un départ peut se déclarer sans date de retour. L'absence court alors jusqu'à la prochaine obligation connue |
 | ABS-8 | T | Quand l'appartement est resté vide plus de deux jours, l'eau du chat se change au retour : elle a stagné. C'est une occurrence en plus, pour le premier rentré, posée le jour du retour ou le lendemain s'il rentre après 21 heures |
 
@@ -423,7 +430,7 @@ Trois types, selon la manière dont la règle est tenue : **D** pour une règle 
 | SPT-1 | D | Une séance se fait dans un lieu, et un lieu a des heures d'ouverture. Proposer un créneau hors ouverture reviendrait à proposer une porte close |
 | SPT-2 | D | Un lieu sans aucun horaire déclaré est ouvert en permanence, dans ses bornes de bon sens. Mais « aucune plage ce jour-là » n'est pas « ouvert en permanence » |
 | SPT-3 | D | Un lieu peut être fermé sur une période entière : un SUAPS ferme l'été, aux vacances et entre deux semestres |
-| SPT-4 | T | Le créneau réservé comprend le trajet aller et retour, dont la durée dépend du jour : cinq minutes depuis la fac, vingt depuis le logement |
+| SPT-4 | T | Le créneau réservé comprend le trajet aller et retour, calculé depuis là où l'on sera ce jour-là : le lieu de l'absence, l'école un jour de cours, sinon le foyer (ADR-9). Faute d'adresse ou de calcul, les minutes saisies du lieu : cinq depuis la fac, vingt depuis le logement |
 | SPT-7 | T | Une séance qui finit après l'heure tardive d'un lieu exige un repos avant la prochaine obligation. La règle ne vise que la nuit |
 | SPT-8 | D | Chaque lieu déclare s'il faut chercher au plus tôt ou au plus tard dans le creux : la piscine n'ouvre que deux heures à midi, la salle est ouverte tout le jour |
 | SPT-8b | D | Les lieux ont un ordre de préférence : le moteur propose le premier qui tient dans la journée. Un sport qu'on ne pratique plus se met en dernier recours plutôt que d'être supprimé, ce qui garde ses horaires et son historique. La piscine y est depuis octobre |
@@ -1097,7 +1104,7 @@ Un week-end repéré, pas encore décidé (WKD-1). `annoncee_le` reste vide tant
 | configuration | JSONB | non | | | '{}' | | |
 | horaires_releves_le | TIMESTAMPTZ | oui | | | | | |
 
-Deux distances, parce qu'on ne part pas toujours du même endroit : `minutes_fac` un jour de cours, `minutes_domicile` sinon (SPT-4). `heure_min` et `heure_max` sont les bornes du bon sens, même pour un lieu ouvert jour et nuit. `duree_minutes` vide laisse la durée de la tâche (SPT-9). `url_horaires` et `configuration` désignent la page d'où les créneaux sont relevés, et `horaires_releves_le` la date du dernier relevé réussi (SPT-14, SPT-15).
+Deux distances, parce qu'on ne part pas toujours du même endroit : `minutes_fac` un jour de cours, `minutes_domicile` sinon (SPT-4). Depuis la partie H, elles ne servent qu'en secours, quand le lieu n'a pas d'adresse ou que le trajet n'est pas calculé ; le lieu gagne `id_lieu_connu` et `dehors` (section H.5). `heure_min` et `heure_max` sont les bornes du bon sens, même pour un lieu ouvert jour et nuit. `duree_minutes` vide laisse la durée de la tâche (SPT-9). `url_horaires` et `configuration` désignent la page d'où les créneaux sont relevés, et `horaires_releves_le` la date du dernier relevé réussi (SPT-14, SPT-15).
 
 #### Table : Ouverture
 
@@ -2247,7 +2254,7 @@ Le placement d'une séance dépend de son lieu : le trajet, les heures d'ouvertu
 |---|---|---|
 | LIE-1 | D | Une discipline se pratique dans un ou plusieurs lieux, propres à chaque compte et rangés par ordre de préférence : la musculation à la salle ; la course dehors, ou sur le tapis de la salle |
 | LIE-2 | T | HAL choisit le lieu de chaque séance parmi ceux de sa discipline. La base refuse un lieu qui n'en fait pas partie. Sans lieu donné, le premier du rang s'applique |
-| LIE-3 | T | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet. Les heures d'ouverture se lisent avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) |
+| LIE-3 | T | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet depuis le foyer, depuis l'école et depuis là où l'on est (ADR-10), et sa mémoire. Les heures d'ouverture se lisent avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) |
 | LIE-4 | M | L'utilisateur choisit ses lieux et leur ordre, discipline par discipline, au démarrage, et les change quand il veut. Les lieux possibles lui sont proposés : ce sont ceux que le système connaît déjà |
 | LIE-5 | M | L'utilisateur change le lieu d'une séance, proposée ou validée, sans passer par HAL. Les lieux de la discipline lui sont proposés, dans leur ordre |
 | LIE-6 | T | Aucun plan n'est construit pour une discipline sans lieu. HAL dit laquelle, au lieu de l'écarter en silence |
@@ -4146,7 +4153,7 @@ Appareil
 
 Chaque lot se termine par quelque chose qu'on peut vérifier. Rien ne part sur `main` sans avoir tourné en local d'abord : chaque push y est déployé (A.2.3).
 
-Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule, puis 12 à 15, ceux de la partie F, puis 16 à 19, ceux de la partie G.
+Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, puis 1 et 3, puis 5 à 9, puis 2 et 10, puis 11, venu après la bascule, puis 12 à 15, ceux de la partie F, puis 16 à 19, ceux de la partie G, puis 20 à 22, ceux de la partie H.
 
 | Lot | Contenu | Ce qu'on peut vérifier à la fin |
 |---|---|---|
@@ -4169,6 +4176,9 @@ Les lots gardent leur numéro, mais se réalisent dans l'ordre du tableau : 4, p
 | 17. Les gestes par HAL | Un outil par geste des boutons, pour les deux HAL ; exécution directe, « Annuler », notification de l'autre ; les clients externes gardent les demandes | Chaque geste de Maison et de Sport, demandé à HAL, donne le même résultat que le bouton ; refusé avec le même motif ; défait par « Annuler » |
 | 18. Mémoire des tâches et vérifications | Migration 078 : mémoire des tâches, file des vérifications, épingle par HAL, réglage du jour ; les moments « semaine » et « vérification » ; la ligne « HAL retient » du détail | « Trier les papiers une fois par mois quand je suis libre » est noté et placé sur une journée vide ; un cours ajouté ce jour-là fait déplacer la tâche par HAL, avec la raison ; une semaine sans tâche à mémoire ne fait aucun appel |
 | 19. Répartition de la semaine | Attributions, charges, préférences et pénibilité dites à HAL ; le calcul du lundi et ses imprévus ; l'annonce ; le bloc « Ma semaine » | Rejouée sur huit semaines réelles, l'écart n'est pas pire qu'avec PLA-12 ; une absence mercredi ne redonne que les jours qui restent ; aucune route ni aucun outil ne rend la préférence de l'autre |
+| 20. Lieux connus et trajets | Migration 084 : lieux connus, mode de chacun, mémoire des lieux, trajets calculés ; `api/lieux.py`, la Géoplateforme et OSRM ; `noter_lieu`, `ecrire_memoire_lieu`, `lire_lieux` pour les deux HAL ; SPT-4 par `trajet_minutes` ; Réglages, Lieux, « Mes adresses » | « La salle est au 15 rue Saint-Jean, j'y vais à pied » pose l'adresse et donne le trajet depuis le foyer ; un jour d'absence à Lusse, le bloc d'une séance à la piscine compte le trajet depuis Lusse ; une adresse corrigée dans Réglages refait les trajets |
+| 21. Position, questions et soirée | Présences, dernière position, questions, cours annulés, soirées ; `POST /appli/position` ; `CLMonitor` dans l'appli ; les contrôles toutes les cinq minutes ; les moments « presence », « absent », « soiree » ; AIG-10 | Une position envoyée à 40 m de la salle y met le compte ; l'arrivée à Lusse fait demander « tu y restes ? » et la réponse déclare l'absence ; une séance à 18 h, toujours au foyer à 18 h 15, fait demander « tu y vas ? » ; ailleurs à minuit, une question au réveil ; Lorette ne lit rien de tout cela |
+| 22. Météo | Prévisions et météo des courses (migration 084) ; `api/meteo.py` et Open-Meteo ; seuils d'une heure avant et moment « meteo » ; la prévision dans la synthèse ; le vent rapporté au tracé dans la lecture d'une course ; la météo sur la carte de séance et dans le détail d'une course | Une prévision de 2 mm à l'heure d'une course fait appeler HAL, qui propose un autre créneau ou le tapis ; une prévision sèche ne fait aucun appel ; une course venteuse se lit avec sa part face au vent et ses deux allures |
 
 Trois raisons fixent cet ordre :
 
@@ -4179,6 +4189,8 @@ Trois raisons fixent cet ordre :
 Pour la partie F, la lecture vient avant l'écriture : le lot 12 n'écrit rien qui ne soit déjà permis à HAL, le lot 13 change le fournisseur sans changer les outils, et les demandes n'arrivent qu'au lot 14, avec leurs accords.
 
 Pour la partie G, le HAL du foyer et l'aiguillage viennent d'abord : les gestes, la mémoire des tâches et la répartition s'appuient sur eux.
+
+Pour la partie H, les adresses viennent d'abord : la position ne sait reconnaître que des lieux qui ont des coordonnées, et la météo d'une séance se lit au point de son lieu.
 
 ### E.3 Où en est-on
 
@@ -4216,6 +4228,10 @@ Le **lot 16** est fait le même jour (migration 078, `api/aiguillage.py` et `coa
 Le **lot 17** est fait le même jour (migration 079). Un geste demandé à HAL passe par une demande essayée comme les autres (ACC-3), marquée `geste`, que le serveur accepte seul huit secondes après la réponse (`auto_le`), sauf si « Annuler », montré cinq secondes, l'a refusée ; l'ordonnanceur rattrape chaque minute un geste qu'un redémarrage aurait laissé. La raison jointe dit « demandé à HAL par … » (NOT-17). Le HAL du foyer a les gestes de la maison ; le HAL sport, dans le chat, ceux de l'onglet Sport (valider la semaine ou une séance, déplacer ou supprimer, pas faite), qui rejoignent aussi la liste des demandes des clients externes. Vérifié par vingt-deux tests du serveur (`tests/test_hal_foyer.py`) ; dans le simulateur, sur la fausse base, avec le vrai modèle, « Reporte le récurage à demain » depuis Maison a montré le geste avec « Annuler », puis « Fait » ; la demande est passée « acceptee » seule, et le journal dit « demandé à HAL par thomas ». Les écrans se rechargent quelques secondes après, quand le serveur a fait le geste. Les consignes des deux HAL changent : les scénarios du chapitre 10.5 sont à rejouer avec le vrai modèle (COA-14).
 
 Ce que le lot 16 laissait aux suivants : les gestes directs, faits au lot 17. La mémoire du foyer a sa globale et une étape par semaine, mais pas encore le roulement de la nuit (MEM-6) : les semaines passées restent lisibles, les trois dernières entrent dans la consigne.
+
+La partie H est écrite le 25 octobre 2026, et ses **lots 20 à 22** sont faits le même jour (migration 084, `api/lieux.py`, `api/position.py`, `api/meteo.py`, `api/routeurs/lieux.py`, `api/coach/outils_lieux.py` ; dans l'appli, `Position/SuiviPosition.swift`, Réglages, Lieux et position, la météo des séances dehors et la carte « Météo » d'une course). Vérifiés par vingt-six tests du serveur (`tests/test_lieux_position_meteo.py`), sans appel aux services extérieurs ; la suite entière passe. Sur la fausse base, qui a maintenant quatre lieux, une mémoire de Lusse et une soirée racontée : les trajets réels d'OSRM (la salle à 14 min à pied du foyer, à 80 min en voiture de Lusse), la prévision réelle d'Open-Meteo sur la course du jour, la météo de samedi sur la course faite. Dans le simulateur : l'écran Lieux et position, la position envoyée à l'ouverture, et, appli en arrière-plan sur un trajet simulé en voiture, le passage de « Chez nous » à « ailleurs ».
+
+Restent à vérifier : les cercles sur un vrai iPhone (le simulateur ne les surveille pas), les questions de HAL avec le vrai modèle (arrivée à Lusse, séance manquée, soirée, pluie), et les scénarios du chapitre 10.5, puisque les consignes changent (COA-14).
 
 ---
 
@@ -4779,7 +4795,7 @@ Mêmes conventions que les parties précédentes.
 
 | Code | Type | Règle |
 |---|---|---|
-| AIG-1 | T | Chaque message à HAL passe par l'aiguillage, un script Python, qui rend « maison », « sport » ou « les deux ». Il essaie dans l'ordre le contexte, les mots-clés, le petit modèle, et s'arrête au premier qui tranche |
+| AIG-1 | T | Chaque message à HAL passe par l'aiguillage, un script Python, qui rend « maison », « sport » ou « les deux ». Il essaie dans l'ordre le contexte, les mots-clés, la question en attente (AIG-10), le petit modèle, et s'arrête au premier qui tranche |
 | AIG-2 | T | Le contexte : une séance ou une semaine jointe envoie au sport, seule. L'onglet tranche aussi, Sport pour le sport, Maison pour la maison (COA-33), sauf si les mots-clés parlent de l'autre côté : « décale ma séance et la litière », écrit depuis Maison, va aux deux. Aujourd'hui et Réglages ne tranchent pas |
 | AIG-3 | T | Les mots-clés de `coach/aiguillage.json`, sans égard à la casse ni aux accents. Un côté l'emporte s'il a des mots et l'autre aucun. Des mots des deux côtés donnent « les deux » |
 | AIG-4 | T | Sans mot-clé, un appel très court au petit modèle, qui ne reçoit que le message et répond d'un mot : maison, sport, les deux, ou aucun pour un message qui ne parle ni de l'un ni de l'autre (« merci »). Aucun, un échec, ou une autre réponse font demander à l'utilisateur, par deux boutons, « Maison » ou « Sport » ; le texte repart avec son choix, sans être réécrit. Un compte qui n'a qu'un des deux HAL actif ne se le voit jamais demander : ce HAL répond |
@@ -5089,6 +5105,532 @@ Ne changent pas : le moteur de placement et ses choix, les enchaînements et les
 
 ---
 
+## Partie H. Lieux, position et météo
+
+Cette partie est nouvelle. Elle est écrite le 25 octobre 2026 avec Thomas, avant d'être construite : ses lots, 20 à 22, sont en section E.2. Les parties A à G ne changent que là où l'annexe 13 le dit.
+
+### H.1 Rappel du besoin et choix effectués
+
+#### H.1.1 Le besoin
+
+- **Des adresses, pas des noms.** On ne dit plus « la salle de sport », on donne son adresse. Le foyer a la sienne, comme la piscine, l'école ou Lusse.
+- **Le trajet depuis là où l'on est.** Le temps pour aller à une activité se calcule depuis l'endroit où l'on se trouve, et plus à partir de deux durées saisies à la main.
+- **Savoir où l'on est.** La position de l'iPhone, à 50 m près, dit si l'on est dans un lieu connu : à Lusse, je suis chez mes parents ; à l'école, j'ai cours ; à la salle, je m'entraîne. HAL doit aussi savoir quand on n'est pas là où le planning nous met.
+- **Ce qu'on peut faire dépend d'où l'on est.** À Lusse, la piscine n'est pas possible ; la course l'est toujours, et le trail aussi.
+- **Un lieu a une mémoire pour HAL.** « À Lusse, je suis chez mes parents : je me repose, je me détends, je mange de bons petits plats. »
+- **La soirée.** Si à minuit on n'est pas chez soi, c'est souvent qu'on fait la fête. Boire et se coucher tard changent la forme du lendemain : HAL doit le savoir, et le demander.
+- **La météo.** Avant une course, la pluie, le froid, le vent ou la chaleur peuvent faire préférer le tapis, une autre heure ou une autre séance. Après coup, il faut savoir si la température ou le vent de face ont joué.
+
+#### H.1.2 Choix effectués
+
+- **Un lieu connu a une adresse.** On la dit à HAL, qui la cherche et la répète dans sa réponse. Réglages, Lieux montre chaque lieu, et son adresse s'y corrige à la main si HAL s'est trompé d'endroit. Le reste, la nature du lieu, le mode de trajet, la mémoire, se dit à HAL.
+- **Les adresses se cherchent à la Géoplateforme de l'IGN**, le service public des adresses françaises, gratuit et sans clé.
+- **Les trajets se calculent sur le serveur**, avec OSRM sur les cartes OpenStreetMap, à pied, à vélo ou en voiture selon le mode de chacun pour ce lieu. Ils sont gardés en base. Les minutes saisies à la main des lieux de sport ne servent plus qu'en secours.
+- **L'iPhone surveille un cercle de 50 m autour de chaque lieu connu**, même appli fermée, et relève une position précise à chaque entrée, à chaque sortie et à chaque ouverture de l'appli. En secours, les changements de position importants d'iOS (environ 500 m) voient un départ en voiture même si un cercle a manqué son passage. Le serveur garde où l'on est et depuis quand, et la dernière position reçue. Il ne garde pas de tracé des déplacements.
+- **HAL demande, il ne décide pas.** Arrivé à Lusse, le HAL du foyer demande si l'on y reste, et déclare l'absence sur la réponse. Rentré au foyer, il demande s'il faut la clore. Absent de la salle un quart d'heure après le début d'une séance, le HAL sport demande si l'on y va. Absent de l'école pendant un cours, le HAL du foyer demande si le cours a lieu ; annulé, il libère le créneau.
+- **La soirée se repère à minuit, ou se dit.** Ni au foyer, ni dans un lieu où l'on dort, ni en voyage : soirée probable. Au réveil, vu par la montre, ou au plus tard à l'heure du bilan du matin, le HAL sport demande ce qu'on a bu, à quelle heure on s'est couché, comment on se sent. Il en tient compte pour la séance du jour, sans faire la morale.
+- **La météo vient d'Open-Meteo**, gratuit et sans clé, qui reprend les modèles de Météo-France. Une heure avant une séance dehors, le système applique des seuils fixes : pluie, gel, vent fort, canicule. Un seuil franchi fait appeler le HAL sport, qui cherche mieux, un créneau plus tard quand il ne pleut plus, le tapis, une autre séance, et le propose. La veille, à la synthèse du soir, HAL lit la prévision du lendemain et peut proposer de changer. L'utilisateur a toujours le dernier mot.
+- **Après une course**, la météo de son départ est relevée et le vent est rapporté au tracé : la part du parcours face au vent, l'allure face au vent et dos au vent. HAL la lit avec la course.
+- **Dans l'appli**, la météo s'affiche sur la carte d'une séance dehors, à l'heure prévue, et dans le détail d'une course faite.
+- **La position est à soi.** L'autre membre ne voit ni la position, ni les lieux personnels, ni les présences, ni les soirées. Il voit les absences, comme avant.
+
+---
+
+### H.2 Outils et architecture
+
+#### H.2.1 Outils ajoutés
+
+Trois services extérieurs, tous gratuits et sans clé, appelés par le serveur seul. L'appli ne parle qu'à l'API.
+
+| Service | Pour quoi | Adresse |
+|---|---|---|
+| Géoplateforme de l'IGN | Trouver les coordonnées d'une adresse | `data.geopf.fr/geocodage/search` |
+| OSRM de FOSSGIS, sur OpenStreetMap | Le temps de trajet entre deux points, à pied, à vélo, en voiture | `routing.openstreetmap.de` |
+| Open-Meteo | Les prévisions heure par heure, et la météo passée | `api.open-meteo.com`, `archive-api.open-meteo.com` |
+
+Sur l'iPhone, Core Location : la surveillance de régions de `CLLocationManager` pour les cercles autour des lieux, ses changements de position importants en secours, et `CLLocationUpdate` pour un relevé précis. `CLMonitor`, essayé d'abord, laissait chaque cercle « unmonitored » sur le simulateur d'iOS 27, faute de pouvoir les garder.
+
+| Fichier | Rôle |
+|---|---|
+| `sql/084_lieux_position_meteo.sql` | Les tables de cette partie, et les colonnes ajoutées aux tables existantes |
+| `api/lieux.py` | Les lieux connus, la recherche d'adresse, les trajets calculés (ADR) |
+| `api/position.py` | La réception des positions, les présences, les questions de HAL, la soirée (POS, SOI) |
+| `api/meteo.py` | Open-Meteo, les seuils d'une heure avant, la météo d'une course et son vent (MTO) |
+| `api/routeurs/lieux.py` | Les routes de l'appli |
+| `ios/HAL/HAL/Position/SuiviPosition.swift` | La surveillance des lieux et l'envoi des positions |
+
+#### H.2.2 Schéma d'ensemble
+
+```
+  iPhone : CLMonitor, un cercle de 50 m par lieu connu
+     │ entrée, sortie, ouverture de l'appli : un relevé précis
+     ▼
+  POST /appli/position ──► le lieu connu le plus proche, ou « ailleurs »
+                               │
+                               ▼
+                         Presence (où, depuis quand)
+                               │
+     ┌─────────────────────────┼──────────────────────────────┐
+     ▼                         ▼                              ▼
+  arrivé à Lusse,        séance ou cours commencé        minuit, ni au foyer
+  rentré au foyer        depuis 15 min, pas sur place    ni là où l'on dort
+     │                         │                              │
+     ▼                         ▼                              ▼
+  HAL du foyer :         HAL sport (séance),            Soiree « probable »
+  « tu y restes ? »      HAL du foyer (cours)           ──► au réveil, HAL sport :
+  absence déclarée       « tu y vas ? »                 « comment s'est passée
+  sur la réponse         « le cours a lieu ? »          ta soirée ? »
+
+  Séance dehors, une heure avant ──► Open-Meteo ──► un seuil franchi ?
+                                                       │ oui
+                                                       ▼
+                                          HAL sport, moment « météo » :
+                                          un autre créneau, le tapis, une autre séance
+                                          ──► ajustement, que l'utilisateur accepte ou non
+
+  Course reçue de Santé ──► Open-Meteo au départ ──► vent rapporté au tracé
+                                                      ──► lu par HAL avec la course
+```
+
+#### H.2.3 Pas à pas
+
+**Une adresse.** Thomas, à HAL : « La salle est au 15 rue Saint-Jean à Nancy, j'y vais à pied. » HAL cherche l'adresse, la pose sur le lieu de sport « Salle de musculation », règle le mode à pied pour Thomas, et répond : « C'est noté : 15 Rue Saint-Jean, 54000 Nancy, à 12 minutes à pied de chez vous. » Le serveur calcule les trajets depuis le foyer et depuis l'école. L'iPhone ajoute un cercle autour de la salle au prochain envoi.
+
+**Une mémoire de lieu.** « À Lusse je suis chez mes parents, je me repose et je mange bien. Il y a de beaux chemins pour le trail. » HAL l'écrit dans la mémoire du lieu Lusse, pour Thomas. Quand Thomas y est, ou qu'il y sera, elle est jointe à chaque appel.
+
+**Un départ.** Vendredi 18 h, Thomas entre dans le cercle de Lusse. Il n'a pas d'absence en cours. Le HAL du foyer lui écrit : « Tu es à Lusse. Tu y restes jusqu'à quand ? » avec « Jusqu'à dimanche » et « Juste ce soir ». Thomas répond « dimanche soir » : HAL déclare l'absence jusqu'à dimanche 20 h, avec Lusse pour lieu, et la répartition passe ses tâches à Lorette. Samedi, le HAL sport sait que la piscine est à 1 h 10 en voiture : il ne la propose pas, et propose un trail sur les chemins de la mémoire.
+
+**Une séance manquée.** Mardi, séance de musculation à 18 h à la salle. À 18 h 15, Thomas est encore au foyer. Le HAL sport lui écrit : « Tu n'es pas à la salle. Tu y vas plus tard ? » avec « À 19 h » et « Pas aujourd'hui ». « Pas aujourd'hui » : HAL déclare la séance pas faite, et la synthèse du soir décidera de la suite.
+
+**Une soirée.** Samedi, minuit, Thomas est en ville, ni au foyer ni à Lusse. Une soirée probable est notée. Dimanche, la montre voit la fin de sa nuit à 10 h 40 : HAL lui demande comment s'est passée la soirée. « Cinq bières, couché à 3 h, la tête un peu lourde. » HAL le note, voit 6 h de sommeil, et propose d'alléger la course de l'après-midi : « 30 minutes faciles au lieu des fractions ? ». Thomas accepte ou non.
+
+**La pluie.** Jeudi 17 h, course dehors prévue à 18 h. Open-Meteo annonce 2 mm entre 18 h et 19 h, puis plus rien. Le seuil de pluie est franchi : le HAL sport est appelé avec la prévision de la soirée. Il propose de décaler à 19 h 15, ou de faire la séance sur le tapis de la salle. Thomas choisit, ou garde la séance telle quelle.
+
+**Le vent.** La course de dimanche arrive de Santé. Il faisait 9 °C, vent d'ouest à 28 km/h ; 46 % du parcours face au vent, à 5:42 /km, contre 5:08 /km dos au vent. HAL le lit avec la course : l'allure prévue n'est pas tenue, mais le vent l'explique ; il ne baisse pas l'objectif.
+
+---
+
+### H.3 Règles de gestion
+
+Mêmes conventions que les parties précédentes.
+
+#### H.3.1 Lieux connus : `ADR`
+
+| Code | Type | Règle |
+|---|---|---|
+| ADR-1 | D | Un lieu connu a un nom, une adresse et ses coordonnées. Il est commun au foyer (le foyer lui-même, la salle, la piscine) ou personnel à un compte (Lusse, l'école). Deux lieux d'un même propriétaire ne portent pas le même nom |
+| ADR-2 | D | Chaque lieu a une nature : foyer, sport, études, travail, séjour, autre. Un lieu de séjour est un lieu où l'on dort (Lusse). Un foyer a un seul lieu de nature foyer, commun à ses membres |
+| ADR-3 | D | Un lieu a un rayon, 50 m par défaut, de 30 à 500 m. Un campus ou un parc se règle plus large, en le disant à HAL |
+| ADR-4 | T | Une adresse dite à HAL est cherchée à la Géoplateforme. HAL répète l'adresse trouvée dans sa réponse, pour qu'une erreur se voie. Une adresse introuvable ou trop vague (une ville pour une salle) est refusée avec son motif. Un lieu se pose aussi « ici », à la dernière position reçue (POS-4), avec l'adresse la plus proche |
+| ADR-5 | D | Un lieu de sport (LieuSport) peut avoir son lieu connu : la séance a lieu à son adresse. Un lieu de sport sans adresse, la course dehors, se pratique là où l'on est |
+| ADR-6 | M | Réglages, Lieux montre chaque lieu connu du compte : son nom, son adresse, sa nature, le mode de trajet et la mémoire. L'adresse s'y corrige à la main ; le reste se dit à HAL |
+| ADR-7 | D | Chaque compte a un mode de trajet par lieu : à pied, à vélo ou en voiture. Sans mode dit, à pied jusqu'à 2 km du foyer à vol d'oiseau, en voiture au-delà. Un trajet se fait dans le mode du lieu d'arrivée, sauf au-delà de 5 km à vol d'oiseau à pied ou de 20 km à vélo : en voiture. Depuis Lusse, on prend la voiture pour la salle |
+| ADR-8 | T | Le trajet entre deux lieux connus est calculé par le serveur, pour le mode de la destination, et gardé. Il se recalcule quand une adresse ou un mode change. Un calcul impossible garde l'ancien ; à défaut, une estimation à vol d'oiseau, marquée comme telle (annexe 3) |
+| ADR-9 | T | Une séance part de là où l'on sera ce jour-là : le lieu de l'absence qui couvre la journée, l'école un jour de cours, sinon le foyer. C'est ce trajet qui entre dans le bloc de la séance (SPT-4). Faute de lieu ou de calcul, les minutes saisies du lieu de sport |
+| ADR-10 | T | HAL reçoit, pour chaque lieu de ses disciplines, le trajet depuis le foyer, depuis l'école, et depuis là où l'on est. Il juge de ce qui est trop loin : la base ne fixe pas de distance au-delà de laquelle un lieu est impossible |
+| ADR-11 | D | Un lieu a une mémoire pour chaque compte : un texte libre de 1 000 caractères au plus, que HAL écrit d'après ce qu'on lui dit. Chaque écriture ajoute une version, comme la mémoire de HAL (MEM-2) |
+| ADR-12 | T | La mémoire du lieu où l'on est, et celle du lieu où l'on sera (une absence à venir dans un lieu connu), sont jointes à chaque appel des deux HAL. Les autres se lisent par outil |
+| ADR-13 | D | Une absence peut désigner un lieu connu, en plus de son nom libre. HAL le pose quand il déclare une absence dans un lieu qu'il connaît |
+
+#### H.3.2 Position : `POS`
+
+| Code | Type | Règle |
+|---|---|---|
+| POS-1 | M | Le suivi de la position se met en marche dans Réglages, Lieux, avec l'autorisation « Toujours » d'iOS et la position exacte. Sans elle, rien de cette section ni de la suivante ne s'applique, et HAL ne pose aucune question de présence |
+| POS-2 | T | L'iPhone surveille un cercle autour de chaque lieu connu du compte, vingt au plus, les plus proches du foyer d'abord. À chaque entrée, chaque sortie et chaque ouverture de l'appli, il relève une position précise et l'envoie au serveur, avec l'état de l'autorisation. Sans relevé à temps, il envoie le centre du lieu où il entre, ou le seul nom du lieu dont il sort. En secours, les changements de position importants d'iOS envoient aussi une position, si l'on a bougé de 200 m ou toutes les vingt minutes au plus |
+| POS-3 | T | Le serveur rattache la position au lieu connu dont elle est le plus près, si elle est dans son rayon, élargi de la précision du relevé jusqu'à 100 m au plus. Sinon, on est « ailleurs ». Un relevé moins précis que 200 m ne change rien |
+| POS-4 | D | Le serveur garde la présence, une ligne par passage : le lieu, ou ailleurs, et la période. Et la dernière position reçue, une seule par compte, écrasée à chaque envoi. Pas de tracé : entre deux passages, rien n'est gardé. Les présences de plus de 90 jours sont effacées |
+| POS-5 | D | La position, les présences, les lieux personnels, leur mémoire et les soirées sont au compte seul. L'autre membre ne les voit ni dans l'appli, ni par MCP, ni par le HAL du foyer quand il lui parle (HDF-3) |
+| POS-6 | T | La position est « sue » si l'autorisation est donnée et que l'appli a écrit depuis moins de 48 h. L'appli écrit à chaque ouverture et à chaque passage d'un cercle. Une position qui n'est pas sue ne fait poser aucune question |
+| POS-7 | T | Arrivé dans un lieu de séjour sans absence en cours, le HAL du foyer demande si l'on y reste, et jusqu'à quand. Il déclare l'absence sur la réponse, avec le lieu (ABS-1, ADR-13). Une seule question par arrivée |
+| POS-8 | T | Rentré au foyer avec une absence en cours, le HAL du foyer demande s'il faut la clore. Sur oui, elle se ferme à l'heure d'arrivée au foyer (ABS-6) |
+| POS-9 | T | Quinze minutes après le début d'une séance dans un lieu qui a une adresse, si l'on n'y est pas et qu'elle n'est pas commencée dans l'appli, le HAL sport demande si l'on y va. Il décale l'heure ou déclare la séance pas faite selon la réponse. Une seule question par séance |
+| POS-10 | T | Quinze minutes après le début d'un cours, si l'on n'est pas à l'école et qu'aucune absence ne couvre le moment, le HAL du foyer demande si le cours a lieu. Une seule question par demi-journée |
+| POS-11 | T | Un cours dit annulé est retiré du planning et ne revient pas à la collecte suivante : son créneau se libère pour le placement. Il se retrouve dans l'Historique |
+| POS-12 | T | Une question qui tomberait dans les heures de silence (NOT-14) attend leur fin, et n'est posée que si elle vaut encore |
+| POS-13 | T | Une question de présence est un message de HAL : elle arrive en notification, avec des réponses prêtes (ORB-9). Ne pas répondre ne change rien |
+
+#### H.3.3 Soirée : `SOI`
+
+| Code | Type | Règle |
+|---|---|---|
+| SOI-1 | T | À minuit, un compte dont la position est sue, qui n'est ni au foyer, ni dans un lieu de séjour, ni dans un train retenu, est noté en soirée probable pour la nuit qui commence |
+| SOI-2 | M | Une soirée se dit aussi à HAL, avant ou après : « je suis en soirée », « hier soir j'ai fait la fête » |
+| SOI-3 | T | Au réveil, le HAL sport demande comment s'est passée la soirée : ce qu'on a bu, l'heure du coucher, comment on se sent. Le réveil est la fin de la nuit lue dans les données de la montre ; au plus tard, l'heure du bilan du matin (NOT-15). Une seule question par soirée, et aucune si elle a déjà été racontée |
+| SOI-4 | D | Une soirée garde ce qu'on a répondu : le nombre de verres d'alcool, l'heure du coucher, le ressenti de 1 à 5, un mot libre. « Ce n'était pas une soirée » l'écarte, et HAL peut retenir pourquoi dans la mémoire du lieu |
+| SOI-5 | T | HAL lit les soirées des 14 derniers jours avec la forme. Il en tient compte pour la séance du jour et du lendemain : alléger ou décaler, par ajustement sur une séance validée ; l'utilisateur tranche. Il s'en sert aussi pour lire une séance moins bonne |
+| SOI-6 | T | HAL ne fait pas la morale : il constate et ajuste. Il ne parle des soirées qu'à leur auteur |
+
+#### H.3.4 Météo : `MTO`
+
+| Code | Type | Règle |
+|---|---|---|
+| MTO-1 | D | La météo vient d'Open-Meteo, heure par heure : température, ressenti, pluie et sa probabilité, vent moyen, rafales et direction, humidité. Une prévision relue sert une heure au contrôle d'avant séance, trois heures ailleurs |
+| MTO-2 | D | Un lieu de sport dit s'il est dehors : la course dehors l'est, la salle et la piscine ne le sont pas. Le point d'une séance dehors est l'adresse de son lieu, sinon là où l'on sera (ADR-9) |
+| MTO-3 | T | Une heure avant une séance dehors, le système relit la prévision sur la durée de la séance et applique des seuils fixes : pluie, gel, vent fort, canicule (annexe 3). Une seule fois par séance |
+| MTO-4 | T | Un seuil franchi fait appeler le HAL sport, moment « météo », avec ce qui est franchi et la prévision de la journée heure par heure. Il cherche mieux : un créneau plus tard quand il ne pleut plus, le tapis de la salle, une autre séance. Il le propose : un ajustement sur une séance validée, une nouvelle version sur une séance proposée. Rien ne change sans l'utilisateur. Aucun seuil franchi : aucun appel |
+| MTO-5 | T | À la synthèse du soir et à la révision, HAL reçoit la prévision du lendemain pour chaque séance dehors. Il peut proposer de changer, de la même façon ; l'utilisateur a le dernier mot |
+| MTO-6 | T | Une course dehors reçue de Santé, avec son tracé, a sa météo relevée une fois et gardée : celle de l'heure et du lieu de son départ |
+| MTO-7 | T | Le vent est rapporté au tracé. Sur chaque segment, l'écart entre le cap suivi et la direction d'où vient le vent dit face (moins de 45°), dos (plus de 135°) ou travers. On garde la part de la distance de chaque sorte, la composante moyenne de face en km/h, et l'allure moyenne face au vent et dos au vent. Sous 10 km/h, le vent est dit faible et n'est pas rapporté au tracé |
+| MTO-8 | T | HAL lit cette météo avec la course (SAN-17) et juge si la chaleur, le froid ou le vent expliquent un écart à l'allure prévue. Il le dit dans le bilan ou la synthèse, et ne change pas un objectif sur une course que le vent explique |
+| MTO-9 | D | L'appli montre la météo sur la carte d'une séance dehors, à l'heure prévue : température, pluie, vent. Et dans le détail d'une course faite : température, ressenti, vent, part du parcours face au vent |
+| MTO-10 | T | Sans réponse d'Open-Meteo, rien ne bloque : la séance reste ce qu'elle est, et le contrôle d'une heure avant réessaie au passage suivant, jusqu'au début de la séance |
+
+#### H.3.5 Aiguillage : règle ajoutée
+
+| Code | Type | Règle |
+|---|---|---|
+| AIG-10 | T | Une réponse à une question de HAL va au HAL qui l'a posée : si le dernier message du compte est une question d'un HAL de moins de douze heures, restée sans réponse, et que ni l'élément joint, ni l'onglet, ni les mots-clés ne tranchent. Elle passe avant le petit modèle |
+
+---
+
+### H.4 Acteurs du système
+
+| Acteur | Type | Rôle |
+|---|---|---|
+| iPhone | Programme du système | Surveille les lieux connus, relève et envoie la position |
+| Géoplateforme, OSRM, Open-Meteo | Services extérieurs | Les coordonnées d'une adresse, les trajets, la météo |
+| Ordonnanceur | Programme du système | Les contrôles de présence et de météo, toutes les cinq minutes ; la soirée à minuit |
+| HAL du foyer | Programme du système | Les questions de départ, de retour et de cours |
+| HAL sport | Programme du système | Les questions de séance et de soirée, la météo |
+| Membre | Humain | Donne ses adresses et leur mémoire, répond à HAL, a le dernier mot |
+
+### H.5 Dictionnaire de données
+
+#### Table : LieuConnu
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_lieu_connu | INTEGER | non | | oui | identité | oui | |
+| id_foyer | INTEGER | oui | renseigné pour un lieu commun | | | | Foyer |
+| id_utilisateur | INTEGER | oui | renseigné pour un lieu personnel ; l'un des deux, pas les deux | | | | Utilisateur (cascade) |
+| nom | VARCHAR(60) | non | non vide | avec le propriétaire, sans égard à la casse | | | |
+| nature | VARCHAR(10) | non | 'foyer', 'sport', 'etudes', 'travail', 'sejour', 'autre' | un seul 'foyer' par foyer | 'autre' | | |
+| adresse | VARCHAR(200) | non | l'adresse trouvée, telle que la Géoplateforme l'écrit | | | | |
+| latitude | NUMERIC(9,6) | non | entre -90 et 90 | | | | |
+| longitude | NUMERIC(9,6) | non | entre -180 et 180 | | | | |
+| rayon_m | SMALLINT | non | entre 30 et 500 | | 50 | | |
+| cree_le | TIMESTAMPTZ | non | | | now() | | |
+| modifie_le | TIMESTAMPTZ | non | | | now() | | |
+
+Un lieu de nature foyer est toujours commun ; un lieu de séjour, d'études ou de travail toujours personnel (ADR-1, ADR-2).
+
+#### Table : LieuDeChacun
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_utilisateur | INTEGER | non | | avec id_lieu_connu | | oui | Utilisateur (cascade) |
+| id_lieu_connu | INTEGER | non | | avec id_utilisateur | | oui | LieuConnu (cascade) |
+| mode_trajet | VARCHAR(8) | non | 'pied', 'velo', 'voiture' | | | | |
+
+Le mode dit par chacun (ADR-7). Sans ligne, le mode par défaut.
+
+#### Table : MemoireLieu
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_memoire_lieu | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur (cascade) |
+| id_lieu_connu | INTEGER | non | | | | | LieuConnu (cascade) |
+| texte | TEXT | non | de 0 à 1 000 caractères ; vide : effacée | | | | |
+| auteur | VARCHAR(12) | non | 'coach', 'hal_foyer', 'utilisateur' | | | | |
+| quand | TIMESTAMPTZ | non | | | now() | | |
+
+Une ligne par version (ADR-11). La mémoire en vigueur est la dernière.
+
+#### Table : TrajetCalcule
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_depart | INTEGER | non | | avec id_arrivee et mode | | oui | LieuConnu (cascade) |
+| id_arrivee | INTEGER | non | différent de id_depart | avec id_depart et mode | | oui | LieuConnu (cascade) |
+| mode | VARCHAR(8) | non | 'pied', 'velo', 'voiture' | avec id_depart et id_arrivee | | oui | |
+| minutes | SMALLINT | non | >= 0 | | | | |
+| metres | INTEGER | non | >= 0 | | | | |
+| estime | BOOLEAN | non | vrai : à vol d'oiseau, faute de calcul | | FALSE | | |
+| calcule_le | TIMESTAMPTZ | non | | | now() | | |
+
+Changer une adresse efface les trajets du lieu, qui se recalculent (ADR-8).
+
+#### Table : Presence
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_presence | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur (cascade) |
+| id_lieu_connu | INTEGER | oui | vide : ailleurs | | | | LieuConnu (mise à nul) |
+| periode | TSTZRANGE | non | non vide ; sans chevauchement pour un même utilisateur ; ouverte : en cours | | | | |
+
+Un passage dans un lieu (POS-4). La présence en cours est celle dont la période n'a pas de fin.
+
+#### Table : PositionActuelle
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_utilisateur | INTEGER | non | | oui | | oui | Utilisateur (cascade) |
+| latitude | NUMERIC(9,6) | oui | | | | | |
+| longitude | NUMERIC(9,6) | oui | | | | | |
+| precision_m | NUMERIC(7,1) | oui | >= 0 | | | | |
+| releve_le | TIMESTAMPTZ | oui | | | | | |
+| autorisation | VARCHAR(12) | non | 'toujours', 'utilisation', 'refusee', 'inconnue' | | 'inconnue' | | |
+| precise | BOOLEAN | non | la position exacte est permise | | FALSE | | |
+| ecrit_le | TIMESTAMPTZ | non | le dernier envoi de l'appli | | now() | | |
+
+Une ligne par compte, écrasée à chaque envoi (POS-4, POS-6).
+
+#### Table : QuestionPresence
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_question | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | avec nature et cle | | | Utilisateur (cascade) |
+| nature | VARCHAR(10) | non | 'sejour', 'retour', 'seance', 'cours', 'soiree', 'meteo' | avec id_utilisateur et cle | | | |
+| cle | VARCHAR(40) | non | ce sur quoi porte la question : la présence, la séance, la demi-journée, la nuit | avec id_utilisateur et nature | | | |
+| posee_le | TIMESTAMPTZ | non | | | now() | | |
+| detail | JSONB | oui | ce qui l'a déclenchée : seuils franchis, prévision | | | | |
+
+Ce qui a déjà été demandé, pour ne pas le redemander (POS-7 à POS-10, SOI-3, MTO-3).
+
+#### Table : CoursAnnule
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_source | INTEGER | non | | avec cle_externe | | oui | Source (cascade) |
+| cle_externe | VARCHAR(200) | non | | avec id_source | | oui | |
+| id_utilisateur | INTEGER | non | | | | | Utilisateur (cascade) |
+| libelle | VARCHAR(150) | non | | | | | |
+| periode | TSTZRANGE | non | | | | | |
+| annule_le | TIMESTAMPTZ | non | | | now() | | |
+
+Un cours dit annulé (POS-11). La collecte saute sa clé, comme celle d'un conflit tranché pour l'existante (COL-12).
+
+#### Table : Soiree
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_soiree | BIGINT | non | | oui | identité | oui | |
+| id_utilisateur | INTEGER | non | | avec nuit | | | Utilisateur (cascade) |
+| nuit | DATE | non | le jour où la soirée commence | avec id_utilisateur | | | |
+| origine | VARCHAR(10) | non | 'position', 'dite' | | | | |
+| statut | VARCHAR(10) | non | 'probable', 'racontee', 'ecartee' | | 'probable' | | |
+| verres | SMALLINT | oui | entre 0 et 40 | | | | |
+| couche_a | TIMESTAMPTZ | oui | | | | | |
+| ressenti | SMALLINT | oui | de 1 (au plus mal) à 5 (en forme) | | | | |
+| commentaire | TEXT | oui | 500 caractères au plus | | | | |
+| cree_le | TIMESTAMPTZ | non | | | now() | | |
+| racontee_le | TIMESTAMPTZ | oui | | | | | |
+
+SOI-1 à SOI-4. L'autre membre ne la voit pas (POS-5).
+
+#### Table : MeteoHeure
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| latitude | NUMERIC(5,2) | non | arrondie au centième, environ un kilomètre | avec longitude et heure | | oui | |
+| longitude | NUMERIC(5,2) | non | | avec latitude et heure | | oui | |
+| heure | TIMESTAMPTZ | non | le début de l'heure | avec latitude et longitude | | oui | |
+| temperature | NUMERIC(4,1) | oui | °C | | | | |
+| ressenti | NUMERIC(4,1) | oui | °C | | | | |
+| pluie_mm | NUMERIC(5,1) | oui | >= 0, sur l'heure | | | | |
+| pluie_proba | SMALLINT | oui | de 0 à 100 | | | | |
+| vent_kmh | NUMERIC(4,1) | oui | >= 0, vent moyen à 10 m | | | | |
+| rafales_kmh | NUMERIC(4,1) | oui | >= 0 | | | | |
+| direction_deg | SMALLINT | oui | de 0 à 360 : d'où vient le vent | | | | |
+| humidite | SMALLINT | oui | de 0 à 100 | | | | |
+| releve_le | TIMESTAMPTZ | non | | | now() | | |
+
+Les prévisions lues, gardées pour ne pas les redemander (MTO-1). Ce qui a plus de 48 heures est effacé.
+
+#### Table : MeteoActivite
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_activite | BIGINT | non | | oui | | oui | ActiviteSante (cascade) |
+| temperature, ressenti | NUMERIC(4,1) | oui | °C | | | | |
+| humidite | SMALLINT | oui | de 0 à 100 | | | | |
+| pluie_mm | NUMERIC(5,1) | oui | >= 0 | | | | |
+| vent_kmh, rafales_kmh | NUMERIC(4,1) | oui | >= 0 | | | | |
+| direction_deg | SMALLINT | oui | de 0 à 360 | | | | |
+| part_face, part_dos, part_travers | NUMERIC(4,3) | oui | de 0 à 1 ; vides sous 10 km/h de vent (MTO-7) | | | | |
+| composante_face_kmh | NUMERIC(4,1) | oui | positive : vent de face en moyenne | | | | |
+| allure_face_s, allure_dos_s | INTEGER | oui | secondes par kilomètre | | | | |
+| releve_le | TIMESTAMPTZ | non | | | now() | | |
+
+MTO-6, MTO-7. Elle suit l'activité : l'autre membre ne la voit pas.
+
+#### Tables existantes : ce qui change
+
+| Table | Changement | Règles |
+|---|---|---|
+| LieuSport | Colonnes `id_lieu_connu` (son adresse, vide : là où l'on est) et `dehors` (vrai pour la course) | ADR-5, MTO-2 |
+| Absence | Colonne `id_lieu_connu`, mise à nul si le lieu disparaît | ADR-13 |
+| AppelCoach, Echange | `moment` accepte 'presence', 'absent', 'soiree', 'meteo' | POS, SOI, MTO |
+
+### H.6 Contraintes d'intégrité
+
+| Code | Contrainte | Où elle est tenue |
+|---|---|---|
+| ADR-1 | Commun ou personnel, pas les deux | `CHECK ((id_foyer IS NULL) <> (id_utilisateur IS NULL))` |
+| ADR-1 | Un nom par propriétaire | Unicité sur (`id_foyer`, `lower(nom)`) et (`id_utilisateur`, `lower(nom)`) |
+| ADR-2 | Un lieu foyer par foyer, toujours commun ; séjour, études, travail toujours personnels | Unicité partielle ; `CHECK` sur la nature et le propriétaire |
+| ADR-3 | Rayon de 30 à 500 m | `CHECK` sur `lieu_connu` |
+| ADR-11 | Mémoire de 1 000 caractères au plus | `CHECK` sur `memoire_lieu` |
+| POS-4 | Une présence à la fois | Exclusion sur (`id_utilisateur`, `periode`) |
+| POS-5 | Les lieux personnels, les présences et les soirées ne sortent pas du compte | Chaque route et chaque outil filtrent sur l'appelant ; aucun outil ne prend de compte en paramètre |
+| SOI-4 | Une soirée par nuit | Unicité (`id_utilisateur`, `nuit`) |
+| POS-7 à MTO-3 | Une question par chose demandée | Unicité (`id_utilisateur`, `nature`, `cle`) sur `question_presence` |
+
+### H.7 Description des opérations
+
+#### Opération H1 : Donner une adresse
+
+| | |
+|---|---|
+| Déclencheur | Un message à HAL, ou le champ adresse de Réglages, Lieux |
+| Entrée | Le nom du lieu, l'adresse ou « ici », la nature, le mode, la mémoire |
+| Traitement | Recherche de l'adresse (ADR-4) ; le lieu est créé ou mis à jour ; ses trajets sont effacés puis recalculés depuis et vers le foyer, l'école et les lieux de sport (ADR-8) |
+| Sortie | L'adresse trouvée, répétée par HAL ; un cercle de plus sur l'iPhone |
+| Règles | ADR-1 à ADR-8, ADR-11 |
+
+#### Opération H2 : Réception d'une position
+
+| | |
+|---|---|
+| Déclencheur | L'iPhone entre dans un cercle, en sort, ou l'appli s'ouvre |
+| Entrée | Latitude, longitude, précision, instant, état de l'autorisation |
+| Traitement | La dernière position est écrasée ; le lieu est trouvé (POS-3) ; s'il change, la présence en cours se ferme et une autre s'ouvre. Une arrivée dans un lieu de séjour, ou au foyer avec une absence en cours, fait appeler le HAL du foyer (POS-7, POS-8) |
+| Sortie | Le lieu trouvé, rendu à l'appli |
+| Règles | POS-2 à POS-8, POS-12 |
+
+#### Opération H3 : Contrôles de présence
+
+| | |
+|---|---|
+| Déclencheur | Toutes les cinq minutes |
+| Entrée | Les séances et cours commencés depuis quinze minutes, les présences |
+| Traitement | Pour chacun qui n'est pas sur place, et qui n'a pas déjà eu la question, un appel : le HAL sport pour une séance (moment « absent »), le HAL du foyer pour un cours (moment « presence ») |
+| Sortie | Une question en notification, avec des réponses prêtes |
+| Règles | POS-6, POS-9 à POS-13 |
+
+#### Opération H4 : Soirée
+
+| | |
+|---|---|
+| Déclencheur | Minuit, pour la noter ; puis toutes les cinq minutes, pour demander |
+| Entrée | Les présences à minuit, les trains retenus ; puis la nuit lue dans Santé et l'heure du bilan |
+| Traitement | Soirée probable notée (SOI-1). Au réveil, ou à l'heure du bilan, le HAL sport est appelé, moment « soiree » (SOI-3). La réponse, dans la conversation, est notée avec `noter_soiree` (SOI-4) ; HAL propose un ajustement s'il le faut (SOI-5) |
+| Sortie | La question, puis la soirée racontée, et peut-être un ajustement |
+| Règles | SOI-1 à SOI-6 |
+
+#### Opération H5 : Contrôle météo d'une heure avant
+
+| | |
+|---|---|
+| Déclencheur | Toutes les cinq minutes, une séance dehors qui commence dans l'heure et n'a pas été contrôlée |
+| Entrée | Le point et l'heure de la séance ; la prévision d'Open-Meteo |
+| Traitement | Les seuils (MTO-3). Un seuil franchi : appel du HAL sport, moment « météo », avec la prévision de la journée (MTO-4). Le contrôle est noté dans tous les cas, sauf un échec d'Open-Meteo (MTO-10) |
+| Sortie | Rien, ou une proposition à accepter |
+| Règles | MTO-1 à MTO-4, MTO-10 |
+
+#### Opération H6 : Météo d'une course
+
+| | |
+|---|---|
+| Déclencheur | La première lecture d'une course dehors avec tracé : par HAL, ou par l'appli dans son détail |
+| Entrée | Le départ, l'heure, le tracé |
+| Traitement | La météo de l'heure du départ, au point de départ (prévisions passées jusqu'à 90 jours, archives au-delà) ; le vent rapporté au tracé (MTO-7) ; le tout gardé |
+| Sortie | La ligne météo de la lecture de HAL, la carte du détail de la course |
+| Règles | MTO-6 à MTO-9 |
+
+### H.8 Interfaces exposées
+
+#### H.8.1 Routes
+
+Elles passent par le funnel, derrière la clé (CNX-5).
+
+```
+Lieux
+  GET    /appli/lieux                         Mes lieux connus : communs et personnels, adresse, nature, rayon, mode, mémoire, trajets depuis le foyer
+  PATCH  /appli/lieux/{id}                    Corriger l'adresse d'un lieu (ADR-6) ; elle est cherchée avant d'être gardée
+  POST   /appli/position                      Une position : latitude, longitude, precision_m, instant, autorisation, precise ; rend le lieu trouvé
+  GET    /appli/position                      Où je suis pour le serveur, et si la position est sue (POS-6)
+
+Météo
+  GET    /appli/meteo/seances?du=&au=         La prévision à l'heure de chacune de mes séances dehors (MTO-9)
+  GET    /appli/meteo/activite/{id_activite}  La météo d'une de mes courses, relevée au besoin (MTO-6, MTO-7)
+```
+
+Il n'y a pas de route pour écrire la mémoire d'un lieu, son mode ou sa nature : ils passent par HAL.
+
+#### H.8.2 Outils de HAL
+
+| Outil | HAL | Ce qu'il fait |
+|---|---|---|
+| `lire_lieux` | les deux | Mes lieux connus, leur mémoire, les trajets, où je suis maintenant |
+| `noter_lieu` | les deux | Crée ou met à jour un lieu : nom, adresse ou « ici », nature, rayon, mode de trajet ; peut attacher l'adresse à un lieu de sport (ADR-4, ADR-5) |
+| `ecrire_memoire_lieu` | les deux | Écrit ou efface la mémoire d'un lieu (ADR-11) |
+| `noter_soiree` | sport | Note une soirée, dite ou racontée : verres, coucher, ressenti, mot libre ; ou l'écarte (SOI-2, SOI-4) |
+| `lire_meteo` | sport | La prévision heure par heure d'un jour, au point d'une séance ou d'un lieu (MTO-4, MTO-5) |
+| `annuler_cours` | foyer | Un geste : retire un cours dit annulé, qui ne revient plus (POS-11) |
+| `declarer_absence` | foyer | Le geste existant gagne `id_lieu_connu` (ADR-13) et `retour`, qui ferme l'absence en cours à l'heure donnée (POS-8) |
+
+Les outils permis selon le moment (COA-5) :
+
+| Moment | HAL | Lecture | Lieux | Ce qu'il peut faire |
+|---|---|---|---|---|
+| presence | foyer | oui | oui | Rien : il pose la question. La réponse, au moment « maison », déclare ou clôt l'absence, ou annule le cours |
+| absent | sport | oui | oui | Rien : il pose la question. La réponse, dans le chat, décale ou déclare la séance pas faite par les gestes de l'onglet Sport |
+| soiree | sport | oui | oui | Noter une soirée déjà racontée, la mémoire. La réponse, dans le chat, se note avec `noter_soiree` ; un ajustement passe par le signalement |
+| meteo | sport | oui | oui | Lire la météo, proposer une séance ou un ajustement |
+
+Le chat, le signalement, la synthèse et la révision gagnent `lire_lieux`, `noter_lieu`, `ecrire_memoire_lieu` ; le chat et le signalement gagnent `noter_soiree` ; la synthèse, la révision et le signalement gagnent `lire_meteo`. Le moment « maison » du HAL du foyer gagne les outils de lieux et `annuler_cours`.
+
+### H.9 Dans l'application
+
+| Code | Type | Règle |
+|---|---|---|
+| ADR-14 | D | Réglages, Lieux a une partie « Mes adresses » : chaque lieu connu avec son adresse, sa nature, son mode et sa mémoire (« HAL retient : … »), et un champ pour corriger l'adresse. Un toucher sur la mémoire ouvre HAL avec le lieu joint |
+| POS-14 | D | Réglages, Lieux montre l'état du suivi : en marche, autorisation à donner, ou position approximative à rendre exacte, avec le bouton qui ouvre les réglages d'iOS. Et où le serveur me croit maintenant |
+| MTO-11 | D | La carte d'une séance dehors porte une ligne météo : l'icône du temps, la température, la pluie, le vent à l'heure prévue. Le détail d'une course faite a une carte « Météo » : température et ressenti, vent et sa direction, part du parcours face au vent, allures face et dos au vent |
+
+---
+
+### H.10 Ce que la partie change dans le système existant
+
+| Élément | Avant | Après | Règles |
+|---|---|---|---|
+| Lieu de sport | Deux trajets saisis à la main, depuis le logement et depuis la fac | Une adresse ; le trajet calculé depuis là où l'on sera ; les minutes à la main en secours | SPT-4, ADR-5, ADR-9 |
+| Lieux rendus à HAL | Le trajet depuis le logement et la fac | Aussi depuis là où l'on est ; la mémoire du lieu | LIE-3, ADR-10, ADR-12 |
+| Absence | Déclarée à la main, ou par un trajet en train | Aussi demandée par HAL à l'arrivée dans un lieu de séjour ; le retour aussi | ABS-6, POS-7, POS-8 |
+| Cours | Seulement collectés | Un cours peut être dit annulé, et ne revient pas | POS-11 |
+| Aiguillage | Contexte, mots, petit modèle | Une réponse à une question va au HAL qui l'a posée | AIG-10 |
+| Ordonnanceur | | En plus : les contrôles de présence et de météo toutes les cinq minutes, la soirée à minuit, l'effacement des vieilles présences et prévisions à 0h05 | POS, SOI, MTO |
+| Lecture d'une course | Les étapes, les kilomètres, la FC | Aussi la météo et le vent rapporté au tracé | SAN-17, MTO-8 |
+
+Ne change pas : un compte sans suivi de la position, ou dont les lieux n'ont pas d'adresse, fonctionne exactement comme avant.
+
+### H.11 Risques et points ouverts
+
+| Point | Ce qui manque | Conséquence tant que ce n'est pas réglé |
+|---|---|---|
+| Précision d'iOS | iOS ne garantit pas un cercle de 50 m : les entrées et sorties peuvent arriver avec une ou deux minutes de retard, ou rater un passage très court | Le relevé précis à chaque passage corrige le lieu ; une question de séance attend quinze minutes ; une position qui n'est pas sue ne fait rien demander |
+| Batterie | La surveillance des cercles est sobre, le relevé précis l'est moins | Un relevé par passage, pas de suivi continu. À mesurer sur une semaine |
+| Services gratuits | Géoplateforme, OSRM de FOSSGIS et Open-Meteo n'ont pas d'engagement de service | Tout est gardé en base ; un service muet ne bloque rien (ADR-8, MTO-10). Un serveur OSRM à soi, si FOSSGIS change ses conditions |
+| Soirée | « Pas chez soi à minuit » se trompe : un dîner chez un ami, un concert | HAL demande au lieu de supposer, et « ce n'était pas une soirée » l'écarte. La mémoire du lieu évite de redemander pour un lieu habituel |
+| Vérifier sur un iPhone | Sur le simulateur d'iOS 27, la surveillance de régions n'est pas disponible : les cercles ne s'y vérifient pas. Les changements importants, eux, y marchent sur un trajet simulé | À vérifier sur le téléphone de Thomas pendant une semaine réelle : l'entrée dans la salle, l'arrivée à Lusse, le retour au foyer |
+| Scénarios de HAL | Les nouveaux moments changent les consignes | Les scénarios du chapitre 10.5 sont à rejouer, avec des scénarios de soirée et de météo |
+
+### H.12 Ce qui est volontairement exclu
+
+- Un tracé des déplacements, ou une carte de là où l'on est allé : seuls le lieu en cours et la dernière position sont gardés.
+- Voir où est l'autre membre.
+- Une absence déclarée sans le demander : HAL demande toujours.
+- Des trajets en transports en commun : à pied, à vélo, en voiture seulement.
+- Un changement de séance fait seul à cause de la météo : HAL propose, l'utilisateur décide.
+- La météo d'une séance en salle ou à la piscine.
+
+---
+
 ## Annexes
 
 ### Annexe 1 : règles du planning remplacées ou retirées avant octobre 2026
@@ -5161,6 +5703,22 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Pénibilité | De 1 à 3 ; 2 par défaut ; le linge, la vaisselle et le chat à 1 | Choix du projet, à revoir après un mois | REP-3 |
 | Écart reporté d'une semaine à l'autre | 120 points au plus, la semaine passée seule | Choix du projet | REP-4 |
 | Marge laissée aux préférences | 30 points | Choix du projet | REP-7 |
+| Rayon d'un lieu connu | 50 m, de 30 à 500 m | Demande de Thomas | ADR-3 |
+| Mode de trajet par défaut | À pied jusqu'à 2 km du foyer, en voiture au-delà ; un trajet de plus de 5 km à pied ou 20 km à vélo se compte en voiture | Choix de conception | ADR-7 |
+| Trajet estimé à vol d'oiseau | Distance × 1,3, à 5 km/h à pied, 15 à vélo, 50 en voiture | Choix de conception | ADR-8 |
+| Précision d'un relevé | Rayon élargi de la précision jusqu'à 100 m ; ignoré au-delà de 200 m | Choix de conception | POS-3 |
+| Position sue | Dernier envoi de moins de 48 heures | Choix de conception | POS-6 |
+| Présences gardées | 90 jours | Choix de conception | POS-4 |
+| Délai avant une question de séance ou de cours | 15 minutes après le début | Choix du projet | POS-9, POS-10 |
+| Soirée probable | Ni au foyer ni dans un lieu de séjour à minuit | Demande de Thomas | SOI-1 |
+| Soirées lues par HAL | Les 14 derniers jours | Choix de conception | SOI-5 |
+| Contrôle météo | Une heure avant une séance dehors | Demande de Thomas | MTO-3 |
+| Seuil de pluie | 0,5 mm sur une heure de la séance, ou 70 % de probabilité avec 0,2 mm | Choix du projet, à calibrer | MTO-3 |
+| Seuil de froid | Ressenti de 0 °C ou moins | Choix du projet | MTO-3 |
+| Seuil de vent | Vent moyen de 40 km/h ou rafales de 60 km/h | Choix du projet, à calibrer | MTO-3 |
+| Seuil de canicule | 30 °C ou plus | Choix du projet | MTO-3 |
+| Vent rapporté au tracé | Face sous 45°, dos au-delà de 135° ; pas sous 10 km/h | Choix de conception | MTO-7 |
+| Prévisions gardées | 48 heures ; relues après une heure avant une séance, trois ailleurs | Choix de conception | MTO-1 |
 
 ### Annexe 4 : règles de HAL remplacées ou retirées avant octobre 2026
 
@@ -5454,3 +6012,26 @@ Version du 22 octobre 2026. La partie G est écrite avant d'être construite, à
 | 0.1 et 0.2 | Le HAL du foyer, les actions par HAL, la mémoire des tâches, la répartition |
 | E.2 et E.3 | Les lots 16 à 19 |
 | Annexe 3 | Les valeurs de la partie G |
+
+### Annexe 13 : ce que change la partie H
+
+Version du 25 octobre 2026, migration 084. La partie H est écrite avec Thomas le même jour, à partir de ses réponses : la position à 50 m près, comparée aux adresses données ; HAL qui demande au lieu de déclarer seul ; les questions pour le sport et pour les cours ; la soirée, qui est sa proposition ; la météo vérifiée une heure avant par des seuils fixes qui font appeler HAL, et lue la veille par HAL, l'utilisateur gardant le dernier mot. Ses règles sont nouvelles : ADR-1 à ADR-14, POS-1 à POS-14, SOI-1 à SOI-6, MTO-1 à MTO-11, AIG-10. Quatre règles sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| SPT-4 | Le créneau réservé comprend le trajet aller et retour, dont la durée dépend du jour : cinq minutes depuis la fac, vingt depuis le logement |
+| LIE-3 | Les lieux de chaque discipline sont rendus à HAL avec le contexte, chacun avec son trajet. Les heures d'ouverture se lisent avec le planning. Le choix entre deux lieux relève du dossier (chapitre 5.3 pour le terrain de course) |
+| ABS-6 | Le retour se déclare à la main et ferme l'absence à l'instant présent : on rentre en voiture, ou plus tôt que prévu |
+| AIG-1 | Chaque message à HAL passe par l'aiguillage, un script Python, qui rend « maison », « sport » ou « les deux ». Il essaie dans l'ordre le contexte, les mots-clés, le petit modèle, et s'arrête au premier qui tranche |
+
+**Pourquoi elles changent.** Les lieux ont une adresse : le trajet se calcule au lieu d'être saisi (SPT-4, LIE-3). L'iPhone voit qu'on est rentré (ABS-6). HAL pose des questions sans qu'on lui ait écrit : la réponse doit lui revenir (AIG-1).
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| En-tête et sommaire | La partie H |
+| 0.1 et 0.2 | Les lieux, la position, la soirée, la météo |
+| A.6.5, LieuSport | Les minutes saisies ne servent plus qu'en secours |
+| E.2 | Les lots 20 à 22 |
+| Annexe 3 | Les valeurs de la partie H |

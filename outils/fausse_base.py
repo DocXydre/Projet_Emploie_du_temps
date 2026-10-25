@@ -817,6 +817,45 @@ def quotidien(t: int) -> None:
     sql("SELECT recevoir_phases_sommeil(%(u)s, %(l)s)", u=t, l=Jsonb(phases))
     dire(f"{len(lignes)} mesures du quotidien et {len(phases)} phases de sommeil")
 
+def lieux_et_position(t: int) -> None:
+    """Partie H : le foyer, la salle, l'école et Lusse, à des adresses inventées
+    mais vraisemblables, Thomas au foyer, et la soirée d'avant-hier racontée.
+    Les coordonnées sont posées sans chercher l'adresse : rien ne part vers la
+    Géoplateforme. Les trajets, eux, se calculent comme en vrai."""
+    from api import lieux
+    foyer = un("SELECT id_foyer FROM utilisateur WHERE id_utilisateur = %(u)s", u=t)
+    ids = {}
+    for cle, (proprio, nom, nature, adresse, lat, lon, rayon) in {
+        "foyer": ("f", "Chez nous", "foyer", "12 Rue des Maquettes 54000 Nancy",
+                  48.6880, 6.1760, 50),
+        "salle": ("f", "Salle de musculation", "sport", "40 Rue de la Fonte 54000 Nancy",
+                  48.6925, 6.1870, 50),
+        "ecole": ("u", "La fac", "etudes", "Boulevard des Aiguillettes 54500 Vandœuvre",
+                  48.6655, 6.1610, 300),
+        "lusse": ("u", "Lusse", "sejour", "Lusse 88490", 48.2898, 7.1141, 500),
+    }.items():
+        ids[cle] = un("""INSERT INTO lieu_connu (id_foyer, id_utilisateur, nom, nature, adresse,
+                                                 latitude, longitude, rayon_m)
+                         VALUES (%(f)s, %(u)s, %(n)s, %(na)s, %(a)s, %(la)s, %(lo)s, %(r)s)
+                         RETURNING id_lieu_connu""",
+                      f=foyer if proprio == "f" else None, u=t if proprio == "u" else None,
+                      n=nom, na=nature, a=adresse, la=lat, lo=lon, r=rayon)
+    sql("UPDATE lieu_sport SET id_lieu_connu = %(l)s WHERE code = 'SALLE'", l=ids["salle"])
+    sql("""INSERT INTO lieu_de_chacun VALUES (%(u)s, %(s)s, 'pied'), (%(u)s, %(l)s, 'voiture')""",
+        u=t, s=ids["salle"], l=ids["lusse"])
+    sql("SELECT ecrire_memoire_lieu(%(u)s, %(l)s, %(t)s, 'coach')", u=t, l=ids["lusse"],
+        t="Chez ses parents : il s'y repose, mange bien. Pas de piscine ni de salle ; "
+          "de beaux chemins pour le trail.")
+    sql("""SELECT recevoir_position(%(u)s, 48.68805, 6.17602, 12, now() - INTERVAL '3 hours',
+                                    'toujours', TRUE)""", u=t)
+    sql("""INSERT INTO soiree (id_utilisateur, nuit, origine, statut, verres, couche_a, ressenti,
+                               commentaire, racontee_le)
+           VALUES (%(u)s, %(n)s, 'position', 'racontee', 4, %(c)s, 3, 'Anniversaire', now())""",
+        u=t, n=J - timedelta(days=2), c=a(J - timedelta(days=1), 2, 30))
+    faits = lieux.completer_trajets(t)
+    dire(f"4 lieux connus, {faits} trajets, Thomas au foyer, une soirée racontée")
+
+
 def principal() -> None:
     base = configuration().postgres_db
     if base != "planif_maquette":
@@ -830,6 +869,7 @@ def principal() -> None:
     fractionne(t)
     course_strava(t)
     quotidien(t)
+    lieux_et_position(t)
     print()
     for pseudo, mdp in MOTS_DE_PASSE.items():
         print(f"  {pseudo:8} {mdp}")

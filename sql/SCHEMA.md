@@ -2,7 +2,7 @@
 
 Généré par `python -m outils.schema` depuis le catalogue de PostgreSQL, après les migrations : ne pas le modifier à la main. Chaque table montre sa clé primaire (PK) et ses clés étrangères (FK) ; une table d'un autre domaine n'apparaît que par son nom. Les liens vers `utilisateur`, que presque toutes les tables portent, ne sont dessinés que dans le premier diagramme.
 
-69 tables, 107 clés étrangères.
+80 tables, 125 clés étrangères.
 
 ## Le foyer, les comptes et leurs accès
 
@@ -71,6 +71,7 @@ erDiagram
 
 ```mermaid
 erDiagram
+    lieu_connu ||--o{ absence : "id_lieu_connu"
     occupation ||--o{ conflit : "id_occupation"
     source ||--o{ conflit : "id_source"
     absence ||--o{ courriel : "id_absence"
@@ -94,6 +95,7 @@ erDiagram
     absence {
         integer id_absence PK
         integer id_utilisateur FK
+        integer id_lieu_connu FK
     }
     allegement {
         integer id_allegement PK
@@ -220,6 +222,7 @@ erDiagram
     lieu_sport ||--o{ fermeture : "id_lieu"
     occurrence ||--o{ invitation_sport : "id_occurrence"
     occurrence ||--o{ invitation_sport : "id_occurrence_reponse"
+    lieu_connu ||--o{ lieu_sport : "id_lieu_connu"
     exercice ||--o{ mesure : "id_exercice"
     fenetre_mesure ||--o{ mesure : "id_fenetre"
     exercice ||--o{ objectif : "id_exercice"
@@ -238,6 +241,7 @@ erDiagram
     tache ||--o{ tache_lieu : "id_tache"
     lieu_sport {
         integer id_lieu PK
+        integer id_lieu_connu FK
     }
     discipline_lieu {
         integer id_utilisateur PK,FK
@@ -478,6 +482,80 @@ erDiagram
 - `note_coach`
 - `trace_coach`
 - `demande`
+
+## Les lieux, la position, la soirée et la météo
+
+```mermaid
+erDiagram
+    source ||--o{ cours_annule : "id_source"
+    foyer ||--o{ lieu_connu : "id_foyer"
+    lieu_connu ||--o{ lieu_de_chacun : "id_lieu_connu"
+    lieu_connu ||--o{ memoire_lieu : "id_lieu_connu"
+    activite_sante ||--o{ meteo_activite : "id_activite"
+    lieu_connu ||--o{ presence : "id_lieu_connu"
+    lieu_connu ||--o{ trajet_calcule : "id_arrivee"
+    lieu_connu ||--o{ trajet_calcule : "id_depart"
+    lieu_connu {
+        integer id_lieu_connu PK
+        integer id_foyer FK
+        integer id_utilisateur FK
+    }
+    lieu_de_chacun {
+        integer id_utilisateur PK,FK
+        integer id_lieu_connu PK,FK
+    }
+    memoire_lieu {
+        bigint id_memoire_lieu PK
+        integer id_utilisateur FK
+        integer id_lieu_connu FK
+    }
+    trajet_calcule {
+        integer id_depart PK,FK
+        integer id_arrivee PK,FK
+        character_varying mode PK
+    }
+    presence {
+        bigint id_presence PK
+        integer id_utilisateur FK
+        integer id_lieu_connu FK
+    }
+    position_actuelle {
+        integer id_utilisateur PK,FK
+    }
+    question_presence {
+        bigint id_question PK
+        integer id_utilisateur FK
+    }
+    cours_annule {
+        integer id_source PK,FK
+        character_varying cle_externe PK
+        integer id_utilisateur FK
+    }
+    soiree {
+        bigint id_soiree PK
+        integer id_utilisateur FK
+    }
+    meteo_heure {
+        numeric latitude PK
+        numeric longitude PK
+        timestamp_with_time_zone heure PK
+    }
+    meteo_activite {
+        bigint id_activite PK,FK
+    }
+```
+
+- `lieu_connu` : ADR-1 : un lieu nommé, avec son adresse et ses coordonnées. Commun au foyer, ou à un seul compte.
+- `lieu_de_chacun` : ADR-7 : le mode de trajet dit par chacun pour un lieu. Sans ligne, le mode par défaut.
+- `memoire_lieu` : ADR-11 : ce que HAL retient d'un lieu, pour un compte. Une ligne par version ; la dernière est en vigueur.
+- `trajet_calcule` : ADR-8 : le temps de trajet entre deux lieux connus, calculé par OSRM. estime : à vol d'oiseau, faute de calcul.
+- `presence` : POS-4 : un passage dans un lieu connu, ou ailleurs (id_lieu_connu vide). Ouverte : en cours.
+- `position_actuelle` : POS-4, POS-6 : la dernière position reçue, une par compte, écrasée à chaque envoi.
+- `question_presence` : Une question de HAL ou un contrôle déjà faits, pour ne pas les refaire. cle : la présence, la séance, la demi-journée, la nuit.
+- `cours_annule` : POS-11 : un cours dit annulé. La collecte saute sa clé, comme celle d'un conflit tranché.
+- `soiree` : SOI-1 à SOI-4 : une soirée, repérée à minuit ou dite à HAL, et ce qu'on en a raconté. Au compte seul.
+- `meteo_heure` : MTO-1 : les prévisions lues chez Open-Meteo, au centième de degré, heure par heure. Effacées après 48 heures.
+- `meteo_activite` : MTO-6, MTO-7 : la météo du départ d'une course, et le vent rapporté à son tracé.
 
 ## Le journal et l'administration du serveur
 

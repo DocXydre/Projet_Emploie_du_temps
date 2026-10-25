@@ -42,6 +42,7 @@ struct DetailCourse: View {
     var body: some View {
         VStack(spacing: Espace.gouttiere) {
             resume
+            if course.trace.count > 1, let id = course.idActivite { CarteMeteoCourse(idActivite: id) }
             if course.trace.count > 1 { carteDuParcours }
             if course.etapes.count > 1 { etapes }
             if course.courbe.count > 1 { allureEtFC }
@@ -684,5 +685,79 @@ struct EcranParcours: View {
             }
             .frame(height: 70)
         }
+    }
+}
+
+
+// MARK: - La météo de la course
+
+/// MTO-9 : la température, le vent, et la part du parcours face au vent
+/// (MTO-7). Relevée par le serveur à la première lecture, puis gardée.
+struct CarteMeteoCourse: View {
+    let idActivite: Int
+    @Environment(Foyer.self) private var foyer
+    @State private var meteo: MeteoDeCourse?
+
+    struct MeteoDeCourse: Decodable, Sendable {
+        var temperature: Double?
+        var ressenti: Double?
+        var humidite: Int?
+        var ventKmh: Double?
+        var rafalesKmh: Double?
+        var direction: String?
+        var codeTemps: Int?
+        var partFace: Double?
+        var partDos: Double?
+        var allureFaceS: Int?
+        var allureDosS: Int?
+    }
+
+    var body: some View {
+        Group {
+            if let meteo {
+                CoquilleWidget(titre: "Météo", icone: MeteoDeSeance.icone(meteo.codeTemps),
+                               couleur: Categorie.travail.couleur,
+                               droite: meteo.temperature.map { "\(Int($0.rounded()))°" }) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                            GridRow {
+                                chiffre("Ressenti", meteo.ressenti.map { "\(Int($0.rounded()))°" })
+                                chiffre("Vent", meteo.ventKmh.map { vent in
+                                    "\(Int(vent.rounded())) km/h" + (meteo.direction.map { " \($0)" } ?? "")
+                                })
+                            }
+                            if let face = meteo.partFace, let dos = meteo.partDos {
+                                GridRow {
+                                    chiffre("Face au vent", "\(Int((face * 100).rounded())) %"
+                                            + (meteo.allureFaceS.map { " · \(EnFrancais.chrono($0)) /km" } ?? ""))
+                                    chiffre("Dos au vent", "\(Int((dos * 100).rounded())) %"
+                                            + (meteo.allureDosS.map { " · \(EnFrancais.chrono($0)) /km" } ?? ""))
+                                }
+                            }
+                        }
+                        if meteo.partFace == nil, let vent = meteo.ventKmh, vent < 10 {
+                            Text("Vent faible : il n'a pas joué.").texte(.legende)
+                                .foregroundStyle(Palette.texteSecondaire)
+                        }
+                    }
+                }
+            } else {
+                // Une vue vide ne lance pas sa tâche : une place nulle, le temps de lire.
+                Color.clear.frame(height: 0)
+            }
+        }
+        .task(id: idActivite) {
+            meteo = try? await foyer.demander("GET", "appli/meteo/activite/\(idActivite)")
+        }
+    }
+
+    private func chiffre(_ titre: String, _ valeur: String?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(titre).texte(.legende).foregroundStyle(Palette.texteSecondaire)
+            Text(valeur ?? "—").texte(.corpsFort)
+                .foregroundStyle(valeur == nil ? Palette.texteTertiaire : Palette.textePrincipal)
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

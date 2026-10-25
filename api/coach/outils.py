@@ -29,15 +29,18 @@ from api.erreurs import message_lisible, refus_coach
 # ---------------------------------------------------------------------------
 
 MOMENTS = ("faisabilite", "plan", "revision", "synthese", "bilan", "signalement", "chat",
-           "changement")
+           "changement", "absent", "soiree", "meteo")
 
 FAMILLES_DU_MOMENT = {
     "faisabilite": {"lecture", "avis", "memoire"},
-    "plan":        {"lecture", "trame", "seances", "fenetre", "memoire"},
-    "revision":    {"lecture", "trame", "seances", "fenetre", "memoire", "avis_libre"},
-    "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre", "mesure"},
+    "plan":        {"lecture", "trame", "seances", "fenetre", "memoire", "lieux"},
+    "revision":    {"lecture", "trame", "seances", "fenetre", "memoire", "avis_libre",
+                    "lieux", "meteo"},
+    "synthese":    {"lecture", "seances", "fenetre", "memoire", "avis_libre", "mesure",
+                    "lieux", "meteo"},
     "bilan":       {"lecture", "seances", "memoire", "avis_libre", "mesure"},
-    "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure", "demandes"},
+    "signalement": {"lecture", "seances", "memoire", "avis_libre", "mesure", "demandes",
+                    "lieux", "soiree", "meteo"},
     # COA-32 : une demande de changement. HAL propose ou dépose un ajustement ;
     # rien ne s'applique sans le bouton de l'utilisateur.
     "changement":  {"lecture", "seances", "memoire", "demandes"},
@@ -45,7 +48,14 @@ FAMILLES_DU_MOMENT = {
     # S'il lit un signalement dans le texte, il le requalifie (COA-25). Il fait les
     # gestes de l'onglet Sport qu'on lui demande (ACT-1) ; la maison est au HAL du
     # foyer (AIG).
-    "chat":        {"lecture", "memoire", "requalification", "mesure", "gestes_sport"},
+    "chat":        {"lecture", "memoire", "requalification", "mesure", "gestes_sport",
+                    "lieux", "soiree"},
+    # Partie H : les questions que HAL pose de lui-même. Il demande ; c'est la
+    # réponse de l'utilisateur, dans le chat, qui fait changer quelque chose.
+    "absent":      {"lecture", "memoire", "lieux"},
+    "soiree":      {"lecture", "memoire", "lieux", "soiree"},
+    # MTO-4 : il propose, l'utilisateur tranche.
+    "meteo":       {"lecture", "memoire", "lieux", "meteo", "seances"},
 }
 
 # PAU-2 : en pause, ces familles sont fermées pour tous les moments.
@@ -917,7 +927,9 @@ def tous_les_outils() -> tuple[Outil, ...]:
     """Ceux du coach, et les demandes (ACC). Importées ici : `api.demandes` appelle
     les routes, qui importent ce module."""
     from api import demandes
-    return (*OUTILS, *demandes.OUTILS, *demandes.OUTILS_GESTES_SPORT)
+    from api.coach import outils_lieux
+    return (*OUTILS, *demandes.OUTILS, *demandes.OUTILS_GESTES_SPORT,
+            *outils_lieux.outils_sport())
 
 
 def catalogue_avec(permis: list[Outil]) -> dict[str, Outil]:

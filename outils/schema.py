@@ -47,6 +47,10 @@ DOMAINES: dict[str, tuple[str, list[str]]] = {
     "hal": ("HAL : appels au modèle, mémoire, demandes", [
         "demarrage_coach", "appel_coach", "echange", "memoire_coach", "memoire_foyer",
         "note_coach", "trace_coach", "demande"]),
+    "lieux": ("Les lieux, la position, la soirée et la météo", [
+        "lieu_connu", "lieu_de_chacun", "memoire_lieu", "trajet_calcule", "presence",
+        "position_actuelle", "question_presence", "cours_annule", "soiree", "meteo_heure",
+        "meteo_activite"]),
     "journal": ("Le journal et l'administration du serveur", [
         "evenement", "curseur", "alerte_admin", "erreur_recente"]),
 }

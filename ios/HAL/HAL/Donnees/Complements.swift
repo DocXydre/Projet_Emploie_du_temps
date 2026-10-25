@@ -64,6 +64,55 @@ struct Complements: Sendable {
     var joursDeSante = 30
     var progression: [SemaineDExercice] = []
     var mesures: [MesureSaisie] = []
+    /// MTO-9 : la prévision à l'heure de chaque séance dehors, par séance.
+    var meteo: [Int: MeteoDeSeance] = [:]
+}
+
+/// MTO-9 : `GET /appli/meteo/seances`, une séance dehors à son heure.
+struct MeteoDeSeance: Decodable, Sendable, Hashable {
+    struct Heure: Decodable, Sendable, Hashable {
+        var temperature: Double?
+        var ressenti: Double?
+        var pluieMm: Double?
+        var pluieProba: Int?
+        var ventKmh: Double?
+        var direction: String?
+        var codeTemps: Int?
+    }
+
+    var idOccurrence: Int
+    var point: String?
+    var aLHeure: Heure
+    var seuils: [String]
+
+    /// « 12° · 0,4 mm · vent 18 km/h O »
+    var enBref: String {
+        var morceaux: [String] = []
+        if let t = aLHeure.temperature { morceaux.append("\(Int(t.rounded()))°") }
+        if let pluie = aLHeure.pluieMm, pluie >= 0.1 {
+            morceaux.append(pluie.formatted(.number.precision(.fractionLength(1))
+                .locale(Locale(identifier: "fr_FR"))) + " mm")
+        }
+        if let vent = aLHeure.ventKmh { morceaux.append("vent \(Int(vent.rounded())) km/h") }
+        return morceaux.joined(separator: " · ")
+    }
+
+    /// L'icône du temps, d'après le code WMO.
+    var icone: String { MeteoDeSeance.icone(aLHeure.codeTemps) }
+
+    static func icone(_ code: Int?) -> String {
+        switch code ?? 0 {
+        case 0, 1: "sun.max"
+        case 2: "cloud.sun"
+        case 3: "cloud"
+        case 45, 48: "cloud.fog"
+        case 51...57: "cloud.drizzle"
+        case 61...67, 80...82: "cloud.rain"
+        case 71...77, 85, 86: "cloud.snow"
+        case 95...99: "cloud.bolt.rain"
+        default: "cloud"
+        }
+    }
 }
 
 extension Foyer {
@@ -86,6 +135,7 @@ extension Foyer {
         async let sante: HistoriqueSante? = try? client.requete("GET", "appli/sante?jours=\(jours)")
         async let progression: [SemaineDExercice]? = try? client.requete("GET", "appli/progression")
         async let mesures: [MesureSaisie]? = try? client.requete("GET", "appli/mesures")
+        async let meteo: [MeteoDeSeance]? = try? client.requete("GET", "appli/meteo/seances")
 
         if let lu = await planning { complements.planning = lu }
         if let lu = await trains { complements.trains = lu }
@@ -94,6 +144,9 @@ extension Foyer {
         if let lu = await sante { complements.sante = lu }
         if let lu = await progression { complements.progression = lu }
         if let lu = await mesures { complements.mesures = lu }
+        if let lu = await meteo {
+            complements.meteo = Dictionary(lu.map { ($0.idOccurrence, $0) }, uniquingKeysWith: { a, _ in a })
+        }
     }
 
     /// 3.1 : la période de l'évolution, 7, 30 ou 90 jours.

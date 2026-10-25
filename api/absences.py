@@ -42,14 +42,15 @@ def partir(id_utilisateur: int, lieu: str | None = None) -> dict | None:
     )
 
 
-def rentrer(id_utilisateur: int) -> dict | None:
-    """« Je suis rentré ». Ferme l'absence en cours à l'instant présent.
+def rentrer(id_utilisateur: int, instant: datetime | None = None) -> dict | None:
+    """« Je suis rentré ». Ferme l'absence en cours à l'instant présent, ou à
+    l'heure d'arrivée au foyer que l'iPhone a vue (POS-8).
 
     Rend None si aucune absence n'était en cours : ce n'est pas une erreur,
     seulement une nouvelle à annoncer autrement.
     """
-    ligne = un_seul("SELECT terminer_absence(%(u)s) AS id_absence",
-                    {"u": id_utilisateur})
+    ligne = un_seul("SELECT terminer_absence(%(u)s, COALESCE(%(i)s, now())) AS id_absence",
+                    {"u": id_utilisateur, "i": instant})
     if ligne is None or ligne["id_absence"] is None:
         return None
 

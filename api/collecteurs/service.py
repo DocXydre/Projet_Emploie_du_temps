@@ -123,6 +123,10 @@ def reconcilier(id_source: int, id_utilisateur: int, seances: list[Seance],
             {"s": id_source},
         )
         ecartees = {ligne["cle_externe"] for ligne in cur.fetchall()}
+        # POS-11 : un cours dit annulé ne revient pas, comme un conflit tranché.
+        cur.execute("SELECT cle_externe FROM cours_annule WHERE id_source = %(s)s",
+                    {"s": id_source})
+        ecartees |= {ligne["cle_externe"] for ligne in cur.fetchall()}
 
         for seance in seances:
             if seance.cle_externe in ecartees:

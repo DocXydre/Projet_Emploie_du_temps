@@ -52,6 +52,8 @@ struct EcranReglages: View {
                 lien("Profil sportif", "person", Categorie.sport.couleur) { EcranProfilSportif() }
                 lien("Limitations", "exclamationmark.circle", Categorie.alerte.couleur) { EcranLimitations() }
                 lien("Lieux de sport", "mappin", Categorie.sport.couleur) { EcranLieux() }
+                lien("Lieux et position", "location", Categorie.perso.couleur,
+                     valeur: SuiviPosition.partage.enMarche ? nil : "À activer") { EcranAdresses() }
                 LigneReglage(icone: "drop", couleur: Categorie.sport.couleur, libelle: "Gourde Yanga",
                              accessoire: .interrupteur($yanga),
                              sousTitre: "Une recharge toutes les 20 min")

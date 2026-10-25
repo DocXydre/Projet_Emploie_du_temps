@@ -20,6 +20,9 @@ struct HALApp: App {
         // Déjà connecté : le foyer part du cache du serveur dès la première
         // image, sans passer par les données fictives le temps du branchement.
         if let client = session.client { foyer.brancher(client) }
+        // POS-2 : réveillée par un passage de cercle, l'appli reprend la
+        // surveillance ici, avant toute vue.
+        SuiviPosition.partage.client = session.client
         _session = State(initialValue: session)
         _foyer = State(initialValue: foyer)
         _file = State(initialValue: FileAttente(expediteur: ExpediteurFictif(foyer: foyer)))
@@ -70,6 +73,8 @@ struct HALApp: App {
                     await lireSante()
                     // Un accord donné ou retiré dans les réglages d'iOS.
                     await delegue.notifications.relire()
+                    // POS-6 : un relevé et un signe de vie à chaque ouverture.
+                    await SuiviPosition.partage.demarrer()
                 }
             }
             // 5.18 : la page d'un lien d'invitation ouvre l'appli sur « Rejoindre ».
@@ -123,6 +128,7 @@ struct HALApp: App {
             sante.client = client
             conversation.client = client
             delegue.notifications.client = client
+            SuiviPosition.partage.client = client
             let foyerBranche = foyer
             conversation.apresAction = { await foyerBranche.charger() }
             Task { await lireSante() }
@@ -136,6 +142,7 @@ struct HALApp: App {
             sante.client = nil
             conversation.client = nil
             delegue.notifications.client = nil
+            SuiviPosition.partage.client = nil
             conversation.apresAction = nil
             file.expediteur = ExpediteurFictif(foyer: foyer)
             file.apresEnvoi = nil

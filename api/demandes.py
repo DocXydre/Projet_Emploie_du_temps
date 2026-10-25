@@ -176,18 +176,25 @@ class PFaite(BaseModel):
 
 
 class PAbsence(BaseModel):
-    """Déclarer une absence (debut, fin), ou en annuler une des siennes (id_absence)."""
+    """Déclarer une absence (debut, fin), en annuler une des siennes (id_absence),
+    ou fermer celle en cours à l'heure du retour (retour)."""
     debut: datetime | None = None
     fin: datetime | None = None
     lieu: str | None = Field(default=None, max_length=100)
+    id_lieu_connu: int | None = Field(default=None,
+                                      description="Le lieu connu où l'on part (ADR-13)")
     commentaire: str | None = Field(default=None, max_length=200)
     id_absence: int | None = Field(default=None, description="Donné : l'absence à annuler")
+    retour: datetime | None = Field(
+        default=None, description="Donné : ferme l'absence en cours à cette heure, celle du "
+                                  "retour au foyer (ABS-6, POS-8)")
 
     @model_validator(mode="after")
     def _un_des_deux(self):
-        if self.id_absence is None and (self.debut is None or self.fin is None):
-            raise ValueError("Une absence se déclare avec debut et fin, "
-                             "ou s'annule avec id_absence")
+        if self.id_absence is None and self.retour is None \
+                and (self.debut is None or self.fin is None):
+            raise ValueError("Une absence se déclare avec debut et fin, s'annule avec "
+                             "id_absence, ou se ferme avec retour")
         return self
 
 
@@ -277,6 +284,14 @@ def _faire_faite(qui: Appelant, p: PFaite, essai: bool):
 
 def _faire_absence(qui: Appelant, p: PAbsence, essai: bool):
     from api.routeurs.absences import DemandeAbsence, annuler, declarer
+    if p.retour is not None:
+        from api import absences, ordonnanceur
+        ferme = absences.rentrer(qui.id_utilisateur, p.retour)
+        if ferme is None:
+            raise DemandeImpossible("aucune_absence", "Aucune absence en cours à cette heure-là")
+        if not essai:
+            ordonnanceur.placer()
+        return ferme
     if p.id_absence is not None:
         # Une demande n'annule que ses propres absences.
         if un_seul("SELECT 1 AS ok FROM absence WHERE id_absence = %(a)s "
@@ -285,6 +300,7 @@ def _faire_absence(qui: Appelant, p: PAbsence, essai: bool):
             raise DemandeImpossible("introuvable", "Cette absence n'est pas la tienne")
         return annuler(p.id_absence, qui, replacer=not essai)
     return declarer(DemandeAbsence(debut=p.debut, fin=p.fin, lieu=p.lieu,
+                                   id_lieu_connu=p.id_lieu_connu,
                                    commentaire=p.commentaire), qui, replacer=not essai)
 
 
@@ -436,6 +452,8 @@ def _resumer_absence(u: int, p: PAbsence) -> str:
         ligne = un_seul("SELECT lower(periode) AS debut, lieu FROM absence "
                         "WHERE id_absence = %(a)s", {"a": p.id_absence})
         return "Annuler l'absence" + (f" du {_instant(ligne['debut'])}" if ligne else "")
+    if p.retour is not None:
+        return f"Rentré {_instant(p.retour)}"
     return (f"Absent du {_instant(p.debut)} au {_instant(p.fin)}"
             + (f", à {p.lieu}" if p.lieu else ""))
 
@@ -546,8 +564,10 @@ ACTIONS: dict[str, Action] = {a.nom: a for a in (
            "Demande de déclarer une tâche faite, prévue ou non (code_tache, quand).",
            PFaite, _faire_faite, _resumer_faite),
     Action("absence", "demander_absence",
-           "Demande de déclarer une absence de l'utilisateur (debut, fin, lieu), ou d'en "
-           "annuler une (id_absence). Une absence gèle son ménage.",
+           "Demande de déclarer une absence de l'utilisateur (debut, fin, lieu, "
+           "id_lieu_connu s'il part dans un lieu connu), d'en annuler une (id_absence), ou "
+           "de fermer celle en cours à l'heure de son retour (retour). Une absence gèle son "
+           "ménage.",
            PAbsence, _faire_absence, _resumer_absence,
            lambda p: p.debut),
     Action("occupation", "demander_occupation",

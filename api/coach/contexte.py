@@ -1,7 +1,8 @@
 """Ce que le coach sait de l'utilisateur à chaque appel   (COA-3, LIE-3, OBJ-12)
 
 Le profil, les limitations avec leur fiche, les lieux de
-chaque discipline, les objectifs, la feuille de route, la trame du plan, le
+chaque discipline, les lieux connus et où l'on est, les soirées récentes, les
+objectifs, la feuille de route, la trame du plan, le
 rôle de chaque semaine, la pause, la mémoire en quatre étages (MEM-1). Tout le
 reste se lit par un outil.
 
@@ -67,12 +68,35 @@ def fiches_completes(id_utilisateur: int) -> str | None:
 def lieux(id_utilisateur: int) -> list[dict]:
     return lister(
         """SELECT dl.discipline, dl.rang, l.id_lieu, l.libelle,
-                  l.minutes_domicile, l.minutes_fac,
+                  l.minutes_domicile, l.minutes_fac, l.dehors, lc.nom AS lieu_connu,
                   to_char(l.heure_min, 'HH24:MI') AS ouvre,
                   to_char(l.heure_max, 'HH24:MI') AS ferme
              FROM discipline_lieu dl JOIN lieu_sport l ON l.id_lieu = dl.id_lieu
+             LEFT JOIN lieu_connu lc ON lc.id_lieu_connu = l.id_lieu_connu
             WHERE dl.id_utilisateur = %(u)s
             ORDER BY dl.discipline, dl.rang""", {"u": id_utilisateur})
+
+
+def soirees(id_utilisateur: int) -> str:
+    """SOI-5 : les soirées des quatorze derniers jours, pour lire la forme."""
+    lignes = lister(
+        """SELECT nuit, statut, origine, verres, couche_a, ressenti, commentaire
+             FROM soiree WHERE id_utilisateur = %(u)s AND nuit >= jour_de(now()) - 14
+              AND statut <> 'ecartee'
+            ORDER BY nuit""", {"u": id_utilisateur})
+    if not lignes:
+        return "## Soirées des 14 derniers jours\nAucune."
+    rendu = ["## Soirées des 14 derniers jours (SOI-5)"]
+    for s in lignes:
+        if s["statut"] == "probable":
+            rendu.append(f"- {clair(s['nuit'])} : probable, pas encore racontée")
+            continue
+        details = sans_vides({"verres d'alcool": s["verres"],
+                              "couché à": clair(s["couche_a"]) if s["couche_a"] else None,
+                              "ressenti (1 à 5)": s["ressenti"], "mot": s["commentaire"]})
+        rendu.append(f"- {clair(s['nuit'])} : "
+                     + ", ".join(f"{k} {v}" for k, v in details.items()))
+    return "\n".join(rendu)
 
 
 def objectifs(id_utilisateur: int, statut: str | None = None) -> list[dict]:
@@ -190,13 +214,27 @@ def texte(id_utilisateur: int) -> str:
     if not ls:
         morceaux.append("Aucun lieu choisi (LIE-6 : aucun plan pour une discipline sans lieu).")
     for lieu in ls:
+        # SPT-4, ADR-9 : sans adresse, les minutes saisies ; avec, le trajet calculé
+        # depuis là où l'on sera, donné plus bas avec les lieux connus.
+        trajet = (f"adresse : {lieu['lieu_connu']}" if lieu["lieu_connu"] else
+                  "là où l'on est" if lieu["dehors"] else
+                  f"{lieu['minutes_domicile']} min du domicile, "
+                  f"{lieu['minutes_fac']} min de la fac")
         morceaux.append(
             f"- {lieu['discipline']}, rang {lieu['rang']} : {lieu['libelle']} "
-            f"(id_lieu {lieu['id_lieu']}, {lieu['minutes_domicile']} min du domicile, "
-            f"{lieu['minutes_fac']} min de la fac, ouvert de {lieu['ouvre']} à {lieu['ferme']})")
+            f"(id_lieu {lieu['id_lieu']}, {trajet}"
+            f"{', dehors' if lieu['dehors'] else ''}, "
+            f"ouvert de {lieu['ouvre']} à {lieu['ferme']})")
     sans = sorted({"musculation", "course", "cardio"} - {lieu["discipline"] for lieu in ls})
     if ls and sans:
         morceaux.append(f"Disciplines sans lieu : {', '.join(sans)}.")
+
+    # ADR-10, ADR-12 : les lieux connus, leurs trajets, où l'on est.
+    from api import lieux as lieux_connus
+    morceaux.append("")
+    morceaux.append(lieux_connus.texte_pour_hal(id_utilisateur, "sport").replace(
+        "# Lieux et position", "## Lieux connus et position"))
+    morceaux.append(soirees(id_utilisateur))
 
     morceaux.append("## Objectifs")
     objs = [o for o in objectifs(id_utilisateur) if o["statut"] in ("actif", "en_pause")]

@@ -43,6 +43,7 @@ from api.routeurs.fournisseurs import routeur as routeur_des_fournisseurs
 from api.routeurs.foyer import routeur as routeur_du_foyer
 from api.routeurs.hal_foyer import routeur as routeur_du_hal_du_foyer
 from api.routeurs.journal import routeur as routeur_du_journal
+from api.routeurs.lieux import routeur as routeur_des_lieux
 from api.routeurs.moi import routeur as routeur_de_moi
 from api.routeurs.types_taches import routeur as routeur_des_types_de_taches
 from api.securite import CONTENUS, Abonne, Appelant, Authentifie
@@ -125,6 +126,7 @@ app.include_router(routeur_de_connexion)
 app.include_router(routeur_du_foyer)
 app.include_router(routeur_de_moi)
 app.include_router(routeur_de_l_appli)
+app.include_router(routeur_des_lieux)
 app.include_router(routeur_des_calendriers)
 app.include_router(routeur_des_clients_mcp)
 app.include_router(routeur_des_fournisseurs)

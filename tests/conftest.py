@@ -224,6 +224,11 @@ def table_rase(base):
         conn.execute("UPDATE utilisateur SET id_foyer = NULL")
         # HDF-4 : la mémoire du foyer part avec lui.
         conn.execute("DELETE FROM memoire_foyer")
+        # Partie H : les lieux connus, avec leurs mémoires et leurs trajets, puis
+        # ce que la position, les soirées et la météo ont laissé.
+        for table in ("presence", "position_actuelle", "question_presence", "cours_annule",
+                      "soiree", "meteo_heure", "lieu_connu"):
+            conn.execute(f"DELETE FROM {table}")
         conn.execute("DELETE FROM foyer")
         conn.execute("DELETE FROM source WHERE id_utilisateur IN ("
                      " SELECT id_utilisateur FROM utilisateur"

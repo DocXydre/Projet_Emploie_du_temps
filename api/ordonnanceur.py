@@ -13,7 +13,10 @@
     06h55               coach : rattrapage de la synthèse si elle a échoué
     toutes les 10 min   coach : ajustements restés sans réponse au début d'une séance
     toutes les 5 min    surveillance du serveur, alertes à l'administrateur (ADM-2)
-    00h05               report d'office de ce qui n'a pas été fait
+    toutes les 5 min    questions de présence et contrôle météo (POS, SOI-3, MTO-3)
+    00h00               soirées probables (SOI-1)
+    00h05               report d'office de ce qui n'a pas été fait ; présences et
+                        prévisions périmées, trajets manquants (POS-4, ADR-8)
 
 Les heures ci-dessus sont des heures de Paris. Le conteneur, lui, vit en UTC :
 tous les horodatages en base sont ainsi comparables, quelle que soit la saison.
@@ -253,6 +256,28 @@ def surveillance() -> list[str]:
     return administration.surveiller()
 
 
+def presence_et_meteo() -> dict:
+    """Toutes les cinq minutes : les questions de HAL sur où l'on est (POS, SOI-3),
+    puis le contrôle météo d'une heure avant (MTO-3)."""
+    from api import position
+    bilan: dict = {}
+    try:
+        bilan.update(position.controles_de_presence())
+    except Exception:
+        LOG.exception("Échec des contrôles de présence")
+    try:
+        bilan["meteo"] = position.controles_meteo()
+    except Exception:
+        LOG.exception("Échec du contrôle météo")
+    return bilan
+
+
+def soirees_de_minuit() -> int:
+    """SOI-1 : qui n'est ni au foyer ni là où il dort, à minuit."""
+    from api import position
+    return position.reperer_les_soirees()
+
+
 def report_de_minuit() -> dict:
     """Reporte, abandonne ou alerte, selon le retard de chaque occurrence.
 
@@ -278,6 +303,16 @@ def report_de_minuit() -> dict:
     if purges:
         LOG.info("Journal : %s événement(s) purgé(s)", purges)
     bilan["journal_purge"] = purges
+
+    # POS-4, MTO-1 : les présences et les prévisions ne se gardent pas.
+    bilan["presences_purgees"] = (executer("SELECT purger_les_presences() AS nombre")
+                                  or {}).get("nombre", 0)
+    # ADR-8 : un trajet estimé faute de réponse se recalcule.
+    try:
+        from api import lieux
+        bilan["trajets"] = lieux.completer_trajets()
+    except Exception:
+        LOG.exception("Échec du calcul des trajets")
 
     # ACC-8 : les demandes restées sans réponse expirent.
     bilan["demandes_expirees"] = (executer("SELECT expirer_demandes() AS nombre")
@@ -445,6 +480,13 @@ def demarrer() -> BackgroundScheduler:
     ordonnanceur.add_job(surveillance, IntervalTrigger(minutes=5),
                          id="surveillance", name="Surveillance du serveur",
                          max_instances=1, coalesce=True)
+    # POS, SOI-3, MTO-3 : au quart d'heure près pour une séance manquée, à
+    # l'heure près pour la météo.
+    ordonnanceur.add_job(presence_et_meteo, CronTrigger(minute="*/5", timezone=conf.fuseau),
+                         id="presence", name="Présence et météo",
+                         max_instances=1, coalesce=True)
+    ordonnanceur.add_job(soirees_de_minuit, a(0, 0),
+                         id="soirees", name="Soirées de minuit", coalesce=True)
     ordonnanceur.add_job(report_de_minuit, a(0, 5),
                          id="report", name="Report d'office", coalesce=True)
 

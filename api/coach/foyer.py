@@ -6,8 +6,10 @@ le HAL du foyer a en propre :
     sa consigne              coach/consigne_foyer.md, sans le dossier sportif
     son contexte             qui écrit, les membres, la mémoire du foyer
     sa mémoire               celle du foyer, commune aux membres         (HDF-4)
-    ses outils               la lecture de la maison, les demandes, sa mémoire
-    son moment               « maison », la conversation
+    ses outils               la lecture de la maison, les demandes, sa mémoire,
+                             les lieux et les cours annulés (partie H)
+    ses moments              « maison », la conversation ; « presence », les
+                             questions qu'il pose de lui-même (POS-7, POS-8, POS-10)
 
 HDF-3 : de l'autre membre, il ne lit que ce qu'il faut pour la maison. Les
 outils de lecture qu'il reprend le font déjà (COA-15, MCP-11).
@@ -21,7 +23,7 @@ from api.base import executer, lister, un_seul
 from api.coach.clair import aujourd_hui, jour_en_clair, lundi_de, maintenant
 from api.coach.outils import Outil, RefusOutil, _objet
 
-MOMENTS = ("maison",)
+MOMENTS = ("maison", "presence")
 
 CONSIGNE = Path(__file__).resolve().parent.parent.parent / "coach" / "consigne_foyer.md"
 
@@ -125,7 +127,10 @@ def texte_contexte(id_utilisateur: int) -> str:
     lignes.append("Les autres membres : " + (", ".join(autres) if autres else "aucun."))
     if moi and moi["administrateur"]:
         lignes.append(f"{moi['nom']} administre le foyer.")
-    return "\n".join(lignes) + "\n\n" + texte_memoire(id_foyer)
+    # ADR-12, POS-5 : les lieux et la présence de celui qui écrit, de lui seul.
+    from api import lieux
+    return ("\n".join(lignes) + "\n\n" + texte_memoire(id_foyer) + "\n\n"
+            + lieux.texte_pour_hal(id_utilisateur, "foyer"))
 
 
 def origine_et_acteur(moment_: str) -> tuple[str, str]:
@@ -135,8 +140,16 @@ def origine_et_acteur(moment_: str) -> tuple[str, str]:
     return f"coach : {moment_}", "coach"
 
 
-def moment(id_utilisateur: int) -> str:
+def moment(id_utilisateur: int, moment_: str = "maison") -> str:
     jour = maintenant()
+    if moment_ == "presence":
+        return "\n\n".join([
+            "# Moment : presence",
+            f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
+            "Tu écris de toi-même : l'iPhone dit où est ce membre, et quelque chose "
+            "demande sa confirmation. Pose la question qui suit, en une ou deux phrases, "
+            "avec des réponses prêtes. Tu ne changes rien maintenant : sa réponse, dans la "
+            "conversation, fera le geste."])
     return "\n\n".join([
         "# Moment : maison",
         f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
@@ -187,6 +200,23 @@ OUTILS_PROPRES: tuple[Outil, ...] = (
           _objet({"ligne": {"type": "string"}}, ["ligne"]), ajouter_memoire_foyer),
 )
 
+
+def annuler_cours(u: int, a: dict) -> object:
+    """POS-11 : un cours dit annulé ne revient plus, et libère son créneau."""
+    from api import ordonnanceur
+    ligne = executer("SELECT annuler_cours(%(u)s, %(o)s) AS c",
+                     {"u": u, "o": a.get("id_occupation")})
+    replacees = ordonnanceur.placer()
+    return {"fait": "cours annulé", "cours": ligne["c"], "occurrences_replacees": replacees}
+
+
+OUTIL_ANNULER_COURS = Outil(
+    "annuler_cours", "gestes",
+    "Retire du planning un cours que l'utilisateur dit annulé (id_occupation) : il ne "
+    "reviendra pas à la collecte suivante, et son créneau se libère. À n'utiliser que "
+    "s'il te le dit dans ce message.",
+    _objet({"id_occupation": {"type": "integer"}}, ["id_occupation"]), annuler_cours)
+
 # Ce que le HAL du foyer lit : la maison, et le planning de celui qui écrit.
 LECTURES = ("lire_aujourdhui", "lire_taches", "lire_occurrences", "lire_absences",
             "lire_conflits", "lire_planning")
@@ -198,9 +228,15 @@ def outils_du_moment(moment_: str) -> list[Outil]:
     from api.serveur_mcp import catalogue
     if moment_ not in MOMENTS:
         raise ValueError(f"Moment inconnu pour le HAL du foyer : {moment_}")
+    from api.coach import outils_lieux
     lectures = [catalogue.EXTERNE[nom] for nom in LECTURES]
+    lieux = list(outils_lieux.outils("hal_foyer"))
+    if moment_ == "presence":
+        # Il demande ; la réponse, au moment « maison », fera le geste.
+        return [*lectures, *lieux]
     # ACT-1 : les gestes de la maison, faits à la demande de celui qui écrit.
-    return [*lectures, *demandes.OUTILS_GESTES_MAISON, *OUTILS_PROPRES]
+    return [*lectures, *demandes.OUTILS_GESTES_MAISON, OUTIL_ANNULER_COURS,
+            *OUTILS_PROPRES, *lieux]
 
 
 def office(id_utilisateur: int) -> str:
