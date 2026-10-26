@@ -189,7 +189,9 @@ def lire_planning(u: int, a: dict) -> object:
             "absences": [{"periode": clair(x["periode"]), "lieu": x["lieu"]} for x in absences],
             "note": "Les créneaux « tache » sont du ménage encore mobile : une séance "
                     "passe avant, il se replace autour. Seuls les cours, le travail et ce "
-                    "qui est annoncé bloquent vraiment."}
+                    "qui est annoncé bloquent vraiment. Une absence dit où l'on est, elle "
+                    "n'empêche pas le sport : la course dehors se fait partout, un lieu "
+                    "avec adresse seulement à moins de 15 km du lieu de l'absence."}
 
 
 COLONNES_SEANCE = """id_occurrence, jour, debut, lieu, id_lieu, situation, auteur, libre, annoncee,

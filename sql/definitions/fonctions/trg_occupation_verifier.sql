@@ -4,6 +4,10 @@
 -- Un cours ajouté samedi : la tâche que HAL y avait mise, épinglée, ne bouge
 -- pas toute seule ; elle entre dans la file, et HAL la relit. Par ligne, mais
 -- sans rien lire quand aucune tâche n'est décrite.
+--
+-- La relève des calendriers réécrit chaque cours à chaque passage, à
+-- l'identique : seul un créneau qui change vraiment de place ou de personne
+-- compte. Sans cela, chaque relève faisait appeler HAL.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_occupation_verifier() RETURNS TRIGGER
 LANGUAGE plpgsql AS $$
@@ -13,6 +17,10 @@ DECLARE
     o         RECORD;
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM description_tache) THEN
+        RETURN NULL;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.periode = NEW.periode
+       AND OLD.id_utilisateur = NEW.id_utilisateur THEN
         RETURN NULL;
     END IF;
     FOREACH v_periode IN ARRAY ARRAY[CASE WHEN TG_OP <> 'INSERT' THEN OLD.periode END,

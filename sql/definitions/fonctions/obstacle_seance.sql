@@ -1,5 +1,5 @@
 -- -----------------------------------------------------------------------------
--- Ce qui empêche une séance                    (PLN-5, SPT-19, SPT-34, SPT-37)
+-- Ce qui empêche une séance                    (PLN-5, SPT-19, SPT-34, SPT-37, SPT-38)
 --
 -- Rend la raison, ou NULL si rien n'empêche. Une seule fonction pour toutes
 -- les séances : celles de HAL, la séance libre, la séance posée à la main et
@@ -9,6 +9,8 @@
 --
 --   Stricte, pour une proposition ou un ajustement du coach : le bloc entier
 --   est libre, le lieu est ouvert, le repos est suffisant.
+--
+--   Un jour d'absence, seul un lieu qu'on peut rejoindre de là-bas (SPT-38).
 --
 --   Souple, pour un geste de l'utilisateur : seuls un cours, un service ou ce
 --   qui est déjà annoncé interdisent. On sait parfois mieux que HAL (SPT-17),
@@ -48,8 +50,9 @@ BEGIN
         RETURN 'Ce moment est déjà passé';
     END IF;
 
-    IF est_absent(p_utilisateur, v_jour) THEN
-        RETURN 'Tu es absent ce jour-là';
+    -- SPT-38 : absent, on s'entraîne là où l'on est.
+    IF NOT lieu_de_sport_possible(p_utilisateur, p_lieu, p_debut) THEN
+        RETURN 'Tu es absent ce jour-là, loin de ce lieu : la course dehors reste possible';
     END IF;
 
     -- SPT-37 : deux séances par jour au plus, de disciplines différentes.

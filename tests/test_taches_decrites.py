@@ -346,13 +346,46 @@ def test_une_absence_fait_relire_chaque_tache_decrite(base):
     assert _tache("Passer l'aspirateur") not in taches
 
 
-def test_le_placement_signale_ce_qu_il_cree_d_une_tache_decrite(base):
+def test_le_placement_ne_remplit_pas_la_file(base):
+    # Le moteur replace chaque matin et après chaque geste : la semaine relit tout.
     hotte = _nouvelle()
     _decrire(hotte, "Jamais le mardi.")
+    sql("DELETE FROM verification_tache")
     placer()
-    assert any(ligne["raison"] == "creee" for ligne in _en_attente()
-               if ligne["id_occurrence"] in {x["id_occurrence"] for x in sql(
-                   "SELECT id_occurrence FROM occurrence WHERE id_tache = %s", hotte)})
+    assert _en_attente() == []
+
+
+def test_une_releve_a_l_identique_ne_fait_rien_relire(base):
+    hotte = _nouvelle()
+    _decrire(hotte, "Un jour où Thomas est complètement libre.")
+    pose = un("SELECT placer_par_hal(NULL, %s, %s, NULL, %s, 'ta seule journée vide')",
+              hotte, minuit(5).date(), _id("thomas"))
+    sql("INSERT INTO occupation (id_utilisateur, id_source, type, libelle, periode) "
+        "SELECT %s, id_source, 'cours', 'Cours ajouté', tstzrange(%s, %s, '[)') "
+        "  FROM source ORDER BY id_source LIMIT 1",
+        _id("thomas"), minuit(5).replace(hour=10), minuit(5).replace(hour=12))
+    sql("DELETE FROM verification_tache")
+
+    # La relève réécrit le cours tel quel : rien n'a bougé.
+    sql("UPDATE occupation SET periode = periode, libelle = 'Cours ajouté (salle B)' "
+        "WHERE libelle = 'Cours ajouté'")
+    assert _en_attente() == []
+
+    sql("UPDATE occupation SET periode = tstzrange(%s, %s, '[)') "
+        "WHERE libelle = 'Cours ajouté (salle B)'",
+        minuit(5).replace(hour=14), minuit(5).replace(hour=16))
+    assert {"id_occurrence": pose, "id_tache": None, "raison": "occupation"} in _en_attente()
+
+
+def test_ce_qui_s_ecrit_pendant_un_appel_de_hal_n_entre_pas_dans_la_file(base):
+    # La vérification de la semaine ne doit pas en appeler d'autres derrière elle.
+    sql("DELETE FROM verification_tache")
+    with psycopg.connect(_url_de_test()) as conn:
+        conn.execute("SELECT set_config('planif.acteur', 'hal_foyer', TRUE)")
+        conn.execute("INSERT INTO absence (id_utilisateur, periode, lieu, origine) "
+                     "VALUES (%s, tstzrange(%s, %s, '[)'), 'Lusse', 'manuelle')",
+                     (_id("thomas"), minuit(4), minuit(6)))
+    assert _en_attente() == []
 
 
 # ---------------------------------------------------------------------------

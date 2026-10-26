@@ -18,8 +18,6 @@ DECLARE
     v_gele    TIMESTAMPTZ;
     v_assigne INTEGER;
     v_lieu    INTEGER;
-    -- VER-3 : où étaient les occurrences des tâches décrites avant ce placement.
-    v_avant   JSONB;
 BEGIN
     PERFORM generer_occurrences(p_horizon_jours);
 
@@ -32,13 +30,6 @@ BEGIN
     -- ne bouge plus. Un planning qui change tous les matins ne sert à rien :
     -- on ne peut pas s'organiser autour de quelque chose qui se dérobe.
     v_gele := now() + make_interval(days => p_stabilite_jours);
-
-    SELECT COALESCE(jsonb_object_agg(av.id_occurrence, COALESCE(av.creneau::TEXT, '')), '{}')
-      INTO v_avant
-      FROM occurrence av
-     WHERE av.statut IN ('a_placer', 'planifiee', 'notifiee')
-       AND EXISTS (SELECT 1 FROM description_tache d WHERE d.id_tache = av.id_tache)
-       AND tache_decrite(av.id_tache);
 
     -- VER-2 : ce que HAL a épinglé un jour où la personne n'est pas là redevient
     -- au moteur, qui le replace ; HAL le relira.
@@ -151,23 +142,10 @@ BEGIN
     -- placement, puisqu'il faut savoir où tombe la tâche qui mène.
     PERFORM poser_les_accompagnements();
 
-    -- VER-3 : ce que ce placement a créé, déplacé ou laissé à placer, pour une
-    -- tâche décrite, entre dans la file. Ce qui n'a pas bougé n'y entre pas, ni
-    -- ce qui tombe au-delà des sept jours qui viennent : le moteur repose ces
-    -- prévisions chaque matin, et la vérification de la semaine les relit
-    -- toutes (VER-5). Sans cette borne, chaque placement ferait appeler HAL.
-    PERFORM noter_verification(o2.id_occurrence, NULL,
-                               CASE WHEN COALESCE(v_avant ->> o2.id_occurrence::TEXT, '') = ''
-                                         AND o2.creneau IS NOT NULL THEN 'creee'
-                                    WHEN o2.creneau IS NULL THEN 'a_placer'
-                                    ELSE 'deplacee' END)
-       FROM occurrence o2
-      WHERE o2.statut IN ('a_placer', 'planifiee', 'notifiee')
-        AND upper(o2.fenetre) > now()
-        AND lower(COALESCE(o2.creneau, o2.fenetre)) < v_gele
-        AND tache_decrite(o2.id_tache)
-        AND (NOT (v_avant ? o2.id_occurrence::TEXT)
-             OR (v_avant ->> o2.id_occurrence::TEXT) IS DISTINCT FROM COALESCE(o2.creneau::TEXT, ''));
+    -- VER-3 : ce que le moteur crée ou déplace n'entre pas dans la file des
+    -- vérifications. Il replace après chaque geste et chaque matin : la file
+    -- appelait HAL à chaque fois, même derrière la vérification de la semaine,
+    -- qui relit tout (VER-5). Seul un changement de l'emploi du temps la remplit.
 
     RETURN v_places;
 END $$;

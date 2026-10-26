@@ -131,6 +131,54 @@ def test_sans_adresse_les_minutes_saisies_restent(u):  # noqa: F811
         un("SELECT minutes_domicile FROM lieu_sport WHERE code = 'SALLE'")
 
 
+# ---------------------------------------------------------------------------
+# SPT-38 : une absence dit où l'on est, elle n'empêche pas le sport
+# ---------------------------------------------------------------------------
+
+def _absent_a(compte: int, id_lieu_connu: int | None) -> None:
+    """Absent du lendemain à dans six jours."""
+    sql("INSERT INTO absence (id_utilisateur, periode, lieu, id_lieu_connu) "
+        "VALUES (%s, tstzrange(debut_jour(jour_de(now()) + 1), debut_jour(jour_de(now()) + 6)), "
+        "'Lusse', %s)", compte, id_lieu_connu)
+
+
+def _obstacle(compte: int, code: str, dans_jours: int = 3) -> str | None:
+    return un("SELECT obstacle_seance(%s, %s, debut_jour(jour_de(now()) + %s) "
+              "+ INTERVAL '10 hours', 45, NULL, NULL, FALSE)", compte, lieu(code), dans_jours)
+
+
+def test_absent_a_lusse_on_court_mais_la_salle_est_trop_loin(u):  # noqa: F811
+    ids = adresses(u)
+    _absent_a(u, ids["lusse"])
+    assert _obstacle(u, "COURSE") is None
+    assert _obstacle(u, "SALLE").startswith("Tu es absent ce jour-là, loin de ce lieu")
+    # Rentré, la salle redevient possible.
+    assert _obstacle(u, "SALLE", dans_jours=7) is None
+
+
+def test_absent_pres_de_la_salle_on_peut_y_aller(u):  # noqa: F811
+    ids = adresses(u)
+    # L'école est à moins de 15 km de la salle.
+    _absent_a(u, ids["ecole"])
+    assert _obstacle(u, "SALLE") is None
+
+
+def test_une_absence_sans_lieu_connu_laisse_la_course(u):  # noqa: F811
+    adresses(u)
+    _absent_a(u, None)
+    assert _obstacle(u, "COURSE") is None
+    assert _obstacle(u, "SALLE") is not None
+
+
+def test_une_absence_garde_les_courses_proposees(u, plan):  # noqa: F811
+    course = proposer(u, dans=3, discipline="course", exercices=None, duree=30)
+    salle = proposer(u, dans=4)
+    _absent_a(u, None)
+    restantes = {r["id_occurrence"] for r in sql(
+        "SELECT id_occurrence FROM occurrence WHERE id_occurrence IN (%s, %s)", course, salle)}
+    assert restantes == {course}
+
+
 def test_une_commune_ne_suffit_pas_pour_une_salle(u):  # noqa: F811
     with pytest.raises(lieux.AdresseIntrouvable, match="commune entière"):
         lieux.noter_lieu(u, adresse="ville", id_lieu_sport=lieu("SALLE"))
@@ -151,6 +199,25 @@ def test_corriger_l_adresse_refait_les_trajets(client, thomas, u):  # noqa: F811
                          json={"adresse": "nulle part"})
     assert refus.status_code == 422
     assert refus.json()["code"] == "adresse_introuvable"
+
+
+def test_un_lieu_se_modifie_dans_les_reglages(client, thomas, u):  # noqa: F811
+    ids = adresses(u)
+    reponse = client.patch(f"/appli/lieux/{ids['lusse']}", headers=thomas,
+                           json={"nom": "Chez mes parents", "nature": "autre",
+                                 "description": "Je m'y repose le week-end."})
+    assert reponse.status_code == 200, reponse.text
+    lu = reponse.json()
+    assert (lu["nom"], lu["nature"], lu["description"]) == \
+        ("Chez mes parents", "autre", "Je m'y repose le week-end.")
+    assert lu["adresse"] == ADRESSES["lusse"]["adresse"]
+    # Une description vide l'efface.
+    vide = client.patch(f"/appli/lieux/{ids['lusse']}", headers=thomas, json={"description": ""})
+    assert vide.json()["description"] == ""
+    # La salle reste un lieu de sport, le foyer reste le foyer.
+    for lieu in ("salle", "foyer"):
+        assert client.patch(f"/appli/lieux/{ids[lieu]}", headers=thomas,
+                            json={"nature": "sejour"}).status_code == 400
 
 
 def test_l_autre_ne_voit_ni_mes_lieux_ni_ma_position(client, thomas, lorette, u):  # noqa: F811

@@ -4,14 +4,18 @@
 -- Une occurrence d'une tâche décrite, ou la tâche entière. Une seule ligne en
 -- attente par occurrence et par tâche : la file dit ce qui est à relire, pas
 -- combien de fois. Ce que HAL vient de faire lui-même n'y entre pas : il le
--- signale à la transaction par `planif.par_hal`.
+-- signale à la transaction par `planif.par_hal`. Rien non plus de tout ce qui
+-- s'écrit pendant un appel à HAL, l'un ou l'autre, replacement du moteur
+-- compris : la vérification de la semaine ne doit pas en appeler d'autres
+-- derrière elle.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION noter_verification(p_occurrence INTEGER, p_tache INTEGER, p_raison TEXT)
 RETURNS VOID LANGUAGE plpgsql AS $$
 DECLARE
     v_tache INTEGER := p_tache;
 BEGIN
-    IF current_setting('planif.par_hal', TRUE) = '1' THEN
+    IF current_setting('planif.par_hal', TRUE) = '1'
+       OR current_setting('planif.acteur', TRUE) IN ('hal_foyer', 'coach') THEN
         RETURN;
     END IF;
     IF p_occurrence IS NOT NULL THEN

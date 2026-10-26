@@ -2,13 +2,14 @@ import SwiftUI
 
 // Réglages, Lieux et position (ADR-14, POS-14) : où le suivi en est, et chaque
 // lieu connu avec son adresse, sa nature, son mode et sa description, celle que
-// HAL lit pour choisir le lieu d'une séance. Seule l'adresse se corrige ici
-// (ADR-6) ; le reste se dit à HAL.
+// HAL lit pour choisir le lieu d'une séance. Chaque adresse s'ouvre dans une
+// fiche, avec les champs du démarrage (DEM-7), et s'y modifie ; on en ajoute
+// d'autres au même endroit (ADR-6).
 
 struct EcranAdresses: View {
     @Environment(\.openURL) private var ouvrir
     @State private var suivi = SuiviPosition.partage
-    @State private var aCorriger: SuiviPosition.Lieu?
+    @State private var fiche: FicheAdresse.Sujet?
     @State private var charge = false
 
     var body: some View {
@@ -38,25 +39,41 @@ struct EcranAdresses: View {
                 if !charge {
                     ProgressView().frame(maxWidth: .infinity)
                 } else if suivi.lieux.isEmpty {
-                    Text("Aucune adresse. Dis-les à HAL : « ma salle est au 15 rue…, ouverte 24 h sur 24 », « à Lusse je suis chez mes parents ».")
+                    Text("Aucune adresse pour l'instant. Commence par ton foyer : c'est de lui que partent les trajets.")
                         .texte(.corps).foregroundStyle(Palette.texteSecondaire)
                 }
                 ForEach(suivi.lieux) { lieu in
-                    Button { aCorriger = lieu } label: { LigneLieu(lieu: lieu) }
+                    Button { fiche = .modifier(lieu) } label: { LigneLieu(lieu: lieu) }
                         .buttonStyle(.plain)
                 }
             } header: {
                 Text("Mes adresses")
             } footer: {
-                Text("Chaque lieu de sport vaut pour toutes tes séances : HAL choisit d'après sa description. Pour la changer, dis-le à HAL.")
+                Text("Chaque lieu de sport vaut pour toutes tes séances : HAL choisit d'après sa description. Touche une adresse pour la modifier.")
+            }
+
+            if charge {
+                Section {
+                    if !suivi.lieux.contains(where: { $0.nature == "foyer" }) {
+                        Button("Ajouter l'adresse du foyer", systemImage: "house") {
+                            fiche = .ajouter("foyer")
+                        }
+                    }
+                    Button("Ajouter un lieu de sport", systemImage: "dumbbell") {
+                        fiche = .ajouter("sport")
+                    }
+                    Button("Ajouter une autre adresse", systemImage: "mappin") {
+                        fiche = .ajouter("sejour")
+                    }
+                }
             }
         }
         .navigationTitle("Lieux et position")
         .navigationBarTitleDisplayMode(.inline)
         .vuParHAL("Réglages, lieux et position")
-        .sheet(item: $aCorriger) { lieu in
-            CorrigerAdresse(lieu: lieu) { Task { await suivi.rafraichirLesCercles() } }
-                .presentationDetents([.medium])
+        .sheet(item: $fiche) { sujet in
+            FicheAdresse(sujet: sujet) { await suivi.rafraichirLesCercles() }
+                .presentationDetents([.large])
                 .feuilleEnVerre()
         }
         .task {
@@ -102,7 +119,7 @@ private struct LigneLieu: View {
             Image(systemName: "pencil").foregroundStyle(Palette.texteTertiaire)
         }
         .contentShape(Rectangle())
-        .accessibilityHint("Corriger l'adresse")
+        .accessibilityHint("Modifier l'adresse")
     }
 
     private var icone: String {
@@ -138,28 +155,76 @@ private struct LigneLieu: View {
     }
 }
 
-/// ADR-6 : l'adresse corrigée est cherchée par le serveur avant d'être gardée.
-private struct CorrigerAdresse: View {
-    let lieu: SuiviPosition.Lieu
-    let apres: () -> Void
+/// DEM-7, ADR-6 : une adresse, avec les champs du démarrage. L'adresse est
+/// cherchée par le serveur avant d'être gardée ; introuvable, elle est dite ici.
+/// Le foyer et un lieu de sport restent ce qu'ils sont ; une autre adresse dit
+/// ce qu'elle est.
+struct FicheAdresse: View {
+    enum Sujet: Identifiable {
+        case modifier(SuiviPosition.Lieu)
+        case ajouter(String)
+
+        var id: String {
+            switch self {
+            case .modifier(let lieu): "lieu-\(lieu.idLieuConnu)"
+            case .ajouter(let nature): "nouveau-\(nature)"
+            }
+        }
+    }
+
+    let sujet: Sujet
+    let apres: () async -> Void
     @Environment(Foyer.self) private var foyer
     @Environment(\.dismiss) private var fermer
+    @State private var nom = ""
     @State private var adresse = ""
+    @State private var nature = "sejour"
+    @State private var description = ""
     @State private var erreur: String?
     @State private var envoi = false
+
+    private var lieu: SuiviPosition.Lieu? {
+        if case .modifier(let lieu) = sujet { return lieu }
+        return nil
+    }
 
     var body: some View {
         NavigationStack {
             FormulaireVerre {
                 Section {
+                    if nature != "foyer" {
+                        TextField(nature == "sport" ? "Nom : Basic-Fit centre, piscine…"
+                                                    : "Nom : chez mes parents…", text: $nom)
+                    }
                     TextField("Numéro, rue, ville", text: $adresse, axis: .vertical)
                         .textContentType(.fullStreetAddress)
                 } header: {
-                    Text(lieu.nom)
+                    Text(titreDuGroupe)
+                }
+                if !["foyer", "sport"].contains(nature) {
+                    Section {
+                        Picker("C'est", selection: $nature) {
+                            Text("J'y dors").tag("sejour")
+                            Text("L'école").tag("etudes")
+                            Text("Le travail").tag("travail")
+                            Text("Autre").tag("autre")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+                Section {
+                    TextField(nature == "sport" ? "Horaires, affluence, ce que tu y fais"
+                                                : "Ce que tu y fais", text: $description,
+                              axis: .vertical)
+                        .lineLimit(3...8)
+                } header: {
+                    Text("Description")
+                } footer: {
+                    Text("HAL la lit pour choisir où placer une séance. Vide, elle s'efface.")
                 }
                 LigneErreur(texte: erreur)
             }
-            .navigationTitle("Adresse")
+            .navigationTitle(lieu == nil ? "Nouvelle adresse" : "Adresse")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { fermer() } }
@@ -169,19 +234,72 @@ private struct CorrigerAdresse: View {
                 }
             }
         }
-        .onAppear { adresse = lieu.adresse }
+        .onAppear(perform: remplir)
     }
 
-    private struct Correction: Encodable { var adresse: String }
+    private var titreDuGroupe: String {
+        switch nature {
+        case "foyer": "Ton foyer"
+        case "sport": "Lieu de sport"
+        default: "Autre adresse"
+        }
+    }
+
+    private func remplir() {
+        switch sujet {
+        case .modifier(let lieu):
+            nom = lieu.nom
+            adresse = lieu.adresse
+            nature = lieu.nature
+            description = lieu.description ?? ""
+        case .ajouter(let nouvelle):
+            nature = nouvelle
+            nom = nouvelle == "foyer" ? "Chez nous" : ""
+        }
+    }
+
+    private struct Modification: Encodable {
+        var nom: String?
+        var adresse: String?
+        var nature: String?
+        var description: String?
+    }
+
+    private struct NouveauLieu: Encodable {
+        var nom: String
+        var adresse: String
+        var nature: String
+        var description: String?
+    }
 
     private func enregistrer() async {
         envoi = true
         defer { envoi = false }
         erreur = nil
+        let nom = nom.trimmingCharacters(in: .whitespaces)
+        let adresse = adresse.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description = description.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            try await foyer.agir("PATCH", "appli/lieux/\(lieu.idLieuConnu)",
-                                 corps: ClientAPI.corps(Correction(adresse: adresse)))
-            apres()
+            if let lieu {
+                // Seul ce qui a changé part : une adresse inchangée n'est pas recherchée.
+                let changement = Modification(
+                    nom: !nom.isEmpty && nom != lieu.nom ? nom : nil,
+                    adresse: adresse != lieu.adresse ? adresse : nil,
+                    nature: nature != lieu.nature ? nature : nil,
+                    description: description != (lieu.description ?? "") ? description : nil)
+                try await foyer.agir("PATCH", "appli/lieux/\(lieu.idLieuConnu)",
+                                     corps: ClientAPI.corps(changement))
+            } else {
+                let parDefaut = switch nature {
+                case "foyer": "Chez nous"
+                case "sport": "Ma salle"
+                default: "Autre adresse"
+                }
+                try await foyer.agir("POST", "appli/lieux", corps: ClientAPI.corps(
+                    NouveauLieu(nom: nom.isEmpty ? parDefaut : nom, adresse: adresse,
+                                nature: nature, description: description.isEmpty ? nil : description)))
+            }
+            await apres()
             fermer()
         } catch {
             erreur = (error as? ErreurAPI)?.message ?? error.localizedDescription

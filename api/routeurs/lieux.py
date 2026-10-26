@@ -4,9 +4,9 @@ L'appli lit ses lieux pour savoir quels cercles surveiller (POS-2), envoie une
 position à chaque passage, et lit la météo de ses séances dehors et de ses
 courses (MTO-9). Chaque route ne parle que du compte qui appelle (POS-5).
 
-Un lieu s'ajoute ici au démarrage, avec son nom, son adresse et sa description
-(DEM-7). Ensuite, la description, le mode et la nature se disent à HAL : seule
-l'adresse se corrige à la main (ADR-6).
+Un lieu s'ajoute ici, au démarrage puis dans Réglages, avec son nom, son
+adresse et sa description (DEM-7). Il s'y modifie aussi : nom, adresse, ce
+qu'il est, description (ADR-6). HAL peut toujours les changer en conversation.
 """
 
 from datetime import date, datetime, time, timedelta
@@ -62,15 +62,29 @@ def ajouter(corps: NouveauLieu, qui: Authentifie) -> dict:
 
 
 class Correction(BaseModel):
-    adresse: str = Field(min_length=3, max_length=200)
+    nom: str | None = Field(default=None, min_length=1, max_length=60)
+    adresse: str | None = Field(default=None, min_length=3, max_length=200)
+    nature: str | None = Field(default=None, pattern="^(etudes|travail|sejour|autre)$")
+    description: str | None = Field(default=None, max_length=1000)
 
 
-@routeur.patch("/lieux/{id_lieu_connu}", summary="Corriger l'adresse d'un lieu")
+@routeur.patch("/lieux/{id_lieu_connu}", summary="Modifier un lieu")
 def corriger(id_lieu_connu: int, corps: Correction, qui: Authentifie) -> dict:
-    """ADR-6 : l'adresse est cherchée avant d'être gardée ; les trajets se refont."""
+    """ADR-6 : ce qui est donné change, le reste ne bouge pas. L'adresse est cherchée
+    avant d'être gardée, et les trajets se refont. Le foyer et un lieu de sport le
+    restent : ce qu'ils sont ne se change pas, une description vide efface."""
+    existant = next((x for x in lieux.lieux_du_compte(qui.id_utilisateur)
+                     if x["id_lieu_connu"] == id_lieu_connu), None)
+    if (existant is not None and corps.nature is not None
+            and existant["nature"] in ("foyer", "sport")
+            and corps.nature != existant["nature"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={"code": "requete_invalide",
+                                    "message": "Le foyer et un lieu de sport le restent"})
     try:
         lieu = lieux.noter_lieu(qui.id_utilisateur, id_lieu_connu=id_lieu_connu,
-                                adresse=corps.adresse)
+                                nom=corps.nom, adresse=corps.adresse, nature=corps.nature,
+                                description=corps.description)
     except lieux.AdresseIntrouvable as erreur:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail={"code": "adresse_introuvable",

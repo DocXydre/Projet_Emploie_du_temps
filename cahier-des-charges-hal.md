@@ -4,7 +4,7 @@ Cahier des charges
 
 Auteur : Thomas Mathis
 
-Version du 25 octobre 2026 (migration 085 ; partie H : lieux, position et météo, lieux de sport décrits ; les tâches sans réglage à part, écrites avant d'être construites, annexe 15)
+Version du 26 octobre 2026 (migration 086 ; partie H : lieux, position et météo, lieux de sport décrits ; les tâches sans réglage à part, annexe 15 ; les appels de HAL pour les tâches et le sport pendant une absence, annexe 16)
 
 Ce document décrit l'ensemble du projet : le planning du foyer, HAL le coach sportif, l'application iPhone, le foyer, l'ouverture de HAL par MCP et par abonnement, et le HAL du foyer, puis les lieux, la position et la météo. Il remplace `cahier-des-charges.md` et `cahier-des-charges-coach.md`, dont il reprend et met à jour le contenu, et intègre les choix faits avec la maquette de l'application. Les deux anciens fichiers se retrouvent dans l'historique git, sous le tag `avant-nettoyage`.
 
@@ -2015,7 +2015,7 @@ Une règle de type T dont le texte commence par « HAL » est tenue par le modè
 | PLN-12 | T | Quand un déplacement fait par l'utilisateur enfreint une règle de sécurité, la base avertit et laisse faire. L'avertissement est rendu tout de suite, et HAL réajuste la suite à la synthèse |
 | PLN-13 | D | La durée d'une séance de HAL lui est propre, de 15 à 240 minutes. Celle du lieu ne sert plus que de valeur par défaut à une séance posée à la main |
 | PLN-14 | M | L'utilisateur peut fixer un maximum de séances par semaine. La base refuse une proposition qui le dépasse. Sans réglage, HAL décide seul |
-| PLN-15 | T | Une absence déclarée retire les séances proposées qu'elle couvre et signale les séances validées. C'est à l'utilisateur de dire s'il s'entraîne là où il va |
+| PLN-15 | T | Une absence déclarée retire les séances proposées qu'elle couvre et qu'on ne peut pas faire là où l'on va (SPT-38), et signale les séances validées dans ce cas. C'est à l'utilisateur de dire s'il s'entraîne là où il va |
 | PLN-16 | T | HAL reçoit la charge de chaque journée, calculée par la base : légère, moyenne, lourde. Ce qu'il en fait relève du dossier (chapitre 7.3) : la base ne refuse pas une séance au motif d'une journée lourde |
 | PLN-17 | M | Une séance de HAL se propose à l'autre personne comme n'importe quelle séance (SPT-31, SPT-32). L'invité reçoit le créneau, pas le contenu |
 | PLN-18 | T | Pour changer une séance validée, HAL dépose un ajustement : alléger, modifier le contenu, déplacer ou retirer, avec son motif. L'utilisateur accepte ou refuse d'un bouton. Une séance n'a qu'un ajustement en attente à la fois |
@@ -2194,6 +2194,7 @@ Les règles `SPT` de la partie A restent, sauf celles de l'annexe 2. S'y ajouten
 | SPT-35 | D | Une séance de sport a trois origines possibles : séance libre, proposée par HAL, acceptée sur invitation |
 | SPT-36 | T | Une séance déclarée pas faite est close. La semaine ne se recomplète plus d'elle-même (PLN-10) |
 | SPT-37 | T | Un jour porte au plus deux séances, de disciplines différentes : une course le matin et de la musculation le soir. La règle vaut pour HAL, pour une séance posée à la main et pour une séance libre. La base tient la limite ; l'écart entre les deux séances relève de HAL (chapitre 7.1 du dossier) |
+| SPT-38 | T | Une absence dit où l'on est, elle n'interdit pas le sport. Pendant une absence, la course dehors, lieu sans adresse, se fait partout ; un lieu qui a une adresse seulement s'il est à moins de 15 km du lieu de l'absence. Une absence sans lieu connu, un billet de train par exemple, ne laisse que la course dehors. On juge à l'heure de la séance : le jour du départ, la salle reste possible avant le train. HAL planifie la semaine quand même, avec ce qui se fait là-bas |
 
 #### B.3.12 Notifications et journal : règles ajoutées
 
@@ -2992,7 +2993,7 @@ Ces contraintes sont traduites en `CHECK`, contraintes d'exclusion, fonctions et
 | PLN-10 | `declarer_pas_faite()` clôt l'occurrence sans en créer d'autre. `proposer_seance()` accepte `id_occurrence_remplacee` | Dynamique forte |
 | PLN-13 | `duree_minutes` entre 15 et 240 | Statique forte |
 | PLN-14 | `proposer_seance()` refuse au-delà de `seances_max_semaine`, séances posées à la main comprises | Dynamique forte |
-| PLN-15 | Trigger sur les absences : supprime les séances proposées couvertes, notifie les validées | Dynamique forte |
+| PLN-15, SPT-38 | Trigger sur les absences : supprime les séances proposées couvertes qu'on ne peut pas faire là-bas, notifie les validées dans ce cas ; `obstacle_seance()` refuse un lieu que `lieu_de_sport_possible()` écarte | Dynamique forte |
 | SPT-37 | `obstacle_seance()` refuse une troisième séance le même jour, et une deuxième de la même discipline. Pour une séance libre de même discipline, c'est LIB-6 qui joue : elle remplace | Dynamique forte |
 | PLN-18 | Index unique partiel sur `id_occurrence` pour `statut` propose ; `proposer_ajustement()` refuse une séance qui n'est pas validée, ou déjà commencée, et refuse un allègement qui augmente une série, une charge, une durée ou l'intensité | Dynamique forte |
 | PLN-19 | `accepter_ajustement()` rejoue `obstacle_seance()` et `obstacle_sportif()` en mode strict avant d'appliquer. `solder_ajustements()`, appelée au début de chaque séance : un ajustement en attente de nature alleger ou retirer est appliqué, un autre passe en caduc | Dynamique forte |
@@ -4816,7 +4817,7 @@ Mêmes conventions que les parties précédentes.
 |---|---|---|
 | VER-1 | D | Une occurrence que HAL place selon la description de sa tâche est épinglée par HAL. Le moteur ne la déplace plus (PLA-5), et elle porte le motif écrit par HAL : « samedi 24 : ta seule journée vide du mois » |
 | VER-2 | T | Une occurrence épinglée par HAL un jour d'absence de celui à qui elle revient est désépinglée et replacée par le moteur (ABS-5), puis vérifiée (VER-3). Déplacée à la main, elle reste où on l'a mise : celui qui la déplace a le dernier mot, et elle n'est pas vérifiée |
-| VER-3 | T | Une occurrence d'une tâche décrite entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer dans les sept jours qui viennent, ou quand une occupation, une absence ou un conflit tombe sur son jour. Au-delà des sept jours, le moteur repose chaque matin ses prévisions : la vérification de la semaine les relit (VER-5). Une absence déclarée, changée ou retirée y fait entrer en plus chaque tâche décrite, une fois, même sans occurrence ce jour-là : sa description peut parler des départs et des retours. Ce que HAL vient de faire lui-même n'y entre pas |
+| VER-3 | T | Une occurrence d'une tâche décrite entre dans la file des vérifications quand l'emploi du temps change sur son jour : une occupation ajoutée, retirée, ou qui change vraiment d'heure ou de personne. Une relève qui réécrit un cours à l'identique ne compte pas. Une absence déclarée, changée ou retirée y fait entrer chaque tâche décrite, une fois, même sans occurrence ce jour-là : sa description peut parler des départs et des retours. Une description écrite depuis l'appli y fait entrer sa tâche. Ce que le moteur crée ou déplace n'y entre pas : la vérification de la semaine relit tout (VER-5). Rien de ce qui s'écrit pendant un appel à HAL n'y entre non plus, replacement compris : la vérification de la semaine n'en appelle pas d'autres derrière elle |
 | VER-4 | T | La file des vérifications part au plus une fois par quart d'heure, en un seul appel au HAL du foyer, moment « vérification », avec chaque occurrence ou tâche, sa description et ce qui l'a fait entrer. HAL laisse, déplace en épinglant (VER-1), ou pose et retire ce que la description demande (VER-10). Une file vide ne fait aucun appel |
 | VER-5 | T | Chaque semaine, au jour et à l'heure réglés pour le foyer, le lundi à 6h30 par défaut, HAL relit toutes les tâches décrites et leurs occurrences des quatre semaines à venir, moment « semaine ». Il place ce qui manque et corrige ce qui ne respecte pas la description. Sans tâche décrite, pas d'appel |
 | VER-6 | T | Quand HAL déplace une occurrence, celui à qui elle revient est prévenu avec la raison, en une phrase (NOT-17) : « Trier les papiers passe au dimanche 8 : tu as cours samedi 24 ». Les messages d'une même vérification partent ensemble |
@@ -5214,7 +5215,7 @@ Mêmes conventions que les parties précédentes.
 | ADR-3 | D | Un lieu a un rayon, 50 m par défaut, de 30 à 500 m. Un campus ou un parc se règle plus large, en le disant à HAL |
 | ADR-4 | T | Une adresse dite à HAL est cherchée à la Géoplateforme. HAL répète l'adresse trouvée dans sa réponse, pour qu'une erreur se voie. Une adresse introuvable ou trop vague (une ville pour une salle) est refusée avec son motif. Un lieu se pose aussi « ici », à la dernière position reçue (POS-4), avec l'adresse la plus proche |
 | ADR-5 | D | Un lieu de sport est un lieu connu de nature sport. On en a autant qu'on veut : deux salles, une piscine. Le créer crée son lieu de sport pour le placement (LieuSport), relié à son adresse. La course dehors n'a pas d'adresse : elle se pratique là où l'on est |
-| ADR-6 | M | Réglages, Lieux montre chaque lieu connu du compte : son nom, son adresse, sa nature, le mode de trajet et la mémoire. L'adresse s'y corrige à la main ; le reste se dit à HAL |
+| ADR-6 | M | Réglages, Lieux et position montre chaque lieu connu du compte : son nom, son adresse, sa nature, le mode de trajet et la description. Un toucher ouvre sa fiche, avec les champs du démarrage (DEM-7) : nom, adresse, ce qu'est une autre adresse, description. Tout s'y modifie, et l'adresse est cherchée avant d'être gardée. Le foyer et un lieu de sport restent ce qu'ils sont. On y ajoute aussi le foyer s'il manque, un lieu de sport ou une autre adresse. Le mode de trajet se dit à HAL |
 | ADR-7 | D | Chaque compte a un mode de trajet par lieu : à pied, à vélo ou en voiture. Sans mode dit, à pied jusqu'à 2 km du foyer à vol d'oiseau, en voiture au-delà. Un trajet se fait dans le mode du lieu d'arrivée, sauf au-delà de 5 km à vol d'oiseau à pied ou de 20 km à vélo : en voiture. Depuis Lusse, on prend la voiture pour la salle |
 | ADR-8 | T | Le trajet entre deux lieux connus est calculé par le serveur, pour le mode de la destination, et gardé. Il se recalcule quand une adresse ou un mode change. Un calcul impossible garde l'ancien ; à défaut, une estimation à vol d'oiseau, marquée comme telle (annexe 3) |
 | ADR-9 | T | Une séance part de là où l'on sera ce jour-là : le lieu de l'absence qui couvre la journée, l'école un jour de cours, sinon le foyer. C'est ce trajet qui entre dans le bloc de la séance (SPT-4). Faute de lieu ou de calcul, les minutes saisies du lieu de sport |
@@ -5555,8 +5556,8 @@ Elles passent par le funnel, derrière la clé (CNX-5).
 ```
 Lieux
   GET    /appli/lieux                         Mes lieux connus : communs et personnels, adresse, nature, rayon, mode, mémoire, trajets depuis le foyer
-  POST   /appli/lieux                         Ajouter un lieu au démarrage : nom, adresse, nature, description (DEM-7)
-  PATCH  /appli/lieux/{id}                    Corriger l'adresse d'un lieu (ADR-6) ; elle est cherchée avant d'être gardée
+  POST   /appli/lieux                         Ajouter un lieu, au démarrage ou dans Réglages : nom, adresse, nature, description (DEM-7, ADR-6)
+  PATCH  /appli/lieux/{id}                    Modifier un lieu : nom, adresse, nature, description (ADR-6) ; l'adresse est cherchée avant d'être gardée
   POST   /appli/position                      Une position : latitude, longitude, precision_m, instant, autorisation, precise ; rend le lieu trouvé
   GET    /appli/position                      Où je suis pour le serveur, et si la position est sue (POS-6)
 
@@ -5565,7 +5566,7 @@ Météo
   GET    /appli/meteo/activite/{id_activite}  La météo d'une de mes courses, relevée au besoin (MTO-6, MTO-7)
 ```
 
-`POST /appli/lieux` crée un lieu avec son nom, son adresse, sa nature et sa description : c'est l'étape des adresses du démarrage (DEM-7). Ensuite, la description, le mode et la nature passent par HAL.
+`POST /appli/lieux` crée un lieu avec son nom, son adresse, sa nature et sa description : c'est l'étape des adresses du démarrage (DEM-7), et l'ajout depuis Réglages. `PATCH` modifie ce qui est donné, le reste ne bouge pas ; le foyer et un lieu de sport gardent leur nature. Le mode de trajet passe par HAL.
 
 #### H.8.2 Outils de HAL
 
@@ -5594,7 +5595,7 @@ Le chat, le signalement, la synthèse et la révision gagnent `lire_lieux`, `not
 
 | Code | Type | Règle |
 |---|---|---|
-| ADR-14 | D | Réglages, Lieux et position montre chaque lieu connu avec son adresse, sa nature, son mode et sa description, et un champ pour corriger l'adresse. La description se change en le disant à HAL. L'ancien écran « Lieux de sport », où l'on rangeait les lieux par discipline, est retiré |
+| ADR-14 | D | Réglages, Lieux et position montre chaque lieu connu avec son adresse, sa nature, son mode et sa description, et se modifie comme au démarrage (ADR-6). La description se change là ou en le disant à HAL. L'ancien écran « Lieux de sport », où l'on rangeait les lieux par discipline, est retiré |
 | POS-14 | D | Réglages, Lieux montre l'état du suivi : en marche, autorisation à donner, ou position approximative à rendre exacte, avec le bouton qui ouvre les réglages d'iOS. Et où le serveur me croit maintenant |
 | MTO-11 | D | La carte d'une séance dehors porte une ligne météo : l'icône du temps, la température, la pluie, le vent à l'heure prévue. Le détail d'une course faite a une carte « Météo » : température et ressenti, vent et sa direction, part du parcours face au vent, allures face et dos au vent |
 
@@ -5704,6 +5705,7 @@ Ces valeurs sont des points de départ. Chacune est un réglage ou une constante
 | Description d'une tâche | 1 000 caractères | Choix de conception | MTA-1 |
 | Vérification de la semaine | Lundi 6h30, réglable par le foyer | Choix du projet | VER-5, VER-8 |
 | File des vérifications | Au plus un appel par quart d'heure | Choix de conception | VER-4 |
+| Lieu de sport proche pendant une absence | 15 km à vol d'oiseau du lieu de l'absence | Demande de Thomas | SPT-38 |
 | Vérification de la semaine : horizon | Quatre semaines | Choix de conception | VER-5 |
 | Pénibilité | De 1 à 3 ; 2 par défaut ; le linge, la vaisselle et le chat à 1 | Choix du projet, à revoir après un mois | REP-3 |
 | Écart reporté d'une semaine à l'autre | 120 points au plus, la semaine passée seule | Choix du projet | REP-4 |
@@ -6189,3 +6191,23 @@ Une tâche qui avait plusieurs de ces réglages a les phrases à la suite. Les a
 | E.2 et E.3 | Le lot 18 |
 | G, G.1, G.2, G.4 à G.12 | « Mémoire des tâches » devient « description » ; deux pas-à-pas de plus ; DescriptionTache, la file par tâche, `retirer_prevision` |
 | Annexe 3 | La description d'une tâche |
+
+### Annexe 16 : moins d'appels pour les tâches, du sport pendant une absence
+
+Version du 26 octobre 2026, après la première semaine du lot 18. Trois constats de Thomas. Un billet pour Saint-Dié avait déclaré une absence du 23 octobre au 2 novembre : elle a retiré les séances proposées et interdit toute séance, si bien que la révision du dimanche n'a rien posé pour la semaine passée à Lusse. Et le lundi matin, HAL a été appelé trois fois avant et après la vérification de la semaine : chaque relève des calendriers réécrivait les cours à l'identique, ce qui remettait dans la file toutes les tâches décrites de leur jour. Désormais, un seul gros appel par semaine pour les tâches, et un petit coup d'œil seulement quand l'emploi du temps change vraiment. Enfin, un compte démarré avant l'étape des adresses n'en avait aucune, et ne pouvait les donner qu'en parlant à HAL : elles se voient et se modifient maintenant dans Réglages, comme au démarrage. Règle nouvelle : SPT-38. Quatre règles sont réécrites ; voici leur texte d'avant.
+
+| Code | Ce qu'elle disait |
+|---|---|
+| VER-3 | Une occurrence d'une tâche décrite entre dans la file des vérifications quand le moteur la crée, la déplace ou la laisse à placer dans les sept jours qui viennent, ou quand une occupation, une absence ou un conflit tombe sur son jour. Au-delà des sept jours, le moteur repose chaque matin ses prévisions : la vérification de la semaine les relit (VER-5). Une absence déclarée, changée ou retirée y fait entrer en plus chaque tâche décrite, une fois, même sans occurrence ce jour-là : sa description peut parler des départs et des retours. Ce que HAL vient de faire lui-même n'y entre pas |
+| PLN-15 | Une absence déclarée retire les séances proposées qu'elle couvre et signale les séances validées. C'est à l'utilisateur de dire s'il s'entraîne là où il va |
+| ADR-6 | Réglages, Lieux montre chaque lieu connu du compte : son nom, son adresse, sa nature, le mode de trajet et la mémoire. L'adresse s'y corrige à la main ; le reste se dit à HAL |
+| ADR-14 | Réglages, Lieux et position montre chaque lieu connu avec son adresse, sa nature, son mode et sa description, et un champ pour corriger l'adresse. La description se change en le disant à HAL. L'ancien écran « Lieux de sport », où l'on rangeait les lieux par discipline, est retiré |
+
+**Textes retouchés hors des règles.**
+
+| Où | Ce qui change |
+|---|---|
+| A.7 | La contrainte de PLN-15 |
+| H.8 | `PATCH /appli/lieux/{id}` modifie aussi le nom, la nature et la description |
+| Annexe 3 | La distance d'un lieu de sport proche pendant une absence |
+| Dossier, chapitre 7.3 | Une absence ne vide plus la semaine : de la course là où l'on est |
