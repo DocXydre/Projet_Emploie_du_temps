@@ -12,6 +12,8 @@ tests:
   services:
     - name: postgres:16-alpine
       alias: postgres
+      # Base jetable : sans fsync, les tests vont plus vite et rien n'est à garder.
+      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
   variables:
     POSTGRES_USER: planif
     POSTGRES_PASSWORD: planif
@@ -28,9 +30,13 @@ tests:
   before_script:
     - apt-get update -qq && apt-get install -y -qq postgresql-client > /dev/null
     - pip install -q ".[dev]"
+    # Les jobs GitLab tournent en root, que les permissions n'arrêtent pas : le test de
+    # la copie iCloud simule un refus avec chmod. On lance donc les tests en simple utilisateur,
+    # comme sur GitHub.
+    - useradd -m ci && chown -R ci:ci "$CI_PROJECT_DIR"
   script:
     - ruff check .
-    - python -m pytest -q -rs -p no:cacheprovider
+    - runuser -u ci -- python -m pytest -q -rs -p no:cacheprovider
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH
