@@ -215,8 +215,8 @@ def test_un_lieu_se_modifie_dans_les_reglages(client, thomas, u):  # noqa: F811
     vide = client.patch(f"/appli/lieux/{ids['lusse']}", headers=thomas, json={"description": ""})
     assert vide.json()["description"] == ""
     # La salle reste un lieu de sport, le foyer reste le foyer.
-    for lieu in ("salle", "foyer"):
-        assert client.patch(f"/appli/lieux/{ids[lieu]}", headers=thomas,
+    for cle in ("salle", "foyer"):
+        assert client.patch(f"/appli/lieux/{ids[cle]}", headers=thomas,
                             json={"nature": "sejour"}).status_code == 400
 
 
