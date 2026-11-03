@@ -37,6 +37,13 @@ tests:
   script:
     - ruff check .
     - runuser -u ci -- python -m pytest -q -rs -p no:cacheprovider
+  # Une seule pipeline par changement. Sans ces garde-fous, un push sur une branche qui a une merge
+  # request en lançait deux (branche et merge request), et la suite dure dix minutes.
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Les branches d'Uzine (un ticket : uzine/…, un lot de tickets : lot/…) ne sont jugées que par leur merge request.
+    - if: $CI_COMMIT_BRANCH =~ /^(uzine|lot)\//
+      when: never
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
     - if: $CI_COMMIT_BRANCH
