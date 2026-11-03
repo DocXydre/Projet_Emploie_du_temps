@@ -427,8 +427,11 @@ def test_au_reveil_hal_demande_comment_s_est_passee_la_soiree(questions, u):  # 
     sql("UPDATE utilisateur SET heure_bilan = '23:59' WHERE id_utilisateur = %s", u)
     position.controles_de_presence()
     assert questions == []
-    # La montre a vu la fin de la nuit il y a vingt minutes.
+    # La montre a vu la fin de la nuit il y a vingt minutes. Un réveil ne compte
+    # qu'avant 16 h : l'après-midi, le test se réveille donc à 15 h.
     fin = datetime.now(UTC) - timedelta(minutes=20)
+    if fin.astimezone(PARIS).hour >= 16:
+        fin = fin.astimezone(PARIS).replace(hour=15, minute=0, second=0, microsecond=0)
     if fin.astimezone(PARIS).date() == datetime.now(PARIS).date():
         sql("INSERT INTO sommeil_phase (id_utilisateur, cle_externe, phase, periode) "
             "VALUES (%s, 'nuit', 'leger', tstzrange(%s - INTERVAL '6 hours', %s))", u, fin, fin)

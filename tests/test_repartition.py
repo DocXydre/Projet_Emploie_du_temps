@@ -326,6 +326,12 @@ def test_le_rappel_en_attente_part_avec_la_tache(client, thomas, place):
 
 
 def test_la_semaine_se_reequilibre_apres_une_reprise(client, thomas, place):
+    # Le grand nettoyage se fait à deux, mais depuis le lot 18 le moteur n'en sait
+    # plus rien : il le donne à l'un, le compte dans sa charge, et la balance le
+    # déplace d'un bloc de deux heures, plus ou moins selon l'heure du test. On le
+    # met de côté le temps que les tâches à plusieurs existent (règle a_plusieurs).
+    client.delete(f"/taches/{_un('SELECT essais.tache_de(%s)', 'GRAND_NETTOYAGE')}",
+                  headers=thomas)
     avant = _un("SELECT charge_domestique(%s)", _id("lorette"))
     sienne = _sienne("lorette")
 
