@@ -29,7 +29,7 @@ BEGIN
     PERFORM refus_coach('parametres_invalides', 'Les paramètres sont un objet');
   END IF;
 
-  FOR v_nom IN SELECT key FROM jsonb_object_keys(v_parametres)
+  FOR v_nom IN SELECT k FROM jsonb_object_keys(v_parametres) AS k
   LOOP
     IF NOT (v_sorte.parametres ? v_nom) THEN
       PERFORM refus_coach('parametres_invalides', format('Paramètre « %s » inconnu pour la sorte %s', v_nom, p_sorte));
