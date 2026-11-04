@@ -2,7 +2,7 @@
 
 Généré par `python -m outils.schema` depuis le catalogue de PostgreSQL, après les migrations : ne pas le modifier à la main. Chaque table montre sa clé primaire (PK) et ses clés étrangères (FK) ; une table d'un autre domaine n'apparaît que par son nom. Les liens vers `utilisateur`, que presque toutes les tables portent, ne sont dessinés que dans le premier diagramme.
 
-82 tables, 131 clés étrangères.
+84 tables, 137 clés étrangères.
 
 ## Le foyer, les comptes et leurs accès
 
@@ -150,6 +150,11 @@ erDiagram
     lieu_sport ||--o{ occurrence : "id_lieu"
     occurrence ||--o{ occurrence : "id_occurrence_source"
     tache ||--o{ occurrence : "id_tache"
+    appel_coach ||--o{ regle : "id_appel"
+    regle ||--o{ regle : "remplacee_par"
+    sorte_regle ||--o{ regle : "sorte"
+    source ||--o{ regle : "id_source"
+    tache ||--o{ regle : "id_tache"
     tache ||--o{ remplacement : "id_tache_couverte"
     tache ||--o{ remplacement : "id_tache_faite"
     type_tache ||--o{ tache : "id_type_tache"
@@ -213,6 +218,18 @@ erDiagram
         integer id_tache FK
         bigint id_appel FK
     }
+    sorte_regle {
+        character_varying code PK
+    }
+    regle {
+        bigint id_regle PK
+        integer id_tache FK
+        integer id_source FK
+        character_varying sorte FK
+        integer dite_par FK
+        bigint id_appel FK
+        bigint remplacee_par FK
+    }
 ```
 
 - `tache`
@@ -225,6 +242,8 @@ erDiagram
 - `passage` : NOT-15 : le bilan, la relance ou le récap d'un compte, déjà servi pour ce jour.
 - `description_tache` : MTA-1 : la description d'une tâche, ce que le formulaire ne sait pas dire. HAL la tient et l'applique ; le moteur ne la lit pas. Une ligne par version ; la dernière est en vigueur.
 - `verification_tache` : VER-3 : ce que HAL doit relire au prochain quart d'heure : une occurrence d'une tâche décrite, ou la tâche entière après une absence.
+- `sorte_regle` : RGL-2 : le catalogue des règles typées, une donnée remplie par migration. HAL lit la description de chaque sorte et de ses paramètres.
+- `regle` : RGL-1 : une règle dictée à HAL, sur une tâche ou une source. Une règle changée garde sa version d'avant (retiree_le, remplacee_par : RGL-10).
 
 ## Le sport : lieux, plan, séances, exercices
 

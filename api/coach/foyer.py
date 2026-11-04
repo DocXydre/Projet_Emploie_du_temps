@@ -21,6 +21,8 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
+from psycopg.types.json import Json
+
 from api.base import executer, lister, un_seul
 from api.coach.clair import aujourd_hui, jour_en_clair, lundi_de, maintenant
 from api.coach.outils import Outil, RefusOutil, _objet
@@ -175,14 +177,19 @@ def moment(id_utilisateur: int, moment_: str = "maison") -> str:
             "placement au jour le plus proche, ou dis-le dans ton message. Lis l'agenda "
             "avec `lire_planning` avant de choisir un jour. Termine par un message court "
             "qui dit ce que tu as changé, ou « rien à changer »."])
-    return "\n\n".join([
-        "# Moment : maison",
-        f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
-        "Un membre du foyer t'écrit. Une question : réponds-y, après avoir lu ce qu'il "
-        "faut. Une demande de changement : fais le geste qui correspond, avec son motif "
-        "en une phrase, puis dis ce qui a changé. Une consigne sur une tâche que le "
-        "formulaire ne sait pas dire va dans sa description, et tu places la tâche selon "
-        "elle. Ce qui dure et sert la maison en général va dans la mémoire du foyer."])
+    return "\n\n".join(
+        [
+            "# Moment : maison",
+            f"{jour_en_clair(jour.date())} {jour.year}, {jour:%H:%M}.",
+            "Un membre du foyer t'écrit. Une question : réponds-y, après avoir lu ce qu'il "
+            "faut. Une demande de changement : fais le geste qui correspond, avec son motif "
+            "en une phrase, puis dis ce qui a changé. Une consigne sur une tâche que le "
+            "formulaire ne sait pas dire devient d'abord une règle typée "
+            "(`ecrire_regle`) quand une sorte convient ; sinon elle va dans sa description, "
+            "et tu places la tâche selon elle. Ce qui dure et sert la maison en général "
+            "va dans la mémoire du foyer.",
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +231,66 @@ def ecrire_description_tache(u: int, a: dict) -> object:
             "version": version,
             "suite": "Place maintenant les occurrences à venir selon elle (MTA-3)."
                      if texte else None}
+
+
+def lire_regles(u: int, a: dict) -> object:
+    """RGL-9 : les règles typées en vigueur (d'une tâche, ou de toutes), et les sortes permises."""
+    id_tache = a.get("id_tache")
+    if id_tache is not None and not isinstance(id_tache, int):
+        raise RefusOutil("requete_invalide", "« id_tache » est le numéro rendu par lire_taches")
+    regles = lister(
+        """SELECT g.id_regle, g.id_tache, g.sorte, g.parametres, g.phrase,
+                  g.dite_par_nom AS dite_par, g.en_vigueur
+             FROM v_regle g
+            WHERE %(t)s::INTEGER IS NULL OR g.id_tache = %(t)s
+            ORDER BY g.id_tache, g.id_regle""",
+        {"t": id_tache},
+    )
+    sortes = lister(
+        """SELECT code, libelle, description, parametres
+             FROM sorte_regle WHERE cible = 'tache' ORDER BY code"""
+    )
+    return {"regles": regles, "sortes": sortes}
+
+
+def ecrire_regle(u: int, a: dict) -> object:
+    """RGL-2 : enregistre une règle typée ; la base vérifie la sorte et les paramètres."""
+    id_tache = a.get("id_tache")
+    if not isinstance(id_tache, int):
+        raise RefusOutil("requete_invalide", "« id_tache » est le numéro rendu par lire_taches")
+    parametres = a.get("parametres")
+    if not isinstance(parametres, dict):
+        raise RefusOutil(
+            "requete_invalide",
+            "« parametres » est un objet, comme le décrit la sorte (lire_regles)",
+        )
+    id_regle = executer(
+        "SELECT enregistrer_regle(%(t)s::INTEGER, %(s)s::TEXT, %(p)s::JSONB, %(x)s::TEXT, "
+        "%(u)s::INTEGER) AS id",
+        {
+            "t": id_tache,
+            "s": a.get("sorte"),
+            "p": Json(parametres),
+            "x": a.get("phrase") or "",
+            "u": u,
+        },
+    )["id"]
+    return {
+        "fait": "règle enregistrée",
+        "id_regle": id_regle,
+        "suite": "La règle est gardée et montrée dans la tâche ; le moteur ne l'applique "
+        "pas encore au placement.",
+    }
+
+
+def retirer_regle(u: int, a: dict) -> object:
+    """RGL-9 : retire une règle typée (elle garde sa trace)."""
+    id_regle = a.get("id_regle")
+    if not isinstance(id_regle, int):
+        raise RefusOutil("requete_invalide", "« id_regle » est le numéro rendu par lire_regles")
+    if not executer("SELECT retirer_regle(%(r)s) AS ok", {"r": id_regle})["ok"]:
+        raise RefusOutil("introuvable", "Cette règle typée n'existe pas, ou est déjà retirée")
+    return {"fait": "règle retirée", "id_regle": id_regle}
 
 
 def placer_occurrence(u: int, a: dict) -> object:
@@ -272,6 +339,46 @@ OUTIL_DESCRIPTION = Outil(
     _objet({"id_tache": {"type": "integer"}, "texte": {"type": "string"}},
            ["id_tache", "texte"]),
     ecrire_description_tache)
+
+
+OUTILS_REGLES: tuple[Outil, ...] = (
+    Outil(
+        "lire_regles",
+        "regles_hal",
+        "Lit les règles typées en vigueur d'une tâche (id_tache, sinon de toutes) et la liste des "
+        "sortes de règle permises, avec leurs paramètres. À lire avant d'écrire une règle.",
+        _objet({"id_tache": {"type": "integer"}}),
+        lire_regles,
+    ),
+    Outil(
+        "ecrire_regle",
+        "regles_hal",
+        "Enregistre une règle typée sur une tâche (id_tache) : une sorte de lire_regles, ses "
+        "paramètres, et « phrase », ce que la personne a dit, avec ses mots. Une règle de même "
+        "sorte déjà en vigueur est remplacée, et garde sa trace. Aujourd'hui la seule sorte "
+        'est a_plusieurs, avec {"membres": 2} : « le grand nettoyage se fait à deux ». À '
+        "utiliser avant la description, quand une sorte convient, et seulement si on te dit la "
+        "consigne dans ce message.",
+        _objet(
+            {
+                "id_tache": {"type": "integer"},
+                "sorte": {"type": "string"},
+                "parametres": {"type": "object"},
+                "phrase": {"type": "string"},
+            },
+            ["id_tache", "sorte", "parametres", "phrase"],
+        ),
+        ecrire_regle,
+    ),
+    Outil(
+        "retirer_regle",
+        "regles_hal",
+        "Retire une règle typée (id_regle, rendu par lire_regles). Seulement quand on te le "
+        "demande dans ce message.",
+        _objet({"id_regle": {"type": "integer"}}, ["id_regle"]),
+        retirer_regle,
+    ),
+)
 
 OUTILS_PLACEMENT: tuple[Outil, ...] = (
     Outil("placer_occurrence", "placement_hal",
@@ -354,7 +461,7 @@ def outils_du_moment(moment_: str) -> list[Outil]:
         return [*lectures, *OUTILS_PLACEMENT, *OUTILS_PROPRES]
     # ACT-1 : les gestes de la maison, faits à la demande de celui qui écrit.
     return [*lectures, *demandes.OUTILS_GESTES_MAISON, OUTIL_ANNULER_COURS,
-            OUTIL_DESCRIPTION, *OUTILS_PLACEMENT, *OUTILS_PROPRES, *lieux]
+            OUTIL_DESCRIPTION, *OUTILS_REGLES, *OUTILS_PLACEMENT, *OUTILS_PROPRES, *lieux]
 
 
 def office(id_utilisateur: int) -> str:
