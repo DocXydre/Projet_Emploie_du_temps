@@ -19,16 +19,22 @@ from tests.test_ensemble import OUVERTS, _id, minuit, sql, un
 
 def minutes(du, au) -> dict[str, int]:
     """Les minutes de tâches partagées de chacun, sur une période."""
-    lignes = sql(f"""
+    lignes = sql(
+        f"""
         SELECT u.pseudo, COALESCE(sum(t.duree_minutes), 0)::INTEGER AS minutes
           FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u USING (id_utilisateur)
          WHERE o.statut IN {OUVERTS}
            AND t.id_type_tache IS NOT NULL
            AND t.id_utilisateur_defaut IS NULL
+           AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                            WHERE p.id_occurrence = o.id_occurrence)
            AND lower(COALESCE(o.creneau, o.fenetre)) >= %s
            AND lower(COALESCE(o.creneau, o.fenetre)) < %s
-         GROUP BY u.pseudo""", du, au)
+         GROUP BY u.pseudo""",
+        du,
+        au,
+    )
     return {"thomas": 0, "lorette": 0, **{x["pseudo"]: x["minutes"] for x in lignes}}
 
 
@@ -111,12 +117,17 @@ def test_apres_la_periode_la_repartition_redevient_normale(place):
 def test_les_jours_alleges_ne_comptent_pas_dans_la_balance(place):
     allegement.activer(_id("thomas"), 4)
 
-    hors_periode = un(f"""
+    hors_periode = un(
+        f"""
         SELECT COALESCE(sum(t.duree_minutes), 0) FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut IN {OUVERTS}
            AND t.id_type_tache IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                            WHERE p.id_occurrence = o.id_occurrence)
            AND lower(COALESCE(o.creneau, o.fenetre)) >= %s""",
-                      _id("lorette"), minuit(4))
+        _id("lorette"),
+        minuit(4),
+    )
 
     assert un("SELECT charge_domestique(%s)", _id("lorette")) == hors_periode
 
@@ -241,3 +252,32 @@ def test_le_journal_dit_qui_s_est_allege(place):
     assert "/allege" in texte
 
 
+def test_une_tache_a_plusieurs_ne_compte_pas_dans_la_charge_du_mode_allege(base):
+    """RGL-7 : charge_sur ne compte pas ce qui se fait à plusieurs."""
+    thomas, lorette = _id("thomas"), _id("lorette")
+    periode = "tstzrange(now() - INTERVAL '1 hour', now() + INTERVAL '3 days', '[)')"
+    tache = un(
+        "SELECT creer_tache(p_libelle => 'Nettoyer la hotte', p_acteur => %s, "
+        "p_tous_les_jours => 14, p_duree_minutes => 90)",
+        thomas,
+    )
+    avant = un(f"SELECT charge_sur(%s, {periode})", thomas)
+    numero = un(
+        "INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine) "
+        "VALUES (%s, %s, tstzrange(now(), now() + INTERVAL '2 days', '[)'), 'manuelle') "
+        "RETURNING id_occurrence",
+        tache,
+        thomas,
+    )
+    assert un(f"SELECT charge_sur(%s, {periode})", thomas) == avant + 90
+
+    sql(
+        "INSERT INTO occurrence_participant (id_occurrence, id_utilisateur) VALUES (%s, %s), "
+        "(%s, %s)",
+        numero,
+        thomas,
+        numero,
+        lorette,
+    )
+
+    assert un(f"SELECT charge_sur(%s, {periode})", thomas) == avant

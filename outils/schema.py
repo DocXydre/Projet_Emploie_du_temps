@@ -35,7 +35,7 @@ DOMAINES: dict[str, tuple[str, list[str]]] = {
     "taches": ("Les tâches de la maison et leurs occurrences", [
         "tache", "type_tache", "occurrence", "enchainement", "remplacement",
         "accompagnement", "notification", "passage", "description_tache",
-        "verification_tache", "sorte_regle", "regle"]),
+        "verification_tache", "sorte_regle", "regle", "occurrence_participant"]),
     "sport": ("Le sport : lieux, plan, séances, exercices", [
         "lieu_sport", "discipline_lieu", "ouverture", "fermeture", "tache_lieu",
         "profil", "depistage", "limitation", "objectif", "pause", "plan",

@@ -22,6 +22,10 @@ LANGUAGE sql STABLE AS $$
        AND t.id_type_tache IS NOT NULL
        AND o.statut IN ('a_placer', 'planifiee', 'notifiee')
        AND o.origine NOT IN ('depart', 'retour')
+       -- RGL-7 : une tâche à plusieurs (des participants) ne compte dans la charge
+       -- de personne : elle se fait ensemble, elle ne se répartit pas.
+       AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                        WHERE p.id_occurrence = o.id_occurrence)
        -- Les deux exceptions ne se vérifient que si une absence ou un mode
        -- allégé touche ce jour-là. Cette fonction est appelée à chaque tâche
        -- placée : sans ce garde-fou, le cas ordinaire, où personne n'est parti,
@@ -37,5 +41,5 @@ $$;
 COMMENT ON FUNCTION charge_domestique IS
     'Minutes de tâches domestiques encore à faire, pour équilibrer la
      répartition. Hors sport, tâches de départ et de retour,
-     jours où l''autre est absent et jours de mode allégé (PLA-10, PLA-12,
-     PLA-15, PLA-16).';
+     jours où l''autre est absent, jours de mode allégé, et occurrences à
+     plusieurs participants (PLA-10, PLA-12, PLA-15, PLA-16, RGL-7).';
