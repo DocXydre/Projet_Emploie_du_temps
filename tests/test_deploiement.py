@@ -30,8 +30,16 @@ pytestmark = pytest.mark.skipif(
     shutil.which("git") is None or not SCRIPT.exists(),
     reason="demande git, et le script de déploiement")
 
+# Un drapeau vide fait toujours échouer ; un drapeau qui contient un texte ne fait
+# échouer que la version qui le contient : le retour arrière, lui, passe.
+CASSE = """casse() {
+  [ -f "$SCENE/$1" ] && grep -qF -- "$(cat "$SCENE/$1")" "$DEPOT/version.txt"
+}
+"""
+
 FAUX_DOCKER = """#!/bin/sh
-echo "docker $*" >> "$SCENE/appels"
+""" + CASSE + """
+echo "docker $* [commit=$PLANIF_COMMIT]" >> "$SCENE/appels"
 # Ce qui arrive sur l'entrée de psql : c'est là que passe la note au journal.
 case "$*" in *"--set libelle="*) cat >> "$SCENE/journal" ;; esac
 case "$*" in
@@ -39,13 +47,14 @@ case "$*" in
     [ -f "$SCENE/sauvegarde_cassee" ] && { echo "pg_dump: connexion refusée" >&2; exit 1; }
     echo "PGDMP copie" ;;
   *"SELECT id_telegram"*) echo 4242 ;;
-  "compose up"*) [ -f "$SCENE/image_cassee" ] && { echo "build failed"; exit 1; } ;;
+  "compose up"*) casse image_cassee && { echo "build failed"; exit 1; } ;;
   "compose logs"*) echo "api  | Traceback: fonction SQL introuvable" ;;
 esac
 exit 0
 """
 
 FAUX_CURL = """#!/bin/sh
+""" + CASSE + """
 case "$*" in
   *api.telegram.org*)
     echo "--- message" >> "$SCENE/telegram"
@@ -54,7 +63,7 @@ case "$*" in
     done ;;
   *"/sante"*)
     echo "sonde $*" >> "$SCENE/sondes"
-    [ -f "$SCENE/api_morte" ] && exit 22
+    casse api_morte && exit 22
     echo '{"etat":"ok","base":"ok"}' ;;
 esac
 exit 0
@@ -63,8 +72,9 @@ exit 0
 # Le script de migrations du dépôt factice : il obéit à un drapeau, pour qu'un
 # test puisse le faire échouer sans toucher à la moindre base.
 FAUSSES_MIGRATIONS = """#!/bin/sh
+""" + CASSE + """
 echo "migrations" >> "$SCENE/appels"
-if [ -f "$SCENE/migration_cassee" ]; then
+if casse migration_cassee; then
   echo "psql:047.sql:12: ERROR:  division by zero"
   exit 3
 fi
@@ -133,9 +143,10 @@ class Scene:
                               capture_output=True, text=True, env=environnement,
                               timeout=60)
 
-    def drapeau(self, nom: str, leve: bool = True) -> None:
+    def drapeau(self, nom: str, leve: bool = True, seulement: str = "") -> None:
+        """`seulement` : le drapeau ne joue que sur la version dont le message le contient."""
         fichier = self.racine / nom
-        fichier.write_text("") if leve else fichier.unlink(missing_ok=True)
+        fichier.write_text(seulement) if leve else fichier.unlink(missing_ok=True)
 
     def lire(self, nom: str) -> str:
         fichier = self.racine / nom
@@ -143,6 +154,9 @@ class Scene:
 
     def messages(self) -> list[str]:
         return [m.strip() for m in self.lire("telegram").split("--- message") if m.strip()]
+
+    def head(self) -> str:
+        return _git(self.serveur, "rev-parse", "HEAD")
 
     def deploye(self) -> str:
         temoin = self.etat / "deploye"
@@ -154,7 +168,10 @@ class Scene:
     def vieillir_l_echec(self) -> None:
         """Fait comme si le dernier essai datait d'une heure."""
         il_y_a_une_heure = time.time() - 3600
-        os.utime(self.etat / "echec", (il_y_a_une_heure, il_y_a_une_heure))
+        # Après un retour arrière, il n'y a plus d'échec à attendre : le
+        # coupe-circuit le remplace.
+        if (self.etat / "echec").exists():
+            os.utime(self.etat / "echec", (il_y_a_une_heure, il_y_a_une_heure))
 
 
 @pytest.fixture
@@ -216,37 +233,70 @@ def test_une_migration_ratee_se_dit_et_ne_passe_pas_pour_reussie(scene):
     assert passage.returncode != 0
     # Le témoin n'a pas bougé : le serveur sait qu'il n'est pas à jour.
     assert scene.deploye() == avant
-    # L'API n'a pas été reconstruite sur une base à moitié migrée.
-    assert "docker compose up" not in scene.lire("appels")
+    # L'API n'a pas été reconstruite sur une base à moitié migrée : seule
+    # l'ancienne version repart, après la restauration de la base.
+    appels = scene.lire("appels")
+    assert f"[commit={avant}]" in appels
+    assert "compose up -d --build api travailleur [commit=" + scene.deploye() + "]" in appels
+    assert appels.index("migrations") < appels.index("pg_restore") < appels.index("compose up")
+    assert scene.head() == avant
     # Et quelqu'un est prévenu, avec de quoi comprendre.
     messages = scene.messages()
     assert len(messages) == 1
     assert "Déploiement raté" in messages[0]
     assert "une migration fautive" in messages[0]
     assert "division by zero" in messages[0]
+    assert "Retour arrière fait" in messages[0]
 
 
-def test_le_serveur_ne_se_croit_pas_a_jour_apres_un_echec(scene):
-    """Le défaut d'origine.
+def test_un_commit_defait_n_est_plus_retente_seul(scene):
+    """Le coupe-circuit : il a cassé la production une fois, il ne la recasse pas
+    toutes les quinze minutes."""
+    scene.passage()
+    avant = scene.deploye()
+    fautif = scene.pousser("une migration fautive")
+    scene.drapeau("migration_cassee")
+    scene.passage()
+    (scene.racine / "appels").unlink()
 
-    Après l'échec, la fusion est faite : HEAD vaut origin/main. L'ancien script
-    en concluait qu'il n'y avait plus rien à faire, pour toujours.
-    """
+    scene.drapeau("migration_cassee", leve=False)
+    plus_tard = scene.passage()
+
+    assert plus_tard.stdout == ""
+    assert scene.lire("appels") == ""
+    assert scene.deploye() == avant
+    assert (scene.etat / "coupe_circuit").read_text().strip() == fautif
+
+
+def test_retirer_le_coupe_circuit_relance_le_deploiement(scene):
     scene.passage()
     fautif = scene.pousser("une migration fautive")
     scene.drapeau("migration_cassee")
     scene.passage()
-    assert _git(scene.serveur, "rev-parse", "HEAD") == fautif
 
-    # La cause disparaît, sans nouveau commit : une base qui redémarrait, un
-    # réseau coupé pendant la construction de l'image.
     scene.drapeau("migration_cassee", leve=False)
-    scene.vieillir_l_echec()
+    (scene.etat / "coupe_circuit").unlink()
     passage = scene.passage()
 
     assert passage.returncode == 0
     assert scene.deploye() == fautif
     assert "Déploiement rétabli" in scene.messages()[-1]
+
+
+def test_une_sauvegarde_ratee_se_reessaie_apres_l_attente(scene):
+    """Rien n'a bougé en production : une panne passagère se répare seule."""
+    scene.passage()
+    commit = scene.pousser("une migration")
+    scene.drapeau("sauvegarde_cassee")
+    scene.passage()
+    assert not (scene.etat / "coupe_circuit").exists()
+
+    scene.drapeau("sauvegarde_cassee", leve=False)
+    scene.vieillir_l_echec()
+    passage = scene.passage()
+
+    assert passage.returncode == 0
+    assert scene.deploye() == commit
 
 
 def test_un_echec_ne_previent_qu_une_fois(scene):
@@ -298,7 +348,7 @@ def test_une_api_qui_ne_redemarre_pas_est_un_echec(scene):
     scene.passage()
     avant = scene.deploye()
     scene.pousser("une API qui tombe au démarrage")
-    scene.drapeau("api_morte")
+    scene.drapeau("api_morte", seulement="tombe au démarrage")
 
     passage = scene.passage()
 
@@ -308,13 +358,37 @@ def test_une_api_qui_ne_redemarre_pas_est_un_echec(scene):
     assert scene.deploye() == avant
     assert "Déploiement raté" in scene.messages()[-1]
     assert "/sante" in scene.messages()[-1]
+    # L'ancienne version a été remise, base comprise, et elle répond.
+    assert scene.head() == avant
+    assert "pg_restore" in scene.lire("appels")
+    assert f"compose up -d --build api travailleur [commit={avant}]" in scene.lire("appels")
+    assert "Retour arrière fait" in scene.messages()[-1]
+
+
+def test_un_retour_arriere_rate_se_dit(scene):
+    scene.passage()
+    scene.pousser("une API qui tombe")
+    scene.drapeau("api_morte")   # même l'ancienne version ne répond plus
+
+    passage = scene.passage()
+
+    assert passage.returncode != 0
+    assert "Retour arrière RATÉ" in scene.messages()[-1]
+
+
+def test_le_conteneur_sait_quel_commit_il_porte(scene):
+    commit = scene.pousser("une version")
+
+    scene.passage()
+
+    assert f"compose up -d --build api travailleur [commit={commit}]" in scene.lire("appels")
 
 
 def test_une_image_qui_ne_se_construit_pas_est_un_echec(scene):
     scene.passage()
     avant = scene.deploye()
     scene.pousser("une dépendance introuvable")
-    scene.drapeau("image_cassee")
+    scene.drapeau("image_cassee", seulement="dépendance introuvable")
 
     passage = scene.passage()
 
