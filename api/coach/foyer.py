@@ -265,7 +265,8 @@ def ecrire_regle(u: int, a: dict) -> object:
             "« parametres » est un objet, comme le décrit la sorte (lire_regles)",
         )
     id_regle = executer(
-        "SELECT enregistrer_regle(%(t)s, %(s)s, %(p)s, %(x)s, %(u)s) AS id",
+        "SELECT enregistrer_regle(%(t)s::INTEGER, %(s)s::TEXT, %(p)s::JSONB, %(x)s::TEXT, "
+        "%(u)s::INTEGER) AS id",
         {
             "t": id_tache,
             "s": a.get("sorte"),
