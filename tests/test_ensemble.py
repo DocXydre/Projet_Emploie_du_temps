@@ -306,15 +306,21 @@ def test_le_lave_vaisselle_lance_se_vide_le_lendemain(base):
 # ---------------------------------------------------------------------------
 
 def _minutes_par_personne(du: datetime, au: datetime) -> dict[str, int]:
-    lignes = sql(f"""
+    lignes = sql(
+        f"""
         SELECT u.pseudo, COALESCE(sum(t.duree_minutes), 0)::INTEGER AS minutes
           FROM occurrence o JOIN tache t USING (id_tache)
           JOIN utilisateur u USING (id_utilisateur)
          WHERE o.statut IN {OUVERTS} AND o.creneau IS NOT NULL
            AND t.id_type_tache IS NOT NULL
            AND t.id_utilisateur_defaut IS NULL
+           AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                            WHERE p.id_occurrence = o.id_occurrence)
            AND lower(o.creneau) >= %s AND lower(o.creneau) < %s
-         GROUP BY u.pseudo""", du, au)
+         GROUP BY u.pseudo""",
+        du,
+        au,
+    )
     return {"thomas": 0, "lorette": 0, **{x["pseudo"]: x["minutes"] for x in lignes}}
 
 
@@ -334,6 +340,8 @@ def test_les_taches_faites_seule_ne_comptent_pas_dans_la_balance(base):
         SELECT COALESCE(sum(t.duree_minutes), 0) FROM occurrence o JOIN tache t USING (id_tache)
          WHERE o.id_utilisateur = %s AND o.statut IN {OUVERTS}
            AND t.id_type_tache IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                            WHERE p.id_occurrence = o.id_occurrence)
            AND NOT (lower(COALESCE(o.creneau, o.fenetre)) >= %s
                     AND lower(COALESCE(o.creneau, o.fenetre)) < %s)""",
               _id("lorette"), minuit(8), minuit(14))
@@ -375,6 +383,37 @@ def test_le_tour_reprend_la_ou_il_s_etait_arrete(base):
     # Le dernier vrai tour est celui de Thomas, avant son départ. Les draps
     # reviennent donc à Lorette, et non à lui parce qu'il rentre.
     assert dernier == _id("thomas")
+
+
+def test_une_tache_a_plusieurs_ne_compte_dans_aucune_charge(base):
+    """RGL-7 : posée avec ses participants, elle ne pèse sur personne."""
+    thomas, lorette = _id("thomas"), _id("lorette")
+    tache = un(
+        "SELECT creer_tache(p_libelle => 'Nettoyer la hotte', p_acteur => %s, "
+        "p_tous_les_jours => 14, p_duree_minutes => 90)",
+        thomas,
+    )
+    avant = {p: un("SELECT charge_domestique(%s)", p) for p in (thomas, lorette)}
+    numero = un(
+        "INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine) "
+        "VALUES (%s, %s, tstzrange(now(), now() + INTERVAL '3 days', '[)'), 'manuelle') "
+        "RETURNING id_occurrence",
+        tache,
+        thomas,
+    )
+    assert un("SELECT charge_domestique(%s)", thomas) == avant[thomas] + 90
+
+    sql(
+        "INSERT INTO occurrence_participant (id_occurrence, id_utilisateur) "
+        "VALUES (%s, %s), (%s, %s)",
+        numero,
+        thomas,
+        numero,
+        lorette,
+    )
+
+    assert un("SELECT charge_domestique(%s)", thomas) == avant[thomas]
+    assert un("SELECT charge_domestique(%s)", lorette) == avant[lorette]
 
 
 # ---------------------------------------------------------------------------
