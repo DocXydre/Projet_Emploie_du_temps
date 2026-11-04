@@ -2,7 +2,7 @@
 
 Généré par `python -m outils.schema` depuis le catalogue de PostgreSQL, après les migrations : ne pas le modifier à la main. Chaque table montre sa clé primaire (PK) et ses clés étrangères (FK) ; une table d'un autre domaine n'apparaît que par son nom. Les liens vers `utilisateur`, que presque toutes les tables portent, ne sont dessinés que dans le premier diagramme.
 
-84 tables, 137 clés étrangères.
+85 tables, 139 clés étrangères.
 
 ## Le foyer, les comptes et leurs accès
 
@@ -150,6 +150,7 @@ erDiagram
     lieu_sport ||--o{ occurrence : "id_lieu"
     occurrence ||--o{ occurrence : "id_occurrence_source"
     tache ||--o{ occurrence : "id_tache"
+    occurrence ||--o{ occurrence_participant : "id_occurrence"
     appel_coach ||--o{ regle : "id_appel"
     regle ||--o{ regle : "remplacee_par"
     sorte_regle ||--o{ regle : "sorte"
@@ -230,6 +231,10 @@ erDiagram
         bigint id_appel FK
         bigint remplacee_par FK
     }
+    occurrence_participant {
+        integer id_occurrence PK,FK
+        integer id_utilisateur PK,FK
+    }
 ```
 
 - `tache`
@@ -244,6 +249,7 @@ erDiagram
 - `verification_tache` : VER-3 : ce que HAL doit relire au prochain quart d'heure : une occurrence d'une tâche décrite, ou la tâche entière après une absence.
 - `sorte_regle` : RGL-2 : le catalogue des règles typées, une donnée remplie par migration. HAL lit la description de chaque sorte et de ses paramètres.
 - `regle` : RGL-1 : une règle dictée à HAL, sur une tâche ou une source. Une règle changée garde sa version d'avant (retiree_le, remplacee_par : RGL-10).
+- `occurrence_participant` : RGL-7 : les membres qui font ensemble une occurrence d'une tâche à plusieurs (règle a_plusieurs). occurrence.id_utilisateur garde le premier participant.
 
 ## Le sport : lieux, plan, séances, exercices
 
