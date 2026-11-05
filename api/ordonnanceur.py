@@ -3,7 +3,6 @@
     toutes les heures   collecter les sources dont la fréquence est écoulée
     toutes les 2 h      relever les confirmations SNCF
     toutes les 6 h      calendriers personnels
-    06h50               relevé des horaires publiés par le SUAPS
     07h00               placement du matin, semaine de sport à valider
     toutes les 5 min    à l'heure de chacun (NOT-15) : bilan du matin (7h par
                         défaut), relance du soir (21h), récap de HAL (23h) avec
@@ -118,19 +117,6 @@ def proposer_les_weekends() -> dict:
         return {}
 
 
-def relever_les_horaires() -> list[dict]:
-    """Les créneaux de la piscine, relevés sur la page du SUAPS.
-
-    Tous les jours : le service change ses horaires d'une semaine à l'autre, et
-    une séance proposée devant une porte close est pire que pas de séance.
-    """
-    from api import sport
-
-    try:
-        return sport.rafraichir_horaires()
-    except Exception:
-        LOG.exception("Échec du relevé des horaires")
-        return []
 
 
 def placer() -> int:
@@ -456,11 +442,6 @@ def demarrer() -> BackgroundScheduler:
                          id="boite", name="Relève des confirmations SNCF",
                          max_instances=1, coalesce=True)
 
-    # Avant le bilan : les horaires du jour doivent être à jour quand le
-    # placement tourne.
-    ordonnanceur.add_job(relever_les_horaires, a(6, 50),
-                         id="horaires", name="Relevé des horaires de sport",
-                         coalesce=True)
 
     # NOT-15 : le placement reste commun, à 7h. Le bilan, la relance et le
     # récap partent à l'heure de chacun : un passage toutes les cinq minutes.
