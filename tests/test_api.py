@@ -20,6 +20,8 @@ def test_sante_ne_demande_pas_de_cle(client):
     reponse = client.get("/sante")
     assert reponse.status_code == 200
     assert reponse.json()["base"] == "ok"
+    # Le commit déployé, vide hors du serveur : l'usine Uzine le lit après un déploiement.
+    assert reponse.json()["commit"] == ""
 
 
 def test_sans_cle_on_est_refuse(client):

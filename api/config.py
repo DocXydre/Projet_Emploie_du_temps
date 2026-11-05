@@ -225,6 +225,9 @@ class Configuration(BaseSettings):
     travailleur_adresse: str = ""
 
     version: str = "0.1.0"
+    # Le commit que porte le conteneur, posé par outils/deployer.sh au déploiement.
+    # Vide hors du serveur (tests, poste local).
+    planif_commit: str = ""
 
     @property
     def boites(self) -> list[dict]:

@@ -1,7 +1,8 @@
-# Équivalent du pipeline GitHub (.github/workflows/tests.yml) : ruff, puis toute la
-# suite de tests sur PostgreSQL 16, comme en production. Les tests du déploiement et des
-# migrations ont besoin de git, bash et psql : l'image Python complète a git et bash,
-# psql vient du paquet postgresql-client.
+# Le contrôle de chaque changement, sur le GitLab d'Uzine : ruff, puis toute la suite
+# de tests sur PostgreSQL 16, comme en production. GitHub n'est plus qu'une copie de
+# GitLab, qui ne relance pas les tests. Les tests du déploiement et des migrations ont
+# besoin de git, bash et psql : l'image Python complète a git et bash, psql vient du
+# paquet postgresql-client.
 stages: [qualite]
 
 tests:
