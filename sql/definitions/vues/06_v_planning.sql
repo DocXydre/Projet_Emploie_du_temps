@@ -20,12 +20,18 @@ UNION ALL
 SELECT
     'tache'                            AS nature,
     o.id_occurrence::BIGINT            AS id,
-    o.id_utilisateur,
+    COALESCE(pp.id_utilisateur, o.id_utilisateur) AS id_utilisateur,
     CASE WHEN t.id_type_tache IS NULL THEN 'sport'
          ELSE COALESCE(y.base, 'menage') END::VARCHAR AS categorie,
     -- TAC-16 : le titre de l'occurrence quand elle en accompagne une autre.
-    CASE WHEN o.origine = 'quota' THEN t.libelle || ' à déterminer'
-         ELSE COALESCE(o.titre, t.libelle) END AS libelle,
+    (CASE WHEN o.origine = 'quota' THEN t.libelle || ' à déterminer'
+          ELSE COALESCE(o.titre, t.libelle) END)
+    -- RGL-20 : la mention, comme les titres de TAC-16, selon le nombre de participants.
+    || CASE np.n WHEN 0 THEN ''
+                 WHEN 2 THEN ' (à deux)'
+                 WHEN 3 THEN ' (à trois)'
+                 WHEN 4 THEN ' (à quatre)'
+                 ELSE ' (à ' || np.n || ')' END AS libelle,
     o.creneau                          AS periode,
     lower(o.creneau)                   AS debut,
     upper(o.creneau)                   AS fin,
@@ -38,6 +44,9 @@ FROM occurrence o
 JOIN tache t ON t.id_tache = o.id_tache
 LEFT JOIN type_tache y ON y.id_type_tache = t.id_type_tache
 LEFT JOIN lieu_sport l ON l.id_lieu = o.id_lieu
+LEFT JOIN occurrence_participant pp ON pp.id_occurrence = o.id_occurrence
+LEFT JOIN LATERAL (SELECT count(*) AS n FROM occurrence_participant q
+                    WHERE q.id_occurrence = o.id_occurrence) np ON TRUE
 WHERE o.creneau IS NOT NULL
   AND o.statut IN ('planifiee', 'notifiee')
 
@@ -84,4 +93,6 @@ COMMENT ON VIEW v_planning IS
      journee_entiere décide si l''export produit un VEVENT horaire ou un
      VEVENT journée entière (NOT-3). Une réservation de sport s''y lit « à
      déterminer », sans lieu (SPT-18). Une proposition réalisée s''y lit
-     « Week-end à ... », sur les dates du voyage (WKD-6, WKD-8).';
+     « Week-end à ... », sur les dates du voyage (WKD-6, WKD-8). Une occurrence à plusieurs
+     (RGL-20) y figure une fois par participant, avec la mention « (à deux) »
+     au libellé.';
