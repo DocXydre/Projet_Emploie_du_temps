@@ -181,7 +181,8 @@ Ces valeurs se revoient à l'usage. Toutes les valeurs chiffrées sont réunies 
 | SwiftUI, iOS 26, XcodeGen | Application iPhone | Le vrai Liquid Glass, WidgetKit, ActivityKit, WorkoutKit, HealthKit, Core Location ; le projet Xcode se régénère depuis `project.yml` |
 | Docker Compose | Exécution | Trois conteneurs : la base, l'API, le travailleur |
 | Tailscale | Accès distant et HTTPS | Aucun port ouvert sur la box ; `tailscale funnel` publie les seules routes de l'appli et de MCP |
-| systemd | Déploiement | Un minuteur interroge GitHub et déploie ce qui a été poussé |
+| GitLab, sur le serveur d'Uzine | Dépôt de travail, tests | Chaque changement passe par une merge request dont la pipeline lance ruff et pytest sur PostgreSQL 16 ; une seule branche, `main`, est recopiée sur GitHub |
+| systemd | Déploiement | Un minuteur interroge GitHub et déploie ce qui arrive sur `main` |
 | TestFlight | Distribution de l'appli | Testeurs internes, sans vérification d'Apple |
 | pytest, ruff | Tests et style | Surtout sur les fonctions SQL, le placement et HAL |
 
@@ -220,13 +221,17 @@ L'API est mince : elle reçoit une requête, appelle une fonction SQL ou lit une
 
 **L'accès.** Aucun port n'est ouvert sur la box. `tailscale serve` fournit le HTTPS sur le réseau privé ; `tailscale funnel` publie sur le port 8443 les routes de l'appli et `/mcp`, et elles seules. Chacune exige une clé (CNX-4). Les routes d'administration restent sur le réseau privé (CNX-5).
 
-**Le déploiement.** Un minuteur systemd lance `outils/deployer.sh` toutes les deux minutes : il compare `origin/main` au dernier commit déployé avec succès, applique les migrations, recharge `sql/definitions/` (fonctions, vues, déclencheurs), reconstruit les conteneurs et vérifie que l'API répond sur `/sante`. Un `git push` met donc le serveur à jour ; un échec est annoncé une fois au bot et réessayé tous les quarts d'heure.
+**Le chemin d'un changement.** Le code se travaille sur GitLab, hébergé par Uzine, l'usine logicielle de l'administrateur : une branche par changement, une merge request vers `ci/gitlab`, une pipeline qui doit être verte (ruff, puis toute la suite pytest sur PostgreSQL 16). Ce qui est prêt sur `ci/gitlab` attend dans une merge request vers `main`. Quand sa pipeline est verte, le bot d'Uzine l'annonce à l'administrateur, avec la liste des tickets qui partent et un bouton « Déployer ». Rien n'arrive sur `main` sans ce geste. GitLab recopie alors `main` sur GitHub, et seulement `main` : on ne pousse plus sur GitHub à la main.
+
+**Le déploiement.** Un minuteur systemd lance `outils/deployer.sh` toutes les deux minutes. Il compare `origin/main`, sur GitHub, au dernier commit déployé avec succès. S'il y a du nouveau, il copie la base, met le code à jour, applique les migrations, recharge `sql/definitions/` (fonctions, vues, déclencheurs), reconstruit les conteneurs en leur donnant le commit (`PLANIF_COMMIT`), et vérifie que l'API répond sur `/sante`. `/sante` dit le commit qui tourne : c'est par lui qu'Uzine sait que le déploiement est arrivé, ferme les tickets et le dit à l'administrateur.
+
+**Un déploiement qui échoue.** Le script retient jusqu'où il est allé : rien, le code, la base, les conteneurs. Un échec avant d'avoir touché la production (le réseau, la copie de la base) se réessaie seul tous les quarts d'heure. Un échec après est défait aussitôt : l'ancien code revient, la base est restaurée depuis la copie faite juste avant, l'ancienne version redémarre et doit répondre sur `/sante`. Le commit défait n'est plus retenté seul : il faut un commit nouveau, ou retirer le coupe-circuit (`~/.local/state/planif/coupe_circuit`) pour le retenter. Chaque issue est dite une fois au bot : l'échec avec son étape, le retour arrière fait ou raté, le retour à la normale.
 
 **Le schéma.** Les migrations (`sql/NNN_*.sql`) ne portent que les tables, les contraintes et les données, et ne s'appliquent qu'une fois. Les fonctions, les vues et les déclencheurs ont chacun leur fichier dans `sql/definitions/`, rechargé en entier à chaque déploiement. `sql/SCHEMA.md` est dessiné depuis le catalogue de PostgreSQL et un test refuse qu'il prenne du retard.
 
 **L'appli.** Un push sur `main` qui touche `ios/` part sur TestFlight, pour les testeurs internes. L'adresse du serveur est intégrée à la compilation, hors du dépôt public (CNX-10).
 
-**Le développement.** On teste en local avant de pousser, puisque chaque push est déployé. `outils/tests.sh` lance les tests dans le conteneur, sur une base `planif_test` à part et avec un environnement vide. `outils/fausse_base.sh` construit une base `planif_maquette` entièrement inventée, aux dates du jour, sur laquelle l'appli tourne dans le simulateur sans données réelles ni appel payant. `outils/local.sh scenarios` rejoue les scénarios de HAL (section 11.3).
+**Le développement.** Les tests tournent sur chaque merge request ; on les lance aussi en local, pour ne pas attendre la pipeline. `outils/tests.sh` lance les tests dans le conteneur, sur une base `planif_test` à part et avec un environnement vide. `outils/fausse_base.sh` construit une base `planif_maquette` entièrement inventée, aux dates du jour, sur laquelle l'appli tourne dans le simulateur sans données réelles ni appel payant. `outils/local.sh scenarios` rejoue les scénarios de HAL (section 11.3).
 
 ### 2.5 Ce qui tourne tout seul
 
@@ -420,6 +425,10 @@ Ce que le formulaire d'une tâche ou la fiche d'un calendrier ne savent pas dire
 | RGL-11 | D | Une règle de tâche suit sa tâche : arrêtée, elle cesse de s'appliquer ; reprise, elle revient ; effacée, elle disparaît avec elle |
 | RGL-12 | T | Quand HAL crée une règle qui ne concerne que certains membres (« quand je suis libre »), il règle aussi « pour qui » de la tâche, comme le bouton |
 | RGL-16 | T | Une règle `jours_du_mois` peut dire à elle seule quand une tâche revient (« les 19 et 23 du mois, un mois sur deux ») : la tâche revient alors « selon ses règles », et le moteur pose une occurrence sur chaque jour qu'elle désigne, quatre semaines à l'avance. Le détail de la tâche le montre « Quand : les 19 et 23, un mois sur deux » |
+| RGL-17 | T | Une tâche qui porte une règle `a_plusieurs` se fait ensemble. Chacune de ses occurrences a ses participants, autant que la règle en demande, et elle est posée au même créneau pour tous, un jour où tous sont présents et libres. Sans jour commun dans sa fenêtre, elle reste à placer avec le motif de la règle (PLA-8) |
+| RGL-18 | T | Une occurrence à plusieurs est validée par n'importe lequel de ses participants : une validation vaut pour tous, et la suivante n'est créée qu'une fois. Les autres participants sont prévenus en une phrase : « Le grand nettoyage est noté fait par Lorette » |
+| RGL-19 | T | Une tâche à plusieurs n'entre pas dans l'équilibre : ni dans la charge de chacun, ni dans le tour de rôle et la balance (PLA-12), ni dans la répartition de la semaine (REP). Un rééquilibrage ou un coup de main ne la déplace pas. Un membre allégé (PLA-16) y participe quand même : elle ne se fait qu'ensemble |
+| RGL-20 | T | Le planning de chaque participant montre l'occurrence, avec la mention « à deux » (ou « à trois »…). Retirer la règle rend la tâche ordinaire à partir de ses occurrences suivantes |
 
 #### 4.4.1 Les sortes de règles typées
 
@@ -437,7 +446,7 @@ Ce que le formulaire d'une tâche ou la fiche d'un calendrier ne savent pas dire
 | Tâche | `pas_le_meme_jour` | une autre tâche, ou un type | « une seule machine par jour » |
 | Tâche | `avant_depart` | heure limite du départ, et ce qui se fait la veille au soir au-delà | « sortir les poubelles avant de partir, la veille si on part avant 17 h » |
 | Tâche | `au_retour` | durée d'absence minimale, heure après laquelle c'est le lendemain | « changer l'eau du chat au retour si on est partis plus de deux jours » |
-| Tâche | `a_plusieurs` | combien de membres présents ensemble | « le grand nettoyage se fait à deux » |
+| Tâche | `a_plusieurs` | combien de membres présents ensemble (RGL-17 à RGL-20) | « le grand nettoyage se fait à deux » |
 | Tâche | `quand_absent` | le membre qui doit être absent | « les vitres quand mon colocataire n'est pas là » |
 | Tâche | `ne_se_decale_pas` | aucun | « à faire le jour prévu, jamais décalé » |
 
@@ -1989,6 +1998,15 @@ Une exécution concrète d'une tâche, avec sa fenêtre d'échéance (TAC-4). Un
 
 Contrainte d'exclusion : deux occurrences à heure imposée, planifiées ou annoncées, d'un même compte ne se chevauchent pas (TAC-6).
 
+#### Table : occurrence_participant
+
+Les membres qui font ensemble une occurrence d'une tâche à plusieurs (RGL-17). Elle n'est remplie que pour ces occurrences, et contient tous leurs participants ; `occurrence.id_utilisateur` garde le premier, pour que tout ce qui lit l'assigné continue de marcher.
+
+| Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
+|---|---|---|---|---|---|---|---|
+| id_occurrence | INTEGER | non | | avec `id_utilisateur` | | oui | occurrence (cascade) |
+| id_utilisateur | INTEGER | non | | | | oui | utilisateur (cascade) |
+
 #### Table : enchainement
 
 « Ensuite » : faire une tâche fait naître l'autre dans un délai (TAC-7).
@@ -2036,7 +2054,7 @@ La description d'une tâche, ce qu'aucune règle ne sait dire (MTA-1). Une ligne
 | id_appel | BIGINT | oui | l'appel qui l'a écrite | | | | appel_coach (mise à nul) |
 | quand | TIMESTAMPTZ | non | | | now() | | |
 
-#### Table : sorte_regle **(à créer)**
+#### Table : sorte_regle
 
 Le catalogue des règles typées (RGL-2, section 4.4.1). Une donnée, remplie par migration.
 
@@ -2049,7 +2067,7 @@ Le catalogue des règles typées (RGL-2, section 4.4.1). Une donnée, remplie pa
 | parametres | JSONB | non | le schéma JSON des paramètres, vérifié à l'enregistrement d'une règle | | '{}' | | |
 | pose_occurrence | BOOLEAN | non | vrai : la règle fait poser des occurrences (`jours_du_mois`, `avant_depart`, `au_retour`) | | FALSE | | |
 
-#### Table : regle **(à créer)**
+#### Table : regle
 
 Une règle dictée à HAL (RGL-1). Une règle changée garde sa version d'avant : la nouvelle ligne remplace l'ancienne, qui reçoit `retiree_le` et `remplacee_par` (RGL-10).
 
@@ -3077,7 +3095,7 @@ Une vue donne une seule définition à ce que plusieurs clients lisent : il n'ex
 | `v_taches_en_retard` | Les occurrences en retard, par priorité puis par échéance | EXE-4 |
 | `v_lien_tache` | Les trois sortes de liens d'une seule liste, avec la phrase qui les dit depuis chacune des deux tâches | TAC-27 |
 | `v_description_tache` | La description en vigueur de chaque tâche décrite, et qui l'a dite | MTA-4 |
-| `v_regle` **(à créer)** | Les règles actives de chaque tâche et de chaque source, avec leur phrase et leur sorte | RGL-9 |
+| `v_regle` | Les règles actives de chaque tâche et de chaque source, avec leur phrase et leur sorte | RGL-9 |
 | `v_regle_evenement`, `v_regle_jour` **(à créer)** | Les vues d'entrée des règles SQL | RGL-13 |
 | `v_semaine_maison` **(à créer)** | La répartition de la semaine : attributions, charges, écart, motifs, sans les préférences | REP-12 |
 | `v_source_sante` | L'état calculé de chaque calendrier : en panne au-delà de deux fois sa fréquence | COL-9 |
@@ -3162,13 +3180,15 @@ Les contraintes sont tenues par la base : `CHECK`, clés, contraintes d'exclusio
 
 | Règle visée | Description | Type |
 |---|---|---|
-| RGL-1 | `regle` vise une tâche ou une source, l'une des deux exactement ; une règle de tâche n'a pas de source, et inversement | Statique forte **(à créer)** |
-| RGL-2 | Une règle typée a une sorte de la même cible que la sienne, et des paramètres conformes au schéma de la sorte : `enregistrer_regle()` | Dynamique forte **(à créer)** |
-| RGL-3 | Une règle a une sorte ou une condition SQL, jamais les deux ni aucune | Statique forte **(à créer)** |
-| RGL-8 | `etat` ∈ {active, en_echec, retiree} ; `motif_echec` si et seulement si en échec ; `retiree_le` si et seulement si retirée | Statique forte **(à créer)** |
+| RGL-1 | `regle` vise une tâche ou une source, l'une des deux exactement ; une règle de tâche n'a pas de source, et inversement | Statique forte |
+| RGL-2 | Une règle typée a une sorte de la même cible que la sienne, et des paramètres conformes au schéma de la sorte : `enregistrer_regle()` | Dynamique forte |
+| RGL-3 | Une règle a une sorte ou une condition SQL, jamais les deux ni aucune | Statique forte |
+| RGL-8 | `etat` ∈ {active, en_echec, retiree} ; `motif_echec` si et seulement si en échec ; `retiree_le` si et seulement si retirée | Statique forte |
 | RGL-14 | `compiler_regle()` crée la fonction de la condition, sous un rôle en lecture seule, n'acceptant que la vue d'entrée et une liste de fonctions permises ; elle refuse un point-virgule, une sous-requête vers une autre table, un appel hors liste | Dynamique forte **(à créer)** |
 | RGL-14 | Chaque règle SQL s'exécute avec `statement_timeout` de 200 ms ; une erreur ou un dépassement la passe en échec (RGL-8) | Dynamique forte **(à créer)** |
 | RGL-5 | `essayer_regle()` rend, sans rien écrire, ce que la règle aurait écarté ou permis | Dynamique faible **(à créer)** |
+| RGL-2 | La sorte `a_plusieurs` n'accepte que `membres` = 2 tant que le choix des participants n'existe pas (section 11.4) | Dynamique forte |
+| RGL-17 | Un participant n'apparaît qu'une fois par occurrence : clé de `occurrence_participant` | Statique forte |
 
 ### 7.4 Tâches, placement, exécution
 
@@ -4165,6 +4185,7 @@ Les scénarios du chapitre 10.5 du dossier sportif, et ceux de la maison, sont d
 | Règles SQL écrites par HAL | Une condition écrite par un modèle reste du code venu d'ailleurs | Vue d'entrée fixe, rôle en lecture seule, liste de fonctions permises, délai de 200 ms, essai avant enregistrement (RGL-14). À relire de près au premier mois ; une règle en échec retombe en description |
 | Annulation par le journal | Défaire une action suppose que le journal garde l'état complet de chaque table qu'un geste touche | Tables suivies à étendre (JRN-1) ; une action qu'on ne sait pas défaire ne propose pas « Annuler » |
 | Aiguillage | Un mot ou un modèle peuvent se tromper de famille | Sans indice sûr, les deux familles ; HAL peut ouvrir l'autre (AIG-12). Mesurer le surcoût d'un appel à deux familles |
+| Participants d'une tâche à plusieurs | Dans un foyer de trois ou plus, qui fait une tâche « à deux » n'est pas décidé : tour de rôle entre paires, ou choix dit à HAL | La sorte `a_plusieurs` refuse plus de deux membres ; dans un foyer de deux, ce sont les deux (RGL-17) |
 | Plusieurs foyers sur un serveur | Les tâches et les types n'ont pas encore de foyer | Tant que ce n'est pas fait, le serveur ne sert qu'un foyer, et quitter met le compte en pause (partie 12) |
 | Données d'un compte | L'export et la suppression en bloc ne sont pas faits | À construire avant d'ouvrir le serveur à un autre foyer |
 | Conditions de l'abonnement | Faire travailler son abonnement Claude par un programme à soi, pour soi, est l'usage de `claude setup-token` ; les conditions évoluent | À relire de temps en temps ; si elles changent, chaque compte repasse sur l'API |
@@ -4204,7 +4225,7 @@ Cette partie dit ce que l'application ne fait pas encore comme ce cahier le déc
 | N° | Le cahier veut | L'appli aujourd'hui | Ce qu'il faut changer | Règles |
 |---|---|---|---|---|
 | M10 | Ce qu'on retire d'un calendrier se dit à HAL, qui en fait une règle de filtre | Les filtres sont écrits dans le collecteur : langues suivies, espagnol retiré en dur en alternance, groupe de TD reconnu par une expression, UE écartées dans la configuration de la source, réglés par un écran de l'appli | Tables `sorte_regle` et `regle` ; sortes de source ; application à la collecte ; reprise des réglages actuels en règles ; retrait du code des langues, du groupe et des UE, et de leurs champs dans l'appli | RGL, COL-8 |
-| M11 | Une consigne sur une tâche devient une règle typée, sinon une règle SQL, sinon une description vérifiée par HAL | Toute consigne devient une description, relue par HAL après chaque changement et chaque lundi | Sortes de tâche et leur application au placement et à la génération ; règles SQL compilées et essayées ; `revient` = 'regles' ; transformation des descriptions existantes en règles quand c'est possible ; écran du détail qui montre les règles en phrases | RGL, TAC-29, MTA-1, VER-5 |
+| M11 | Une consigne sur une tâche devient une règle typée, sinon une règle SQL, sinon une description vérifiée par HAL | Les tables, l'enregistrement, le retrait et les outils de HAL existent, avec une seule sorte : `a_plusieurs`, que le placement applique (RGL-17, RGL-19). La validation pour tous et la phrase aux autres (RGL-18), la mention dans l'appli (RGL-20) ne sont pas faites. Toute autre consigne devient une description, relue par HAL après chaque changement et chaque lundi | Sortes de tâche et leur application au placement et à la génération ; règles SQL compilées et essayées ; `revient` = 'regles' ; transformation des descriptions existantes en règles quand c'est possible ; écran du détail qui montre les règles en phrases | RGL, TAC-29, MTA-1, VER-5 |
 | M12 | Une règle en échec retombe en description et fait appeler HAL | Sans objet | Mise en échec, file de vérification, remplacement par HAL | RGL-8 |
 
 ### 12.3 Foyer
