@@ -125,8 +125,9 @@ def _appeler(id_administrateur: int, moment: str, precision: str) -> bool:
         # VER-9 : rien ne bouge, la file attend l'appel suivant.
         LOG.warning("Vérification %s sans réponse de HAL : %s", moment, echec.motif)
         return False
-    _ecrire_aux_autres_membres(id_administrateur, moment, rendu["message"],
-                               rendu.get("elements") or [])
+    # Le texte seulement : les éléments portent des actions liées à l'opération de
+    # l'administrateur, qui viseraient chez un autre des occurrences qui ne sont pas les siennes.
+    _ecrire_aux_autres_membres(id_administrateur, moment, rendu["message"], [])
     return True
 
 
