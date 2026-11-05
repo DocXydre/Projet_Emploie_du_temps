@@ -55,7 +55,15 @@ SELECT
         WHEN 'planifiee' THEN ARRAY['notifiee', 'faite', 'reportee', 'abandonnee']
         WHEN 'notifiee'  THEN ARRAY['faite', 'reportee', 'abandonnee']
         ELSE ARRAY[]::VARCHAR[]
-    END                                                   AS actions_possibles
+    END                                                   AS actions_possibles,
+
+    -- RGL-17 : les pseudos des participants d'une tâche à plusieurs, dans l'ordre
+    -- de leur compte ; un tableau vide pour une tâche ordinaire.
+    ARRAY(SELECT pu.pseudo
+            FROM occurrence_participant pp
+            JOIN utilisateur pu ON pu.id_utilisateur = pp.id_utilisateur
+           WHERE pp.id_occurrence = o.id_occurrence
+           ORDER BY pp.id_utilisateur)::VARCHAR[]             AS participants
 FROM occurrence o
 JOIN tache t          ON t.id_tache = o.id_tache
 LEFT JOIN type_tache y  ON y.id_type_tache = t.id_type_tache
