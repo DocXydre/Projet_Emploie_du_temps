@@ -403,3 +403,114 @@ def test_le_pliage_reste_a_lorette_meme_apres_un_reequilibrage(client, thomas, p
          WHERE t.id_tache = essais.tache_de('PLIER_LINGE') AND o.statut IN ('planifiee', 'notifiee')
         """)}
     assert assignes in ({"lorette"}, set())
+
+
+# ---------------------------------------------------------------------------
+# « Je m'en charge » et « C'est fait » pour une tâche faite en plus
+#                                                            (EXE-17, EXE-18)
+# ---------------------------------------------------------------------------
+
+
+def _occurrence_de(pseudo: str | None) -> int:
+    tache = _un(
+        "SELECT creer_tache(p_libelle => 'Nettoyer la hotte', p_acteur => %s, "
+        "p_tous_les_jours => 14, p_duree_minutes => 30)",
+        _id("thomas"),
+    )
+    return _un(
+        "INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, origine) "
+        "VALUES (%s, %s, tstzrange(now(), now() + INTERVAL '3 days', '[)'), 'manuelle') "
+        "RETURNING id_occurrence",
+        tache,
+        _id(pseudo) if pseudo else None,
+    )
+
+
+def _equilibre(client, entetes, id_utilisateur: int) -> int:
+    ecran = client.get("/appli/aujourdhui", headers=entetes).json()
+    return next(e["minutes"] for e in ecran["equilibre"] if e["pour"] == id_utilisateur)
+
+
+def test_je_m_en_charge_prend_la_tache_de_l_autre_sans_la_valider(client, thomas):
+    numero = _occurrence_de("lorette")
+
+    reponse = client.post(f"/occurrences/{numero}/m-en-charger", headers=thomas)
+
+    assert reponse.status_code == 200, reponse.text
+    corps = reponse.json()
+    assert corps["assigne_a"] == "thomas" and corps["id_utilisateur"] == _id("thomas")
+    assert corps["epinglee"] is True and corps["epinglee_par"] == "admin"
+    assert corps["statut"] in ("a_placer", "planifiee", "notifiee")
+    alertes = _sql(
+        "SELECT contenu FROM notification WHERE id_utilisateur = %s "
+        "AND id_occurrence = %s AND type = 'alerte'",
+        _id("lorette"),
+        numero,
+    )
+    assert len(alertes) == 1 and "Thomas" in alertes[0]["contenu"]
+
+
+def test_je_m_en_charge_refuse_une_tache_deja_a_soi(client, thomas):
+    numero = _occurrence_de("thomas")
+
+    reponse = client.post(f"/occurrences/{numero}/m-en-charger", headers=thomas)
+
+    assert reponse.status_code == 409
+    assert reponse.json()["code"] == "regle_metier"
+    assert "déjà à toi" in reponse.json()["message"]
+
+
+def test_je_m_en_charge_d_une_occurrence_inconnue(client, thomas):
+    reponse = client.post("/occurrences/999999/m-en-charger", headers=thomas)
+
+    assert reponse.status_code == 404 and reponse.json()["code"] == "introuvable"
+
+
+def test_c_est_fait_accepte_une_tache_faite_en_plus(client, thomas):
+    moi = _id("thomas")
+    menage = _un("SELECT id_type_tache FROM type_tache WHERE base = 'menage'")
+    duree = _un("SELECT duree_minutes FROM type_tache WHERE id_type_tache = %s", menage)
+    avant = _equilibre(client, thomas, moi)
+    hier = datetime.now(UTC) - timedelta(days=1)
+
+    reponse = client.post(
+        "/occurrences/faite",
+        headers=thomas,
+        json={
+            "libelle": "Détartrer la bouilloire",
+            "id_type_tache": menage,
+            "quand": hier.isoformat(),
+        },
+    )
+
+    assert reponse.status_code == 200, reponse.text
+    corps = reponse.json()
+    assert corps["statut"] == "faite" and corps["tache_libelle"] == "Détartrer la bouilloire"
+    assert corps["id_utilisateur"] == moi and corps["duree_minutes"] == duree
+    assert abs((datetime.fromisoformat(corps["date_faite"]) - hier).total_seconds()) < 1
+    # Elle compte dans l'équilibre de celui qui l'a faite…
+    assert _equilibre(client, thomas, moi) == avant + duree
+    # …et ne revient pas au planning.
+    assert (
+        _un(
+            "SELECT count(*) FROM occurrence WHERE id_tache = %s AND statut <> 'faite'",
+            corps["id_tache"],
+        )
+        == 0
+    )
+
+
+def test_c_est_fait_sans_tache_ni_nom_est_refuse(client, thomas):
+    assert client.post("/occurrences/faite", headers=thomas, json={}).status_code == 422
+
+
+def test_c_est_fait_en_plus_dans_le_futur_est_refuse(client, thomas):
+    demain = datetime.now(UTC) + timedelta(days=1)
+
+    reponse = client.post(
+        "/occurrences/faite",
+        headers=thomas,
+        json={"libelle": "Détartrer la bouilloire", "quand": demain.isoformat()},
+    )
+
+    assert reponse.status_code == 409
