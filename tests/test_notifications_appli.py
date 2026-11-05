@@ -52,8 +52,7 @@ def minuit(dans_jours: int) -> datetime:
 
 def test_les_heures_par_defaut(client, thomas):
     assert client.get("/moi/heures", headers=thomas).json() == {
-        "bilan": "07:00", "relance": "21:00", "recap": "23:00",
-        "silence_debut": "23:30", "silence_fin": "07:30"}
+        "bilan": "07:00", "relance": "21:00", "recap": "23:00"}
 
 
 def test_chacun_regle_ses_heures(client, thomas, lorette):
@@ -63,11 +62,26 @@ def test_chacun_regle_ses_heures(client, thomas, lorette):
     assert client.get("/moi/heures", headers=thomas).json()["bilan"] == "07:00"
 
 
+def test_les_anciens_champs_de_silence_sont_ignores(client, lorette):
+    """NOT-15 : l'appli actuelle envoie encore silence_debut et silence_fin ;
+    ni erreur, ni effet."""
+    reponse = client.patch(
+        "/moi/heures",
+        headers=lorette,
+        json={"bilan": "08:30", "silence_debut": "22:00", "silence_fin": "06:00"},
+    )
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json() == {"bilan": "08:30", "relance": "21:00", "recap": "23:00"}
+    seuls = client.patch(
+        "/moi/heures", headers=lorette, json={"silence_debut": "22:00", "silence_fin": "06:00"}
+    )
+    assert seuls.status_code == 200, seuls.text
+    assert seuls.json() == {"bilan": "08:30", "relance": "21:00", "recap": "23:00"}
+
+
 @pytest.mark.parametrize("reglage, mot", [
     ({"bilan": "07:03"}, "cinq en cinq"),
     ({"recap": "16:00"}, "18h"),
-    ({"bilan": "06:00"}, "silence"),
-    ({"silence_debut": "07:30"}, "même heure"),
 ])
 def test_une_heure_impossible_est_refusee(client, thomas, reglage, mot):
     reponse = client.patch("/moi/heures", headers=thomas, json=reglage)
