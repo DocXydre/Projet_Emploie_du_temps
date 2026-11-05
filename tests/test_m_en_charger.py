@@ -28,7 +28,8 @@ def _id(pseudo: str) -> int:
 
 def _occurrence(pour: str | None, debut: int = 0, fin: int = 3, statut: str = "a_placer") -> int:
     """Une occurrence de « Nettoyer la hotte » pour `pour` (None : personne), dont la
-    fenêtre va de `debut` à `fin` jours depuis maintenant ; négatifs, elle est en retard."""
+    fenêtre va du jour `debut` au jour `fin` comptés depuis aujourd'hui ; négatifs, elle
+    est en retard."""
     tache = _un(
         "SELECT creer_tache(p_libelle => 'Nettoyer la hotte', p_acteur => %s, "
         "p_tous_les_jours => 14, p_duree_minutes => 30)",
@@ -41,8 +42,9 @@ def _occurrence(pour: str | None, debut: int = 0, fin: int = 3, statut: str = "a
     )
     return _un(
         "INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, creneau, statut, origine) "
-        "VALUES (%s, %s, tstzrange(now() + make_interval(days => %s), "
-        f"now() + make_interval(days => %s), '[)'), {creneau}, %s, 'manuelle') "
+        # Des fenêtres en jours entiers, comme celles que génère le moteur.
+        "VALUES (%s, %s, tstzrange(debut_jour(jour_de(now()) + %s), "
+        f"debut_jour(jour_de(now()) + %s), '[)'), {creneau}, %s, 'manuelle') "
         "RETURNING id_occurrence",
         tache,
         _id(pour) if pour else None,
