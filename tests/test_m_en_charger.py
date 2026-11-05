@@ -142,6 +142,18 @@ def test_une_tache_en_retard_se_reprend_meme_si_elle_est_deja_a_soi():
     assert _un("SELECT count(*) FROM notification WHERE id_occurrence = %s", numero) == 0
 
 
+def test_une_tache_en_retard_prise_se_replace_chez_celui_qui_la_prend():
+    """EXE-18 : le placement ignore une échéance passée ; la tâche prise reste due
+    jusqu'au lendemain au moins, et se replace."""
+    thomas = _id("thomas")
+    numero = _occurrence("lorette", debut=-5, fin=-2)
+
+    _un("SELECT m_en_charger(%s, %s)", numero, thomas)
+    _sql("SELECT placer_taches()")
+
+    assert _etat(numero) == [{"id_utilisateur": thomas, "epinglee": True, "statut": "planifiee"}]
+
+
 def test_une_tache_sans_assigne_se_prend_sans_prevenir_personne():
     thomas = _id("thomas")
     numero = _occurrence(None)

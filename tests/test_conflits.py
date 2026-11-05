@@ -441,5 +441,6 @@ def test_le_conflit_d_un_autre_ne_se_cache_ni_ne_se_tranche(client, thomas, lore
     )
 
     assert cacher.status_code == 404 and trancher.status_code == 404
+    assert client.get("/conflits", headers=lorette, params={"tous": True}).json() == []
     ligne = _sql("SELECT statut, cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]
     assert ligne == {"statut": "en_attente", "cache_jusqu_a": None}

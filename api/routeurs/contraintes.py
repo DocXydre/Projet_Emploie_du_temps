@@ -202,15 +202,20 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
 # Conflits horaires
 # ---------------------------------------------------------------------------
 
-@routeur.get("/conflits", summary="Conflits horaires en attente d'arbitrage")
+@routeur.get("/conflits", summary="Mes conflits horaires en attente d'arbitrage")
 def lister_conflits(qui: Authentifie, tous: bool = False) -> list[dict]:
+    # Un conflit est à celui dont la source l'a fait naître : lui seul le tranche ou
+    # le cache, il est donc le seul à le voir (comme Aujourd'hui et HAL).
     return lister(
         """
-        SELECT * FROM v_conflit
-         WHERE (%(tous)s::BOOLEAN OR (statut = 'en_attente' AND a_arbitrer))
-         ORDER BY debut_nouvelle
+        SELECT v.* FROM v_conflit v
+          JOIN conflit c ON c.id_conflit = v.id_conflit
+          JOIN source s ON s.id_source = c.id_source
+         WHERE s.id_utilisateur = %(moi)s
+           AND (%(tous)s::BOOLEAN OR (v.statut = 'en_attente' AND v.a_arbitrer))
+         ORDER BY v.debut_nouvelle
         """,
-        {"tous": tous},
+        {"tous": tous, "moi": qui.id_utilisateur},
     )
 
 

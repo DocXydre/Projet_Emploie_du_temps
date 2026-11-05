@@ -71,7 +71,13 @@ BEGIN
            epinglee_par   = 'admin',
            creneau        = NULL,
            statut         = 'a_placer',
-           motif          = NULL
+           motif          = NULL,
+           -- Une tâche en retard a une échéance passée, que le placement ignore :
+           -- comme le report de minuit, elle reste due jusqu'au lendemain au moins.
+           fenetre        = CASE WHEN upper(o.fenetre) <= now()
+                                 THEN fenetre_pour(o.rappel_journee, lower(o.fenetre),
+                                                   debut_jour(jour_de(now()) + 2))
+                                 ELSE o.fenetre END
      WHERE id_occurrence = p_occurrence;
 
     -- EXE-18 : l'ancien assigné l'apprend, et le rappel qui l'attendait part.
