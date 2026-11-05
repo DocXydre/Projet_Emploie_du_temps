@@ -88,7 +88,9 @@ def test_prendre_la_tache_de_l_autre_la_donne_et_l_epingle():
         "id_utilisateur": thomas,
         "epinglee": True,
         "epinglee_par": "admin",
-        "statut": "planifiee",
+        # EXE-18 : elle quitte le créneau choisi pour Lorette ; le placement lui en
+        # trouve un dans l'emploi du temps de Thomas.
+        "statut": "a_placer",
         "date_faite": None,
     }
     # Lorette est prévenue (une alerte qui nomme la tâche et Thomas), et le
