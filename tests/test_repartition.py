@@ -326,6 +326,8 @@ def test_le_rappel_en_attente_part_avec_la_tache(client, thomas, place):
 
 
 def test_la_semaine_se_reequilibre_apres_une_reprise(client, thomas, place):
+    # Le grand nettoyage est à plusieurs (règle a_plusieurs) : il est à Thomas
+    # avec deux participants, hors de toute charge, et la balance ne le déplace pas.
     avant = _un("SELECT charge_domestique(%s)", _id("lorette"))
     sienne = _sienne("lorette")
 
@@ -360,6 +362,32 @@ def test_une_tache_deja_annoncee_ne_bouge_pas(client, thomas, place):
     # Ce qu'on a lu le matin ne disparaît pas de la liste l'après-midi.
     assert _un("SELECT id_utilisateur FROM occurrence WHERE id_occurrence = %s",
                a_elle["id_occurrence"]) == _id("lorette")
+
+
+def test_la_balance_ne_libere_pas_une_tache_a_plusieurs(client, thomas, place):
+    grand = _un("SELECT essais.tache_de(%s)", "GRAND_NETTOYAGE")
+    posees = _sql(
+        "SELECT o.id_occurrence FROM occurrence o WHERE o.id_tache = %s "
+        "AND o.statut = 'planifiee' "
+        "AND EXISTS (SELECT 1 FROM occurrence_participant p "
+        "             WHERE p.id_occurrence = o.id_occurrence)",
+        grand,
+    )
+    assert posees, "le grand nettoyage doit être posé avec ses participants"
+
+    liberees = _un("SELECT reequilibrer(60)")
+
+    assert liberees > 0, "la balance doit encore libérer les tâches ordinaires"
+    for ligne in posees:
+        numero = ligne["id_occurrence"]
+        assert _un("SELECT statut FROM occurrence WHERE id_occurrence = %s", numero) == "planifiee"
+        assert (
+            _un("SELECT id_utilisateur FROM occurrence WHERE id_occurrence = %s", numero)
+            is not None
+        )
+        assert (
+            _un("SELECT count(*) FROM occurrence_participant WHERE id_occurrence = %s", numero) == 2
+        )
 
 
 def test_le_pliage_reste_a_lorette_meme_apres_un_reequilibrage(client, thomas, place):

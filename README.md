@@ -1,6 +1,5 @@
 # Planificateur personnel
 
-[![Tests](https://github.com/DocXydre/Projet_Emploie_du_temps/actions/workflows/tests.yml/badge.svg)](https://github.com/DocXydre/Projet_Emploie_du_temps/actions/workflows/tests.yml)
 
 Un serveur et une application iPhone, HAL, pour un foyer de deux personnes. Le serveur croise les emplois du temps de chacun (cours, calendriers personnels, saisies à la main), en déduit les moments libres, et y place seul les tâches de la maison en les répartissant entre les deux. HAL, un coach sportif construit sur un modèle de langage, écrit le contenu des séances de sport.
 
@@ -253,7 +252,7 @@ outils/                     déploiement, tests, copie hors du serveur, fausse b
                             locale, démarrage d'un compte de HAL, scénarios, schéma de la
                             base, diagnostics d'un flux et de la boîte mail
 tests/                      la suite du serveur, sur une vraie base PostgreSQL
-.github/workflows/          ruff et les tests à chaque push
+.gitlab-ci.yml              ruff et les tests à chaque merge request, sur le GitLab d'Uzine
 ```
 
 Les migrations sont numérotées et suivies dans une table `schema_migration` avec l'empreinte de leur contenu. Un fichier modifié est rejoué s'il se déclare idempotent et si aucune migration plus récente n'a repris ce qu'il définit ; sinon le script le signale et demande une migration nouvelle. `./sql/appliquer.sh --adopter FICHIER` prend acte d'une retouche sans SQL, un commentaire corrigé par exemple, sans rien rejouer.

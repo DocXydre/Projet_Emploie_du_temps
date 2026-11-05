@@ -23,8 +23,10 @@ COMPOSE = Path(__file__).resolve().parent.parent / "docker-compose.yml"
 # Ce qui n'a pas la même valeur dans le conteneur et sur la machine, ou dans
 # l'API et dans le travailleur : l'ordonnanceur ne tourne que dans le second,
 # et la première sait où le joindre. Tout le reste doit venir du .env, sans
-# passer par une liste à tenir à jour.
-EXCEPTIONS = {"DB_HOTE", "DB_PORT", "TZ", "ORDONNANCEUR_ACTIF", "TRAVAILLEUR_ADRESSE"}
+# passer par une liste à tenir à jour. PLANIF_COMMIT n'est pas un réglage : c'est
+# outils/deployer.sh qui le pose, avec le commit déployé, pour que /sante le dise.
+EXCEPTIONS = {"DB_HOTE", "DB_PORT", "TZ", "ORDONNANCEUR_ACTIF", "TRAVAILLEUR_ADRESSE",
+              "PLANIF_COMMIT"}
 
 
 @pytest.fixture(scope="module")

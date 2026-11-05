@@ -62,7 +62,6 @@ def test_la_tache_n_a_plus_de_colonne_cachee(base):
     ("Sortir les poubelles", "avant que le dernier parte"),
     ("Sortir les poubelles", "veille au soir"),
     ("Lessive de blanc", "Une seule machine par jour"),
-    ("Grand nettoyage à deux", "Se fait à deux"),
     ("Récurer", "bloc « Nettoyage »"),
     ("Sassy : changer l'eau", "à refaire au retour"),
 ])

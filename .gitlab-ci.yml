@@ -1,0 +1,50 @@
+# Le contrôle de chaque changement, sur le GitLab d'Uzine : ruff, puis toute la suite
+# de tests sur PostgreSQL 16, comme en production. GitHub n'est plus qu'une copie de
+# GitLab, qui ne relance pas les tests. Les tests du déploiement et des migrations ont
+# besoin de git, bash et psql : l'image Python complète a git et bash, psql vient du
+# paquet postgresql-client.
+stages: [qualite]
+
+tests:
+  stage: qualite
+  image: python:3.12-bookworm
+  timeout: 20 minutes
+  tags: [linux]
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+      # Base jetable : sans fsync, les tests vont plus vite et rien n'est à garder.
+      command: ["postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"]
+  variables:
+    POSTGRES_USER: planif
+    POSTGRES_PASSWORD: planif
+    POSTGRES_DB: planif_test
+    # Le service est joignable par son alias, pas par localhost.
+    DB_HOTE: postgres
+    DB_PORT: "5432"
+    ORDONNANCEUR_ACTIF: "false"
+    TZ: UTC
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: pip-$CI_COMMIT_REF_SLUG
+    paths: [.cache/pip]
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq postgresql-client > /dev/null
+    - pip install -q ".[dev]"
+    # Les jobs GitLab tournent en root, que les permissions n'arrêtent pas : le test de
+    # la copie iCloud simule un refus avec chmod. On lance donc les tests en simple utilisateur,
+    # comme sur GitHub.
+    - useradd -m ci && chown -R ci:ci "$CI_PROJECT_DIR"
+  script:
+    - ruff check .
+    - runuser -u ci -- python -m pytest -q -rs -p no:cacheprovider
+  # Une seule pipeline par changement. Sans ces garde-fous, un push sur une branche qui a une merge
+  # request en lançait deux (branche et merge request), et la suite dure dix minutes.
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Les branches d'Uzine (un ticket : uzine/…, un lot de tickets : lot/…) ne sont jugées que par leur merge request.
+    - if: $CI_COMMIT_BRANCH =~ /^(uzine|lot)\//
+      when: never
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH

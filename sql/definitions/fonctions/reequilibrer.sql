@@ -31,6 +31,10 @@ BEGIN
        AND o.creneau IS NOT NULL
        AND lower(o.creneau) > now()
        AND lower(o.creneau) < now() + make_interval(days => p_jours)
+       -- RGL-7 : une tâche à plusieurs (des participants) n'a personne à qui la
+       -- reprendre : la balance ne la libère pas.
+       AND NOT EXISTS (SELECT 1 FROM occurrence_participant p
+                        WHERE p.id_occurrence = o.id_occurrence)
        -- Une tâche déjà annoncée reste où elle est : on ne retire pas de la
        -- liste de quelqu'un ce qu'il a lu ce matin.
        AND NOT EXISTS (SELECT 1 FROM notification n
@@ -43,4 +47,5 @@ END $$;
 
 COMMENT ON FUNCTION reequilibrer IS
     'Libère l''assigné des tâches à venir non annoncées, pour que le placement
-     suivant les redistribue avec les charges à jour (PLA-13).';
+     suivant les redistribue avec les charges à jour (PLA-13). Les tâches à plusieurs
+     ne sont jamais libérées (RGL-7).';

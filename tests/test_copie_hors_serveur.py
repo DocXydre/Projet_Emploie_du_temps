@@ -226,8 +226,11 @@ def _copie_il_y_a(duree: timedelta) -> None:
 
 
 def _alertes() -> list[str]:
+    # Dans l'ordre d'envoi : sans ORDER BY, la base rend les lignes dans un ordre
+    # quelconque, et « la dernière » alerte n'était pas toujours la plus récente.
     return [ligne["contenu"] for ligne in
-            sql("SELECT contenu FROM notification WHERE type = 'administration'")]
+            sql("SELECT contenu FROM notification WHERE type = 'administration' "
+                "ORDER BY id_notification")]
 
 
 def test_sans_copie_installee_rien_n_est_dit(sans_copie):

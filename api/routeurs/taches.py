@@ -45,6 +45,13 @@ LIRE_TACHES = """
            (SELECT json_build_object('texte', d.texte, 'dite_par', d.dite_par_nom,
                                      'quand', d.quand)
               FROM v_description_tache d WHERE d.id_tache = t.id_tache) AS description,
+           -- RGL-9 : les règles typées de la tâche, en phrase, sans pouvoir les modifier ici.
+           COALESCE((SELECT json_agg(json_build_object(
+                         'id_regle', g.id_regle, 'sorte', g.sorte,
+                         'sorte_libelle', g.sorte_libelle, 'parametres', g.parametres,
+                         'phrase', g.phrase, 'dite_par', g.dite_par_nom,
+                         'en_vigueur', g.en_vigueur) ORDER BY g.id_regle)
+                       FROM v_regle g WHERE g.id_tache = t.id_tache), '[]'::json) AS regles,
            -- TAC-30 : ce que montre la liste des tâches arrêtées.
            (SELECT count(*) FROM occurrence o
              WHERE o.id_tache = t.id_tache AND o.statut = 'faite')::INTEGER AS faite_fois

@@ -59,6 +59,8 @@ services:
       # relaie sa sonde dans /sante.
       ORDONNANCEUR_ACTIF: "false"
       TRAVAILLEUR_ADRESSE: http://travailleur:8000
+      # Le commit déployé, que /sante rend : posé par outils/deployer.sh.
+      PLANIF_COMMIT: ${PLANIF_COMMIT:-}
     ports:
       # Par défaut l'API n'écoute que sur la machine. Mettre API_BIND=0.0.0.0
       # dans .env pour l'atteindre depuis le téléphone, sur le réseau local.

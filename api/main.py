@@ -150,6 +150,9 @@ def sante() -> dict:
     return {
         "service": "planif-api",
         "version": conf.version,
+        # Le commit qui tourne : l'usine Uzine s'en sert pour savoir qu'un
+        # déploiement est arrivé.
+        "commit": conf.planif_commit,
         "etat": "ok" if base == "ok" and travailleur["etat"] == "ok" else "degrade",
         "base": base,
         "travailleur": travailleur["etat"],

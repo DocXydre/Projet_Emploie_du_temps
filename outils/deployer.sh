@@ -31,6 +31,8 @@ mkdir -p "$ETAT"
 
 TEMOIN="$ETAT/deploye"        # dernier commit déployé avec succès
 ECHEC="$ETAT/echec"           # commit dont le déploiement a échoué
+COUPE_CIRCUIT="$ETAT/coupe_circuit"  # commit défait par un retour arrière, plus retenté seul
+EN_PANNE="$ETAT/en_panne"     # le dernier déploiement a échoué : le prochain succès le dira
 DESTINATAIRE="$ETAT/telegram" # à qui écrire, retenu tant que la base répond
 JOURNAL="$ETAT/dernier.log"
 SAUVEGARDES="${PLANIF_SAUVEGARDES:-$ETAT/sauvegardes}"
@@ -153,9 +155,24 @@ if [ "$(cat "$ECHEC" 2>/dev/null || true)" = "$DISTANT" ] \
     exit 0
 fi
 
+# Le coupe-circuit : un commit qui a déjà été défait par un retour arrière n'est
+# plus jamais retenté seul. Il a cassé la production une fois ; le retenter
+# toutes les quinze minutes la casserait autant de fois. Seul un nouveau commit,
+# ou le retrait de ce fichier à la main, relance le déploiement.
+if [ "$(cat "$COUPE_CIRCUIT" 2>/dev/null || true)" = "$DISTANT" ]; then
+    exit 0
+fi
+
 COURT=$(git log -1 --format=%h "$DISTANT")
 SUJET=$(git log -1 --format=%s "$DISTANT")
+PRECEDENT=$(git rev-parse HEAD)
 echo "Déploiement : $COURT, $SUJET"
+
+# Ce que le déploiement a déjà changé, pour savoir quoi défaire s'il échoue :
+# rien tant que la copie de la base n'est pas faite ; la base dès que les
+# migrations commencent ; les conteneurs dès qu'ils sont reconstruits.
+ETAPE="$ETAT/etape"
+printf 'rien\n' > "$ETAPE"
 
 # Les étapes s'enchaînent par « && », et non par `set -e` : dans le test
 # d'un « if », le shell ignore `set -e` jusque dans les fonctions appelées, et
@@ -165,28 +182,56 @@ deployer() {
     # fichier a été modifié sur place, le déploiement s'arrête au lieu de créer
     # une fusion.
     git merge --ff-only "$DISTANT" &&
+    printf 'code\n' > "$ETAPE" &&
 
     sauvegarder &&
 
     # Les migrations avant le redémarrage : l'API appelle des fonctions SQL dès
     # son démarrage, et se relancerait en boucle si elles n'existaient pas
     # encore.
+    printf 'base\n' > "$ETAPE" &&
     ./sql/appliquer.sh &&
 
     # Les deux de la même image : l'API et le travailleur. La sonde de l'API
     # relaie celle du travailleur, et en_sante attend donc les deux.
-    docker compose up -d --build api travailleur &&
+    # PLANIF_COMMIT entre dans les conteneurs : /sante dit ainsi quel commit
+    # tourne, ce que l'usine Uzine vérifie après un déploiement.
+    printf 'conteneurs\n' > "$ETAPE" &&
+    PLANIF_COMMIT="$DISTANT" docker compose up -d --build api travailleur &&
 
     en_sante
+}
+
+# Le retour arrière (méthode C du cahier d'Uzine) : la production revient à
+# l'état d'avant le déploiement. Ce que le foyer a saisi pendant ces quelques
+# minutes est perdu avec la restauration ; c'est accepté.
+retour_arriere() {
+    etape="$(cat "$ETAPE" 2>/dev/null || echo rien)"
+    [ "$etape" = rien ] && return 0
+    echo "Retour arrière vers $(git log -1 --format=%h "$PRECEDENT") (étape atteinte : $etape)."
+    git reset --quiet --hard "$PRECEDENT" || return 1
+    [ "$etape" = code ] && return 0
+
+    # La base, depuis la copie faite juste avant les migrations. L'API et le
+    # travailleur s'arrêtent le temps de la restauration : --clean ne peut pas
+    # retirer ce qu'une connexion tient.
+    docker compose stop api travailleur || true
+    docker exec -i "${PLANIF_CONTENEUR:-planif-db}" pg_restore \
+        --username="$(lire_env POSTGRES_USER)" --dbname="$(lire_env POSTGRES_DB)" \
+        --clean --if-exists --single-transaction < "$copie" || return 1
+    echo "Base restaurée depuis $copie"
+
+    PLANIF_COMMIT="$PRECEDENT" docker compose up -d --build api travailleur && en_sante
 }
 
 if deployer > "$JOURNAL" 2>&1; then
     cat "$JOURNAL"
     printf '%s\n' "$DISTANT" > "$TEMOIN"
+    rm -f "$ETAPE"
     retenir_destinataire
     noter "Déploiement de $COURT" "$SUJET"
-    if [ -f "$ECHEC" ]; then
-        rm -f "$ECHEC"
+    if [ -f "$EN_PANNE" ] || [ -f "$ECHEC" ] || [ -f "$COUPE_CIRCUIT" ]; then
+        rm -f "$EN_PANNE" "$ECHEC" "$COUPE_CIRCUIT"
         prevenir "✅ Déploiement rétabli : $COURT, $SUJET"
     fi
     echo "Déployé."
@@ -194,20 +239,45 @@ if deployer > "$JOURNAL" 2>&1; then
 fi
 
 cat "$JOURNAL"
-echo "Déploiement de $COURT échoué. Nouvel essai dans $ATTENTE_MINUTES minutes."
+ETAPE_ATTEINTE="$(cat "$ETAPE" 2>/dev/null || echo rien)"
+: > "$EN_PANNE"
 
-# Une seule alerte par commit : les essais suivants se taisent, sinon un
-# déploiement cassé un vendredi soir ferait vibrer le téléphone tout le week-end.
-if [ "$(cat "$ECHEC" 2>/dev/null || true)" != "$DISTANT" ]; then
-    prevenir "⚠️ Déploiement raté : $COURT, $SUJET
+# Rien n'a bougé en production : la fusion a échoué, ou la copie de la base, et
+# rien n'a été migré. Le code est remis où il était, et l'ancien comportement
+# s'applique : un nouvel essai après l'attente, une panne passagère se répare.
+if [ "$ETAPE_ATTEINTE" = rien ] || [ "$ETAPE_ATTEINTE" = code ]; then
+    retour_arriere >> "$JOURNAL" 2>&1 || true
+    rm -f "$ETAPE"
+    echo "Déploiement de $COURT échoué. Nouvel essai dans $ATTENTE_MINUTES minutes."
+    if [ "$(cat "$ECHEC" 2>/dev/null || true)" != "$DISTANT" ]; then
+        prevenir "⚠️ Déploiement raté : $COURT, $SUJET
 
 $(tail -n 12 "$JOURNAL" | cut -c1-300)
 
 Le serveur garde l'ancienne version et réessaie toutes les $ATTENTE_MINUTES minutes."
+        noter "Déploiement raté de $COURT" "$SUJET"
+    fi
+    printf '%s\n' "$DISTANT" > "$ECHEC"
+    exit 1
 fi
-# Au journal aussi, une fois par commit, comme l'alerte.
-if [ "$(cat "$ECHEC" 2>/dev/null || true)" != "$DISTANT" ]; then
-    noter "Déploiement raté de $COURT" "$SUJET"
+
+# La production a bougé : on la remet comme avant, et on ne retente plus ce
+# commit (coupe-circuit).
+if retour_arriere >> "$JOURNAL" 2>&1; then
+    BILAN="Retour arrière fait : la version d'avant tourne de nouveau$( [ "$ETAPE_ATTEINTE" = code ] || echo ", base restaurée")."
+else
+    BILAN="🚨 Retour arrière RATÉ : intervention à la main nécessaire (voir $JOURNAL)."
 fi
-printf '%s\n' "$DISTANT" > "$ECHEC"
+rm -f "$ETAPE"
+tail -n 4 "$JOURNAL"
+echo "Déploiement de $COURT échoué. $BILAN Plus de nouvel essai automatique pour ce commit."
+printf '%s\n' "$DISTANT" > "$COUPE_CIRCUIT"
+rm -f "$ECHEC"
+prevenir "⚠️ Déploiement raté : $COURT, $SUJET
+
+$(sed -n '1,/^Retour arrière vers/p' "$JOURNAL" | tail -n 12 | cut -c1-300)
+
+$BILAN
+Ce commit ne sera plus retenté seul : pousse un correctif, ou retire $COUPE_CIRCUIT pour réessayer."
+noter "Déploiement raté de $COURT, retour arrière" "$SUJET"
 exit 1
