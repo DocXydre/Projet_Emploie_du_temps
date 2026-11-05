@@ -6,6 +6,7 @@ fait poser. Ce qu'on vérifie, c'est ce que tient la base et ce que décide le
 serveur : quel lieu, quel trajet, quelle question, à quel HAL, et une seule fois.
 """
 
+import inspect
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -544,6 +545,17 @@ def test_la_meteo_d_une_course(client, thomas, lorette, monkeypatch, u):  # noqa
     assert rendu.json()["part_face"] > 0.9
     assert "face au vent" in rendu.json()["en_clair"]
     assert client.get(f"/appli/meteo/activite/{activite}", headers=lorette).status_code == 404
+
+
+def test_une_question_de_presence_peut_partir_la_nuit(u):  # noqa: F811
+    """NOT-15 : plus d'heures sans question. Un compte dont on sait où il est
+    reste suivi à toute heure."""
+    adresses(u)
+    etre(u, "lusse")
+    assert un("SELECT position_sue(%s)", u) is True
+    assert u in {c["id_utilisateur"] for c in position._comptes_suivis()}
+    # Le code ne parle plus de silence.
+    assert "silence" not in inspect.getsource(position).lower()
 
 
 # ---------------------------------------------------------------------------

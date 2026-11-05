@@ -15,8 +15,8 @@ cinq minutes : c'est là que tournent les appels planifiés de HAL.
 
 Chaque question est notée avant d'être posée, une fois pour toutes. Un appel
 qui échoue retire sa note : le passage suivant réessaie, tant que la question
-vaut encore. Aucune question pendant les heures de silence (POS-12), ni si la
-position n'est pas sue (POS-6).
+vaut encore. Aucune question si la position n'est pas sue (POS-6). NOT-15 retire
+les heures sans question : une question part de jour comme de nuit.
 """
 
 import logging
@@ -107,12 +107,11 @@ def demander(id_utilisateur: int, nature: str, cle: str, hal: str, moment: str,
 
 
 def _comptes_suivis() -> list[dict]:
-    """POS-6, POS-12 : les comptes dont on sait où ils sont, hors silence."""
+    """POS-6 : les comptes dont on sait où ils sont."""
     return lister(
         """SELECT u.id_utilisateur, u.pseudo, u.coach_actif
              FROM utilisateur u
-            WHERE u.actif AND position_sue(u.id_utilisateur)
-              AND NOT COALESCE(en_silence(u.id_utilisateur), FALSE)""")
+            WHERE u.actif AND position_sue(u.id_utilisateur)""")
 
 
 def arrivees(id_utilisateur: int) -> int:
