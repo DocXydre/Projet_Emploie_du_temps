@@ -45,13 +45,6 @@ def minuit(dans_jours: int) -> datetime:
         hour=0, minute=0, second=0, microsecond=0)
 
 
-def _silence_ailleurs() -> None:
-    """Un silence de cinq minutes, douze heures plus loin : les tests tournent à toute heure."""
-    loin = datetime.now(PARIS) + timedelta(hours=12)
-    debut = loin.replace(minute=loin.minute - loin.minute % 5, second=0, microsecond=0)
-    sql("UPDATE utilisateur SET silence_debut = %s, silence_fin = %s",
-        debut.time(), (debut + timedelta(minutes=5)).time())
-
 
 # ---------------------------------------------------------------------------
 # Les heures de chacun                                                 NOT-15
@@ -111,25 +104,19 @@ def test_un_rendez_vous_ne_se_sert_qu_une_fois(client):
 
 def test_une_heure_deja_passee_vaut_des_le_lendemain(client, thomas):
     maintenant = datetime.now(PARIS)
-    if maintenant.hour < 1 or maintenant.hour >= 23:
+    if maintenant.hour < 8 or maintenant.hour >= 23:
         pytest.skip("trop près de minuit pour choisir une heure passée et une à venir")
-    sql("UPDATE utilisateur SET silence_debut = '23:55', silence_fin = '00:00'")
+    sql("UPDATE utilisateur SET heure_bilan = '08:00'")
     passee = (maintenant - timedelta(minutes=30)).replace(second=0, microsecond=0)
     passee = passee.replace(minute=passee.minute - passee.minute % 5)
+    if passee.strftime("%H:%M") == "21:00":
+        pytest.skip("c'est déjà l'heure de relance par défaut : rien ne change")
 
     client.patch("/moi/heures", headers=thomas, json={"relance": passee.strftime("%H:%M")})
     servis = sql("SELECT moment, jour FROM passage WHERE id_utilisateur = %s", _id("thomas"))
     assert servis == [{"moment": "relance", "jour": maintenant.date()}]
 
 
-def test_le_silence_est_celui_de_chacun(client):
-    sql("UPDATE utilisateur SET silence_debut = '22:00', silence_fin = '06:00' "
-        "WHERE pseudo = 'lorette'")
-    thomas, lorette = _id("thomas"), _id("lorette")
-    assert un("SELECT en_silence(%s, %s)", lorette, paris(14, 22, 30)) is True
-    assert un("SELECT en_silence(%s, %s)", thomas, paris(14, 22, 30)) is False
-    assert un("SELECT en_silence(%s, %s)", thomas, paris(14, 7, 0)) is True
-    assert un("SELECT en_silence(%s, %s)", lorette, paris(14, 7, 0)) is False
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +161,6 @@ def _statut(id_notification):
 
 
 def test_une_notification_part_vers_l_iphone(client, thomas, cle_apple):
-    _silence_ailleurs()
     _appareil(client, thomas, "developpement")
     n = _notifier()
     recues: list[httpx.Request] = []
@@ -208,7 +194,6 @@ def test_sans_iphone_rien_n_attend(client, cle_apple):
 
 
 def test_un_iphone_qui_n_a_plus_l_appli_est_oublie(client, thomas, cle_apple):
-    _silence_ailleurs()
     _appareil(client, thomas)
     n = _notifier()
     apple.envoyer_la_file(_client([httpx.Response(410, json={"reason": "Unregistered"})], []))
@@ -217,7 +202,6 @@ def test_un_iphone_qui_n_a_plus_l_appli_est_oublie(client, thomas, cle_apple):
 
 
 def test_un_echec_passager_garde_la_notification(client, thomas, cle_apple):
-    _silence_ailleurs()
     _appareil(client, thomas)
     n = _notifier()
     apple.envoyer_la_file(_client([httpx.Response(503)], []))
@@ -228,7 +212,6 @@ def test_un_echec_passager_garde_la_notification(client, thomas, cle_apple):
 
 
 def test_un_jeton_refuse_est_refait(client, thomas, cle_apple):
-    _silence_ailleurs()
     _appareil(client, thomas)
     n = _notifier()
     recues: list[httpx.Request] = []
@@ -238,21 +221,9 @@ def test_un_jeton_refuse_est_refait(client, thomas, cle_apple):
     assert len(recues) == 2
 
 
-def test_rien_ne_part_pendant_le_silence(client, thomas, cle_apple):
-    maintenant = datetime.now(PARIS)
-    sql("UPDATE utilisateur SET silence_debut = %s, silence_fin = %s",
-        (maintenant - timedelta(hours=1)).time().replace(second=0, microsecond=0),
-        (maintenant + timedelta(hours=1)).time().replace(second=0, microsecond=0))
-    _appareil(client, thomas)
-    n = _notifier()
-    recues: list[httpx.Request] = []
-    apple.envoyer_la_file(_client([], recues))
-    assert recues == []
-    assert _statut(n) == "a_envoyer"
 
 
 def test_sans_cle_rien_ne_part_et_rien_ne_se_perd(client, thomas):
-    _silence_ailleurs()
     _appareil(client, thomas)
     n = _notifier()
     assert apple.envoyer_la_file(_client([], []))["desactive"] is True
@@ -281,6 +252,28 @@ def test_le_texte_perd_ses_balises_et_se_coupe():
     texte = corps["aps"]["alert"]["body"]
     assert texte.startswith("Gras fort ")
     assert len(texte) == apple.MAX_CORPS
+
+
+def test_une_notification_de_nuit_part_comme_les_autres(client, thomas, cle_apple):
+    """NOT-15 : pas d'heures de silence. Une notification due à 1 h du matin
+    est choisie et envoyée."""
+    import inspect
+
+    _appareil(client, thomas)
+    n = _notifier()
+    sql(
+        "UPDATE notification SET date_creation = "
+        "((now() AT TIME ZONE 'Europe/Paris')::DATE + TIME '01:00') AT TIME ZONE 'Europe/Paris' "
+        "WHERE id_notification = %s",
+        n,
+    )
+    assert [x["id_notification"] for x in apple.a_envoyer()] == [n]
+    recues: list[httpx.Request] = []
+    apple.envoyer_la_file(_client([], recues))
+    assert len(recues) == 1
+    assert _statut(n) == "envoyee"
+    # Le texte de l'envoi ne parle plus de silence.
+    assert "silence" not in inspect.getsource(apple).lower()
 
 
 # ---------------------------------------------------------------------------

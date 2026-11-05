@@ -187,8 +187,8 @@ def _ranger() -> None:
 
 
 def a_envoyer(limite: int = 50) -> list[dict]:
-    """NOT-14 : pendant son silence, un compte ne reçoit que HAL, et seulement s'il
-    lui a écrit il y a moins de trente minutes."""
+    """NOT-15 : une notification part quand elle est prête, de jour comme de nuit. Le
+    mode Concentration de l'iPhone décide de la montrer."""
     return lister(
         """
         SELECT n.id_notification, n.id_utilisateur, n.type, n.contenu, n.id_occurrence,
@@ -204,14 +204,6 @@ def a_envoyer(limite: int = 50) -> list[dict]:
           JOIN utilisateur u ON u.id_utilisateur = n.id_utilisateur AND u.actif
           LEFT JOIN v_occurrence o ON o.id_occurrence = n.id_occurrence
          WHERE n.apple_statut = 'a_envoyer'
-           AND (NOT en_silence(n.id_utilisateur)
-                -- ACC-9 : une demande d'un client est une conversation en cours.
-                OR n.type = 'demande'
-                OR (n.type = 'coach'
-                    AND EXISTS (SELECT 1 FROM appel_coach c
-                                 WHERE c.id_utilisateur = n.id_utilisateur
-                                   AND c.declencheur = 'utilisateur'
-                                   AND c.debut > now() - INTERVAL '30 minutes')))
          ORDER BY n.date_creation
          LIMIT %(limite)s
         """,
