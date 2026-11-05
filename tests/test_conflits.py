@@ -6,6 +6,11 @@ d'exclusion en refuse une ; la question est de savoir quoi faire de celle-là.
 
 from datetime import UTC, datetime, timedelta
 
+import psycopg
+import pytest
+
+from tests.conftest import _url
+
 
 def dans(jours: int, heure: int) -> datetime:
     base = datetime.now(UTC) + timedelta(days=jours)
@@ -41,6 +46,20 @@ def collecter(client, thomas, texte: str) -> dict:
                           params={"texte_ics": texte})
     assert reponse.status_code == 200, reponse.text
     return reponse.json()
+
+
+def _sql(requete: str, *parametres):
+    with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row, autocommit=True) as conn:
+        curseur = conn.execute(requete, parametres or None)
+        return curseur.fetchall() if curseur.description else []
+
+
+def _conflit_dans(client, thomas, jours: int) -> int:
+    """Un conflit horaire qui commence dans `jours` jours ; rend son numéro."""
+    debut, fin = dans(jours, 10), dans(jours, 12)
+    poser_occupation(client, thomas, debut, fin, "Cours déjà prévu")
+    collecter(client, thomas, flux(f"VPT{jours}", debut, fin, "CM EC Autre chose"))
+    return _sql("SELECT id_conflit FROM conflit ORDER BY id_conflit DESC LIMIT 1")[0]["id_conflit"]
 
 
 # ---------------------------------------------------------------------------
@@ -303,3 +322,30 @@ def test_le_report_de_minuit_perime_les_conflits_passes(client, thomas):
     assert bilan["conflits_perimes"] == 1
     tous = client.get("/conflits", headers=thomas, params={"tous": True}).json()
     assert tous[0]["motif_caducite"] == "passe"
+
+
+# ---------------------------------------------------------------------------
+# « Voir plus tard »                                                  (COL-23)
+# ---------------------------------------------------------------------------
+
+
+def test_un_conflit_ne_se_cache_pas_au_dela_de_sept_jours_avant_sa_date(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    assert (
+        _sql("SELECT cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]["cache_jusqu_a"]
+        is None
+    )
+
+    # Sept jours avant sa date : permis.
+    _sql(
+        "UPDATE conflit SET cache_jusqu_a = lower(periode) - INTERVAL '7 days' "
+        "WHERE id_conflit = %s",
+        numero,
+    )
+    # Six jours avant : la base refuse.
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _sql(
+            "UPDATE conflit SET cache_jusqu_a = lower(periode) - INTERVAL '6 days' "
+            "WHERE id_conflit = %s",
+            numero,
+        )
