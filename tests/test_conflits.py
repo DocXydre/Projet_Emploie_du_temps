@@ -349,3 +349,74 @@ def test_un_conflit_ne_se_cache_pas_au_dela_de_sept_jours_avant_sa_date(client, 
             "WHERE id_conflit = %s",
             numero,
         )
+
+
+def test_voir_plus_tard_cache_le_conflit_jusqu_a_sept_jours_avant(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["id_conflit"] == numero
+    ligne = _sql(
+        "SELECT cache_jusqu_a = lower(periode) - INTERVAL '7 days' AS sept_jours "
+        "FROM conflit WHERE id_conflit = %s",
+        numero,
+    )[0]
+    assert ligne["sept_jours"] is True
+    assert client.get("/conflits", headers=thomas).json() == []
+    tous = client.get("/conflits", headers=thomas, params={"tous": True}).json()
+    assert [c["id_conflit"] for c in tous] == [numero]
+    assert tous[0]["a_arbitrer"] is False and tous[0]["cache_jusqu_a"] is not None
+    # Caché, il ne se recache pas.
+    assert client.post(f"/conflits/{numero}/plus-tard", headers=thomas).status_code == 409
+
+
+def test_un_conflit_cache_revient_puis_ne_se_cache_plus(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    # Le temps passe : la date de retour est derrière nous.
+    _sql(
+        "UPDATE conflit SET cache_jusqu_a = now() - INTERVAL '1 minute' WHERE id_conflit = %s",
+        numero,
+    )
+
+    revenus = client.get("/conflits", headers=thomas).json()
+    assert [c["id_conflit"] for c in revenus] == [numero]
+    assert revenus[0]["a_arbitrer"] is True
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+    assert reponse.status_code == 409
+    assert reponse.json()["code"] == "regle_metier"
+    assert "déjà" in reponse.json()["message"]
+
+
+def test_un_conflit_a_moins_de_sept_jours_ne_se_cache_pas(client, thomas):
+    numero = _conflit_dans(client, thomas, 3)
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 409
+    assert "moins de sept jours" in reponse.json()["message"]
+    assert (
+        _sql("SELECT cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]["cache_jusqu_a"]
+        is None
+    )
+    assert [c["id_conflit"] for c in client.get("/conflits", headers=thomas).json()] == [numero]
+
+
+def test_voir_plus_tard_sur_un_conflit_inconnu(client, thomas):
+    reponse = client.post("/conflits/999999/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 404
+    assert reponse.json()["code"] == "introuvable"
+
+
+def test_un_conflit_regle_ne_se_cache_pas(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    client.post(f"/conflits/{numero}/resoudre", headers=thomas, json={"garder": "existante"})
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 409
+    assert "réglé" in reponse.json()["message"]
