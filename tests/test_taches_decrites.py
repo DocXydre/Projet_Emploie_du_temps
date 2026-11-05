@@ -444,6 +444,61 @@ def test_la_semaine_passe_une_fois_a_son_heure(base, appels):
     assert [a[1] for a in appels] == ["semaine"]
 
 
+def test_le_message_de_la_semaine_va_a_chaque_membre(base, monkeypatch):
+    """COA-34, VER-5 : un lundi, Thomas (administrateur) et Lorette ont le message de la
+    semaine dans leur conversation, chacun avec une notification."""
+    from api.coach import appel
+    from api.coach.clair import maintenant
+
+    def hal_repond(demande):
+        assert demande.moment == "semaine" and demande.deja_affichee is False
+        return appel._enregistrer(
+            demande, demande.moment, "coach", "Voici la semaine", [], None, None
+        )
+
+    monkeypatch.setattr(appel, "appeler_coach", hal_repond)
+    lundi = maintenant().replace(hour=7, minute=0) - timedelta(days=maintenant().isoweekday() - 1)
+
+    assert verification.verifier_la_semaine(lundi) == {"semaines": 1}
+    for pseudo in ("thomas", "lorette"):
+        assert (
+            un(
+                "SELECT count(*) FROM echange WHERE id_utilisateur = %s AND moment = 'semaine' "
+                "AND auteur = 'coach' AND hal = 'foyer' AND contenu = 'Voici la semaine'",
+                _id(pseudo),
+            )
+            == 1
+        )
+        assert (
+            un(
+                "SELECT count(*) FROM notification WHERE id_utilisateur = %s AND type = 'coach' "
+                "AND contenu = 'Voici la semaine' AND statut = 'a_envoyer'",
+                _id(pseudo),
+            )
+            == 1
+        )
+
+
+def test_la_file_n_ecrit_a_personne(base, monkeypatch):
+    """VER-6 : l'appel « verification » ne montre rien ; seul le placement prévient."""
+    from api.coach import appel
+    from tests.test_ensemble import absent
+
+    vues = []
+
+    def hal_repond(demande):
+        vues.append(demande)
+        return appel._enregistrer(demande, demande.moment, "coach", "Relu", [], None, None)
+
+    monkeypatch.setattr(appel, "appeler_coach", hal_repond)
+    absent("thomas", minuit(4), minuit(6))
+
+    verification.verifier_la_file()
+    assert [d.moment for d in vues] == ["verification"]
+    assert vues[0].deja_affichee is True
+    assert un("SELECT count(*) FROM echange WHERE id_utilisateur = %s", _id("lorette")) == 0
+
+
 # ---------------------------------------------------------------------------
 # MTA-2 : HAL écrit la description ; l'appli la lit
 # ---------------------------------------------------------------------------

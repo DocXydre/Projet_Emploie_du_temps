@@ -12,6 +12,11 @@ Deux moments, sans personne qui écrit :
 
 L'appel passe par la chaîne de l'administrateur du foyer (HDF-6). Il échoue :
 rien ne bouge, la file reste pour le suivant (VER-9).
+
+Le message de « semaine » est écrit dans la conversation de chaque membre actif
+du foyer, avec une notification (COA-34, VER-5). Celui de « verification » ne
+montre rien à personne : les personnes concernées sont prévenues par le
+placement (VER-6).
 """
 
 import json
@@ -65,6 +70,32 @@ RAISONS = {"creee": "le moteur l'a créée", "deplacee": "le moteur l'a déplac�
            "description": "sa description vient d'être reprise"}
 
 
+def _ecrire_aux_autres_membres(id_administrateur: int, message: str) -> None:
+    """COA-34 : le message de HAL, déjà écrit pour l'administrateur par l'appel, est écrit
+    aussi dans la conversation de chaque autre membre actif du foyer, avec sa notification."""
+    from api.coach import appel
+
+    membres = lister(
+        """SELECT u.id_utilisateur FROM utilisateur u
+            WHERE u.id_foyer = foyer_de(%(a)s) AND u.actif AND u.id_utilisateur <> %(a)s
+            ORDER BY u.id_utilisateur""",
+        {"a": id_administrateur},
+    )
+    for membre in membres:
+        pour_lui = appel.Demande(
+            id_utilisateur=membre["id_utilisateur"],
+            moment="semaine",
+            declencheur="ordonnanceur",
+            hal="foyer",
+        )
+        try:
+            appel._enregistrer(pour_lui, "semaine", "coach", message, [], None, None)
+        except Exception:  # noqa: BLE001 - un membre ne prive pas les autres
+            LOG.exception(
+                "Message de la semaine non écrit pour le compte %s", membre["id_utilisateur"]
+            )
+
+
 def _texte_de_la_file(lignes: list[dict]) -> str:
     morceaux = ["# À relire"]
     for ligne in lignes:
@@ -81,20 +112,24 @@ def _texte_de_la_file(lignes: list[dict]) -> str:
 
 def _appeler(id_administrateur: int, moment: str, precision: str) -> bool:
     from api.coach import appel
+
+    # COA-34, VER-5 : le message de la semaine va à chaque membre. Celui de la file ne
+    # montre rien à personne : les personnes concernées sont prévenues par placement (VER-6).
+    a_tous = moment == "semaine"
     demande = appel.Demande(id_utilisateur=id_administrateur, moment=moment,
                             declencheur="ordonnanceur", precision=precision, hal="foyer",
-                            # Rien à annoncer à l'administrateur : les personnes
-                            # concernées sont prévenues par placement (VER-6).
-                            deja_affichee=True)
+                            deja_affichee=not a_tous)
     try:
-        appel.appeler_coach(demande)
-        return True
+        rendu = appel.appeler_coach(demande)
     except (appel.CoachInactif, appel.FoyerInactif):
         return False
     except appel.EchecAppel as echec:
         # VER-9 : rien ne bouge, la file attend l'appel suivant.
         LOG.warning("Vérification %s sans réponse de HAL : %s", moment, echec.motif)
         return False
+    if a_tous:
+        _ecrire_aux_autres_membres(id_administrateur, rendu["message"])
+    return True
 
 
 def verifier_la_file() -> dict:
