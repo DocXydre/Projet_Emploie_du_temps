@@ -479,8 +479,9 @@ def test_le_message_de_la_semaine_va_a_chaque_membre(base, monkeypatch):
         )
 
 
-def test_la_file_n_ecrit_a_personne(base, monkeypatch):
-    """VER-6 : l'appel « verification » ne montre rien ; seul le placement prévient."""
+def test_le_message_de_la_file_va_aussi_a_chaque_membre(base, monkeypatch):
+    """COA-34 : le message de l'appel « verification » va à chaque membre, comme celui
+    de la semaine."""
     from api.coach import appel
     from tests.test_ensemble import absent
 
@@ -495,8 +496,9 @@ def test_la_file_n_ecrit_a_personne(base, monkeypatch):
 
     verification.verifier_la_file()
     assert [d.moment for d in vues] == ["verification"]
-    assert vues[0].deja_affichee is True
-    assert un("SELECT count(*) FROM echange WHERE id_utilisateur = %s", _id("lorette")) == 0
+    assert vues[0].deja_affichee is False
+    assert un("SELECT count(*) FROM echange WHERE id_utilisateur = %s AND moment = 'verification'",
+              _id("lorette")) == 1
 
 
 # ---------------------------------------------------------------------------
