@@ -124,6 +124,8 @@ def aujourdhui(qui: Authentifie) -> dict:
           JOIN occupation oc ON oc.id_occupation = c.id_occupation
          WHERE c.statut = 'en_attente' AND s.id_utilisateur = %(moi)s
            AND upper(c.periode) > now()
+           -- COL-23 : un conflit caché par « Voir plus tard » attend son retour.
+           AND (c.cache_jusqu_a IS NULL OR c.cache_jusqu_a <= now())
          ORDER BY lower(c.periode)
          LIMIT 1
         """,

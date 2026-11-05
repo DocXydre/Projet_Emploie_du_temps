@@ -113,6 +113,18 @@ def test_la_tache_prise_ne_bouge_plus_a_la_repartition():
 
     _sql("SELECT reequilibrer(7)")
 
+    assert _etat(numero) == [{"id_utilisateur": thomas, "epinglee": True, "statut": "a_placer"}]
+
+
+def test_la_tache_prise_quitte_le_creneau_de_l_autre_et_se_replace_pour_soi():
+    """EXE-18 : épinglée à la personne, pas à l'heure choisie pour l'autre."""
+    thomas = _id("thomas")
+    numero = _occurrence("lorette", statut="planifiee")
+
+    _un("SELECT m_en_charger(%s, %s)", numero, thomas)
+    assert _un("SELECT creneau FROM occurrence WHERE id_occurrence = %s", numero) is None
+
+    _sql("SELECT placer_taches()")
     assert _etat(numero) == [{"id_utilisateur": thomas, "epinglee": True, "statut": "planifiee"}]
 
 

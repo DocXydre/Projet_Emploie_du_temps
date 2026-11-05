@@ -61,10 +61,17 @@ BEGIN
     v_ancien := o.id_utilisateur;
 
     -- 'admin' = épinglée à la main, valeur déjà permise par occurrence_epinglee_par.
+    -- EXE-18 : épinglée à la personne, pas à l'heure. Un créneau choisi d'après
+    -- l'emploi du temps de l'autre peut tomber pendant un cours de celui qui la
+    -- prend : la tâche repart au placement, qui garde l'assigné épinglé et lui
+    -- cherche une place à lui.
     UPDATE occurrence
        SET id_utilisateur = p_acteur,
            epinglee       = TRUE,
-           epinglee_par   = 'admin'
+           epinglee_par   = 'admin',
+           creneau        = NULL,
+           statut         = 'a_placer',
+           motif          = NULL
      WHERE id_occurrence = p_occurrence;
 
     -- EXE-18 : l'ancien assigné l'apprend, et le rappel qui l'attendait part.
@@ -88,4 +95,4 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION m_en_charger(INTEGER, INTEGER) IS
-    'EXE-18 : prend pour soi une tâche en retard ou prévue pour un autre, sans la valider : elle change d''assigné, s''épingle à celui qui la prend, et l''ancien assigné est prévenu. Refuse le fait, l''abandonné, le reporté, le sport, le à plusieurs, et ce qui est déjà à soi sans retard.';
+    'EXE-18 : prend pour soi une tâche en retard ou prévue pour un autre, sans la valider : elle change d''assigné, s''épingle à celui qui la prend et repart au placement, pour une place dans son emploi du temps à lui ; l''ancien assigné est prévenu. Refuse le fait, l''abandonné, le reporté, le sport, le à plusieurs, et ce qui est déjà à soi sans retard.';

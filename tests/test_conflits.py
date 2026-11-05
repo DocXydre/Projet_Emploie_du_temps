@@ -420,3 +420,26 @@ def test_un_conflit_regle_ne_se_cache_pas(client, thomas):
 
     assert reponse.status_code == 409
     assert "réglé" in reponse.json()["message"]
+
+
+def test_un_conflit_cache_quitte_aujourd_hui(client, thomas):
+    """COL-23 : le bandeau d'Aujourd'hui, où est le bouton, ne montre plus le conflit caché."""
+    numero = _conflit_dans(client, thomas, 10)
+    avant = client.get("/appli/aujourdhui", headers=thomas).json()["conflit"]
+    assert avant is not None and avant["id"] == numero
+
+    assert client.post(f"/conflits/{numero}/plus-tard", headers=thomas).status_code == 200
+    assert client.get("/appli/aujourdhui", headers=thomas).json()["conflit"] is None
+
+
+def test_le_conflit_d_un_autre_ne_se_cache_ni_ne_se_tranche(client, thomas, lorette):
+    numero = _conflit_dans(client, thomas, 10)
+
+    cacher = client.post(f"/conflits/{numero}/plus-tard", headers=lorette)
+    trancher = client.post(
+        f"/conflits/{numero}/resoudre", headers=lorette, json={"garder": "existante"}
+    )
+
+    assert cacher.status_code == 404 and trancher.status_code == 404
+    ligne = _sql("SELECT statut, cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]
+    assert ligne == {"statut": "en_attente", "cache_jusqu_a": None}

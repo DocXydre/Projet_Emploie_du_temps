@@ -227,7 +227,12 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
                     "message": "garder doit valoir 'existante' ou 'nouvelle'"},
         )
 
-    conflit = un_seul("SELECT * FROM conflit WHERE id_conflit = %(id)s", {"id": id_conflit})
+    # Un conflit n'est tranché que par celui dont la source l'a fait naître.
+    conflit = un_seul(
+        """SELECT c.* FROM conflit c JOIN source s ON s.id_source = c.id_source
+            WHERE c.id_conflit = %(id)s AND s.id_utilisateur = %(u)s""",
+        {"id": id_conflit, "u": qui.id_utilisateur},
+    )
     if conflit is not None and conflit["statut"] == "caduc":
         # L'écran est plus ancien que la dernière collecte : dire « déjà
         # tranché » laisserait croire à un choix qu'on n'a pas fait.
@@ -284,6 +289,17 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
 @routeur.post("/conflits/{id_conflit}/plus-tard", summary="Voir plus tard : cacher un conflit")
 def conflit_plus_tard(id_conflit: int, qui: Authentifie) -> dict:
     """COL-23 : le conflit revient sept jours avant sa date, et ne se cache plus ensuite."""
+    # Seul celui dont la source a fait naître le conflit le cache ; pour un autre, il
+    # n'existe pas.
+    if un_seul(
+        """SELECT 1 AS ok FROM conflit c JOIN source s ON s.id_source = c.id_source
+            WHERE c.id_conflit = %(id)s AND s.id_utilisateur = %(u)s""",
+        {"id": id_conflit, "u": qui.id_utilisateur},
+    ) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "introuvable", "message": f"Conflit {id_conflit} inconnu"},
+        )
     ligne = executer("SELECT cacher_conflit(%(id)s) AS cache_jusqu_a", {"id": id_conflit})
     assert ligne is not None
     return {
