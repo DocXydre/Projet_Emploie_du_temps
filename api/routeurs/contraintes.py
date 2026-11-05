@@ -279,3 +279,15 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
         )
 
     return {"id_conflit": id_conflit, "garde": demande.garder, "statut": "resolu"}
+
+
+@routeur.post("/conflits/{id_conflit}/plus-tard", summary="Voir plus tard : cacher un conflit")
+def conflit_plus_tard(id_conflit: int, qui: Authentifie) -> dict:
+    """COL-23 : le conflit revient sept jours avant sa date, et ne se cache plus ensuite."""
+    ligne = executer("SELECT cacher_conflit(%(id)s) AS cache_jusqu_a", {"id": id_conflit})
+    assert ligne is not None
+    return {
+        "id_conflit": id_conflit,
+        "cache_jusqu_a": ligne["cache_jusqu_a"],
+        "statut": "en_attente",
+    }
