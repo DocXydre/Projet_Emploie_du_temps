@@ -355,6 +355,36 @@ def test_la_migration_retire_les_reservations_ouvertes(client, thomas):
     assert un("SELECT statut FROM occurrence WHERE id_occurrence = %s", seance) == "planifiee"
 
 
+def test_le_releve_du_suaps_a_quitte_le_code_et_la_base(base):
+    import importlib.util
+
+    from api import ordonnanceur
+
+    assert importlib.util.find_spec("api.collecteurs.suaps") is None
+    assert not hasattr(sport, "rafraichir_horaires")
+    assert not hasattr(sport, "horaires")
+    assert not hasattr(ordonnanceur, "relever_les_horaires")
+    assert un("SELECT count(*) FROM pg_proc WHERE proname = 'remplacer_ouvertures'") == 0
+    assert un("SELECT to_regclass('public.v_lieu_a_relever') IS NULL") is True
+    assert (
+        un(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'lieu_sport' "
+            "AND column_name IN ('url_horaires', 'configuration', 'horaires_releves_le')"
+        )
+        == 0
+    )
+    # La piscine reste un lieu ordinaire, avec ses heures d'ouverture.
+    assert un("SELECT count(*) FROM lieu_sport WHERE code = 'PISCINE_SUAPS'") == 1
+    assert (
+        un(
+            "SELECT count(*) FROM ouverture o JOIN lieu_sport l USING (id_lieu) "
+            "WHERE l.code = 'PISCINE_SUAPS'"
+        )
+        > 0
+    )
+
+
 # ---------------------------------------------------------------------------
 # Poser une séance à la main                           (SPT-19, SPT-21, SPT-37)
 # ---------------------------------------------------------------------------
