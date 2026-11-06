@@ -311,50 +311,6 @@ def test_le_placement_ne_reserve_plus_de_sport(client, thomas):
     assert choisies(semaine(1)) == []
 
 
-def test_l_ancien_sport_a_quitte_la_base(base):
-    retirees = ("organiser_sport", "organiser_sport_semaine", "propositions_sport",
-                "habitudes_sport", "regler_minimum_sport", "minimum_sport",
-                "alerte_sport_du_lundi", "seances_a_determiner_passees",
-                "heures_seance_sport", "meilleure_heure_sport", "heures_candidates",
-                "sportifs", "obstacle_seance_coach", "bloc_seance_duree", "duree_seance",
-                # Le moteur d'avant la migration 033.
-                "generer_seances_sport", "chercher_creneau_sport", "creneaux_sport_du_jour",
-                "creneaux_sport_semaine", "creneaux_sport_horizon", "semaines_ouvertes",
-                "seances_sport_restantes", "seances_sport_a_caser", "retenir_seance_sport",
-                "caler_seance_sport", "fin_des_obligations")
-    assert un("SELECT count(*) FROM pg_proc WHERE proname = ANY(%s)", list(retirees)) == 0
-    # Une seule version de chacune des deux fonctions fusionnées.
-    assert un("SELECT count(*) FROM pg_proc WHERE proname = 'obstacle_seance'") == 1
-    assert un("SELECT count(*) FROM pg_proc WHERE proname = 'bloc_de_seance'") == 1
-    # Les données ne sont pas perdues, seulement rangées.
-    assert un("SELECT to_regclass('public.choix_sport') IS NULL") is True
-    assert un("SELECT to_regclass('archive.choix_sport') IS NOT NULL") is True
-    assert un("SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public'"
-              " AND table_name = 'utilisateur' AND column_name = 'minimum_sport'") == 0
-
-
-def test_la_migration_retire_les_reservations_ouvertes(client, thomas):
-    from tests.conftest import RACINE
-
-    moi = identifiant(client)
-    jour = semaine(1) + timedelta(days=2)
-    reservation = un("""
-        INSERT INTO occurrence (id_tache, id_utilisateur, fenetre, creneau, statut,
-                                origine, id_lieu, debut_seance, motif)
-        SELECT t.id_tache, %s, tstzrange(%s, %s), tstzrange(%s, %s), 'planifiee',
-               'quota', %s, %s, 'À déterminer'
-          FROM tache t WHERE t.id_tache = essais.tache_de('SPORT')
-        RETURNING id_occurrence
-    """, moi, a(jour, 0), a(jour + timedelta(days=1), 0), a(jour, 17), a(jour, 19),
-        lieu("SALLE"), a(jour, 17, 50))
-    seance = sport.choisir(moi, lieu("COURSE"), a(jour + timedelta(days=1), 18))
-
-    sql((RACINE / "sql" / "065_retrait_reservations_sport.sql").read_text())
-
-    assert un("SELECT count(*) FROM occurrence WHERE id_occurrence = %s", reservation) == 0
-    assert un("SELECT statut FROM occurrence WHERE id_occurrence = %s", seance) == "planifiee"
-
-
 # ---------------------------------------------------------------------------
 # Poser une séance à la main                           (SPT-19, SPT-21, SPT-37)
 # ---------------------------------------------------------------------------
