@@ -31,7 +31,8 @@ Ces consignes valent pour toute session, humaine ou IA.
 - **HAL d'abord, pas d'écran de réglage.** Ce qui se décide en parlant se dit à HAL ; il n'y a pas d'écran pour saisir des règles. Le formulaire des tâches reste tel qu'il est. Quand un choix transforme une demande « IA » en système fixe, le dire à Thomas avant de le faire.
 - **Les règles dans la base.** Une règle de gestion est une contrainte, une fonction SQL ou un déclencheur ; l'API reste mince ; SQL écrit à la main ; une fonction par fichier dans `sql/definitions/` ; les migrations ne portent que les tables et les données.
 - **Les codes de règles ne changent jamais** et ne se réattribuent pas. Une règle nouvelle prend le premier numéro libre de sa famille (section 6). Le code source cite les codes en commentaire.
-- **Tester en local avant de pousser** : chaque push sur `main` est déployé sur le serveur, et chaque push qui touche `ios/` part sur TestFlight.
+- **Passer par GitLab** : une branche, une merge request vers `ci/gitlab`, une pipeline verte. Le déploiement ne part que par le bouton « Déployer » d'Uzine, qui fusionne vers `main` ; GitLab recopie `main` sur GitHub, que le serveur suit. Ne plus pousser sur GitHub à la main. Un push sur `main` qui touche `ios/` part toujours sur TestFlight.
+- **Tester en local** avant d'ouvrir la merge request, pour ne pas attendre la pipeline :
   - `./outils/tests.sh` : les tests du serveur, dans le conteneur, sur une base `planif_test` à part.
   - `./outils/fausse_base.sh` : la base `planif_maquette`, inventée, aux dates du jour, pour le simulateur.
   - `./outils/local.sh scenarios` : les scénarios de HAL avec le vrai modèle, à rejouer quand une consigne change.
@@ -129,6 +130,11 @@ But : ce qu'on dit d'un calendrier ou d'une tâche devient une règle que le sys
 6. Reprendre les descriptions existantes (poubelles avant un départ, une machine par jour, à deux, eau au retour…) en règles typées quand c'est possible.
 7. Appli : le détail d'une tâche et d'un calendrier montre les règles en phrases ; retirer « groupe » et « UE écartées » de `Ecrans/ReglagesPlanning.swift`.
 8. Tests : chaque sorte, une règle SQL refusée (point-virgule, autre table, fonction interdite), une règle qui dépasse 200 ms passe en échec.
+
+Avancement (5 novembre 2026) : la première sorte, `a_plusieurs`, est en production.
+- Lot A d'Uzine : `sorte_regle` et `regle` (migration 087), `enregistrer_regle()` et `retirer_regle()` avec leurs versions, `v_regle` et les règles en phrase dans l'API des tâches, outils de HAL `lire_regles`, `ecrire_regle`, `retirer_regle` et leur consigne ; le « à deux » du grand nettoyage repris en règle (point 6).
+- Lot B1 : `occurrence_participant` (migration 088), `membres_a_plusieurs()`, placement pour tous au même créneau, sortie de la charge et du rééquilibrage (RGL-17, RGL-19).
+- Reste pour « à plusieurs » (lot B2) : la validation pour tous et la phrase aux autres (RGL-18), les participants dans l'API et la mention dans l'appli (RGL-20). Puis les autres sortes, les règles SQL, les règles de source.
 
 Vérification : « retire l'espagnol de mon emploi du temps » crée une règle `ecarter_titre`, la collecte suivante n'a plus d'espagnol et le bilan dit combien ; « l'aspirateur jamais le mardi » ne fait plus jamais poser l'aspirateur un mardi, sans appel à HAL ; « les 19 et 23 du mois, un mois sur deux » fait poser les occurrences par le moteur.
 
