@@ -21,6 +21,7 @@ from psycopg.types.json import Jsonb
 
 from api.base import executer, un_seul
 from api.coach import contexte
+from api.coach.textes import lire_jour, message_d_erreur
 from api.ecran import Ecran
 from api.routeurs import coach as routes
 from api.securite import Appelant
@@ -272,7 +273,6 @@ def _fin(id_utilisateur: int, avant: str) -> Ecran:
 # ---------------------------------------------------------------------------
 
 def _lire_date(texte: str) -> date | None:
-    from api.coach.telegram import lire_jour
     return lire_jour(texte.strip())
 
 
@@ -474,7 +474,6 @@ def _creer_objectif(id_utilisateur: int, qui: Appelant, reponses: dict) -> Ecran
 def _refus(id_utilisateur: int, bloc: str | None, reponses: dict, erreur: Exception) -> Ecran:
     """Un refus de la base ou de la validation : le motif, et le bloc repris là
     où il bloque."""
-    from api.coach.telegram import message_d_erreur
     motif = message_d_erreur(erreur)
     if bloc == "profil":
         # Le plus souvent la date (moins de 18 ans, PRO-7) ou la taille.
