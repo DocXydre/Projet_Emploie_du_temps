@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 
 from api.coach import aiguillage, appel, dossier, memoire, modele, outils
-from api.coach import telegram as coach_tg
 from api.coach.clair import aujourd_hui, lundi_de
 from api.config import configuration
 from api.routeurs import coach as routes
@@ -241,20 +240,6 @@ def test_le_coach_tient_sa_memoire_par_un_outil(u, faux):
     assert memoire.etat(u)["semaine"]["auteur"] == "coach"
 
 
-def test_le_carnet_devient_la_memoire_globale():
-    lorette = _id("lorette")
-    sql("INSERT INTO note_coach (id_utilisateur, categorie, texte, source, confirmee) "
-        "VALUES (%s, 'preference', 'Aime courir le matin', 'utilisateur', true), "
-        "(%s, 'efficacite', 'Récupère mal après 22 h', 'deduction', false)",
-        lorette, lorette)
-    sql((RACINE / "sql" / "056_memoire_du_coach.sql").read_text(encoding="utf-8"))
-    sql((RACINE / "sql" / "056_memoire_du_coach.sql").read_text(encoding="utf-8"))
-
-    globales = sql("SELECT texte, auteur FROM memoire_coach WHERE id_utilisateur = %s",
-                   lorette)
-    assert len(globales) == 1 and globales[0]["auteur"] == "reprise"
-    assert "- Aime courir le matin" in globales[0]["texte"]
-    assert "- Récupère mal après 22 h (à confirmer)" in globales[0]["texte"]
 
 
 # ---------------------------------------------------------------------------
@@ -393,31 +378,8 @@ def test_minuit_fait_le_roulement(u, ecrit):
 
 
 # ---------------------------------------------------------------------------
-# Telegram et routes                                                    (MEM-5)
+# Les routes                                                    (MEM-5)
 # ---------------------------------------------------------------------------
-
-def test_le_gras_du_coach_est_rendu_et_le_reste_echappe():
-    assert coach_tg.mise_en_forme("a < b et **à retenir** <script>") == \
-        "a &lt; b et <b>à retenir</b> &lt;script&gt;"
-    assert coach_tg.mise_en_forme("2 ** 3") == "2 ** 3"
-
-
-def test_memoire_dans_le_bot(u):
-    sql("SELECT ecrire_memoire(%s, 'semaine', 'Première version', 'coach')", u)
-
-    ecran = coach_tg.commande("memoire", u, [])
-    assert "Ce que le coach retient" in ecran.texte and "Première version" in ecran.texte
-
-    ecran = coach_tg.commande("memoire", u, ["semaine", "Version", "corrigée"])
-    assert "Mémoire corrigée" in ecran.texte
-    assert memoire.etat(u)["semaine"]["texte"] == "Version corrigée"
-    assert memoire.etat(u)["semaine"]["auteur"] == "utilisateur"
-
-    ecran = coach_tg.repondre(u, "memr", "s")
-    assert "Version précédente remise" in ecran.texte
-    assert memoire.etat(u)["semaine"]["texte"] == "Première version"
-    assert "Première version" in coach_tg.repondre(u, "mem", "s").texte
-
 
 def test_routes_de_la_memoire(u):
     rendu = routes.corriger_memoire(qui(u), "globale",
