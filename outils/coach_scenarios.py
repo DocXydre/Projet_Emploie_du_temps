@@ -170,8 +170,11 @@ def preparer(situation: list[str]) -> int:
     if "voisin_secret" in situation:
         sql("INSERT INTO limitation (id_utilisateur, libelle, zone, cote, description) "
             "VALUES (%(v)s, 'Genou', 'genou', 'gauche', 'SECRET-VOISIN')", p)
-        sql("INSERT INTO note_coach (id_utilisateur, categorie, texte, source, confirmee) "
-            "VALUES (%(v)s, 'corps', 'NOTE-VOISIN', 'utilisateur', true)", p)
+        sql(
+            "INSERT INTO memoire_coach (id_utilisateur, niveau, texte, auteur) "
+            "VALUES (%(v)s, 'globale', 'NOTE-VOISIN', 'utilisateur')",
+            p,
+        )
     if "objectif_marathon" in situation:
         sql("INSERT INTO objectif (id_utilisateur, type, libelle, distance_m, echeance, "
             "cible_valeur, rang) VALUES (%(u)s, 'course', 'Marathon en moins de 3 h', "

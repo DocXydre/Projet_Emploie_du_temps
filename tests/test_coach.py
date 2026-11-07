@@ -18,7 +18,6 @@ import psycopg
 import pytest
 
 from api.coach import appel, contexte, dossier, modele, outils, planifie, reponse
-from api.coach import telegram as coach_tg
 from api.coach.clair import aujourd_hui, lundi_de
 from api.config import configuration
 from api.ordonnanceur import placer
@@ -66,9 +65,6 @@ def u(base) -> int:
     sql("INSERT INTO profil (id_utilisateur, date_naissance, sexe, taille_cm, "
         "niveau_musculation, niveau_course) VALUES (%s, '2000-01-01', 'homme', 180, "
         "'intermediaire', 'debutant')", u)
-    sql("INSERT INTO depistage (id_utilisateur, coeur, vertiges, maladie_chronique, "
-        "traitement, os_articulations, grossesse, sedentaire_age) "
-        "VALUES (%s, false, false, false, false, false, false, false)", u)
     sql("INSERT INTO discipline_lieu VALUES (%s, 'musculation', %s, 1), "
         "(%s, 'course', %s, 1), (%s, 'cardio', %s, 1)",
         u, lieu("SALLE"), u, lieu("COURSE"), u, lieu("SALLE"))
@@ -173,12 +169,6 @@ PLAN = ("SELECT construire_plan(%s, lundi_de(jour_de(now())), 'Trame', "
 def test_pas_de_plan_sans_profil(base):
     thomas = _id("thomas")
     assert refus("SELECT activer_coach(%s)", thomas) == "profil_incomplet"
-
-
-def test_le_depistage_ne_bloque_plus_le_plan(u):
-    # Décision du 9 octobre : aucun questionnaire ni avis médical n'est exigé.
-    sql("DELETE FROM depistage")
-    assert un(PLAN, u)["id_plan"]
 
 
 def test_pas_de_plan_sans_objectif_principal(u):
@@ -1131,13 +1121,6 @@ def test_les_anciens_messages_du_coach_sont_raccourcis(u, faux):
     assert ("Récent : " + long).strip() in texte
 
 
-def test_un_message_pendant_un_plan_recoit_un_mot_d_attente(u):
-    assert coach_tg.message_d_attente(u, "Mon 5 km : 29:30") is None
-    sql("INSERT INTO appel_coach (id_utilisateur, moment, declencheur, operation, essai, "
-        "modele) VALUES (%s, 'plan', 'systeme', 'op-plan', 1, 'x')", u)
-    assert "plan" in coach_tg.message_d_attente(u, "Mon 5 km : 29:30")
-
-
 def test_un_plan_est_relu_contre_ce_qui_est_pose(u, plan, faux, monkeypatch):
     # COA-30 : le message est relu une fois contre la base, quand des séances ont
     # été posées. « OK » garde le premier message.
@@ -1520,7 +1503,6 @@ def test_le_demarrage_d_un_compte_par_l_api(client, thomas, faux):
     assert client.put("/profil", headers=thomas, json={
         "date_naissance": "2000-01-01", "sexe": "homme", "taille_cm": 180,
         "niveau_musculation": "intermediaire", "niveau_course": "debutant"}).status_code == 200
-    assert client.get("/depistage", headers=thomas).status_code == 404
     assert client.put("/disciplines/musculation/lieux", headers=thomas,
                       json=[lieu("SALLE")]).status_code == 200
     assert client.post("/coach/activer", headers=thomas).json()["manque"] == \
@@ -1645,77 +1627,28 @@ def test_les_echanges_ne_se_lisent_que_par_leur_proprietaire(client, thomas, lor
 # Le bot
 # ---------------------------------------------------------------------------
 
-def test_le_bot_se_tait_devant_le_texte_d_un_compte_sans_coach(base):
-    assert coach_tg.texte_libre(_id("lorette"), "bonjour") is None
-
-
-def test_un_texte_sans_commande_est_une_question_pour_le_coach(u, faux):
-    faux(dit("Réponse avec un <b> qui ne doit pas casser l'affichage."))
-
-    ecran = coach_tg.texte_libre(u, "Une question")
-
-    assert "&lt;b&gt;" in ecran.texte and ecran.boutons == []
-    # La réponse est affichée par le bot lui-même : elle ne part pas une 2e fois.
-    assert un("SELECT statut FROM notification WHERE type = 'coach'") == "envoyee"
-
-
-def test_la_semaine_s_affiche_avec_son_bouton_de_validation(u, plan):
-    a, _ = _meme_semaine(2)
-    seance = proposer(u, dans=a)
-
-    ecran = coach_tg.commande("semaine", u, [])
-
-    assert "à valider" in ecran.texte
-    assert ecran.boutons[0][0][1] == f"co:sem:{lundi_de(jour(a)):%Y%m%d}"
-    assert all(len(rappel.encode()) <= 64 for rangee in ecran.boutons for _, rappel in rangee)
-
-    valide = coach_tg.repondre(u, "sem", f"{lundi_de(jour(a)):%Y%m%d}")
-    assert "1 séance(s) validée(s)" in valide.texte
-    assert un("SELECT etat FROM seance WHERE id_occurrence = %s", seance) == "validee"
-
-
-def test_le_bouton_faite_demande_la_note_d_effort(u, validee):
-    reculer(validee)
-    assert coach_tg.est_seance_du_coach(validee)
-    assert len(coach_tg.ecran_effort(validee).boutons[0]) == 5
-
-    coach_tg.repondre(u, "eff", f"{validee}_7")
-
-    assert un("SELECT effort FROM bilan_seance WHERE id_occurrence = %s", validee) == 7
-
-
-def test_une_serie_se_saisit_depuis_le_bot(u, plan):
-    seance = proposer(u)
-    reculer(seance, 0.2)
-    if jour_de_paris(datetime.now(PARIS) - timedelta(hours=0.2)) != aujourd_hui():
-        pytest.skip("Trop tôt dans la journée pour ce scénario")
-
-    ecran = coach_tg.commande("serie", u, ["presse_pectoraux", "42,5", "10"])
-
-    assert "enregistrée" in ecran.texte
-    assert sql("SELECT charge_kg, repetitions FROM serie_saisie")[0]["repetitions"] == 10
-
-
-def test_le_profil_se_remplit_depuis_le_bot_sans_depistage(base):
-    lorette = _id("lorette")
-    coach_tg.commande("profil", lorette, ["1999-03-02", "femme", "165", "debutant",
-                                          "intermediaire", "matin"])
-    ecran = coach_tg.commande("profil", lorette, [])
-
-    assert "pistage" not in ecran.texte and "médical" not in ecran.texte
-    assert un("SELECT moment_prefere FROM profil WHERE id_utilisateur = %s", lorette) == "matin"
-
-
-def test_une_commande_du_coach_ne_reste_jamais_muette(u):
-    # Un refus de la base s'affiche tel quel, avec son motif.
-    assert "Aucune séance" in coach_tg.repondre(u, "sem", "20200106").texte
-    assert "pas activé" in coach_tg.commande("semaine", _id("lorette"), []).texte
-
-
 def test_le_bot_ne_porte_plus_les_commandes_du_coach():
     # ADM-3 : tout se fait dans l'appli ; seule /hal reste, à l'administrateur.
     from api import bot
 
+    anciennes = {
+        "reinitialiser",
+        "initialiser",
+        "memoire",
+        "objectifs",
+        "profil",
+        "semaine",
+        "seance",
+        "bilan",
+        "signaler",
+        "libre",
+        "mesure",
+        "plan",
+        "lieux",
+        "pause",
+        "serie",
+        "coach",
+    }
     noms = {nom for _, nom, *_ in bot.catalogue()}
-    assert "hal" in noms and not (noms & set(coach_tg.COMMANDES) - {"hal"})
+    assert "hal" in noms and not (noms & anciennes)
 

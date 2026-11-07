@@ -2,7 +2,7 @@
 -- Repartir de zéro avec le coach                                   (DEM-5)
 --
 -- Efface tout ce que le coach sait et a fait pour un compte : profil,
--- questionnaire, limitations, lieux, objectifs, plans, séances du coach et
+-- limitations, lieux, objectifs, plans, séances du coach et
 -- séances libres avec leurs séries et bilans, ajustements, pause, mesures,
 -- mémoire, échanges. Les données de la montre partent aussi, sauf si
 -- on demande à les garder.
@@ -57,9 +57,7 @@ BEGIN
     DELETE FROM pause WHERE id_utilisateur = p_utilisateur;
     DELETE FROM limitation WHERE id_utilisateur = p_utilisateur;
     DELETE FROM discipline_lieu WHERE id_utilisateur = p_utilisateur;
-    DELETE FROM depistage WHERE id_utilisateur = p_utilisateur;
     DELETE FROM profil WHERE id_utilisateur = p_utilisateur;
-    DELETE FROM note_coach WHERE id_utilisateur = p_utilisateur;
     DELETE FROM memoire_coach WHERE id_utilisateur = p_utilisateur;
     DELETE FROM demarrage_coach WHERE id_utilisateur = p_utilisateur;
 

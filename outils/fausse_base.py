@@ -388,9 +388,6 @@ def sport(t: int, lo: int) -> None:
     sql("""INSERT INTO profil (id_utilisateur, date_naissance, sexe, taille_cm,
                                niveau_musculation, niveau_course)
            VALUES (%(u)s, '2001-03-12', 'homme', 181, 'intermediaire', 'debutant')""", u=t)
-    sql("""INSERT INTO depistage (id_utilisateur, coeur, vertiges, maladie_chronique, traitement,
-                                  os_articulations, grossesse, sedentaire_age)
-           VALUES (%(u)s, false, false, false, false, false, false, false)""", u=t)
     sql("""INSERT INTO discipline_lieu VALUES (%(u)s, 'musculation', %(s)s, 1),
                                               (%(u)s, 'course', %(c)s, 1),
                                               (%(u)s, 'cardio', %(s)s, 1)""",
