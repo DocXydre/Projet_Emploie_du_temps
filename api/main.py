@@ -33,6 +33,7 @@ from api.routeurs import (
     taches,
     trajets,
 )
+from api.routeurs.administration import routeur as routeur_de_l_administration
 from api.routeurs.appli import routeur as routeur_de_l_appli
 from api.routeurs.calendriers import routeur as routeur_des_calendriers
 from api.routeurs.clients_mcp import routeur as routeur_des_clients_mcp
@@ -131,6 +132,7 @@ app.include_router(routeur_des_calendriers)
 app.include_router(routeur_des_clients_mcp)
 app.include_router(routeur_des_fournisseurs)
 app.include_router(routeur_des_demandes)
+app.include_router(routeur_de_l_administration)
 
 # MCP-1 : /mcp est servi par le SDK, derrière la porte qui vérifie la clé.
 app.router.add_route("/mcp", serveur_mcp.Porte(), include_in_schema=False)
