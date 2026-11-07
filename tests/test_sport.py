@@ -374,15 +374,8 @@ def test_le_releve_du_suaps_a_quitte_le_code_et_la_base(base):
         )
         == 0
     )
-    # La piscine reste un lieu ordinaire, avec ses heures d'ouverture.
+    # La piscine reste un lieu ordinaire (ses horaires iront dans sa description, ADR-16).
     assert un("SELECT count(*) FROM lieu_sport WHERE code = 'PISCINE_SUAPS'") == 1
-    assert (
-        un(
-            "SELECT count(*) FROM ouverture o JOIN lieu_sport l USING (id_lieu) "
-            "WHERE l.code = 'PISCINE_SUAPS'"
-        )
-        > 0
-    )
 
 
 # ---------------------------------------------------------------------------

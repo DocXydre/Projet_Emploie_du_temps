@@ -117,8 +117,6 @@ def proposer_les_weekends() -> dict:
         return {}
 
 
-
-
 def placer() -> int:
     conf = configuration()
     resultat = executer("SELECT placer_taches(%(h)s, %(s)s) AS placees",
