@@ -129,3 +129,9 @@ def test_une_definition_fausse_ne_laisse_rien_a_moitie(conn):
         conn.execute("CREATE VIEW v_taches_en_retard AS SELECT * FROM table_inconnue")
 
     assert cliche() == avant
+
+
+def test_les_definitions_retirees_ne_sont_plus_en_base():
+    assert "v_journees_travail" not in _noms("vue")
+    assert "v_lieu_a_relever" not in _noms("vue")
+    assert "remplacer_ouvertures" not in _noms("fonction")
