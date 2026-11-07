@@ -425,7 +425,7 @@ Ce que le formulaire d'une tâche ou la fiche d'un calendrier ne savent pas dire
 | RGL-11 | D | Une règle de tâche suit sa tâche : arrêtée, elle cesse de s'appliquer ; reprise, elle revient ; effacée, elle disparaît avec elle |
 | RGL-12 | T | Quand HAL crée une règle qui ne concerne que certains membres (« quand je suis libre »), il règle aussi « pour qui » de la tâche, comme le bouton |
 | RGL-16 | T | Une règle `jours_du_mois` peut dire à elle seule quand une tâche revient (« les 19 et 23 du mois, un mois sur deux ») : la tâche revient alors « selon ses règles », et le moteur pose une occurrence sur chaque jour qu'elle désigne, quatre semaines à l'avance. Le détail de la tâche le montre « Quand : les 19 et 23, un mois sur deux » |
-| RGL-17 | T | Une tâche qui porte une règle `a_plusieurs` se fait ensemble. Chacune de ses occurrences a ses participants, autant que la règle en demande, et elle est posée au même créneau pour tous, un jour où tous sont présents et libres. Sans jour commun dans sa fenêtre, elle reste à placer avec le motif de la règle (PLA-8) |
+| RGL-17 | T | Une tâche qui porte une règle `a_plusieurs` se fait ensemble. Ses participants sont tous les membres présents du foyer ; la règle dit combien il en faut au moins. Chacune de ses occurrences est posée au même créneau pour tous, un jour où assez de membres sont présents et tous ceux-là libres. Sans jour commun dans sa fenêtre, elle reste à placer avec le motif de la règle (PLA-8) |
 | RGL-18 | T | Une occurrence à plusieurs est validée par n'importe lequel de ses participants : une validation vaut pour tous, et la suivante n'est créée qu'une fois. Les autres participants sont prévenus en une phrase : « Le grand nettoyage est noté fait par Lorette » |
 | RGL-19 | T | Une tâche à plusieurs n'entre pas dans l'équilibre : ni dans la charge de chacun, ni dans le tour de rôle et la balance (PLA-12), ni dans la répartition de la semaine (REP). Un rééquilibrage ou un coup de main ne la déplace pas. Un membre allégé (PLA-16) y participe quand même : elle ne se fait qu'ensemble |
 | RGL-20 | T | Le planning de chaque participant montre l'occurrence, avec la mention « à deux » (ou « à trois »…). Retirer la règle rend la tâche ordinaire à partir de ses occurrences suivantes |
@@ -446,7 +446,7 @@ Ce que le formulaire d'une tâche ou la fiche d'un calendrier ne savent pas dire
 | Tâche | `pas_le_meme_jour` | une autre tâche, ou un type | « une seule machine par jour » |
 | Tâche | `avant_depart` | heure limite du départ, et ce qui se fait la veille au soir au-delà | « sortir les poubelles avant de partir, la veille si on part avant 17 h » |
 | Tâche | `au_retour` | durée d'absence minimale, heure après laquelle c'est le lendemain | « changer l'eau du chat au retour si on est partis plus de deux jours » |
-| Tâche | `a_plusieurs` | combien de membres présents ensemble (RGL-17 à RGL-20) | « le grand nettoyage se fait à deux » |
+| Tâche | `a_plusieurs` | combien de membres présents au moins ; tous les présents la font (RGL-17 à RGL-20) | « le grand nettoyage se fait à deux » |
 | Tâche | `quand_absent` | le membre qui doit être absent | « les vitres quand mon colocataire n'est pas là » |
 | Tâche | `ne_se_decale_pas` | aucun | « à faire le jour prévu, jamais décalé » |
 
@@ -3187,7 +3187,7 @@ Les contraintes sont tenues par la base : `CHECK`, clés, contraintes d'exclusio
 | RGL-14 | `compiler_regle()` crée la fonction de la condition, sous un rôle en lecture seule, n'acceptant que la vue d'entrée et une liste de fonctions permises ; elle refuse un point-virgule, une sous-requête vers une autre table, un appel hors liste | Dynamique forte **(à créer)** |
 | RGL-14 | Chaque règle SQL s'exécute avec `statement_timeout` de 200 ms ; une erreur ou un dépassement la passe en échec (RGL-8) | Dynamique forte **(à créer)** |
 | RGL-5 | `essayer_regle()` rend, sans rien écrire, ce que la règle aurait écarté ou permis | Dynamique faible **(à créer)** |
-| RGL-2 | La sorte `a_plusieurs` n'accepte que `membres` = 2 tant que le choix des participants n'existe pas (section 11.4) | Dynamique forte |
+| RGL-2 | La sorte `a_plusieurs` accepte `membres` de 2 au nombre de membres du foyer ; aujourd'hui 2 seulement, tant que le foyer est de deux (M14) | Dynamique forte |
 | RGL-17 | Un participant n'apparaît qu'une fois par occurrence : clé de `occurrence_participant` | Statique forte |
 
 ### 7.4 Tâches, placement, exécution
@@ -4185,7 +4185,6 @@ Les scénarios du chapitre 10.5 du dossier sportif, et ceux de la maison, sont d
 | Règles SQL écrites par HAL | Une condition écrite par un modèle reste du code venu d'ailleurs | Vue d'entrée fixe, rôle en lecture seule, liste de fonctions permises, délai de 200 ms, essai avant enregistrement (RGL-14). À relire de près au premier mois ; une règle en échec retombe en description |
 | Annulation par le journal | Défaire une action suppose que le journal garde l'état complet de chaque table qu'un geste touche | Tables suivies à étendre (JRN-1) ; une action qu'on ne sait pas défaire ne propose pas « Annuler » |
 | Aiguillage | Un mot ou un modèle peuvent se tromper de famille | Sans indice sûr, les deux familles ; HAL peut ouvrir l'autre (AIG-12). Mesurer le surcoût d'un appel à deux familles |
-| Participants d'une tâche à plusieurs | Dans un foyer de trois ou plus, qui fait une tâche « à deux » n'est pas décidé : tour de rôle entre paires, ou choix dit à HAL | La sorte `a_plusieurs` refuse plus de deux membres ; dans un foyer de deux, ce sont les deux (RGL-17) |
 | Plusieurs foyers sur un serveur | Les tâches et les types n'ont pas encore de foyer | Tant que ce n'est pas fait, le serveur ne sert qu'un foyer, et quitter met le compte en pause (partie 12) |
 | Données d'un compte | L'export et la suppression en bloc ne sont pas faits | À construire avant d'ouvrir le serveur à un autre foyer |
 | Conditions de l'abonnement | Faire travailler son abonnement Claude par un programme à soi, pour soi, est l'usage de `claude setup-token` ; les conditions évoluent | À relire de temps en temps ; si elles changent, chaque compte repasse sur l'API |
@@ -4233,7 +4232,7 @@ Cette partie dit ce que l'application ne fait pas encore comme ce cahier le déc
 | N° | Le cahier veut | L'appli aujourd'hui | Ce qu'il faut changer | Règles |
 |---|---|---|---|---|
 | M13 | Plusieurs foyers sur un même serveur, chacun avec ses tâches et ses types | Les tâches et les types n'ont pas de foyer ; le moteur compte tous les comptes actifs ; les vérifications s'arrêtent au premier foyer | `id_foyer` sur `tache` et `type_tache` ; types de base par foyer ; placement, génération, répartition, vérifications et vues par foyer ; filtres de lecture | FOY-9, FOY-10, TAC-1, TAC-25 |
-| M14 | Un foyer de une à huit personnes | Deux places en dur ; tour de rôle, balance, allègement et présence écrits pour deux | `places_libres()` à huit ; tour de rôle par ancienneté parmi les présents ; balance entre le plus et le moins chargé ; allègement au quart de sa part ; textes de l'appli au pluriel | FOY-4, PLA-12, PLA-15, PLA-16, ABS-3, EXE-16 |
+| M14 | Un foyer de une à huit personnes | Deux places en dur ; tour de rôle, balance, allègement et présence écrits pour deux | `places_libres()` à huit ; tour de rôle par ancienneté parmi les présents ; balance entre le plus et le moins chargé ; allègement au quart de sa part ; textes de l'appli au pluriel ; la règle `a_plusieurs` fait participer tous les présents, et accepte jusqu'au nombre de membres | FOY-4, PLA-12, PLA-15, PLA-16, ABS-3, EXE-16, RGL-17 |
 | M15 | Un foyer d'une personne n'a rien qui suppose un autre membre | Les écrans du foyer, l'équilibre, « pour qui », le mode allégé et la séance à deux s'affichent quel que soit le nombre de membres | Masquer dans l'appli ce qui suppose un autre membre ; refuser l'allègement côté serveur | FOY-15, APP-12, WID-9 |
 | M16 | Quitter un foyer, ou en être retiré, mène dans un foyer neuf, avec ses données à soi | Le compte qui sort est désactivé (« mis en pause ») et n'a plus de foyer | `sortir_du_foyer()` crée le foyer neuf et y passe ce qui est au compte ; `id_foyer` obligatoire ; démarrage de la maison | FOY-13, FOY-14, DEM-9 |
 | M17 | La mémoire du foyer a son roulement de nuit comme la mémoire personnelle | La mémoire du foyer garde ses semaines sans les résumer | Étendre le roulement de 0 h 05 à `memoire_foyer` | MEM-6, MEM-11 |
