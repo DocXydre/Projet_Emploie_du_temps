@@ -146,6 +146,17 @@ def dernieres_erreurs(nombre: int = 10) -> list[dict]:
                       ORDER BY id_erreur DESC LIMIT %(n)s""", {"n": nombre})
 
 
+def erreurs_depuis(depuis: int = 0, limite: int = 500) -> list[dict]:
+    """ADM-6 : les erreurs d'id_erreur supérieur à `depuis`, de la plus ancienne
+    à la plus récente."""
+    return lister(
+        """SELECT id_erreur, quand, processus, module, message FROM erreur_recente
+                      WHERE id_erreur > %(d)s
+                      ORDER BY id_erreur ASC LIMIT %(n)s""",
+        {"d": depuis, "n": limite},
+    )
+
+
 def erreurs_recentes(fenetre: timedelta = FENETRE_DES_ERREURS) -> int:
     ligne = un_seul("SELECT count(*)::INTEGER AS n FROM erreur_recente "
                     "WHERE quand >= now() - %(f)s", {"f": fenetre})
