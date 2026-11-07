@@ -315,8 +315,7 @@ def table_rase(base):
         # rendez-vous n'est compté comme servi.
         conn.execute("DELETE FROM passage")
         conn.execute("UPDATE utilisateur SET heure_bilan = '07:00', heure_relance = '21:00', "
-                     "heure_recap = '23:00', silence_debut = '23:30', silence_fin = '07:30', "
-                     "orbe_vu_le = NULL")
+                     "heure_recap = '23:00', orbe_vu_le = NULL")
         # En dernier : tout le ménage ci-dessus s'inscrit lui-même au journal.
         conn.execute("DELETE FROM evenement")
         conn.execute("UPDATE curseur SET dernier = 0")

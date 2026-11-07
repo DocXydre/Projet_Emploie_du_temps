@@ -12,26 +12,25 @@ routeur = APIRouter(prefix="/moi", tags=["Notifications"])
 
 
 class Heures(BaseModel):
-    """Toutes facultatives : seules celles qu'on donne changent."""
+    """Toutes facultatives : seules celles qu'on donne changent. Un champ inconnu est
+    ignoré sans erreur : l'appli iPhone actuelle envoie encore silence_debut et
+    silence_fin (NOT-15)."""
 
     bilan: time | None = None
     relance: time | None = None
     recap: time | None = None
-    silence_debut: time | None = None
-    silence_fin: time | None = None
 
 
 def _heures(id_utilisateur: int) -> dict:
     ligne = un_seul(
-        """SELECT heure_bilan AS bilan, heure_relance AS relance, heure_recap AS recap,
-                  silence_debut, silence_fin
+        """SELECT heure_bilan AS bilan, heure_relance AS relance, heure_recap AS recap
              FROM utilisateur WHERE id_utilisateur = %(u)s""",
         {"u": id_utilisateur})
     assert ligne is not None
     return {cle: valeur.strftime("%H:%M") for cle, valeur in ligne.items()}
 
 
-@routeur.get("/heures", summary="Mes heures : bilan, relance, récap et silence")
+@routeur.get("/heures", summary="Mes heures : bilan, relance et récap")
 def lire_heures(qui: Authentifie) -> dict:
     return _heures(qui.id_utilisateur)
 
@@ -39,9 +38,9 @@ def lire_heures(qui: Authentifie) -> dict:
 @routeur.patch("/heures", summary="Régler mes heures : elles valent dès le lendemain")
 def regler_heures(heures: Heures, qui: Authentifie) -> dict:
     executer(
-        "SELECT regler_heures(%(u)s, %(b)s, %(r)s, %(c)s, %(sd)s, %(sf)s)",
+        "SELECT regler_heures(%(u)s, %(b)s, %(r)s, %(c)s)",
         {"u": qui.id_utilisateur, "b": heures.bilan, "r": heures.relance,
-         "c": heures.recap, "sd": heures.silence_debut, "sf": heures.silence_fin},
+         "c": heures.recap},
     )
     return _heures(qui.id_utilisateur)
 
