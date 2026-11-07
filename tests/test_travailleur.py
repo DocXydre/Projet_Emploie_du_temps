@@ -136,3 +136,19 @@ def test_sans_base_une_erreur_ne_casse_rien(monkeypatch):
     monkeypatch.undo()
     administration._memoire._en_pause_jusqu_a = None
     assert administration.dernieres_erreurs() == []
+
+
+def test_erreurs_depuis_rend_les_plus_anciennes_d_abord_et_filtre():
+    administration.installer("api")
+    for texte in ("Une", "Deux", "Trois"):
+        logging.getLogger("api.essai").error(texte)
+
+    toutes = administration.erreurs_depuis(0)
+    assert [e["message"] for e in toutes] == ["Une", "Deux", "Trois"]
+    assert set(toutes[0]) == {"id_erreur", "quand", "processus", "module", "message"}
+    assert [e["message"] for e in administration.erreurs_depuis(toutes[0]["id_erreur"])] == [
+        "Deux",
+        "Trois",
+    ]
+    assert administration.erreurs_depuis(toutes[-1]["id_erreur"]) == []
+    assert [e["message"] for e in administration.erreurs_depuis(0, 2)] == ["Une", "Deux"]
