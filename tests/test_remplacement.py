@@ -117,8 +117,14 @@ def test_une_tache_sans_remplacement_n_est_pas_touchee(client, thomas):
     client.post(f"/occurrences/{vidage['id_occurrence']}/valider",
                 headers=thomas, json={})
 
-    aspirateur_apres = en_cours(client, thomas, "ASPIRATEUR")
-    assert aspirateur_apres["id_occurrence"] == aspirateur_avant["id_occurrence"]
+    # Le placement qui suit la validation peut déplacer la plus proche occurrence
+    # d'ASPIRATEUR (TAC-15) : son numéro ne dit rien. Ce qui compte, c'est que
+    # le vidage ne la solde pas et ne la couvre pas (TAC-10).
+    apres = occurrences(client, thomas, "ASPIRATEUR")
+    avant = next(o for o in apres if o["id_occurrence"] == aspirateur_avant["id_occurrence"])
+    assert avant["statut"] in ("a_placer", "planifiee", "notifiee")
+    assert not any("Couverte" in (o["motif"] or "") for o in apres)
+    assert not any(o["statut"] in ("faite", "abandonnee") for o in apres)
 
 
 # ---------------------------------------------------------------------------

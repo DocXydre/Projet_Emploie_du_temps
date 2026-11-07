@@ -156,7 +156,11 @@ def test_une_course_deja_recue_prend_l_effort_declare(client, thomas, u):
 
 
 def test_une_course_a_la_main_remplit_la_course_prevue(client, thomas, u):
-    debut = _debut(3)
+    # Hier à 10 h, heure de Paris : un jour entier passé, donc la même journée
+    # pour la course prévue et la course déclarée, quelle que soit l'heure du test.
+    debut = datetime.now(PARIS).replace(hour=10, minute=0, second=0, microsecond=0) - timedelta(
+        days=1
+    )
     prevue = un("SELECT creer_seance_libre(%s, 'course', %s, 45, NULL, TRUE)", u, debut)
     rendu = _a_la_main(client, thomas, debut=(debut + timedelta(minutes=10)).isoformat(),
                        effort=5)
