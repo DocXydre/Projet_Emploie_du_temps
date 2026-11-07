@@ -130,6 +130,37 @@ def base():
     yield
 
 
+# Durée moyenne d'un test de ces fichiers, en multiple d'un test ordinaire (mesurée le
+# 6 novembre 2026) : test_migrations reconstruit une base entière à chaque test.
+_POIDS_PAR_TEST = {"test_migrations.py": 20, "test_remplacement.py": 8, "test_ensemble.py": 4,
+                   "test_placement.py": 3, "test_repartition.py": 2}
+
+
+def pytest_collection_modifyitems(config, items):
+    """Dans la pipeline, la suite se partage entre CI_NODE_TOTAL jobs parallèles.
+
+    Un fichier entier par job, pour que ses tests gardent leur ordre et leurs fixtures.
+    Les fichiers vont, du plus lourd au plus léger, au job le moins chargé. Hors de la
+    pipeline (CI_NODE_TOTAL absent), toute la suite tourne.
+    """
+    total = int(os.environ.get("CI_NODE_TOTAL") or 1)
+    if total < 2:
+        return
+    index = int(os.environ["CI_NODE_INDEX"]) - 1
+    par_fichier: dict[str, list] = {}
+    for item in items:
+        par_fichier.setdefault(item.path.name, []).append(item)
+    poids = {f: len(t) * _POIDS_PAR_TEST.get(f, 1) for f, t in par_fichier.items()}
+    charges, job_de = [0] * total, {}
+    for f in sorted(poids, key=lambda f: (-poids[f], f)):
+        job = charges.index(min(charges))
+        job_de[f] = job
+        charges[job] += poids[f]
+    ecartes = [i for i in items if job_de[i.path.name] != index]
+    items[:] = [i for i in items if job_de[i.path.name] == index]
+    config.hook.pytest_deselected(items=ecartes)
+
+
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """Une tâche de fond lancée par un test finit avec lui.

@@ -8,6 +8,9 @@ stages: [qualite]
 tests:
   stage: qualite
   image: python:3.12-bookworm
+  # La suite se partage entre trois jobs qui tournent en même temps, chacun avec sa base
+  # (tests/conftest.py, pytest_collection_modifyitems) : dix minutes deviennent quatre.
+  parallel: 3
   timeout: 20 minutes
   tags: [linux]
   services:
@@ -36,7 +39,7 @@ tests:
     # comme sur GitHub.
     - useradd -m ci && chown -R ci:ci "$CI_PROJECT_DIR"
   script:
-    - ruff check .
+    - if [ "$CI_NODE_INDEX" = "1" ]; then ruff check .; fi
     - runuser -u ci -- python -m pytest -q -rs -p no:cacheprovider
   # Une seule pipeline par changement. Sans ces garde-fous, un push sur une branche qui a une merge
   # request en lançait deux (branche et merge request), et la suite dure dix minutes.
