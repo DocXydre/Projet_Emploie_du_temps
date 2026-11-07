@@ -209,7 +209,7 @@ def table_rase(base):
         # Le coach. Les échanges d'abord : une notification pouvait en citer un.
         # Supprimer les occurrences emporte ensuite les séances, leurs
         # exercices, leurs séries, leurs bilans et leurs ajustements.
-        for table in ("trace_coach", "echange", "appel_coach", "note_coach", "memoire_coach",
+        for table in ("trace_coach", "echange", "appel_coach", "memoire_coach",
                       "demarrage_coach", "activite_sante", "sante_jour", "echantillon_sante",
                       "sommeil_phase", "mesure",
                       "fenetre_mesure"):
