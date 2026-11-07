@@ -202,15 +202,20 @@ def regler_source(code: str, demande: ReglageSource, qui: Authentifie) -> dict:
 # Conflits horaires
 # ---------------------------------------------------------------------------
 
-@routeur.get("/conflits", summary="Conflits horaires en attente d'arbitrage")
+@routeur.get("/conflits", summary="Mes conflits horaires en attente d'arbitrage")
 def lister_conflits(qui: Authentifie, tous: bool = False) -> list[dict]:
+    # Un conflit est à celui dont la source l'a fait naître : lui seul le tranche ou
+    # le cache, il est donc le seul à le voir (comme Aujourd'hui et HAL).
     return lister(
         """
-        SELECT * FROM v_conflit
-         WHERE (%(tous)s::BOOLEAN OR (statut = 'en_attente' AND a_arbitrer))
-         ORDER BY debut_nouvelle
+        SELECT v.* FROM v_conflit v
+          JOIN conflit c ON c.id_conflit = v.id_conflit
+          JOIN source s ON s.id_source = c.id_source
+         WHERE s.id_utilisateur = %(moi)s
+           AND (%(tous)s::BOOLEAN OR (v.statut = 'en_attente' AND v.a_arbitrer))
+         ORDER BY v.debut_nouvelle
         """,
-        {"tous": tous},
+        {"tous": tous, "moi": qui.id_utilisateur},
     )
 
 
@@ -227,7 +232,12 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
                     "message": "garder doit valoir 'existante' ou 'nouvelle'"},
         )
 
-    conflit = un_seul("SELECT * FROM conflit WHERE id_conflit = %(id)s", {"id": id_conflit})
+    # Un conflit n'est tranché que par celui dont la source l'a fait naître.
+    conflit = un_seul(
+        """SELECT c.* FROM conflit c JOIN source s ON s.id_source = c.id_source
+            WHERE c.id_conflit = %(id)s AND s.id_utilisateur = %(u)s""",
+        {"id": id_conflit, "u": qui.id_utilisateur},
+    )
     if conflit is not None and conflit["statut"] == "caduc":
         # L'écran est plus ancien que la dernière collecte : dire « déjà
         # tranché » laisserait croire à un choix qu'on n'a pas fait.
@@ -279,3 +289,26 @@ def resoudre_conflit(id_conflit: int, demande: Arbitrage, qui: Authentifie) -> d
         )
 
     return {"id_conflit": id_conflit, "garde": demande.garder, "statut": "resolu"}
+
+
+@routeur.post("/conflits/{id_conflit}/plus-tard", summary="Voir plus tard : cacher un conflit")
+def conflit_plus_tard(id_conflit: int, qui: Authentifie) -> dict:
+    """COL-23 : le conflit revient sept jours avant sa date, et ne se cache plus ensuite."""
+    # Seul celui dont la source a fait naître le conflit le cache ; pour un autre, il
+    # n'existe pas.
+    if un_seul(
+        """SELECT 1 AS ok FROM conflit c JOIN source s ON s.id_source = c.id_source
+            WHERE c.id_conflit = %(id)s AND s.id_utilisateur = %(u)s""",
+        {"id": id_conflit, "u": qui.id_utilisateur},
+    ) is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "introuvable", "message": f"Conflit {id_conflit} inconnu"},
+        )
+    ligne = executer("SELECT cacher_conflit(%(id)s) AS cache_jusqu_a", {"id": id_conflit})
+    assert ligne is not None
+    return {
+        "id_conflit": id_conflit,
+        "cache_jusqu_a": ligne["cache_jusqu_a"],
+        "statut": "en_attente",
+    }
