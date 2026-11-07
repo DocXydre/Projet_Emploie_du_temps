@@ -351,7 +351,7 @@ Taper une clé de quarante-huit caractères sur un téléphone n'est pas raisonn
 | CNX-2 | M | Le mot de passe se choisit en rejoignant un foyer (FOY-3), puis se change dans Réglages, Compte. Dix caractères au moins |
 | CNX-3 | T | `POST /connexion` reçoit le pseudo et le mot de passe, ouvre une session et rend sa clé (CNX-11). Après cinq échecs d'affilée, le compte refuse tout essai pendant quinze minutes, même le bon mot de passe. Un pseudo inconnu et un mauvais mot de passe ne se distinguent ni par la réponse ni par sa durée |
 | CNX-4 | D | `/connexion`, `/connexion/apple`, l'acceptation d'une invitation (FOY-3) et la page de son lien sont les seules routes ouvertes sans clé. La page du lien ne lit rien en base : elle ouvre l'appli avec le code et l'adresse du serveur. `/mcp` exige une clé MCP (MCP-2) ; toute autre route exige la clé d'une session ou du compte |
-| CNX-5 | D | Les routes de l'appli et `/mcp` passent par `tailscale funnel`. Les routes d'administration restent sur le réseau privé : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, relève et relecture des courriels, synthèse forcée. L'API les refuse (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
+| CNX-5 | D | Les routes de l'appli et `/mcp` passent par `tailscale funnel`. Les routes d'administration restent sur le réseau privé : collecte forcée, replacement, déclenchement du bilan, de la relance et du report, relève et relecture des courriels, synthèse forcée, lecture des erreurs du jour. L'API les refuse (403) à toute requête venue du funnel, reconnue à l'en-tête `Tailscale-Funnel-Request` ou au port publié |
 | CNX-6 | M | Se déconnecter, dans Réglages, retire l'appareil de la liste des notifications, révoque sa session et efface la clé du trousseau. Les autres appareils restent connectés ; une session se ferme aussi depuis un autre appareil. Changer de mot de passe ne ferme aucune session |
 | CNX-7 | T | « Se connecter avec Apple » : l'appli envoie le jeton d'identité d'Apple à `POST /connexion/apple`. Le serveur vérifie sa signature par les clés publiées par Apple, l'émetteur, le destinataire et l'expiration, puis ouvre une session du compte relié à son identifiant (`sub`). Un jeton refusé ne compte pas dans les échecs de CNX-3 |
 | CNX-8 | M | Un identifiant Apple ouvre un seul compte. Il se relie la première fois en donnant le pseudo et le mot de passe avec le jeton, ou dans Réglages, qui permet aussi de le délier. Relié à un autre compte, il quitte le premier |
@@ -1202,6 +1202,7 @@ Boire et se coucher tard changent la forme du lendemain. HAL doit le savoir, le 
 | ADM-3 | M | Il garde quelques commandes : `/etat` (le serveur, les sources, le dernier déploiement), `/erreurs` (les erreurs du jour), `/collecter`, `/placer`, `/billets` et `/billets relire`, `/hal` (l'état de HAL par compte et ce qu'il a consommé), `/aide` |
 | ADM-4 | T | Une alerte qui dure ne se répète pas plus d'une fois par heure ; une source en panne, une fois par jour. Quand le problème est réglé, un message le dit |
 | ADM-5 | D | Le bot ne porte aucune notification d'un membre du foyer |
+| ADM-6 | D | Les erreurs du jour se lisent aussi par `GET /admin/erreurs`, pour la veille d'Uzine. La route est réservée à l'administrateur et au réseau privé (CNX-5). Elle rend les erreurs dont `id_erreur` dépasse `depuis` (0 par défaut), de la plus ancienne à la plus récente, 500 au plus |
 
 ---
 
@@ -2221,7 +2222,7 @@ Un problème signalé à l'administrateur du serveur (ADM-4). Ouvert tant que `r
 
 #### Table : erreur_recente
 
-Les erreurs écrites au journal par l'API ou le travailleur, gardées une journée, que lit `/erreurs` (ADM-3).
+Les erreurs écrites au journal par l'API ou le travailleur, gardées une journée, que lit `/erreurs` (ADM-3) et `GET /admin/erreurs` (ADM-6).
 
 | Attribut | Type | NULL ? | Contrainte domaine | Unicité | Défaut | PK | FK |
 |---|---|---|---|---|---|---|---|
@@ -3980,6 +3981,7 @@ Administration (réseau privé)
   POST   /notifications/bilan | /relance | /report | GET /notifications | POST /notifications/{id}/envoyee
   POST   /trajets/propositions/tour | POST /trajets/courriels | DELETE /trajets/courriels | DELETE /trajets/courriels/a-revoir
   POST   /coach/synthese | GET /coach/appels | POST /coach/activer
+  GET    /admin/erreurs                              Les erreurs du jour, depuis un id_erreur (veille d'Uzine)
   POST   /occurrences                                Créer une occurrence à la main
 ```
 
