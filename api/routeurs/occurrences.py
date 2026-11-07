@@ -18,7 +18,8 @@ COLONNES = """
     id_occurrence, id_tache, tache_libelle, categorie, priorite,
     duree_minutes, id_utilisateur, assigne_a, echeance_min, echeance_max,
     debut, fin, statut, origine, epinglee, epinglee_par, rappel_journee,
-    nb_relances, motif, date_faite, en_retard, jours_de_retard, actions_possibles
+    nb_relances, motif, date_faite, en_retard, jours_de_retard, actions_possibles,
+    participants
 """
 
 

@@ -34,6 +34,11 @@ PREFIXES = {
 
 
 def _identifiant(ligne: dict) -> str:
+    # RGL-20 : une tâche à plusieurs a une ligne par participant, donc un
+    # événement par participant ; l'identifiant porte le compte pour qu'ils
+    # ne se confondent pas dans un calendrier composé des deux.
+    if ligne["nature"] == "tache":
+        return f"tache-{ligne['id']}-{ligne['id_utilisateur']}@planif.local"
     return f"{ligne['nature']}-{ligne['id']}@planif.local"
 
 
