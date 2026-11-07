@@ -212,6 +212,8 @@ def lire_conflits(u: int, a: dict) -> object:
              JOIN occupation oc ON oc.id_occupation = c.id_occupation
             WHERE c.statut = 'en_attente' AND s.id_utilisateur = %(u)s
               AND upper(c.periode) > now()
+              -- COL-23 : un conflit caché par « Voir plus tard » attend son retour.
+              AND (c.cache_jusqu_a IS NULL OR c.cache_jusqu_a <= now())
             ORDER BY lower(c.periode)""", {"u": u})
     return {"conflits": [sans_vides(x) for x in lignes],
             "note": "Un conflit se tranche dans l'appli, depuis son bandeau d'Aujourd'hui."}

@@ -18,7 +18,8 @@ COLONNES = """
     id_occurrence, id_tache, tache_libelle, categorie, priorite,
     duree_minutes, id_utilisateur, assigne_a, echeance_min, echeance_max,
     debut, fin, statut, origine, epinglee, epinglee_par, rappel_journee,
-    nb_relances, motif, date_faite, en_retard, jours_de_retard, actions_possibles
+    nb_relances, motif, date_faite, en_retard, jours_de_retard, actions_possibles,
+    participants
 """
 
 
@@ -39,9 +40,21 @@ class DemandeValidation(BaseModel):
 
 
 class DemandeSpontanee(BaseModel):
-    id_tache: int = Field(description="Le numéro de la tâche, rendu par GET /taches")
+    id_tache: int | None = Field(
+        default=None,
+        description="Le numéro de la tâche, rendu par GET /taches. Absent pour une tâche "
+        "faite en plus (libelle).",
+    )
     quand: datetime | None = Field(
         default=None, description="Quand elle a été faite. Maintenant par défaut."
+    )
+    libelle: str | None = Field(
+        default=None,
+        description="EXE-17 : le nom d'une tâche faite en plus, qui n'existait pas. Sans id_tache.",
+    )
+    id_type_tache: int | None = Field(default=None, description="Son type ; Ménage par défaut.")
+    duree_minutes: int | None = Field(
+        default=None, gt=0, description="Sa durée ; celle du type par défaut."
     )
 
 
@@ -120,11 +133,34 @@ def faite(demande: DemandeSpontanee, qui: Authentifie) -> dict:
     Reprend l'occurrence ouverte s'il y en a une, en crée une sinon. Dans les
     deux cas la récurrence repart de la date déclarée : le prochain passage se
     compte à partir de maintenant, pas de l'échéance qui était prévue.
+    Avec `libelle` au lieu de `id_tache` : une tâche faite en plus, créée puis validée (EXE-17).
     """
-    resultat = un_seul(
-        "SELECT declarer_faite(%(u)s, %(c)s, %(q)s) AS id_occurrence",
-        {"u": qui.id_utilisateur, "c": demande.id_tache, "q": demande.quand},
-    )
+    if demande.id_tache is not None:
+        resultat = un_seul(
+            "SELECT declarer_faite(%(u)s, %(c)s, %(q)s) AS id_occurrence",
+            {"u": qui.id_utilisateur, "c": demande.id_tache, "q": demande.quand},
+        )
+    elif demande.libelle:
+        # EXE-17 : une tâche faite en plus, qui n'existait pas.
+        resultat = un_seul(
+            "SELECT declarer_faite_en_plus(%(u)s, %(l)s, %(t)s, %(d)s, %(q)s) AS id_occurrence",
+            {
+                "u": qui.id_utilisateur,
+                "l": demande.libelle,
+                "t": demande.id_type_tache,
+                "d": demande.duree_minutes,
+                "q": demande.quand,
+            },
+        )
+    else:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "requete_invalide",
+                "message": "Donne le numéro de la tâche (id_tache), ou le nom d'une "
+                "tâche faite en plus (libelle)",
+            },
+        )
     assert resultat is not None
     # EXE-15 : comme pour une validation, la suite se replace dans la foulée.
     # Sans cela, la prochaine occurrence restait « à placer » jusqu'au matin.
@@ -145,6 +181,22 @@ def valider(id_occurrence: int, qui: Authentifie, demande: DemandeValidation | N
     )
     # EXE-15 : la suivante naît de la validation, et une tâche faite en avance
     # avance tout le reste. On replace dans la foulée plutôt qu'à la nuit.
+    from api.ordonnanceur import replacer
+
+    replacer()
+    return detail(id_occurrence, qui)
+
+
+@routeur.post(
+    "/{id_occurrence}/m-en-charger", summary="Je m'en charge : prendre une tâche sans la valider"
+)
+def m_en_charger(id_occurrence: int, qui: Authentifie) -> dict:
+    """EXE-18 : la tâche passe à celui qui la prend et s'épingle ; l'ancien assigné est prévenu."""
+    executer(
+        "SELECT m_en_charger(%(id)s, %(acteur)s)",
+        {"id": id_occurrence, "acteur": qui.id_utilisateur},
+    )
+    # PLA-13 : la répartition se refait aussitôt, comme après une validation.
     from api.ordonnanceur import replacer
     replacer()
     return detail(id_occurrence, qui)

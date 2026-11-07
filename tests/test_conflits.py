@@ -6,6 +6,11 @@ d'exclusion en refuse une ; la question est de savoir quoi faire de celle-là.
 
 from datetime import UTC, datetime, timedelta
 
+import psycopg
+import pytest
+
+from tests.conftest import _url
+
 
 def dans(jours: int, heure: int) -> datetime:
     base = datetime.now(UTC) + timedelta(days=jours)
@@ -41,6 +46,20 @@ def collecter(client, thomas, texte: str) -> dict:
                           params={"texte_ics": texte})
     assert reponse.status_code == 200, reponse.text
     return reponse.json()
+
+
+def _sql(requete: str, *parametres):
+    with psycopg.connect(_url(), row_factory=psycopg.rows.dict_row, autocommit=True) as conn:
+        curseur = conn.execute(requete, parametres or None)
+        return curseur.fetchall() if curseur.description else []
+
+
+def _conflit_dans(client, thomas, jours: int) -> int:
+    """Un conflit horaire qui commence dans `jours` jours ; rend son numéro."""
+    debut, fin = dans(jours, 10), dans(jours, 12)
+    poser_occupation(client, thomas, debut, fin, "Cours déjà prévu")
+    collecter(client, thomas, flux(f"VPT{jours}", debut, fin, "CM EC Autre chose"))
+    return _sql("SELECT id_conflit FROM conflit ORDER BY id_conflit DESC LIMIT 1")[0]["id_conflit"]
 
 
 # ---------------------------------------------------------------------------
@@ -303,3 +322,125 @@ def test_le_report_de_minuit_perime_les_conflits_passes(client, thomas):
     assert bilan["conflits_perimes"] == 1
     tous = client.get("/conflits", headers=thomas, params={"tous": True}).json()
     assert tous[0]["motif_caducite"] == "passe"
+
+
+# ---------------------------------------------------------------------------
+# « Voir plus tard »                                                  (COL-23)
+# ---------------------------------------------------------------------------
+
+
+def test_un_conflit_ne_se_cache_pas_au_dela_de_sept_jours_avant_sa_date(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    assert (
+        _sql("SELECT cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]["cache_jusqu_a"]
+        is None
+    )
+
+    # Sept jours avant sa date : permis.
+    _sql(
+        "UPDATE conflit SET cache_jusqu_a = lower(periode) - INTERVAL '7 days' "
+        "WHERE id_conflit = %s",
+        numero,
+    )
+    # Six jours avant : la base refuse.
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _sql(
+            "UPDATE conflit SET cache_jusqu_a = lower(periode) - INTERVAL '6 days' "
+            "WHERE id_conflit = %s",
+            numero,
+        )
+
+
+def test_voir_plus_tard_cache_le_conflit_jusqu_a_sept_jours_avant(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 200, reponse.text
+    assert reponse.json()["id_conflit"] == numero
+    ligne = _sql(
+        "SELECT cache_jusqu_a = lower(periode) - INTERVAL '7 days' AS sept_jours "
+        "FROM conflit WHERE id_conflit = %s",
+        numero,
+    )[0]
+    assert ligne["sept_jours"] is True
+    assert client.get("/conflits", headers=thomas).json() == []
+    tous = client.get("/conflits", headers=thomas, params={"tous": True}).json()
+    assert [c["id_conflit"] for c in tous] == [numero]
+    assert tous[0]["a_arbitrer"] is False and tous[0]["cache_jusqu_a"] is not None
+    # Caché, il ne se recache pas.
+    assert client.post(f"/conflits/{numero}/plus-tard", headers=thomas).status_code == 409
+
+
+def test_un_conflit_cache_revient_puis_ne_se_cache_plus(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    # Le temps passe : la date de retour est derrière nous.
+    _sql(
+        "UPDATE conflit SET cache_jusqu_a = now() - INTERVAL '1 minute' WHERE id_conflit = %s",
+        numero,
+    )
+
+    revenus = client.get("/conflits", headers=thomas).json()
+    assert [c["id_conflit"] for c in revenus] == [numero]
+    assert revenus[0]["a_arbitrer"] is True
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+    assert reponse.status_code == 409
+    assert reponse.json()["code"] == "regle_metier"
+    assert "déjà" in reponse.json()["message"]
+
+
+def test_un_conflit_a_moins_de_sept_jours_ne_se_cache_pas(client, thomas):
+    numero = _conflit_dans(client, thomas, 3)
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 409
+    assert "moins de sept jours" in reponse.json()["message"]
+    assert (
+        _sql("SELECT cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]["cache_jusqu_a"]
+        is None
+    )
+    assert [c["id_conflit"] for c in client.get("/conflits", headers=thomas).json()] == [numero]
+
+
+def test_voir_plus_tard_sur_un_conflit_inconnu(client, thomas):
+    reponse = client.post("/conflits/999999/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 404
+    assert reponse.json()["code"] == "introuvable"
+
+
+def test_un_conflit_regle_ne_se_cache_pas(client, thomas):
+    numero = _conflit_dans(client, thomas, 10)
+    client.post(f"/conflits/{numero}/resoudre", headers=thomas, json={"garder": "existante"})
+
+    reponse = client.post(f"/conflits/{numero}/plus-tard", headers=thomas)
+
+    assert reponse.status_code == 409
+    assert "réglé" in reponse.json()["message"]
+
+
+def test_un_conflit_cache_quitte_aujourd_hui(client, thomas):
+    """COL-23 : le bandeau d'Aujourd'hui, où est le bouton, ne montre plus le conflit caché."""
+    numero = _conflit_dans(client, thomas, 10)
+    avant = client.get("/appli/aujourdhui", headers=thomas).json()["conflit"]
+    assert avant is not None and avant["id"] == numero
+
+    assert client.post(f"/conflits/{numero}/plus-tard", headers=thomas).status_code == 200
+    assert client.get("/appli/aujourdhui", headers=thomas).json()["conflit"] is None
+
+
+def test_le_conflit_d_un_autre_ne_se_cache_ni_ne_se_tranche(client, thomas, lorette):
+    numero = _conflit_dans(client, thomas, 10)
+
+    cacher = client.post(f"/conflits/{numero}/plus-tard", headers=lorette)
+    trancher = client.post(
+        f"/conflits/{numero}/resoudre", headers=lorette, json={"garder": "existante"}
+    )
+
+    assert cacher.status_code == 404 and trancher.status_code == 404
+    assert client.get("/conflits", headers=lorette, params={"tous": True}).json() == []
+    ligne = _sql("SELECT statut, cache_jusqu_a FROM conflit WHERE id_conflit = %s", numero)[0]
+    assert ligne == {"statut": "en_attente", "cache_jusqu_a": None}

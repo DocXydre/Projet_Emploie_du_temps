@@ -5,6 +5,7 @@ SELECT
     c.choix,
     c.motif_caducite,
     c.date_detection,
+    c.cache_jusqu_a,
     s.code                        AS source,
 
     -- Ce qui est déjà au planning.
@@ -24,8 +25,11 @@ SELECT
     -- COL-11 : au-delà de deux semaines, on ne dérange pas. L'emploi du temps a
     -- toutes les chances d'être corrigé d'ici là.
     -- COL-19 : en deçà de maintenant, il n'y a plus rien à décider.
+    -- COL-23 : un conflit caché (« Voir plus tard ») ne se montre qu'une fois
+    -- cache_jusqu_a passé ; il ne se cache plus ensuite.
     (    lower(c.periode) >  now()
-     AND lower(c.periode) <= now() + INTERVAL '14 days') AS a_arbitrer,
+     AND lower(c.periode) <= now() + INTERVAL '14 days'
+     AND (c.cache_jusqu_a IS NULL OR c.cache_jusqu_a <= now())) AS a_arbitrer,
     EXTRACT(DAY FROM lower(c.periode) - now())::INTEGER AS dans_combien_de_jours
 FROM conflit c
 JOIN occupation o ON o.id_occupation = c.id_occupation
@@ -33,5 +37,6 @@ JOIN source s     ON s.id_source = c.id_source;
 
 COMMENT ON VIEW v_conflit IS
     'Les deux versions côte à côte, pour que le bot puisse poser la question
-     sans que le client ait à recalculer quoi que ce soit. Seul un conflit à
-     venir, et à moins de deux semaines, est à arbitrer.';
+     sans que le client aient à recalculer quoi que ce soit. Seul un conflit à
+     venir, et à moins de deux semaines, est à arbitrer. Un conflit caché (COL-23)
+     n''est pas à arbitrer avant cache_jusqu_a.';
