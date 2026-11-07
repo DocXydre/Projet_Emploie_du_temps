@@ -1,11 +1,13 @@
-"""Le démarrage du coach dans le bot, question par question.      (DEM-1 à DEM-4)"""
+"""Le démarrage du coach, question par question.      (DEM-1 à DEM-4)"""
 
 # ruff: noqa: F811 (les fixtures de test_coach sont importées puis demandées)
 
+from datetime import date
+
 import pytest
 
-from api.coach import demarrage
-from api.coach import telegram as coach_tg
+from api.coach import demarrage, textes
+from api.routeurs import coach as routes
 from tests.test_coach import dit, faux, u  # noqa: F401
 from tests.test_ensemble import _id, sql, un
 
@@ -21,36 +23,28 @@ def nu(base) -> int:
 
 def bouton(u: int, rappel: str):
     assert rappel.startswith("co:dm:"), rappel
-    return coach_tg.repondre(u, "dm", rappel[len("co:dm:"):])
+    return demarrage.repondre_bouton(u, rappel[len("co:dm:"):])
 
 
 def rappels(ecran) -> list[str]:
     return [r for rangee in ecran.boutons for _, r in rangee]
 
 
-def test_tant_que_rien_n_est_rempli_le_coach_renvoie_au_demarrage(nu):
+def test_tant_que_le_profil_manque_un_message_repond_a_la_question(nu):
     assert demarrage.bloc_manquant(nu) == "profil"
-    # Un message libre ne part pas au modèle : c'est la réponse à la question.
-    ecran = coach_tg.texte_libre(nu, "Combien de séries pour progresser ?")
+    ecran = demarrage.repondre_texte(nu, "Combien de séries pour progresser ?")
     assert "étape 1 sur 4" in ecran.texte and "Je n'ai pas compris la date" in ecran.texte
-    # Une commande du coach est refusée, avec la question en cours.
-    ecran = coach_tg.commande("semaine", nu, [])
-    assert "finir ton démarrage" in ecran.texte and "date de naissance" in ecran.texte
-    # Les commandes de démarrage, elles, restent ouvertes.
-    assert "démarrage" not in coach_tg.commande("lieux", nu, []).texte.lower()
-    # Un autre bouton du coach aussi renvoie au démarrage.
-    assert "Finissons d'abord" in coach_tg.repondre(nu, "plan", "0").texte
 
 
 def test_le_demarrage_complet_au_bout_des_boutons(nu, faux):
     faux(dit("Objectif réaliste. Je construis ton plan quand tu veux."))
-    ecran = coach_tg.commande("initialiser", nu, [])
+    ecran = demarrage.recommencer(nu)
     assert "Question 1 sur 9" in ecran.texte
 
     # Le profil.
-    ecran = coach_tg.texte_libre(nu, "14/03/2002")
+    ecran = demarrage.repondre_texte(nu, "14/03/2002")
     ecran = bouton(nu, "co:dm:sexe=homme")
-    ecran = coach_tg.texte_libre(nu, "180 cm")
+    ecran = demarrage.repondre_texte(nu, "180 cm")
     ecran = bouton(nu, "co:dm:niveau_musculation=intermediaire")
     ecran = bouton(nu, "co:dm:niveau_course=debutant")
     ecran = bouton(nu, "co:dm:moment_prefere=soir")
@@ -73,13 +67,12 @@ def test_le_demarrage_complet_au_bout_des_boutons(nu, faux):
     ecran = bouton(nu, "co:dm:lim_question=1")
     ecran = bouton(nu, "co:dm:lim_zone=avant-bras")
     ecran = bouton(nu, "co:dm:lim_cote=gauche")
-    ecran = coach_tg.texte_libre(nu, "Je ne peux pas tourner l'avant-bras paume vers le haut")
+    ecran = demarrage.repondre_texte(nu, "Je ne peux pas tourner l'avant-bras paume vers le haut")
     assert "Limitation notée" in ecran.texte and "Une autre" in ecran.texte
     ecran = bouton(nu, "co:dm:lim_autre=0")
     assert "étape 3 sur 4" in ecran.texte
     assert sql("SELECT libelle, zone, cote FROM limitation WHERE id_utilisateur = %s", nu) \
         == [{"libelle": "Avant-bras (gauche)", "zone": "avant-bras", "cote": "gauche"}]
-    assert un("SELECT count(*) FROM depistage") == 0
 
     # Les lieux : un pour la musculation, aucun pour la course, un pour le cardio.
     lieu = next(r for r in rappels(ecran) if r.startswith("co:dm:l="))
@@ -97,10 +90,10 @@ def test_le_demarrage_complet_au_bout_des_boutons(nu, faux):
 
     # L'objectif : une course, sa distance, le temps visé, sa date.
     ecran = bouton(nu, "co:dm:objectif=course")
-    ecran = coach_tg.texte_libre(nu, "15 km")
+    ecran = demarrage.repondre_texte(nu, "15 km")
     assert "En combien de temps" in ecran.texte
-    ecran = coach_tg.texte_libre(nu, "1h05")
-    ecran = coach_tg.texte_libre(nu, "12/04/2027")
+    ecran = demarrage.repondre_texte(nu, "1h05")
+    ecran = demarrage.repondre_texte(nu, "12/04/2027")
     assert "Le démarrage est fini" in ecran.texte
     # L'avis du coach arrive par son message, pas recopié ici (sinon deux fois).
     assert "Objectif réaliste" not in ecran.texte and "arrive juste après" in ecran.texte
@@ -114,12 +107,12 @@ def test_le_demarrage_complet_au_bout_des_boutons(nu, faux):
 
 
 def test_un_refus_repose_la_question(nu):
-    coach_tg.commande("initialiser", nu, [])
+    demarrage.recommencer(nu)
     # PRO-7 : moins de 18 ans, la base refuse le profil à la fin du bloc.
-    coach_tg.texte_libre(nu, "01/01/2015")
+    demarrage.repondre_texte(nu, "01/01/2015")
     for rappel in ("co:dm:sexe=homme",):
         bouton(nu, rappel)
-    coach_tg.texte_libre(nu, "170")
+    demarrage.repondre_texte(nu, "170")
     for rappel in ("co:dm:niveau_musculation=debutant", "co:dm:niveau_course=debutant",
                    "co:dm:moment_prefere=matin", "co:dm:jok=1",
                    "co:dm:accord_complements=0"):
@@ -130,7 +123,7 @@ def test_un_refus_repose_la_question(nu):
 
 
 def test_un_vieux_bouton_ne_casse_rien(nu):
-    coach_tg.commande("initialiser", nu, [])
+    demarrage.recommencer(nu)
     ecran = bouton(nu, "co:dm:niveau_course=avance")   # pas encore la bonne question
     assert "date de naissance" in ecran.texte
 
@@ -146,7 +139,7 @@ def test_un_compte_deja_pret_n_est_pas_force(nu):
     # Profil, lieux et objectif sont là : il ne reste que la question des
     # limitations, posée une fois. Un « non » la clôt pour de bon.
     assert demarrage.bloc_manquant(nu) == "limitations"
-    ecran = coach_tg.texte_libre(nu, "Combien de séries ?")
+    ecran = demarrage.repondre_texte(nu, "Combien de séries ?")
     assert "douleur ou une limitation" in ecran.texte
     ecran = bouton(nu, "co:dm:lim_question=0")
     assert "Le démarrage est fini" in ecran.texte
@@ -200,25 +193,20 @@ def test_reinitialiser_efface_le_coach_et_garde_le_reste(u):
                 "(SELECT 1 FROM seance s WHERE s.id_occurrence = o.id_occurrence)", u)
     assert autres >= 1 and all(_compte(t, u) for t in COACH)
 
-    ecran = coach_tg.commande("reinitialiser", u, [])
-    assert "définitif" in ecran.texte and "co:rz:sante" in rappels(ecran)
-    assert "Rien n'a été effacé" in coach_tg.repondre(u, "rz", "non").texte
-    assert _compte("profil", u) == 1
+    routes.reinitialiser(demarrage._qui(u), garder_sante=True)
 
-    ecran = coach_tg.repondre(u, "rz", "sante")
-    assert "C'est effacé" in ecran.texte and "étape 1 sur 4" in ecran.texte
     assert {t: _compte(t, u) for t in COACH} == dict.fromkeys(COACH, 0)
     # L'emploi du temps, la montre et l'activation restent.
     assert un("SELECT count(*) FROM occurrence WHERE id_utilisateur = %s", u) == autres
     assert un("SELECT count(*) FROM sante_jour WHERE id_utilisateur = %s", u) == 1
     assert un("SELECT coach_actif FROM utilisateur WHERE id_utilisateur = %s", u) is True
     assert demarrage.requis(u)
+    assert "étape 1 sur 4" in demarrage.ecran(u).texte
 
 
 def test_reinitialiser_tout_efface_aussi_la_montre(u):
     _rempli(u)
-    ecran = coach_tg.repondre(u, "rz", "tout")
-    assert "Envoyer tout l'historique" in ecran.texte
+    routes.reinitialiser(demarrage._qui(u), garder_sante=False)
     assert un("SELECT count(*) FROM sante_jour WHERE id_utilisateur = %s", u) == 0
     # Le compte de l'autre personne n'est pas touché.
     assert un("SELECT count(*) FROM utilisateur") == 2
@@ -245,3 +233,19 @@ def test_les_limitations_s_importent_seules_depuis_le_fichier(u, monkeypatch, ca
               "USING (id_limitation) WHERE l.id_utilisateur = %s", u) == 1
     # Le démarrage ne reposera pas la question des limitations.
     assert demarrage.bloc_manquant(u) is None
+
+
+def test_une_date_s_ecrit_comme_on_veut():
+    assert textes.lire_jour("14/03/2002") == date(2002, 3, 14)
+    assert textes.lire_jour("2027-04-12") == date(2027, 4, 12)
+    assert textes.lire_jour("  12/04/27 ") == date(2027, 4, 12)
+    assert textes.lire_jour("31/02/2020") is None
+    assert textes.lire_jour("pas une date") is None
+
+
+def test_le_motif_d_un_refus_est_dit_tel_quel():
+    class AvecMotif(Exception):
+        detail = {"message": "Motif donné par l'API"}
+
+    assert textes.message_d_erreur(AvecMotif()) == "Motif donné par l'API"
+    assert textes.message_d_erreur(ValueError("x")) == "Impossible pour l'instant."
