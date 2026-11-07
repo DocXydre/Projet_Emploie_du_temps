@@ -34,6 +34,11 @@ PREFIXES = {
 
 
 def _identifiant(ligne: dict) -> str:
+    # RGL-20 : une tâche à plusieurs a une ligne par participant, donc un
+    # événement par participant ; l'identifiant porte le compte pour qu'ils
+    # ne se confondent pas dans un calendrier composé des deux.
+    if ligne["nature"] == "tache":
+        return f"tache-{ligne['id']}-{ligne['id_utilisateur']}@planif.local"
     return f"{ligne['nature']}-{ligne['id']}@planif.local"
 
 
@@ -44,8 +49,8 @@ def _titre(ligne: dict) -> str:
     prefixe = PREFIXES.get(ligne["categorie"], "")
     libelle = ligne["libelle"]
 
-    # Pour le sport, le lieu remplace le libellé : « Sport : Piscine du
-    # SUAPS » est plus utile que « Sport : Séance de sport ».
+    # Pour le sport, le lieu remplace le libellé : « Sport : <nom du lieu> »
+    # est plus utile que « Sport : Séance de sport ».
     if ligne["categorie"] == "sport" and ligne.get("lieu"):
         libelle = ligne["lieu"]
 

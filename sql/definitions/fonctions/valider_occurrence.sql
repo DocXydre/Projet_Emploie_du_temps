@@ -1,5 +1,6 @@
 -- -----------------------------------------------------------------------------
--- Valider, prévenir, rééquilibrer                              (EXE-14, EXE-16)
+-- Valider, prévenir, rééquilibrer                              (EXE-14, EXE-16,
+--                                                              RGL-18, RGL-19)
 --
 -- Corps repris de la migration 036, avec la suite qui manquait.
 -- -----------------------------------------------------------------------------
@@ -37,9 +38,22 @@ BEGIN
     DELETE FROM notification
      WHERE id_occurrence = p_occurrence AND statut = 'a_envoyer';
 
-    -- EXE-16 : la tâche quitte la liste de l'autre, il faut qu'il l'apprenne
-    -- autrement qu'en constatant un trou.
-    IF v_ancien IS NOT NULL AND v_ancien <> p_acteur THEN
+    -- RGL-18, RGL-19 : une occurrence à plusieurs est validée par n'importe lequel
+    -- de ses participants. Les autres l'apprennent en une phrase ; la balance n'a
+    -- pas bougé (une tâche à plusieurs n'y entre pas), donc pas de rééquilibrage.
+    IF EXISTS (SELECT 1 FROM occurrence_participant
+                WHERE id_occurrence = p_occurrence) THEN
+        INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
+        SELECT pa.id_utilisateur, p_occurrence, 'alerte',
+               format('✅ « %s » est noté fait par %s.',
+                      (SELECT libelle FROM tache WHERE id_tache = o.id_tache),
+                      (SELECT nom FROM utilisateur WHERE id_utilisateur = p_acteur))
+          FROM occurrence_participant pa
+         WHERE pa.id_occurrence = p_occurrence
+           AND pa.id_utilisateur <> p_acteur;
+    ELSIF v_ancien IS NOT NULL AND v_ancien <> p_acteur THEN
+        -- EXE-16 : la tâche quitte la liste de l'autre, il faut qu'il l'apprenne
+        -- autrement qu'en constatant un trou.
         INSERT INTO notification (id_utilisateur, id_occurrence, type, contenu)
         SELECT v_ancien, p_occurrence, 'alerte',
                format('👍 %s a fait « %s » à ta place. Elle quitte ta liste, '
@@ -57,4 +71,6 @@ END $$;
 COMMENT ON FUNCTION valider_occurrence IS
     'Marque une occurrence faite et la crédite à celui qui la valide, même
      prévue pour l''autre (EXE-14). Le prévient (EXE-16) et rouvre la semaine
-     à la répartition (PLA-13).';
+     à la répartition (PLA-13). Une occurrence à plusieurs (RGL-18) est validée
+     par n''importe lequel de ses participants, les autres sont prévenus, et
+     rien n''est rééquilibré (RGL-19).';

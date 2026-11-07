@@ -66,6 +66,8 @@ Ces consignes valent pour toute session, humaine ou IA.
 
 Chaque lot se termine par quelque chose qu'on peut vérifier. Statuts : **à faire**, **en cours**, **fait** (avec la date).
 
+**Ordre retenu le 5 novembre 2026** (Thomas) : les petits lots d'abord, pour éprouver l'usine sur du simple : C, H, puis I partie 1 (« Voir plus tard », « Je m'en charge », « C'est fait » en plus). Ensuite A, B, la fin de D, E, I partie 2 (la répartition de la semaine), G, F. Les lots se font côté serveur par Uzine ; **les parties iPhone de tous les lots se font à la fin**, quand un runner GitLab sur Mac pourra compiler et tester l'appli.
+
 ### Priorité 1 : HAL au quotidien
 
 Ce qui gêne tous les jours : HAL qui se trompe de sujet, des actions qu'on ne peut pas défaire, des messages retenus la nuit.
@@ -240,6 +242,13 @@ Thomas a relu l'ancien cahier (6 200 lignes, sept parties ajoutées au fil des v
 - **Dictionnaire de données** (choix de Thomas) : gardé en entier dans le cahier.
 - **Codes des règles** (choix de Thomas) : gardés ; les trous ne s'expliquent pas dans le cahier, la correspondance est ici.
 - Idée à étudier : régler le mode Concentration de l'iPhone selon l'emploi du temps (section 4).
+
+### Le 5 novembre 2026 : tout le journal par l'usine
+
+- Les lots du journal sont faits par Uzine : Claude découpe chaque lot en tickets, les agents codent, la pipeline de GitLab teste, Claude relit la merge request finale, Thomas déploie par le bouton.
+- Ordre : les petits lots d'abord (section 3). Les parties iPhone attendent un runner Mac.
+- **Une tâche à plusieurs se fait avec tout le foyer présent** : la règle `a_plusieurs` dit un minimum de membres, et tous les présents y participent (RGL-17, lot E). Le point ouvert sur le choix des participants est fermé.
+- **Rien qui cite une IA dans les commits** (section 1) : ni Claude, ni « Co-Authored-By », ni le moteur d'un agent. L'usine commite « #ticket titre » et fusionne avec le seul titre de la merge request.
 
 ---
 
